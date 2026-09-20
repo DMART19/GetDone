@@ -15,6 +15,8 @@ describe("Phase 25 mobile delivery contracts", () => {
       incidentId: "incident-9"
     })).toBe("/resources/resource-1?incident=incident-9");
 
+    expect(buildMobileDeepLink({ kind: "resource-add" })).toBe("/resources/add");
+
     expect(() => assertSafeInternalDeepLink("//evil.example/path")).toThrow();
     expect(() => buildMobileDeepLink({
       kind: "decision",
