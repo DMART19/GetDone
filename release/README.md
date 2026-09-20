@@ -23,7 +23,7 @@ The generator writes ignored artifacts under `release/out/`:
 - `release-manifest.json` — binds the current checked-out Git SHA to app version, package lock, schema source hashes, policy versions/source hashes, database migration/schema state, AI Gateway/routing state, adapter versions/source hashes, environment manifest, CI evidence, acceptance evidence, and manual hashes.
 - `OPERATING_MANUAL.md` — human-readable reconstruction of the same release anatomy and release flow.
 
-GitHub Actions generates and verifies these artifacts after the normal build gate, then archives them with `actions/upload-artifact`.
+GitHub Actions generates and verifies these artifacts after the normal build gate, then archives them with `actions/upload-artifact`. Pull-request evidence binds the checked-out merge/test commit used by Actions; main-branch evidence binds the pushed main commit.
 
 The generated manifest is intentionally not committed because a commit cannot contain its own final Git SHA without becoming self-referential. The committed registry is stable input; the generated CI artifact binds that input to the exact checked-out SHA.
 
