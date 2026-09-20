@@ -404,3 +404,25 @@ export function assertVerificationReceipt(
 
   return receipt;
 }
+
+
+export interface VerificationReceiptStore {
+  getReceipt(id: string): Promise<VerificationReceipt | null>;
+}
+
+export async function requireAuthoritativeVerificationReceipt(
+  store: VerificationReceiptStore,
+  receiptId: string,
+  input: Parameters<typeof assertVerificationReceipt>[1]
+) {
+  const receipt = await store.getReceipt(receiptId);
+  if (!receipt) {
+    throw new ControlPlaneError(
+      "NOT_FOUND",
+      "Authoritative verification receipt was not found"
+    );
+  }
+
+  assertVerificationReceipt(receipt, input);
+  return receipt;
+}
