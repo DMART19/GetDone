@@ -1,0 +1,112 @@
+{
+  "registrySchemaVersion": "1.0.0",
+  "registryVersion": "2026-09-20.1",
+  "appVersion": "0.1.0",
+  "schemaVersions": {
+    "controlApi": {
+      "version": "1.0.0",
+      "sourcePath": "lib/control-plane/schemas.ts"
+    },
+    "capabilityRegistry": {
+      "version": "1.0.0",
+      "sourcePath": "lib/domain/capabilities.ts"
+    },
+    "planSchema": {
+      "version": "1.0.0",
+      "sourcePath": "lib/planning/plan-schema.ts"
+    },
+    "resourceDomain": {
+      "version": "1.0.0",
+      "sourcePath": "lib/domain/resources.ts"
+    },
+    "verification": {
+      "version": "1.1.0",
+      "sourcePath": "lib/verification/verification.ts"
+    },
+    "verificationSourceTrust": {
+      "version": "1.0.0",
+      "sourcePath": "lib/verification/source-trust.ts"
+    },
+    "credentialBroker": {
+      "version": "1.0.0",
+      "sourcePath": "lib/credentials/broker.ts"
+    },
+    "placement": {
+      "version": "1.0.0",
+      "sourcePath": "lib/resources/placement.ts"
+    },
+    "reservationLedger": {
+      "version": "1.0.0",
+      "sourcePath": "lib/resources/reservations.ts"
+    },
+    "schedulerDispatch": {
+      "version": "1.1.0",
+      "sourcePath": "lib/resources/scheduler.ts"
+    },
+    "costGovernor": {
+      "version": "1.0.0",
+      "sourcePath": "lib/resources/cost-governor.ts"
+    },
+    "policySimulator": {
+      "version": "1.0.0",
+      "sourcePath": "lib/resources/policy-simulator.ts"
+    },
+    "releaseManifest": {
+      "version": "1.0.0",
+      "sourcePath": "scripts/generate-release-artifacts.mjs"
+    }
+  },
+  "policy": {
+    "registryVersion": "2026-09-21.1",
+    "registrySourcePath": "lib/domain/policy-registry.ts",
+    "engineVersion": "2026-09-20.2",
+    "engineSourcePath": "lib/planning/policy-engine.ts"
+  },
+  "aiGateway": {
+    "status": "not-connected",
+    "adapterVersion": "UNIMPLEMENTED",
+    "routingPolicyVersion": "UNCONFIGURED",
+    "sourcePath": "docs/ARCHITECTURE.md"
+  },
+  "adapters": {
+    "resourceDispatch": {
+      "status": "contract-only",
+      "version": "1.0.0",
+      "sourcePath": "lib/resources/scheduler.ts"
+    },
+    "atomicReservationStore": {
+      "status": "contract-only",
+      "version": "1.0.0",
+      "sourcePath": "lib/resources/reservations.ts"
+    },
+    "businessAction": {
+      "status": "not-implemented",
+      "version": "UNIMPLEMENTED",
+      "sourcePath": "docs/GetDone_UFO_v2_MASTER_BUILD_PLAN.md"
+    },
+    "aiGateway": {
+      "status": "not-connected",
+      "version": "UNIMPLEMENTED",
+      "sourcePath": "docs/ARCHITECTURE.md"
+    }
+  },
+  "environmentManifestPath": "release/environment-manifest.json",
+  "acceptanceEvidencePaths": [
+    ".github/workflows/ci.yml",
+    "docs/SOL_ARCHITECTURE_INTEGRITY_REPORT.md",
+    "docs/SOL_PHASE_29_32_REPORT.md",
+    "docs/SOL_PHASE_33_REPORT.md",
+    "docs/SOL_PHASE_34_REPORT.md",
+    "docs/SOL_PHASE_35_40_REPORT.md"
+  ],
+  "manualSourcePaths": [
+    "docs/ARCHITECTURE.md",
+    "docs/ASTRA_HANDOFF.md",
+    "docs/GetDone_UFO_v2_MASTER_BUILD_PLAN.md",
+    "docs/SOL_IMPLEMENTATION_STATUS.md"
+  ],
+  "generatedArtifacts": {
+    "machineManifest": "release/out/release-manifest.json",
+    "operatingManual": "release/out/OPERATING_MANUAL.md"
+  }
+}
