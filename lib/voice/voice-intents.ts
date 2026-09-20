@@ -53,6 +53,17 @@ export interface VoiceIntentAdapter {
   classify(input: VoiceAdapterInput): Promise<VoiceAdapterCandidate>;
 }
 
+export interface VoiceSummaryResponse {
+  source: "control-api";
+  voiceIntentId: string;
+  voiceIntentHash: string;
+  presentation: "brief-redacted";
+  summary: string;
+  generatedAt: string;
+  canAuthorize: false;
+  responseHash: string;
+}
+
 export interface VoiceAuthorityBoundary {
   usesControlApi: true;
   usesCurrentPolicyRegistry: true;
@@ -293,7 +304,7 @@ function route(intent: VoiceIntentName, slots: VoiceIntentSlots): Readonly<{
         disposition: "workflow-initiation",
         secureHandoffPath: buildMobileDeepLink({
           kind: "resource",
-          resourceId: slots.resourceId!
+          resourceId: safeId(slots.resourceId, "resourceId")
         }),
         secureHandoffReason: "Voice may propose the drain workflow; policy/approval and execution continue through the Control API"
       };
@@ -368,6 +379,14 @@ export function createVoiceIntentRecord(input: {
 
 export function assertVoiceIntentRecord(record: VoiceIntentRecord) {
   assertPolicyRegistryReference(record.policyRegistry);
+  if (
+    record.source !== "voice"
+    || record.contractVersion !== VOICE_INTENT_CONTRACT_VERSION
+    || record.requiresPolicyEvaluation !== true
+    || record.requiresFreshStepUpInVoice !== false
+  ) {
+    throw new ControlPlaneError("FORBIDDEN", "Voice intent contract/version binding is invalid");
+  }
   const { intentHash, ...base } = record;
   if (sha256Hex(base) !== intentHash) {
     throw new ControlPlaneError("FORBIDDEN", "Voice intent integrity check failed");
@@ -399,6 +418,38 @@ export function assertVoiceIntentRecord(record: VoiceIntentRecord) {
     );
   }
   return record;
+}
+
+export function createVoiceSummaryResponse(input: {
+  record: VoiceIntentRecord;
+  summary: string;
+  generatedAt: string;
+}): VoiceSummaryResponse {
+  assertVoiceIntentRecord(input.record);
+  assertNoCredentialMaterial(input.summary, "voice summary");
+  const summary = input.summary.trim();
+  if (!summary || summary.length > 600) {
+    throw new ControlPlaneError(
+      "VALIDATION_FAILED",
+      "Voice summary must contain 1-600 characters"
+    );
+  }
+  if (!Number.isFinite(Date.parse(input.generatedAt))) {
+    throw new ControlPlaneError("VALIDATION_FAILED", "Voice summary generatedAt is invalid");
+  }
+  const base = {
+    source: "control-api" as const,
+    voiceIntentId: input.record.id,
+    voiceIntentHash: input.record.intentHash,
+    presentation: "brief-redacted" as const,
+    summary,
+    generatedAt: input.generatedAt,
+    canAuthorize: false as const
+  };
+  return Object.freeze({
+    ...base,
+    responseHash: sha256Hex(base)
+  });
 }
 
 export function createVoiceIntentAuditEvent(record: VoiceIntentRecord): AuditEvent {
