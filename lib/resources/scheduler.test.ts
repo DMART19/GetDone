@@ -242,6 +242,7 @@ function decision(governorReport = governor()) {
     id: "decision-34",
     request,
     placementReport,
+    governorReport,
     rankingReport: ranking(governorReport),
     decidedAt: "2026-09-20T22:00:00Z"
   });
@@ -565,6 +566,7 @@ describe("Phase 34 architecture-integrity scheduling and dispatch", () => {
       id: "decision-forbidden",
       request,
       placementReport,
+      governorReport: governor(60),
       rankingReport: report,
       selectedResourceId: "resource-b",
       decidedAt: "2026-09-20T22:00:00Z"
@@ -574,6 +576,7 @@ describe("Phase 34 architecture-integrity scheduling and dispatch", () => {
       id: "decision-policy-forbidden",
       request,
       placementReport,
+      governorReport: governor(60),
       rankingReport: report,
       selectedResourceId: "resource-forbidden",
       decidedAt: "2026-09-20T22:00:00Z"
@@ -587,6 +590,7 @@ describe("Phase 34 architecture-integrity scheduling and dispatch", () => {
       id: "decision-34-retry",
       request,
       placementReport,
+      governorReport: governed,
       rankingReport: ranking(governed),
       selectedResourceId: "resource-b",
       decidedAt: "2026-09-20T22:00:10Z",
