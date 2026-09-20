@@ -132,16 +132,17 @@ Canonical production acceptance remains blocked on real resource/provider integr
 
 ## CI acceptance
 
-This branch must pass the repository CI gate before merge:
+**DETERMINISTIC REPOSITORY GATE: PASS**
 
-```text
-npm ci
-verify:runtime
-verify:secrets
-typecheck
-lint
-vitest
-next build
-```
+GitHub Actions run **#61** on code head `6b8a39ab3f255fb4b5037dd4440bbd6e180ba818` completed successfully on September 20, 2026.
 
-Do not mark the tranche merged/accepted until that branch CI is green.
+Verified:
+- `npm ci`
+- Node 24 / npm 11.19 runtime verification
+- secret-pattern scan
+- TypeScript typecheck
+- ESLint
+- Vitest: **38 test files passed / 176 tests passed**
+- Next.js production build
+
+This proves the deterministic repository tranche is internally green. It does **not** convert the infrastructure-dependent portions of canonical Phases 22, 26, or 27 into production PASS; real persistence, verifier sources, provider/device flows, telemetry, and hardware/runtime acceptance remain required where the master plan specifies them.
