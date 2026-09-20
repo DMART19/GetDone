@@ -78,6 +78,14 @@ if (failures.length === 0) {
   if (manifest.gitSha !== gitSha()) {
     fail("Release manifest Git SHA does not match the checked-out commit");
   }
+  if (
+    manifest.manifestSchemaVersion !== registry.schemaVersions.releaseManifest.version
+    || manifest.registrySchemaVersion !== registry.registrySchemaVersion
+    || registry.environmentManifestSchemaVersion !== environment.manifestSchemaVersion
+    || manifest.environmentManifestSchemaVersion !== environment.manifestSchemaVersion
+  ) {
+    fail("Release/environment registry schema version drift detected");
+  }
   if (manifest.appVersion !== packageJson.version || registry.appVersion !== packageJson.version) {
     fail("App version drift exists between package.json, registry, and release manifest");
   }
