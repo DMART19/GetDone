@@ -19,6 +19,11 @@ import {
 } from "@/lib/authorization/grants";
 import { validPlan } from "@/lib/planning/test-fixture";
 import { hashPlan, hashPlanStep } from "@/lib/planning/plan-hash";
+import {
+  createVerificationEvidence,
+  createVerificationReceipt,
+  createVerificationRequest
+} from "@/lib/verification/verification";
 
 class MemoryStore<T extends AuthoritativeEntity> implements EntityStore<T> {
   constructor(public value: T) {}
@@ -217,11 +222,54 @@ describe("transactional domain services", () => {
     expect((await jobService.start(base.id, command("job.start"))).state).toBe("running");
   });
 
-  it("does not verify an outcome without evidence", async () => {
+  it("does not verify an outcome without a valid verification receipt", async () => {
     const store = new MemoryStore<OutcomeRecord>({
       ...base, state: "recorded", jobId: "job-1", metric: "conversion-rate", value: 0.12, evidenceIds: []
     });
     const service = new OutcomeService(manager<OutcomeStores>({ outcomes: store }));
-    expect(() => service.verify(base.id, command("outcome.verify"), [])).toThrow();
+    const verifyCommand = command("outcome.verify");
+    const request = createVerificationRequest({
+      id: "verification-outcome-1",
+      scope: verifyCommand.scope,
+      targetType: "outcome",
+      targetId: base.id,
+      strategies: ["business"],
+      minEvidenceCount: 1,
+      requireIndependentEvidence: true,
+      maxEvidenceAgeSeconds: 999999999,
+      requestedAt: "2026-09-20T17:00:00Z",
+      expiresAt: "2099-01-01T00:00:00Z"
+    });
+    const evidence = createVerificationEvidence({
+      id: "outcome-evidence-1",
+      requestId: request.id,
+      scope: verifyCommand.scope,
+      targetType: "outcome",
+      targetId: base.id,
+      strategy: "business",
+      sourceId: "independent-metrics",
+      sourceAuthority: "verifier",
+      observedAt: "2026-09-20T17:30:00Z",
+      payloadHash: "outcome-payload-hash"
+    });
+    const receipt = createVerificationReceipt({
+      id: "outcome-receipt-1",
+      request,
+      evidence: [evidence],
+      result: "verified",
+      reason: "independent metrics confirm the outcome",
+      issuedAt: "2026-09-20T18:00:00Z",
+      expiresAt: "2098-12-31T00:00:00Z"
+    });
+
+    await expect(service.verify(base.id, verifyCommand, receipt)).resolves.toMatchObject({
+      state: "verified",
+      verificationReceiptId: receipt.id
+    });
+
+    expect(() => service.verify(base.id, command("wrong-receipt"), {
+      ...receipt,
+      targetId: "another-outcome"
+    })).toThrow();
   });
 });
