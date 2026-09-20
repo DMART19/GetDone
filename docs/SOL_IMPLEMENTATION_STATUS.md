@@ -95,6 +95,56 @@ This file tracks code actually implemented from `SOL_UPGRADE_EXECUTION_PLAN.md`.
 - Resource selection and durable dispatch remain explicitly deferred.
 - See `docs/PHASE_14_18_DETERMINISTIC_REPORT.md`.
 
+
+### Authority hardening — requirements 21–40
+
+- Added first-class authoritative Events.
+- Unified authoritative Goal, Plan, Decision, Approval, Task, Job, Outcome, and Event transition behavior behind transactional state/audit/idempotency rules.
+- Added hash-bound authorization grants, scope binding, expiry, consumption records, proof freshness, validation receipts, policy snapshots, and capability-registry binding.
+- Task authorization now consumes persisted grants and Job authority inherits only from authoritative Task consumption.
+- Latest mainline authority-hardening CI was green before this tranche.
+
+### Phase 22 — Deterministic verification foundation
+
+- Added first-class Verification state machine: requested -> collecting -> evaluating -> verified/failed/uncertain.
+- Added hash-bound VerificationRequest, VerificationEvidence, and VerificationReceipt contracts.
+- Added request/evidence/receipt freshness and expiry checks.
+- Added evidence integrity hashes and request/target/scope binding.
+- Added independent-source rules so execution/provider evidence alone cannot establish verified success when independence is required.
+- Added an explicit uncertain result rather than manufacturing success.
+- Job success/uncertain transitions now require matching authoritative verification receipts.
+- Outcome verified/uncertain/rejected transitions now bind to verification receipts.
+- Production measurement collectors and persistence remain infrastructure-dependent.
+
+### Phase 23 — Advisory operational memory foundation
+
+- Added scoped Fact, Lesson, Experiment, Observation, and OutcomeReference records.
+- Added confidence, sample size, confounders, evidence, expiry, supersession, tags, and relevance scoring.
+- Memory is explicitly advisory and cannot mutate policy or authorization.
+- Selection enforces exact portfolio/company scope and filters expired/superseded records.
+- Added a dedicated bounded memory section to the existing context assembler.
+- Durable database persistence and production retrieval indexes remain deferred.
+
+### Phase 26 — Authoritative Resource Registry foundation
+
+- Expanded the resource domain with identity evidence, trust evidence, health records, capability bindings, locations, cost profiles, provider bindings, and registry read models.
+- Added authoritative resource discovery and lifecycle service.
+- Added tenant-scoped registry read behavior.
+- Added a fail-closed READY gate requiring verified identity, accepted trust, validated capability/adapter bindings, fresh healthy status with a health method, environment permission, policy binding, and active provider/adapter binding.
+- Provider/agent claims still cannot directly set trust or READY.
+- Production database persistence and real provider/agent evidence remain deferred.
+
+### Phase 27 — Deterministic Resource Enrollment foundation
+
+- Added first-class Enrollment state machine:
+  IDENTIFY -> CREATE_ENROLLMENT -> OWNER_ACTION -> AUTHENTICATE -> DISCOVER -> PROFILE -> VALIDATE -> TEST -> REGISTER -> READY.
+- Added server-scoped enrollment records with requested type, environment permissions, adapter path, owner-action requirements, evidence, attempts, and expiry.
+- Raw enrollment token/challenge material is never persisted; only hashes are stored.
+- Added one-time token/challenge consumption, replay resistance, expiry checks, cancellation/failure/expiry states, and deterministic restart with new one-time material.
+- Every enrollment transition runs through the authoritative transition/audit/idempotency layer.
+- Real Raspberry Pi/Linux agent implementation remains Phase 28.
+- See `docs/SOL_PHASE_22_23_26_27_REPORT.md`.
+
 ### SOL-9 — CI/security hardening
 
 - Upgraded the project from vulnerable Next.js 15.5.2 to the patched 15.5.25 release line.
@@ -127,6 +177,8 @@ No production secret should be committed to this repository or pasted into front
 
 ## Astra handoff still deferred
 
-No production AI gateway, autonomous planning runtime, durable distributed job engine, real resource enrollment agent, credential broker, scheduler, reservations/capacity ledger, provider failover, or production Resource Fabric behavior has been claimed as implemented.
+No production AI gateway, autonomous planning runtime, durable distributed job engine, real Linux/Pi resource agent, credential broker, scheduler, reservations/capacity ledger, provider failover, or production Resource Fabric runtime has been claimed as implemented.
+
+Phase 22/23 verification-memory contracts and Phase 26/27 registry-enrollment contracts are deterministic foundations. Astra or another runtime-focused agent should connect them to real persistence, workers, agents, providers, and hardware rather than recreate them.
 
 Astra should inherit the deterministic foundation rather than recreate it.
