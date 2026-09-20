@@ -16,6 +16,11 @@ import {
   verifyHmacSha256Callback
 } from "@/lib/security/callback-signature";
 import { assertProductionPromotionBoundary } from "@/lib/security/production-boundary";
+import {
+  createVerificationEvidence,
+  createVerificationRequest,
+  resolveVerificationRequest
+} from "@/lib/verification/verification";
 
 describe("Phase 24 adversarial security regression", () => {
   it("rejects expired sessions", () => {
@@ -131,28 +136,44 @@ describe("Phase 24 adversarial security regression", () => {
   });
 
   it("prevents provider or worker production promotion even with a verified receipt", () => {
-    const verificationReceipt = {
-      id: "receipt-1",
-      requestId: "request-1",
-      portfolioId: "portfolio-a",
-      companyId: "company-a",
-      environment: "production" as const,
-      subject: { type: "deployment" as const, id: "deployment-1" },
-      verdict: "verified" as const,
-      strategyResults: [],
-      evidenceIds: ["evidence-1"],
-      evidenceHashes: ["hash-1"],
-      verifiedAt: "2026-09-20T20:59:00Z",
-      expiresAt: "2026-09-20T21:05:00Z",
-      receiptHash: "receipt-hash"
-    };
-
     const scope = {
       userId: "user-a",
       portfolioId: "portfolio-a",
       companyId: "company-a",
       environment: "production" as const
     };
+    const request = createVerificationRequest({
+      id: "deployment-verification-1",
+      portfolioId: scope.portfolioId,
+      companyId: scope.companyId,
+      environment: scope.environment,
+      subject: { type: "deployment", id: "deployment-1" },
+      strategies: ["system"],
+      requiresIndependentEvidence: false,
+      maxEvidenceAgeSeconds: 600,
+      requestedAt: "2026-09-20T20:50:00Z",
+      expiresAt: "2026-09-20T21:10:00Z"
+    });
+    const evidence = createVerificationEvidence({
+      id: "deployment-evidence-1",
+      portfolioId: scope.portfolioId,
+      companyId: scope.companyId,
+      subject: request.subject,
+      strategy: "system",
+      result: "pass",
+      sourceType: "system-probe",
+      sourceId: "deployment-health",
+      independenceKey: "deployment-health",
+      observedAt: "2026-09-20T20:58:00Z",
+      payloadHash: "deployment-health-hash",
+      provenance: "deployment:health",
+      confidence: 1
+    });
+    const verificationReceipt = resolveVerificationRequest(request, [evidence], {
+      receiptId: "deployment-receipt-1",
+      verifiedAt: "2026-09-20T20:59:00Z",
+      receiptTtlSeconds: 300
+    });
 
     expect(() => assertProductionPromotionBoundary({
       source: "provider",
