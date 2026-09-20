@@ -27,9 +27,11 @@ The current repository has no authoritative database migrations, live AI Gateway
 
 Phase 41 records those facts explicitly:
 - database: `not-connected`, migration/schema `UNIMPLEMENTED`;
-- AI Gateway: `not-connected`, adapter `UNIMPLEMENTED`, routing policy `UNCONFIGURED`;
+- AI Gateway deterministic contract/router exists, while live adapter remains `not-connected`, adapter `UNIMPLEMENTED`, active routing policy `UNCONFIGURED`;
 - resource-dispatch and atomic-reservation-store adapters: `contract-only`;
-- business-action adapter: `not-implemented`.
+- Integration Registry exists while live integration adapters remain `not-connected`;
+- durable Job runtime contract exists while the production DurableJobStore remains `not-connected`;
+- business-action and software-deployment adapters are `contract-only` while live executors remain `not-connected`.
 
 This prevents missing production infrastructure from being mistaken for an implicit current version.
 
@@ -131,7 +133,7 @@ Phase 41 now makes those absences machine-visible rather than leaving them impli
 
 Phase 42 extends this release-truth layer rather than creating a parallel version system.
 
-The voice-aware release schemas are now versioned as registry `1.1.0`, environment manifest `1.1.0`, and generated release manifest `1.1.0`.
+The release schemas are now versioned as registry `1.2.0`, environment manifest `1.2.0`, and generated release manifest `1.2.0` after adding deterministic Phase 4/13/19–21 contract/live-state separation and quality evidence.
 
 The registry/manifest/manual now also bind:
 - voice intent contract version;
@@ -142,3 +144,14 @@ The registry/manifest/manual now also bind:
 - Phase 42 source/test/report evidence hashes.
 
 Release verification now fails closed if voice contract versions drift, if a disconnected runtime invents a provider/version, if voice authority is weakened, or if environment voice state contradicts the registry.
+
+
+## Quality + deterministic Phase 4/13/19–21 extension
+
+The release registry now tracks semantic contract versions for the new AI Gateway, Integration Registry, Job runtime, business action adapter, software worker, and the refactored Resource Fabric contract files.
+
+`npm run verify:contract-versions` compares tracked contract sources with the previous Git baseline and requires a version bump when an established tracked contract changes.
+
+`npm run verify:coverage` emits `coverage/control-plane-module-coverage.json`; CI binds that generated quality evidence into the release manifest before verification/archive.
+
+The environment manifest keeps live AI, integration, durable-job, business-action, and software-deployment connections false while separately recording deterministic contract availability.
