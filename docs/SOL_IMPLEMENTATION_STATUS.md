@@ -357,10 +357,9 @@ Implemented:
 - eligible candidates include a deterministic explanation sufficient to answer why the resource qualified;
 - no reservation, allocation, ranking, or dispatch is performed.
 
-Still deferred:
-- Phase 33 atomic reservation/capacity ledger;
-- Phase 34 scheduler/ranking/dispatch/start verification;
-- production persistence and concurrent transaction evidence.
+Still deferred from Phase 32 itself:
+- Phase 33/34 production persistence and runtime acceptance evidence.
+- deterministic Phase 33/34 contracts now exist separately and do not change Phase 32 eligibility authority.
 
 See `docs/SOL_PHASE_29_32_REPORT.md`.
 
@@ -410,10 +409,64 @@ Not yet claimed:
 - production row locks/serializable transactions/advisory locks;
 - multi-process concurrency acceptance against a live database;
 - durable lease sweeper/reaper;
-- Phase 34 scheduler ranking/dispatch/start verification;
 - live resource-provider capacity mutation.
+- deterministic Phase 34 now consumes these contracts, but production dispatch still depends on the live Phase 33 store.
 
 See `docs/SOL_PHASE_33_REPORT.md`.
+
+
+## September 20 Phase 34 deterministic scheduler + dispatch tranche
+
+### Phase 34 — Scheduler Dispatch, Start Verification, and Release
+
+**STATUS: DETERMINISTIC SCHEDULER/DISPATCH/VERIFICATION CONTRACTS IMPLEMENTED; LIVE ADAPTER/PERSISTENCE/RUNTIME ACCEPTANCE STILL REQUIRED**
+
+Implemented:
+- bounded scheduler scoring uses explicit reliability, locality, cost, startup-latency, protected-capacity-impact, and owner-preference weights;
+- scheduler ranks only candidates already marked eligible by the authoritative Phase 32 PlacementEvaluationReport;
+- ineligible candidates are ignored and cannot be selected by explicit override;
+- scheduler candidate snapshots are hash-bound, freshness-checked, and bound to the exact Phase 32 candidate snapshot hash;
+- placement decisions are hash-bound to Placement Request, Placement Evaluation, Scheduler Ranking, selected candidate snapshots, score, rationale, and decision time;
+- retry/fallback requires a new placement decision ID plus prior decision ID/hash and an explicit reason; policy/evaluation lineage cannot silently change;
+- helper converts a valid Phase 34 decision into the existing Phase 33 ReservationAuthority without changing Phase 33 contracts;
+- dispatch intent requires a live unexpired Phase 33 reservation and matching pending Allocation record;
+- dispatch intent is bound to decision, reservation, allocation, resource adapter/version, idempotency key, lease expiry, and SHA-256 integrity;
+- resource-adapter results can be accepted/rejected and are hash-bound, but provider ACCEPTED does not establish running truth;
+- start verification requests use the existing Phase 22 `resource-start` strategy, require independent evidence, and bind `executionIndependenceKey` to the dispatch hash;
+- provider self-evidence with the same dispatch independence key is excluded by the existing verification engine;
+- only a fresh VERIFIED independent `resource-start` receipt for the allocation creates `running-verified`;
+- a start receipt arriving after reservation expiry fails closed;
+- verified running records retain decision/reservation/allocation/dispatch/receipt hash lineage and explicitly set `jobStateMutationApplied: false`;
+- monitoring records are hash-bound to the verified running placement;
+- completion verification uses independent `execution` evidence for the allocation;
+- verified completion also has `jobStateMutationApplied: false`; JobService remains authoritative for Job state transitions;
+- verified completion releases capacity by calling the unchanged Phase 33 `releaseReservation` contract, preserving exact-once replay/CAS semantics;
+- deterministic scheduler audit records require explanations plus related hash lineage.
+
+CI/adversarial coverage includes:
+- eligible-only ranking and forbidden-candidate selection rejection;
+- retry/fallback creates a new auditable decision with unchanged policy/evaluation lineage;
+- dispatch preserves Phase 33 decision/reservation/allocation lineage;
+- expired reservation cannot dispatch;
+- provider ACCEPTED alone resolves start as UNCERTAIN and cannot create running truth;
+- fresh independent start evidence can create a verified running placement;
+- delayed start verification after lease expiry fails closed;
+- monitoring/completion verification does not mutate Job truth;
+- verified completion releases capacity through Phase 33 and restores ledger capacity;
+- exact-once Phase 33 release replay remains intact;
+- scheduler audit entries are explainable and hash-bound.
+
+Not yet claimed:
+- live ResourceDispatchAdapter implementation;
+- durable scheduler/placement/dispatch/monitor state;
+- real system probes or resource-agent start verification;
+- real completion monitoring/verification sources;
+- real JobService integration that transitions claimed -> running only after verified resource start;
+- crash recovery between reserve/dispatch/verify/release;
+- production fallback across real providers/resources;
+- production Phase 33 transactional persistence and multi-process reservation proof.
+
+See `docs/SOL_PHASE_34_REPORT.md`.
 
 ## September 20 Phase 35/40 deterministic economics + simulation tranche
 
@@ -433,7 +486,7 @@ Implemented:
 
 Not yet claimed:
 - Phase 33 real transactional persistence and live multi-process concurrency evidence;
-- Phase 34 production scheduler/dispatch;
+- Phase 34 live adapter/persistence/start-probe integration;
 - live provider billing feeds or durable cost/usage persistence;
 - actual capacity commitment purchases or provider quota mutation.
 
@@ -466,4 +519,4 @@ See `docs/SOL_PHASE_35_40_REPORT.md`.
 
 Sol should continue deterministic contracts, validators, policy engines, simulators, tests, and repository hardening.
 
-Astra/higher-compute runtime work should consume these Phase 22/23/26/27 contracts rather than rebuild them. The expensive remaining work is primarily real infrastructure integration: durable queues/workers, live AI Gateway, action/deployment adapters, real node agents, production secret/token backends, live telemetry, production reservation persistence/dispatch concurrency, measured billing/usage feeds, storage/failover, second-provider integration, production analytics persistence, and end-to-end acceptance.
+Astra/higher-compute runtime work should consume these Phase 22/23/26/27 contracts rather than rebuild them. The expensive remaining work is primarily real infrastructure integration: durable queues/workers, live AI Gateway, action/deployment adapters, real node agents, production secret/token backends, live telemetry, production reservation persistence/live dispatch concurrency, measured billing/usage feeds, storage/failover, second-provider integration, production analytics persistence, and end-to-end acceptance.
