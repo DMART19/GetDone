@@ -1,5 +1,8 @@
 import type { AuthoritativeCommandEnvelope } from "@/lib/control-plane/command-envelope";
-import type { ControlPlaneTransactionManager } from "@/lib/domain/control-plane-transaction";
+import type {
+  ControlPlaneTransaction,
+  ControlPlaneTransactionManager
+} from "@/lib/domain/control-plane-transaction";
 import type { StateMachineEntity } from "@/lib/domain/state-machine";
 import {
   authoritativeTransitionService,
@@ -41,7 +44,14 @@ export function executeTransitionCommand<T extends StatefulEntity, TStores>(inpu
   to: string;
   command: AuthoritativeCommandEnvelope;
   triggeringEvent: string;
-  patch?: (current: T) => Partial<T> | Record<string, unknown>;
+  beforeTransition?: (
+    current: T,
+    transaction: ControlPlaneTransaction<TStores>
+  ) => void | Promise<void>;
+  patch?: (
+    current: T,
+    transaction: ControlPlaneTransaction<TStores>
+  ) => Partial<T> | Record<string, unknown> | Promise<Partial<T> | Record<string, unknown>>;
   metadata?: (current: T) => Readonly<Record<string, string | number | boolean | null>>;
 }): Promise<T> {
   return authoritativeTransitionService.transition({

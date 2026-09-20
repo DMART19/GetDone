@@ -11,6 +11,12 @@ import { JobService, type JobRecord, type JobStores } from "@/lib/domain/service
 import { OutcomeService, type OutcomeRecord, type OutcomeStores } from "@/lib/domain/services/outcome-service";
 import { createStepUpProof } from "@/lib/authorization/proofs";
 import { autoGrantFor, fixtureNow } from "@/lib/planning/test-security-fixture";
+import {
+  assertAuthorizationConsumption,
+  type AuthorizationConsumptionRecord,
+  type AuthorizationGrant,
+  type AuthorizationGrantStore
+} from "@/lib/authorization/grants";
 import { validPlan } from "@/lib/planning/test-fixture";
 import { hashPlan, hashPlanStep } from "@/lib/planning/plan-hash";
 
@@ -21,6 +27,37 @@ class MemoryStore<T extends AuthoritativeEntity> implements EntityStore<T> {
     if (this.value.version !== expectedVersion) throw new Error("optimistic concurrency conflict");
     this.value = { ...next };
   }
+}
+
+class MemoryGrantStore implements AuthorizationGrantStore {
+  readonly consumptions: AuthorizationConsumptionRecord[] = [];
+
+  constructor(readonly grant: AuthorizationGrant) {}
+
+  async get(id: string) {
+    return id === this.grant.id ? this.grant : null;
+  }
+
+  async consume(record: AuthorizationConsumptionRecord) {
+    assertAuthorizationConsumption(record, this.grant);
+    const existing = this.consumptions.find((item) => item.id === record.id);
+    if (existing) {
+      if (existing.consumptionHash !== record.consumptionHash) {
+        throw new Error("conflicting authorization consumption");
+      }
+      return;
+    }
+    if (this.consumptions.length > 0) {
+      throw new Error("authorization grant already consumed");
+    }
+    this.consumptions.push(record);
+  }
+
+  async listConsumptions(grantId: string) {
+    return this.consumptions.filter((record) => record.grantId === grantId);
+  }
+
+  async revoke() {}
 }
 
 class MemoryAudit implements AuditLedger {
@@ -124,16 +161,60 @@ describe("transactional domain services", () => {
     expect((await service.succeed(base.id, command("task.succeed"), ["verify-1"])).state).toBe("succeeded");
   });
 
-  it("requires a claimed worker before a job starts", async () => {
-    const store = new MemoryStore<JobRecord>({
-      ...base, state: "created", taskId: "task-1", attempt: 0, verificationEvidenceIds: []
+  it("consumes authorization at the Task and lets Jobs inherit only persisted Task authority", async () => {
+    const plan = validPlan();
+    const grant = autoGrantFor(plan);
+    const grants = new MemoryGrantStore(grant);
+
+    const taskStore = new MemoryStore<TaskRecord>({
+      id: "task-1",
+      portfolioId: plan.scope.portfolioId,
+      companyId: plan.scope.companyId,
+      state: "proposed",
+      reason: "approved work",
+      evidenceIds: [],
+      capabilityRequirements: [...grant.capabilityNames],
+      authorizationLineage: [],
+      verificationEvidenceIds: [],
+      version: 1,
+      updatedAt: fixtureNow.toISOString()
     });
-    const service = new JobService(manager<JobStores>({ jobs: store }));
-    const grant = autoGrantFor(validPlan());
-    const queued = await service.queue(base.id, command("job.queue"), grant, fixtureNow.toISOString());
-    expect(queued.authorizationConsumption?.consumerType).toBe("job");
-    await service.claim(base.id, command("job.claim"), "worker-1");
-    expect((await service.start(base.id, command("job.start"))).state).toBe("running");
+    const taskService = new TaskService(manager<TaskStores>({
+      tasks: taskStore,
+      authorizationGrants: grants
+    }));
+    const authorizedTask = await taskService.authorize(
+      "task-1",
+      command("task.authorize"),
+      grant,
+      fixtureNow.toISOString()
+    );
+    expect(authorizedTask.authorizationConsumption?.consumerType).toBe("task");
+    expect(grants.consumptions).toHaveLength(1);
+
+    const jobStore = new MemoryStore<JobRecord>({
+      ...base,
+      state: "created",
+      taskId: "task-1",
+      attempt: 0,
+      verificationEvidenceIds: []
+    });
+    const jobService = new JobService(manager<JobStores>({
+      jobs: jobStore,
+      authorizationGrants: grants
+    }));
+    const queued = await jobService.queue(
+      base.id,
+      command("job.queue"),
+      grant,
+      authorizedTask.authorizationConsumption!,
+      fixtureNow.toISOString()
+    );
+    expect(queued.authorizationConsumption?.consumerType).toBe("task");
+    expect(queued.authorizationConsumption?.consumerId).toBe("task-1");
+
+    await jobService.claim(base.id, command("job.claim"), "worker-1");
+    expect((await jobService.start(base.id, command("job.start"))).state).toBe("running");
   });
 
   it("does not verify an outcome without evidence", async () => {

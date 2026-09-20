@@ -1,7 +1,10 @@
 import { ControlPlaneError } from "@/lib/control-plane/errors";
 import {
   assertAuthorizationGrantEnvelope,
-  type AuthorizationGrant
+  createAuthorizationConsumptionRecord,
+  type AuthorizationConsumptionRecord,
+  type AuthorizationGrant,
+  type AuthorizationGrantStore
 } from "@/lib/authorization/grants";
 import type { AuthoritativeCommandEnvelope } from "@/lib/control-plane/command-envelope";
 import type { ControlPlaneTransactionManager } from "@/lib/domain/control-plane-transaction";
@@ -30,12 +33,14 @@ export interface TaskRecord extends StatefulEntity {
   authorizationLineage: readonly string[];
   authorizationGrantId?: string;
   authorizationGrantHash?: string;
+  authorizationConsumption?: AuthorizationConsumptionRecord;
   verificationEvidenceIds: readonly string[];
   failureReason?: string;
 }
 
 export interface TaskStores {
   tasks: EntityStore<TaskRecord>;
+  authorizationGrants?: AuthorizationGrantStore;
 }
 
 export class TaskService {
@@ -44,9 +49,18 @@ export class TaskService {
   authorize(
     id: string,
     command: AuthoritativeCommandEnvelope,
-    grant: AuthorizationGrant
+    grant: AuthorizationGrant,
+    consumedAt = new Date().toISOString()
   ) {
-    assertAuthorizationGrantEnvelope(grant, command.scope);
+    assertAuthorizationGrantEnvelope(grant, command.scope, Date.parse(consumedAt));
+
+    const consumption = createAuthorizationConsumptionRecord({
+      id: `authorization-consumption:${grant.id}`,
+      grant,
+      consumerType: "task",
+      consumerId: id,
+      consumedAt
+    });
 
     return executeTransitionCommand({
       manager: this.transactions,
@@ -56,7 +70,7 @@ export class TaskService {
       to: "authorized",
       command,
       triggeringEvent: "task-authorized",
-      patch: (current) => {
+      patch: async (current, transaction) => {
         const required = [...new Set(current.capabilityRequirements)].sort();
         const granted = [...new Set(grant.capabilityNames)].sort();
 
@@ -70,15 +84,40 @@ export class TaskService {
           );
         }
 
+        const grantStore = transaction.stores.authorizationGrants;
+        if (!grantStore) {
+          throw new ControlPlaneError(
+            "UNAVAILABLE",
+            "Authorization grant store is required before a task can be authorized"
+          );
+        }
+
+        const persistedGrant = await grantStore.get(grant.id);
+        if (!persistedGrant || persistedGrant.grantHash !== grant.grantHash) {
+          throw new ControlPlaneError(
+            "FORBIDDEN",
+            "Authorization grant is missing or differs from authoritative storage"
+          );
+        }
+        assertAuthorizationGrantEnvelope(
+          persistedGrant,
+          command.scope,
+          Date.parse(consumedAt)
+        );
+
+        await grantStore.consume(consumption);
+
         return {
           authorizationLineage: [...current.authorizationLineage, grant.id],
           authorizationGrantId: grant.id,
-          authorizationGrantHash: grant.grantHash
+          authorizationGrantHash: grant.grantHash,
+          authorizationConsumption: consumption
         };
       },
       metadata: () => ({
         authorizationGrantId: grant.id,
-        authorizationGrantHash: grant.grantHash
+        authorizationGrantHash: grant.grantHash,
+        authorizationConsumptionHash: consumption.consumptionHash
       })
     });
   }
@@ -91,7 +130,16 @@ export class TaskService {
       entityId: id,
       to: "queued",
       command,
-      triggeringEvent: "task-queued"
+      triggeringEvent: "task-queued",
+      patch: (current) => {
+        if (!current.authorizationConsumption) {
+          throw new ControlPlaneError(
+            "FORBIDDEN",
+            "Task cannot be queued without persisted authorization consumption"
+          );
+        }
+        return {};
+      }
     });
   }
 

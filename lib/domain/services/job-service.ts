@@ -1,10 +1,11 @@
 import { ControlPlaneError } from "@/lib/control-plane/errors";
 import type { AuthoritativeCommandEnvelope } from "@/lib/control-plane/command-envelope";
 import {
+  assertAuthorizationConsumption,
   assertAuthorizationGrantEnvelope,
-  createAuthorizationConsumptionRecord,
   type AuthorizationConsumptionRecord,
-  type AuthorizationGrant
+  type AuthorizationGrant,
+  type AuthorizationGrantStore
 } from "@/lib/authorization/grants";
 import type { ControlPlaneTransactionManager } from "@/lib/domain/control-plane-transaction";
 import {
@@ -38,6 +39,7 @@ export interface JobRecord extends StatefulEntity {
 
 export interface JobStores {
   jobs: EntityStore<JobRecord>;
+  authorizationGrants?: AuthorizationGrantStore;
 }
 
 export class JobService {
@@ -47,17 +49,18 @@ export class JobService {
     id: string,
     command: AuthoritativeCommandEnvelope,
     grant: AuthorizationGrant,
-    consumedAt = new Date().toISOString()
+    taskConsumption: AuthorizationConsumptionRecord,
+    admittedAt = new Date().toISOString()
   ) {
-    assertAuthorizationGrantEnvelope(grant, command.scope, Date.parse(consumedAt));
+    assertAuthorizationGrantEnvelope(grant, command.scope, Date.parse(admittedAt));
+    assertAuthorizationConsumption(taskConsumption, grant);
 
-    const consumption = createAuthorizationConsumptionRecord({
-      id: `authorization-consumption:${grant.id}`,
-      grant,
-      consumerType: "job",
-      consumerId: id,
-      consumedAt
-    });
+    if (taskConsumption.consumerType !== "task") {
+      throw new ControlPlaneError(
+        "FORBIDDEN",
+        "Jobs must inherit authorization from an already-authorized Task"
+      );
+    }
 
     return executeTransitionCommand({
       manager: this.transactions,
@@ -67,14 +70,58 @@ export class JobService {
       to: "queued",
       command,
       triggeringEvent: "job-queued",
-      patch: () => ({
-        authorizationGrantId: grant.id,
-        authorizationGrantHash: grant.grantHash,
-        authorizationConsumption: consumption
-      }),
+      patch: async (current, transaction) => {
+        if (taskConsumption.consumerId !== current.taskId) {
+          throw new ControlPlaneError(
+            "FORBIDDEN",
+            "Authorization consumption belongs to a different parent Task"
+          );
+        }
+
+        const grantStore = transaction.stores.authorizationGrants;
+        if (!grantStore) {
+          throw new ControlPlaneError(
+            "UNAVAILABLE",
+            "Authorization grant store is required before a job can be queued"
+          );
+        }
+
+        const persistedGrant = await grantStore.get(grant.id);
+        if (!persistedGrant || persistedGrant.grantHash !== grant.grantHash) {
+          throw new ControlPlaneError(
+            "FORBIDDEN",
+            "Authorization grant is missing or differs from authoritative storage"
+          );
+        }
+        assertAuthorizationGrantEnvelope(
+          persistedGrant,
+          command.scope,
+          Date.parse(admittedAt)
+        );
+
+        const persistedConsumptions = await grantStore.listConsumptions(grant.id);
+        const persistedTaskConsumption = persistedConsumptions.find(
+          (record) =>
+            record.consumerType === "task"
+            && record.consumerId === current.taskId
+            && record.consumptionHash === taskConsumption.consumptionHash
+        );
+        if (!persistedTaskConsumption) {
+          throw new ControlPlaneError(
+            "FORBIDDEN",
+            "Parent Task authorization consumption is not authoritative"
+          );
+        }
+
+        return {
+          authorizationGrantId: grant.id,
+          authorizationGrantHash: grant.grantHash,
+          authorizationConsumption: persistedTaskConsumption
+        };
+      },
       metadata: () => ({
         authorizationGrantId: grant.id,
-        authorizationConsumptionHash: consumption.consumptionHash
+        inheritedTaskConsumptionHash: taskConsumption.consumptionHash
       })
     });
   }
@@ -95,7 +142,7 @@ export class JobService {
         if (!current.authorizationConsumption) {
           throw new ControlPlaneError(
             "FORBIDDEN",
-            "Job cannot be claimed without persisted authorization consumption"
+            "Job cannot be claimed without inherited authoritative Task authorization"
           );
         }
         return { workerId, attempt: current.attempt + 1 };
@@ -136,7 +183,7 @@ export class JobService {
         if (!current.authorizationConsumption) {
           throw new ControlPlaneError(
             "FORBIDDEN",
-            "Job authorization consumption is missing"
+            "Job authorization lineage is missing"
           );
         }
         return {};

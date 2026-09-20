@@ -2,7 +2,10 @@ import { createAuditEvent } from "@/lib/domain/audit";
 import { ControlPlaneError } from "@/lib/control-plane/errors";
 import type { AuthoritativeCommandEnvelope } from "@/lib/control-plane/command-envelope";
 import { commandFingerprint } from "@/lib/control-plane/command-envelope";
-import type { ControlPlaneTransactionManager } from "@/lib/domain/control-plane-transaction";
+import type {
+  ControlPlaneTransaction,
+  ControlPlaneTransactionManager
+} from "@/lib/domain/control-plane-transaction";
 import { claimIdempotency } from "@/lib/domain/idempotency";
 import { assertTransition, type StateMachineEntity } from "@/lib/domain/state-machine";
 
@@ -29,8 +32,14 @@ export interface AuthoritativeTransitionInput<T extends TransitionEntity, TStore
   triggeringEvent: string;
   stateOf: (entity: T) => string;
   applyState: (entity: T, nextState: string) => T;
-  beforeTransition?: (current: T) => void | Promise<void>;
-  patch?: (current: T) => Partial<T> | Record<string, unknown>;
+  beforeTransition?: (
+    current: T,
+    transaction: ControlPlaneTransaction<TStores>
+  ) => void | Promise<void>;
+  patch?: (
+    current: T,
+    transaction: ControlPlaneTransaction<TStores>
+  ) => Partial<T> | Record<string, unknown> | Promise<Partial<T> | Record<string, unknown>>;
   metadata?: (current: T) => Readonly<Record<string, string | number | boolean | null>>;
   now?: () => Date;
 }
@@ -84,11 +93,12 @@ export class AuthoritativeTransitionService {
       assertTransitionEntityScope(current, input.command);
       const from = input.stateOf(current);
       assertTransition(input.entityType, from, input.to);
-      await input.beforeTransition?.(current);
+      await input.beforeTransition?.(current, transaction);
 
+      const patch = await input.patch?.(current, transaction);
       const patched = {
         ...current,
-        ...(input.patch?.(current) ?? {}),
+        ...(patch ?? {}),
         version: current.version + 1,
         updatedAt: now().toISOString()
       } as T;
