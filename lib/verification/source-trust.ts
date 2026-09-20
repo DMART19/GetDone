@@ -5,6 +5,7 @@ import {
   assertVerificationEvidenceIntegrity,
   assertVerificationReceipt,
   assertVerificationRequestIntegrity,
+  isVerificationEvidenceFresh,
   type VerificationEvidence,
   type VerificationReceipt,
   type VerificationRequest,
@@ -198,6 +199,12 @@ export function createVerificationTrustAttestation(input: {
 
   const bindingHashes: string[] = [];
   for (const evidence of usedEvidence) {
+    if (!isVerificationEvidenceFresh(input.request, evidence, attestedAt)) {
+      throw new ControlPlaneError(
+        "FORBIDDEN",
+        "Verification evidence is stale at trust-attestation time"
+      );
+    }
     if (
       evidence.portfolioId !== input.request.portfolioId
       || evidence.companyId !== input.request.companyId
