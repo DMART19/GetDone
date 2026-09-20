@@ -284,8 +284,88 @@ Not yet claimed:
 
 See `docs/SOL_PHASE_24_25_REPORT.md`.
 
+
+## September 20 Phase 29–32 deterministic Resource Fabric tranche
+
+### Phase 29 — Secrets and Credential Broker
+
+**STATUS: DETERMINISTIC CONTRACT/ISSUANCE SUBSET IMPLEMENTED; REAL SECRET BACKEND/TOKEN EXCHANGE STILL REQUIRED**
+
+Implemented:
+- reference-only SecretReference records; raw secret values are not modeled;
+- scoped CredentialBinding records for company, provider, environment, capability, scopes, resources, and location classes;
+- authoritative control-plane CredentialRequest records bound to job, placement request, and trusted resource scope;
+- minimum-scope CredentialLease issuance with SHA-256 integrity, bounded TTL, expiry, revocation, and release;
+- secure-delivery references instead of credential material;
+- credential usage audit records;
+- deterministic denial for cross-company, cross-environment, wrong-location, disabled/non-READY resource, expired, or over-broad requests.
+
+Not yet claimed:
+- Vault/KMS/Secrets Manager or equivalent production backend;
+- provider token exchange/OAuth refresh;
+- encrypted transport of material to a real resource agent;
+- durable lease/revocation persistence;
+- live OpenRouter credential issuance.
+
+### Phase 30 — Resource Profiling, Capability Validation, and Telemetry
+
+**STATUS: DETERMINISTIC PROFILE/HEALTH/SIMULATOR SUBSET IMPLEMENTED; LIVE AGENT TELEMETRY STILL REQUIRED**
+
+Implemented:
+- normalized resource profile claims for architecture, CPU, memory, GPU/VRAM, disk, network, runtime/software, benchmark/latency/uptime, thermal, and power fields;
+- hash-bound independent capability validation evidence;
+- privileged GPU/production/authoritative-storage capability claims require independent validation;
+- fabricated GPU hardware is removed from the validated profile without proof;
+- authenticated telemetry health summarization;
+- fresh HEALTHY, DEGRADED, SATURATED, and safe UNREACHABLE behavior for stale/missing heartbeat telemetry;
+- unauthenticated telemetry cannot establish health;
+- deterministic zero-side-effect telemetry simulator for healthy/degraded/saturated/stale/heartbeat-loss test scenarios.
+
+Not yet claimed:
+- Raspberry Pi/Linux agent telemetry transport;
+- real benchmark probes/hardware attestation;
+- persistent time-series telemetry;
+- production Signal Bus emission from live health transitions;
+- hardware canary acceptance.
+
+### Phase 31 — Resource Policy and Data Classification
+
+**STATUS: DETERMINISTIC HARD-CONSTRAINT POLICY IMPLEMENTED**
+
+Implemented:
+- canonical data classes: PUBLIC, INTERNAL, CUSTOMER, SENSITIVE, PRODUCTION_CRITICAL, REBUILDABLE, TEMPORARY, ARCHIVE, BACKUP, MODEL_ARTIFACT;
+- location classes: HOME, OFFICE, CLOUD, COLO, PARTNER_DC;
+- dev/staging/production, data-class, location, region, reliability, encryption, fallback, interruption, and workload allow/deny rules;
+- default deny for production CUSTOMER/SENSITIVE data on HOME unless explicitly authorized;
+- default deny for a sole PRODUCTION_CRITICAL authoritative copy in HOME;
+- deterministic explainable reasons;
+- preference hints are separated from hard eligibility so speed/price cannot override policy.
+
+### Phase 32 — Placement Request and Candidate Evaluation
+
+**STATUS: DETERMINISTIC ELIGIBILITY SUBSET IMPLEMENTED; NO RESERVATION OR DISPATCH**
+
+Implemented:
+- placement requests can only originate from an authorized control-plane job;
+- request scope includes capability/compute envelope, priority/deadline, checkpoint/retry, data class, regions/locality, reliability/fallback, max cost, pin/exclusions, idempotency key, and expiry;
+- SHA-256 request integrity and candidate snapshot integrity;
+- active logical idempotency reuse and conflict rejection;
+- deterministic candidate filters in canonical order: scope -> policy -> health -> capability/profile -> capacity -> credential/environment -> cost;
+- request-specific region, reliability, and fallback hard constraints;
+- every rejection carries explicit reason codes and snapshot hash lineage;
+- pinned resources still pass every hard constraint;
+- eligible candidates include a deterministic explanation sufficient to answer why the resource qualified;
+- no reservation, allocation, ranking, or dispatch is performed.
+
+Still deferred:
+- Phase 33 atomic reservation/capacity ledger;
+- Phase 34 scheduler/ranking/dispatch/start verification;
+- production persistence and concurrent transaction evidence.
+
+See `docs/SOL_PHASE_29_32_REPORT.md`.
+
 ## Updated handoff boundary
 
 Sol should continue deterministic contracts, validators, policy engines, simulators, tests, and repository hardening.
 
-Astra/higher-compute runtime work should consume these Phase 22/23/26/27 contracts rather than rebuild them. The expensive remaining work is primarily real infrastructure integration: durable queues/workers, live AI Gateway, action/deployment adapters, real node agents, secrets brokerage, telemetry, scheduler/reservations, storage/failover, second-provider integration, and end-to-end production acceptance.
+Astra/higher-compute runtime work should consume these Phase 22/23/26/27 contracts rather than rebuild them. The expensive remaining work is primarily real infrastructure integration: durable queues/workers, live AI Gateway, action/deployment adapters, real node agents, production secret/token backends, live telemetry, reservation/dispatch concurrency, storage/failover, second-provider integration, and end-to-end production acceptance.
