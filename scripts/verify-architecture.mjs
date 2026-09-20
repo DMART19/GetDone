@@ -94,7 +94,8 @@ for (const file of codeFiles) {
     content.includes('from "@/lib/mock-data"')
     && ![
       "lib/data/repository.ts",
-      "lib/mock-data.test.ts"
+      "lib/mock-data.test.ts",
+      "scripts/verify-architecture.mjs"
     ].includes(normalized)
   ) {
     fail(`Development seed data imported outside the repository seam: ${normalized}`);
