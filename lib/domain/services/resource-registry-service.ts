@@ -224,7 +224,7 @@ export class ResourceRegistryService {
         );
       }
 
-      await selectStore(transaction.stores).append(Object.freeze({ ...record }));
+      await selectStore(transaction.stores).append(Object.freeze({ ...record }) as T);
       await transaction.audit.append(createAuditEvent({
         correlationId: command.correlationId,
         eventType,
@@ -247,7 +247,8 @@ export class ResourceRegistryService {
       await transaction.idempotency.complete(
         command.idempotencyKey,
         fingerprint,
-        record
+        record,
+        record.observedAt
       );
       return record;
     });
