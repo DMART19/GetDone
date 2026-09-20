@@ -181,9 +181,13 @@ if (failures.length === 0) {
   const production = environment.environments.production;
   if (
     production.productionReady
-    && Object.values(production.connections).some((connected) => connected !== true)
+    && (
+      Object.values(production.connections).some((connected) => connected !== true)
+      || production.deployment?.status !== "connected"
+      || !production.deployment?.deploymentId
+    )
   ) {
-    fail("Production cannot be declared ready while required environment connections are false");
+    fail("Production cannot be declared ready without a connected deployment and all required connections");
   }
   if (
     !["development", "staging", "production"].every(
