@@ -55,7 +55,6 @@ import type {
   DispatchIntent,
   DispatchAdmissionReceipt,
   DispatchAdapterResult,
-  ResourceDispatchAdapter,
   VerifiedRunningPlacement,
   PlacementMonitorRecord,
   VerifiedPlacementCompletion,
