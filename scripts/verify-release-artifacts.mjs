@@ -148,6 +148,26 @@ if (failures.length === 0) {
     "lib/execution/software-worker.ts",
     "SOFTWARE_WORKER_CONTRACT_VERSION"
   );
+  const storageFabricContractVersion = extractStringConst(
+    "lib/resources/storage-fabric.ts",
+    "STORAGE_FABRIC_CONTRACT_VERSION"
+  );
+  const resilienceContractVersion = extractStringConst(
+    "lib/resources/resilience.ts",
+    "RESILIENCE_CONTRACT_VERSION"
+  );
+  const resourceAdapterSdkContractVersion = extractStringConst(
+    "lib/resources/adapter-sdk.ts",
+    "RESOURCE_ADAPTER_SDK_CONTRACT_VERSION"
+  );
+  const resourcePoolContractVersion = extractStringConst(
+    "lib/resources/pools.ts",
+    "RESOURCE_POOL_CONTRACT_VERSION"
+  );
+  const phase44HarnessVersion = extractStringConst(
+    registry.phase44.sourcePath,
+    "PHASE44_DETERMINISTIC_HARNESS_VERSION"
+  );
   if (
     registry.aiGateway.contractVersion !== aiGatewayContractVersion
     || registry.aiGateway.routingPolicyContractVersion !== aiRoutingPolicyContractVersion
@@ -159,12 +179,28 @@ if (failures.length === 0) {
     || registry.execution.jobRuntimeContractVersion !== jobRuntimeContractVersion
     || registry.execution.businessActionContractVersion !== businessActionContractVersion
     || registry.execution.softwareWorkerContractVersion !== softwareWorkerContractVersion
+    || registry.resourceFabric.storageFabricContractVersion !== storageFabricContractVersion
+    || registry.resourceFabric.resilienceContractVersion !== resilienceContractVersion
+    || registry.resourceFabric.resourceAdapterSdkContractVersion !== resourceAdapterSdkContractVersion
+    || registry.resourceFabric.resourcePoolContractVersion !== resourcePoolContractVersion
+    || registry.phase44.deterministicHarnessVersion !== phase44HarnessVersion
+    || manifest.resourceFabric.storageFabricContractVersion !== storageFabricContractVersion
+    || manifest.resourceFabric.resilienceContractVersion !== resilienceContractVersion
+    || manifest.resourceFabric.resourceAdapterSdkContractVersion !== resourceAdapterSdkContractVersion
+    || manifest.resourceFabric.resourcePoolContractVersion !== resourcePoolContractVersion
+    || manifest.phase44.deterministicHarnessVersion !== phase44HarnessVersion
+    || manifest.phase44.sourceSha256 !== fileHash(registry.phase44.sourcePath)
   ) {
-    fail("Deterministic Phase 4/13/19-21 contract/version registry drift detected");
+    fail("Deterministic Phase 4/13/19-21/36-39/44 contract/version registry drift detected");
   }
   for (const evidence of manifest.execution.sourceEvidence ?? []) {
     if (evidence.sourceSha256 !== fileHash(evidence.sourcePath)) {
       fail(`Execution contract source drift: ${evidence.sourcePath}`);
+    }
+  }
+  for (const evidence of manifest.resourceFabric.sourceEvidence ?? []) {
+    if (evidence.sourceSha256 !== fileHash(evidence.sourcePath)) {
+      fail(`Resource Fabric contract source drift: ${evidence.sourcePath}`);
     }
   }
 
@@ -258,8 +294,14 @@ if (failures.length === 0) {
     || registry.execution.durableJobStoreStatus !== "not-connected"
     || registry.execution.businessAdaptersStatus !== "not-connected"
     || registry.execution.softwareDeploymentStatus !== "not-connected"
+    || registry.resourceFabric.storageRuntimeStatus !== "not-connected"
+    || registry.resourceFabric.failoverRuntimeStatus !== "not-connected"
+    || registry.resourceFabric.secondProviderStatus !== "not-connected"
+    || registry.resourceFabric.partnerPoolRuntimeStatus !== "not-connected"
+    || registry.adapters.resourceAdapterSdk?.status !== "contract-only"
+    || registry.phase44.productionAcceptanceStatus !== "not-run"
   ) {
-    fail("Release registry must not claim live Phase 4/19-21 runtime adapters before they exist");
+    fail("Release registry must not claim unconnected Phase 4/19-21/36-39/44 runtime acceptance");
   }
 
   for (const evidence of manifest.acceptanceEvidence) {
@@ -290,8 +332,20 @@ if (failures.length === 0) {
       || environmentState.execution.durableJobStoreStatus !== "not-connected"
       || environmentState.execution.businessActionAdapterStatus !== "not-connected"
       || environmentState.execution.softwareDeploymentStatus !== "not-connected"
+      || !environmentState.resourceFabric
+      || environmentState.resourceFabric.storageFabricContractStatus !== "deterministic-contract"
+      || environmentState.resourceFabric.storageRuntimeStatus !== "not-connected"
+      || environmentState.resourceFabric.resilienceContractStatus !== "deterministic-contract"
+      || environmentState.resourceFabric.failoverRuntimeStatus !== "not-connected"
+      || environmentState.resourceFabric.resourceAdapterSdkStatus !== "deterministic-contract"
+      || environmentState.resourceFabric.secondProviderStatus !== "not-connected"
+      || environmentState.resourceFabric.resourcePoolContractStatus !== "deterministic-contract"
+      || environmentState.resourceFabric.partnerPoolRuntimeStatus !== "not-connected"
+      || !environmentState.phase44
+      || environmentState.phase44.deterministicHarnessStatus !== "offline-blocking-suite"
+      || environmentState.phase44.productionAcceptanceStatus !== "not-run"
     ) {
-      fail(`Phase 4/13/19-21 environment contract/live-state drift: ${name}`);
+      fail(`Phase 4/13/19-21/36-39/44 environment contract/live-state drift: ${name}`);
     }
     if (
       !environmentState.voice
