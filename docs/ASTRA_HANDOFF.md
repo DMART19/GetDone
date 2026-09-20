@@ -101,6 +101,20 @@ This repository has already been advanced beyond a visual scaffold. Astra should
 - WebAuthn origin/RP/user-verification ceremony checks
 - real push provider and cryptographic WebAuthn verification remain integration work
 
+### Resource Fabric credential, profiling, policy, and placement foundation
+
+- reference-only secret records and scoped credential bindings
+- minimum-scope, hash-bound credential leases with expiry/revocation/release and audit contracts
+- deterministic denial for cross-company, cross-environment, wrong-location, non-READY, or over-broad credential requests
+- normalized resource profiles and independent validation for privileged capability claims
+- authenticated telemetry health summarization plus zero-side-effect CI simulator scenarios
+- hard resource/data placement policy for data classes, HOME defaults, region, reliability, encryption, fallback, interruption, and workload rules
+- control-plane-only placement requests with active idempotency reuse
+- candidate eligibility filters in scope -> policy -> health -> capability -> capacity -> credential/environment -> cost order
+- pinned resources never bypass hard constraints
+- candidate reports are explainable and snapshot-bound
+- no reservation, scheduler ranking, or dispatch has been added
+
 ### Verification pipeline
 
 CI runs install, secret-pattern scan, typecheck, lint, tests, and build. Do not bypass those gates.
@@ -151,18 +165,17 @@ Once the owner/infrastructure blockers are resolved, Astra should focus its high
    - preserve the rule that push/deep links/service workers grant navigation only, never approval or execution authority
    - prove phone-off continuity only after the durable job runtime exists
 
-5. **Phases 26–31 — Resource Fabric integration**
+5. **Provider-connected completion of Phases 26–32**
    - connect the existing Phase 26 registry/readiness contracts to production persistence
    - connect the existing Phase 27 enrollment state machine to real provider/device flows
-   - Raspberry Pi/Linux agent
-   - real cryptographic resource identity/attestation
-   - credential broker
-   - profiling/authenticated telemetry
-   - resource/data policy
-   - do not let an agent/provider/frontend bypass the existing READY evidence gate
+   - build the real Raspberry Pi/Linux agent and cryptographic identity/attestation path
+   - connect the existing Phase 29 credential contracts to a production secret backend, provider token exchange, secure delivery, and durable revocation
+   - connect Phase 30 profile/health contracts to authenticated live telemetry, benchmarks, and Signal Bus transitions
+   - persist Phase 31 policy bindings and prove them against real resource metadata
+   - persist Phase 32 placement requests/evaluation snapshots without adding scheduler authority
+   - do not let an agent/provider/frontend bypass READY, credential, policy, or placement authority
 
-6. **Phases 32–40 — placement/resilience/economics**
-   - candidate evaluation
+6. **Phases 33–40 — placement/resilience/economics**
    - reservations/capacity ledger
    - scheduler/dispatch/start verification
    - cost governor
@@ -199,6 +212,7 @@ Before a heavy Astra pass, read:
 - `docs/PHASE_2_REPORT.md`
 - `docs/PHASE_3_REPORT.md`
 - `docs/SOL_PHASE_24_25_REPORT.md`
+- `docs/SOL_PHASE_29_32_REPORT.md`
 - latest GitHub Actions result
 
 Then continue from the first unblocked canonical phase without silently replacing the authority model.
@@ -215,6 +229,10 @@ Astra must treat the following as existing architecture, not greenfield work:
 - Phase 24 attributed portfolio/security boundaries and adversarial regression suite;
 - Phase 25 PWA/service-worker/deep-link/notification/WebAuthn deterministic foundation;
 - Phase 26 Resource Registry evidence/readiness contracts and lifecycle service;
-- Phase 27 deterministic enrollment state machine and replay-resistant challenge model.
+- Phase 27 deterministic enrollment state machine and replay-resistant challenge model;
+- Phase 29 reference-only secret and minimum-scope credential lease contracts;
+- Phase 30 resource profiling, privileged-claim validation, telemetry health, and zero-side-effect simulator;
+- Phase 31 deterministic resource/data placement policy;
+- Phase 32 control-plane placement requests and explainable candidate eligibility evaluation.
 
 Canonical PASS for these phases still depends on real persistence/runtime/hardware acceptance where specified by the master plan. The existence of deterministic code is not permission to mark infrastructure-dependent acceptance complete.
