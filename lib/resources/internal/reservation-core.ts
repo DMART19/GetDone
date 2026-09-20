@@ -7,13 +7,11 @@ import type {
   CapacityTarget,
   CapacityLedger,
   ReservationAuthority,
-  ReservationState,
   CapacityReservation,
   AllocationRecord,
   ReservationOperation,
   AtomicReservationCommit,
-  ReservationMutationResult,
-  AtomicReservationStore
+  ReservationMutationResult
 } from "@/lib/resources/internal/reservation-types";
 
 function parseTime(value: string, label: string) {
