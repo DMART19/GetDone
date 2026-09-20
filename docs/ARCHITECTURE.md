@@ -30,7 +30,8 @@ Backend/resource complexity must not turn the product into an infrastructure adm
 - Phase 34 scheduler/dispatch contracts;
 - Phase 35 cost/capacity governor;
 - Phase 40 zero-side-effect simulator;
-- Phase 41 release/version registry, explicit environment/deployment state, generated Git-SHA-bound machine manifests, operating manuals, and CI evidence archive.
+- Phase 41 release/version registry, explicit environment/deployment state, generated Git-SHA-bound machine manifests, operating manuals, and CI evidence archive;
+- Phase 42 typed voice intents and secure phone handoff, bound to trusted scope, current policy, Control API, audit, and the Phase 41 release registry.
 
 ### Architecture-integrity composition
 
@@ -65,6 +66,29 @@ Provider `accepted`, HTTP success, resource-agent claims, model output, and fron
 
 OpenRouter/model integration is intentionally absent from feature code today. When Phase 13 production integration begins, runtime feature code must call a GetDone-owned AI Gateway. Provider/model SDK imports and provider HTTP endpoints are forbidden outside that boundary by `npm run verify:architecture`.
 
+### Voice boundary
+
+Voice is an evidence/query/initiation surface, not an authority system.
+
+The deterministic Phase 42 path is:
+
+```text
+speech/NLU adapter evidence
+  -> typed VoiceAdapterCandidate
+  -> server-injected TrustedExecutionScope
+  -> current PolicyRegistryReference
+  -> VoiceIntentRecord
+       - canApprove=false
+       - canStepUp=false
+       - canExecuteSideEffect=false
+       - canAcceptRawCredentials=false
+  -> existing Control API query OR proposed workflow
+  -> secure iPhone handoff for sensitive/mutating work
+  -> existing policy/approval/step-up/worker/verification paths
+```
+
+The authoritative record stores only a transcript SHA-256, not raw voice text/audio. Raw credentials are rejected at voice ingress. The live speech/native-iPhone adapter remains unconnected and is explicitly versioned as such.
+
 ### Browser boundary
 
 The browser cannot approve production actions, set Job/resource truth, enroll infrastructure authoritatively, store production secrets, choose its own trusted scope, or execute model/provider work.
@@ -82,7 +106,8 @@ Development seed data is confined to the development read-repository seam and fa
 - DEVELOPMENT seed-data import isolation;
 - zero-side-effect simulator isolation from reservation/dispatch/credential modules;
 - Phase 34 governor, credential, admission, trusted-verifier, and Job-truth bindings;
-- no stale architecture documentation claiming the Phase 25 service worker is still deferred.
+- no stale architecture documentation claiming the Phase 25 service worker is still deferred;
+- Phase 42 voice cannot import approval/credential/dispatch authority, weaken secure approval/credential handoff, or drift from the release-registry environment state.
 
 The drift gate is additive to secret scan, TypeScript, lint, unit tests, and production build.
 
@@ -96,8 +121,8 @@ Committed inputs:
 
 After the normal CI build gate, `npm run release:generate` creates a machine manifest and operating manual for the exact checked-out Git SHA. `npm run verify:release` re-hashes package lock, declared schema/adapter sources, policy sources, environment declarations, evidence/manual sources, and the generated manual. GitHub Actions archives the verified `release/out/` artifacts.
 
-Disconnected infrastructure is versioned explicitly as `UNIMPLEMENTED`/`UNCONFIGURED` rather than guessed. Production readiness remains false until real acceptance evidence exists.
+Disconnected infrastructure is versioned explicitly as `UNIMPLEMENTED`/`UNCONFIGURED` rather than guessed. Phase 42 voice contract/adapter/environment state is included in the same generated manifest/manual and is production-required while its live adapter remains explicitly unconnected. Production readiness remains false until real acceptance evidence exists.
 
 ## Production status
 
-Deterministic code is not production autonomy. Production acceptance still requires real authentication/persistence/RLS, durable jobs, live AI Gateway, live resource agents/telemetry, transactional Phase 33 persistence, real adapters/probes, billing feeds, storage/failover, and end-to-end acceptance evidence.
+Deterministic code is not production autonomy. Production acceptance still requires real authentication/persistence/RLS, durable jobs, live AI Gateway, live resource agents/telemetry, transactional Phase 33 persistence, real adapters/probes, billing feeds, storage/failover, a live Phase 42 speech/native-iPhone adapter, and end-to-end acceptance evidence.
