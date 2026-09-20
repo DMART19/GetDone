@@ -342,7 +342,7 @@ export function createVoiceIntentRecord(input: {
   assertPolicyRegistryReference(policyRegistry);
   const routing = route(candidate.intent, candidate.slots);
 
-  const base = {
+  const base: Omit<VoiceIntentRecord, "intentHash"> = {
     id: input.id,
     source: "voice" as const,
     contractVersion: VOICE_INTENT_CONTRACT_VERSION,
