@@ -125,7 +125,7 @@ describe("autonomous task generator", () => {
     expect(first.status).toBe("created");
     expect(second.status).toBe("duplicates-only");
     expect(second.duplicateTasks[0].id).toBe(first.tasks[0].id);
-    expect(store.tasks).toHaveSize(1);
+    expect(store.tasks.size).toBe(1);
   });
 
   it("deduplicates equivalent work regenerated from the same source under a new plan id", async () => {
