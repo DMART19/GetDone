@@ -13,6 +13,10 @@ import {
   type EntityStore,
   type StatefulEntity
 } from "@/lib/domain/services/common";
+import {
+  assertVerificationReceipt,
+  type VerificationReceipt
+} from "@/lib/verification/verification";
 
 export type TaskState =
   | "proposed"
@@ -35,6 +39,8 @@ export interface TaskRecord extends StatefulEntity {
   authorizationGrantHash?: string;
   authorizationConsumption?: AuthorizationConsumptionRecord;
   verificationEvidenceIds: readonly string[];
+  verificationReceiptId?: string;
+  verificationReceiptHash?: string;
   failureReason?: string;
 }
 
@@ -170,14 +176,13 @@ export class TaskService {
   succeed(
     id: string,
     command: AuthoritativeCommandEnvelope,
-    evidenceIds: readonly string[]
+    receipt: VerificationReceipt
   ) {
-    if (evidenceIds.length === 0) {
-      throw new ControlPlaneError(
-        "VALIDATION_FAILED",
-        "Task success requires verification evidence"
-      );
-    }
+    assertVerificationReceipt(receipt, {
+      scope: command.scope,
+      subject: { type: "task", id },
+      allowedVerdicts: ["verified"]
+    });
 
     return executeTransitionCommand({
       manager: this.transactions,
@@ -187,15 +192,29 @@ export class TaskService {
       to: "succeeded",
       command,
       triggeringEvent: "task-verified-succeeded",
-      patch: () => ({ verificationEvidenceIds: [...evidenceIds] })
+      patch: () => ({
+        verificationEvidenceIds: [...receipt.evidenceIds],
+        verificationReceiptId: receipt.id,
+        verificationReceiptHash: receipt.receiptHash
+      }),
+      metadata: () => ({
+        verificationReceiptId: receipt.id,
+        verificationReceiptHash: receipt.receiptHash
+      })
     });
   }
 
   markUncertain(
     id: string,
     command: AuthoritativeCommandEnvelope,
-    evidenceIds: readonly string[]
+    receipt: VerificationReceipt
   ) {
+    assertVerificationReceipt(receipt, {
+      scope: command.scope,
+      subject: { type: "task", id },
+      allowedVerdicts: ["uncertain"]
+    });
+
     return executeTransitionCommand({
       manager: this.transactions,
       selectStore: (stores) => stores.tasks,
@@ -204,7 +223,15 @@ export class TaskService {
       to: "uncertain",
       command,
       triggeringEvent: "task-verification-uncertain",
-      patch: () => ({ verificationEvidenceIds: [...evidenceIds] })
+      patch: () => ({
+        verificationEvidenceIds: [...receipt.evidenceIds],
+        verificationReceiptId: receipt.id,
+        verificationReceiptHash: receipt.receiptHash
+      }),
+      metadata: () => ({
+        verificationReceiptId: receipt.id,
+        verificationReceiptHash: receipt.receiptHash
+      })
     });
   }
 
