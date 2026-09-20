@@ -43,9 +43,14 @@ Current code includes:
 - Phase 33 deterministic resource/pool capacity ledgers, CAS-bound atomic reservation commit envelopes, scoped idempotency, leases/renewal/expiry, requested-vs-granted capacity, protected headroom, cancellation/release, pending allocation records, and exactly-once deterministic capacity restoration
 - Phase 34 deterministic scheduler/dispatch foundation with Phase-35-governed eligible-only ranking, hash-bound placement decisions, retry/fallback lineage, live Phase-33 reservation gating, Phase-29 credential binding, short-lived final dispatch-admission receipts, trusted independent start/completion verification, explainable audit records, and release through Phase 33
 - Phase 35 deterministic cost/capacity governor with owned/committed/reserved/spot/on-demand economics, protected headroom, quotas, budget caps/approval thresholds, eligible-only economic ranking, and estimate-vs-actual reconciliation
+- Phase 36 deterministic Storage Fabric with authoritative/non-authoritative copy roles, HOME authority guardrails, replication/failure-domain constraints, residency/encryption/RPO/RTO checks, and explainable storage placement
+- Phase 37 deterministic failure-domain/circuit-breaker admission, drain state machine, correlated-domain failover planning, temporary-cost recording, and evidence-gated verified recovery
+- Phase 38 provider-neutral Resource Adapter SDK with discover/auth/capability/health/capacity/cost/reserve/allocate/dispatch/status/cancel/release operations, conformance checks, non-authoritative evidence, and DEVELOPMENT-only mock adapter
+- Phase 39 governed aggregate ResourcePool contracts with tenant/environment/data/capability rules, failure-domain/credential/policy bindings, aggregate capacity/quota/headroom invariants, readiness evidence, and concise owner-facing read models
 - Phase 40 full zero-side-effect resource policy simulator with historical-vs-projection labeling, policy/economic/scheduler/guardrail simulation, uncertainty, AI Gateway model-evidence recording, and explicit no-mutation/no-reservation/no-dispatch/no-secret-lookup guarantees
 - Phase 41 machine-readable version registry and environment manifest plus per-release Git-SHA-bound machine manifest, generated operating manual, CI evidence hashing/validation, and archived release artifacts
 - Phase 42 deterministic voice intent/secure-handoff contracts with typed canonical intents, transcript-hash-only evidence, current-policy/Control-API binding, no approval/step-up/execution authority, credential rejection, scoped audit records, and Phase-41 release-registry integration
+- Phase 44 deterministic offline adversarial harness covering voice approval bypass, staging→production credential misuse, forged resource capability, reservation replay, scheduler bypass, provider-success spoofing, credential escalation, cross-company contamination, release-registry tampering, and model/provider authority attempts
 
 ## Not yet production-complete
 
@@ -60,6 +65,7 @@ The repository does **not** claim production autonomy yet. Canonical acceptance 
 - production secret backend/token exchange and secure credential delivery transport
 - live authenticated hardware profiling/telemetry and Resource Fabric signal emission
 - durable transactional persistence for Phase 33 reservation/CAS commits plus live resource-adapter dispatch, production start/completion probes, scheduler persistence/recovery, failover, and measured economic execution
+- real Home NAS/storage runtime, live failure-domain orchestration, a real second resource provider, and partner/data-center pool execution
 - production historical placement/cost/AI-route analytics stores and simulation evidence persistence
 - production push subscription/delivery provider and notification persistence
 - cryptographic WebAuthn/passkey verification through a real auth provider
@@ -123,6 +129,7 @@ Use these as the implementation source of truth:
 - `docs/SOL_PHASE_41_REPORT.md`
 - `docs/SOL_PHASE_42_REPORT.md`
 - `docs/SOL_QUALITY_PHASE_4_13_19_21_REPORT.md`
+- `docs/SOL_PHASE_36_39_44_REPORT.md`
 - `release/version-registry.json`
 - `release/environment-manifest.json`
 - `docs/ASTRA_HANDOFF.md`
