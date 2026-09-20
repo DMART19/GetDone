@@ -97,13 +97,15 @@
     "docs/SOL_PHASE_29_32_REPORT.md",
     "docs/SOL_PHASE_33_REPORT.md",
     "docs/SOL_PHASE_34_REPORT.md",
-    "docs/SOL_PHASE_35_40_REPORT.md"
+    "docs/SOL_PHASE_35_40_REPORT.md",
+    "docs/SOL_PHASE_41_REPORT.md"
   ],
   "manualSourcePaths": [
     "docs/ARCHITECTURE.md",
     "docs/ASTRA_HANDOFF.md",
     "docs/GetDone_UFO_v2_MASTER_BUILD_PLAN.md",
-    "docs/SOL_IMPLEMENTATION_STATUS.md"
+    "docs/SOL_IMPLEMENTATION_STATUS.md",
+    "release/README.md"
   ],
   "generatedArtifacts": {
     "machineManifest": "release/out/release-manifest.json",
