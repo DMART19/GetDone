@@ -1,0 +1,125 @@
+{
+  "schemaVersion": "1.0.0",
+  "thresholds": {
+    "coveredModulePercent": 100,
+    "minimumTotalTestCases": 60,
+    "minimumTestCasesPerCriticalModule": 1
+  },
+  "modules": [
+    {
+      "source": "lib/control-plane/capability-invocation.ts",
+      "test": "lib/control-plane/capability-invocation.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/control-plane/command-envelope.ts",
+      "test": "lib/control-plane/command-envelope.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/control-plane/trusted-execution-scope.ts",
+      "test": "lib/control-plane/trusted-execution-scope.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/authorization/grants.ts",
+      "test": "lib/authorization/grants.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/authorization/proofs.ts",
+      "test": "lib/authorization/proofs.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/planning/plan-validator.ts",
+      "test": "lib/planning/plan-validator.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/planning/policy-engine.ts",
+      "test": "lib/planning/policy-engine.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/planning/task-generator.ts",
+      "test": "lib/planning/task-generator.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/planning/dag-compiler.ts",
+      "test": "lib/planning/dag-compiler.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/verification/verification.ts",
+      "test": "lib/verification/verification.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/verification/source-trust.ts",
+      "test": "lib/verification/source-trust.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/credentials/broker.ts",
+      "test": "lib/credentials/broker.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/resources/placement.ts",
+      "test": "lib/resources/placement.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/resources/reservations.ts",
+      "test": "lib/resources/reservations.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/resources/scheduler.ts",
+      "test": "lib/resources/scheduler.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/resources/cost-governor.ts",
+      "test": "lib/resources/cost-governor.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/security/resource-fabric-threats.ts",
+      "test": "lib/security/resource-fabric-threats.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/voice/voice-intents.ts",
+      "test": "lib/voice/voice-intents.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/ai-gateway/index.ts",
+      "test": "lib/ai-gateway/ai-gateway.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/integrations/registry.ts",
+      "test": "lib/integrations/registry.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/execution/job-runtime-contracts.ts",
+      "test": "lib/execution/job-runtime-contracts.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/execution/adapters/business-action.ts",
+      "test": "lib/execution/adapters/business-action.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/execution/software-worker.ts",
+      "test": "lib/execution/software-worker.test.ts",
+      "critical": true
+    }
+  ]
+}
