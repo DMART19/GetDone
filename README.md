@@ -28,6 +28,8 @@ Current code includes:
 - Phase 22 verification requests, evidence, strategy results, hash-bound receipts, freshness/expiry, independence rules, and authoritative verification transitions
 - Task / Job / Outcome truth transitions bound to verification receipts
 - Phase 23 advisory operational memory with Fact, Lesson, Experiment, Observation, OutcomeReference, confidence, sample size, confounders, expiry, supersession, relevance selection, and strict company isolation
+- Phase 24 attributed portfolio executive summaries plus automated adversarial security boundaries for auth, tenancy, callbacks, credentials, context contamination, external authority claims, kill switches, production promotion, and future Resource Fabric spoof/replay cases
+- Phase 25 PWA/mobile foundation with standalone manifest, offline-only service-worker shell caching, redacted push presentation, safe deep links, explicit update/reconnect signaling, deterministic notification routing, and WebAuthn origin/RP/user-verification checks
 - Phase 26 authoritative Resource Registry vocabulary, evidence records, readiness evaluation, lifecycle service, and concise read models
 - Phase 27 deterministic Resource Enrollment workflow with hashed one-time challenges, expiry/replay protection, scope preservation, restart/cancel semantics, evidence, and lifecycle audit
 
@@ -44,7 +46,8 @@ The repository does **not** claim production autonomy yet. Canonical acceptance 
 - secrets/credential broker
 - live profiling/telemetry
 - placement, reservations, scheduler, capacity ledger, and failover
-- production push/mobile delivery
+- production push subscription/delivery provider and notification persistence
+- cryptographic WebAuthn/passkey verification through a real auth provider
 - end-to-end production acceptance evidence
 
 Deterministic contracts and unit tests are intentionally built ahead of those integrations so later agents consume the existing authority model rather than replacing it.
@@ -90,6 +93,7 @@ Use these as the implementation source of truth:
 - `docs/SOL_IMPLEMENTATION_STATUS.md`
 - `docs/SOL_20_AUTHORITY_HARDENING_REPORT.md`
 - `docs/SOL_PHASE_22_23_26_27_REPORT.md`
+- `docs/SOL_PHASE_24_25_REPORT.md`
 - `docs/ASTRA_HANDOFF.md`
 
 No phase is complete merely because code exists. Canonical PASS still requires the acceptance evidence specified by the master build plan.
