@@ -515,6 +515,38 @@ Not yet claimed:
 
 See `docs/SOL_PHASE_35_40_REPORT.md`.
 
+
+## September 20 Architecture Integrity tranche
+
+**STATUS: DETERMINISTIC CROSS-PHASE COMPOSITION HARDENED; PRODUCTION RUNTIME GAPS REMAIN EXPLICIT**
+
+Implemented:
+- authoritative `VerificationSourceBinding` records bind verifier source type/ID, company/environment scope, allowed strategies, status, validity window, and an authoritative independence domain;
+- `VerificationTrustAttestation` verifies receipt/evidence/source-binding lineage and rejects caller-invented independence keys;
+- evidence must still be fresh when the trust attestation is created;
+- Phase 34 scheduler ranking now consumes the Phase 35 `CostGovernorReport`;
+- only Phase-35 `allow` candidates may enter autonomous scheduler ranking;
+- Phase-35 `approval-required` and `blocked` candidates are explicitly separated from autonomous ranking;
+- cost-governor reports now carry evaluated/expiry windows and fail closed when stale;
+- Phase 34 placement decisions bind the Phase 35 governor report hash;
+- final dispatch requires an active Phase 29 CredentialLease for the exact company/environment/Job/resource/provider/capability and Placement Request;
+- `DispatchAdmissionReceipt` rechecks live Phase 33 reservation/allocation lineage, READY state, environment permission, current policy-registry reference, Phase 35 admission/freshness, Phase 29 credential freshness/scope, and current kill switches;
+- dispatch-admission expiry is bounded by the earliest reservation, credential, governor, or receipt TTL;
+- dispatch intent records credential lease and dispatch-admission receipt hashes;
+- verified running/completion boundaries require a trusted verifier-source attestation in addition to a VERIFIED receipt;
+- `jobStateMutationApplied: false` remains explicit so scheduler facts cannot become Job truth directly;
+- `npm run verify:architecture` is now part of CI and checks permanent navigation, authority language, provider SDK isolation, public-secret naming, seed-data isolation, simulator side-effect isolation, and critical scheduler/trust bindings;
+- stale `docs/ARCHITECTURE.md` wording was reconciled with implemented Phase 25 and Resource Fabric work.
+
+Remaining drift / intentional gaps:
+- implementation order remains ahead of the canonical runtime sequence: deterministic Phases 29–35/40 exist before production Phase 13/19/28 runtime integrations;
+- production auth/session persistence and authoritative DB/RLS are still absent;
+- live AI Gateway/OpenRouter, durable Job Engine, Pi/Linux agent, secret backend, telemetry, transactional Phase 33 store, live Phase 34 adapters/probes, billing feeds, storage/failover, second provider/DC pools, and production historical stores remain unimplemented;
+- Phase 41 version registry/release manifests/manual generation is still open and is the strongest next anti-drift tranche;
+- canonical PASS remains blocked wherever the master plan requires real persistence/runtime/hardware evidence.
+
+See `docs/SOL_ARCHITECTURE_INTEGRITY_REPORT.md`.
+
 ## Updated handoff boundary
 
 Sol should continue deterministic contracts, validators, policy engines, simulators, tests, and repository hardening.
