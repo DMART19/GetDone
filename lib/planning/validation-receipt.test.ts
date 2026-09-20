@@ -114,7 +114,17 @@ describe("plan validation receipt", () => {
   });
 
   it("does not allow owner-decision validation to masquerade as clean validation", () => {
-    const plan = validPlan();
+    const basePlan = validPlan();
+    const plan = {
+      ...basePlan,
+      steps: [{
+        ...basePlan.steps[0],
+        risk: {
+          ...basePlan.steps[0].risk,
+          level: "medium" as const
+        }
+      }]
+    };
     const snapshot = createValidationSnapshot({
       id: "snapshot-owner-decision",
       policyVersion: CURRENT_POLICY_VERSION,
@@ -131,7 +141,7 @@ describe("plan validation receipt", () => {
     const attestation = attestPlanValidation(
       plan,
       validationPolicyFor(plan, {
-        requireRollbackForRiskAtOrAbove: "low"
+        requireRollbackForRiskAtOrAbove: "medium"
       }),
       "2026-09-20T18:29:15Z"
     );
