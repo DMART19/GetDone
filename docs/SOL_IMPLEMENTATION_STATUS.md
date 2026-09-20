@@ -652,3 +652,26 @@ Still not production-connected:
 - real software repository/build/staging/production/rollback execution.
 
 See `docs/SOL_QUALITY_PHASE_4_13_19_21_REPORT.md`.
+
+
+## September 20 deterministic Phases 36–39 + Phase 44 tranche
+
+**STATUS: DETERMINISTIC RESOURCE-FABRIC CONTRACTS + OFFLINE ADVERSARIAL HARNESS IMPLEMENTED; LIVE HARDWARE/PROVIDERS/FAILOVER/PRODUCTION ACCEPTANCE STILL REQUIRED**
+
+Implemented:
+- Phase 36 Storage Fabric data/copy roles, HOME authority guardrails, replication/failure-domain invariants, encryption/residency/RPO/RTO/capacity checks, and hash-bound copy plans;
+- Phase 37 failure-domain health/circuit-breaker admission, drain lifecycle, correlated-domain failover planning, checkpoint/retry guardrails, temporary cost impact, and verified-recovery evidence requirements;
+- Phase 38 provider-neutral Resource Adapter SDK covering discover/auth/capabilities/health/capacity/cost/reserve/allocate/dispatch/status/cancel/release plus conformance and DEVELOPMENT mock;
+- Phase 39 governed aggregate ResourcePool identity, environment/data/capability/reliability/failure-domain/credential/policy bindings, aggregate capacity/quota/headroom snapshots, readiness evidence, scheduling eligibility, and concise read model;
+- Phase 44 versioned deterministic offline attack matrix for the ten requested attack classes;
+- dependency matrix and critical-module coverage gate extended for these modules;
+- Phase 41 registry/environment/release schemas advanced to 1.3.0 and now distinguish these deterministic contracts from unconnected live runtime state.
+
+Still not production-connected:
+- Home NAS/storage IO/replication/restore;
+- live failure-domain telemetry/drain/reroute/checkpoint recovery;
+- a real second provider adapter;
+- real partner/colo aggregate pool enrollment/capacity;
+- full production Phase 44 end-to-end acceptance.
+
+See `docs/SOL_PHASE_36_39_44_REPORT.md`.
