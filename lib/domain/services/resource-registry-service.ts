@@ -112,6 +112,29 @@ export class ResourceRegistryService {
     command: AuthoritativeCommandEnvelope
   ) {
     const discoveredAt = input.discoveredAt ?? new Date().toISOString();
+
+    const requestedEnvironments = [...new Set(input.environmentPermissions)];
+    if (
+      requestedEnvironments.length !== 1
+      || requestedEnvironments[0] !== command.scope.environment
+    ) {
+      throw new ControlPlaneError(
+        "FORBIDDEN",
+        "Resource discovery cannot grant environment permissions beyond trusted command scope"
+      );
+    }
+
+    const requestedDataClasses = [...new Set(input.dataClassesAllowed ?? ["public"])];
+    if (
+      requestedDataClasses.length !== 1
+      || requestedDataClasses[0] !== "public"
+    ) {
+      throw new ControlPlaneError(
+        "FORBIDDEN",
+        "Resource discovery starts PUBLIC-only until authoritative resource policy expands data access"
+      );
+    }
+
     const fingerprint = commandFingerprint(command);
 
     return this.transactions.run(async (transaction) => {
@@ -139,7 +162,7 @@ export class ResourceRegistryService {
         providerId: input.providerId,
         poolId: input.poolId,
         state: "discovered",
-        environmentPermissions: Object.freeze([...input.environmentPermissions]),
+        environmentPermissions: Object.freeze(requestedEnvironments),
         capabilityNames: Object.freeze([...(input.capabilityNames ?? [])]),
         failureDomainIds: Object.freeze([...(input.failureDomainIds ?? [])]),
         credentialBindingIds: Object.freeze([...(input.credentialBindingIds ?? [])]),
@@ -152,7 +175,7 @@ export class ResourceRegistryService {
         costProfileIds: Object.freeze([]),
         providerBindingIds: Object.freeze([]),
         trustClass: input.trustClass ?? "untrusted",
-        dataClassesAllowed: Object.freeze([...(input.dataClassesAllowed ?? ["public"])]),
+        dataClassesAllowed: Object.freeze(requestedDataClasses),
         region: input.region,
         architecture: input.architecture,
         createdAt: discoveredAt,
@@ -224,7 +247,7 @@ export class ResourceRegistryService {
         );
       }
 
-      await selectStore(transaction.stores).append(Object.freeze({ ...record }) as T);
+      await selectStore(transaction.stores).append(record);
       await transaction.audit.append(createAuditEvent({
         correlationId: command.correlationId,
         eventType,
