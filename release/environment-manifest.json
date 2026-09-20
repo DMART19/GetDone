@@ -1,5 +1,5 @@
 {
-  "manifestSchemaVersion": "1.0.0",
+  "manifestSchemaVersion": "1.1.0",
   "environments": {
     "development": {
       "authorityMode": "deterministic-foundation",
