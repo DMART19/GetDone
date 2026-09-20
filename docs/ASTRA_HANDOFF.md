@@ -34,11 +34,27 @@ This repository has already been advanced beyond a visual scaffold. Astra should
 
 ### Intelligence substrate
 
-- normalized signals
-- deterministic attention filtering
-- freshness/cooldown/deduplication
-- external research mission/evidence contracts
-- bounded scope-aware context assembly
+- transactional Signal Bus contracts
+- trusted source-binding scope resolution
+- durable dedupe/cursor interfaces and out-of-order event handling
+- company/resource deterministic sensing profiles
+- freshness/cooldowns and Investigation coordination
+- advisory external-research quotas and failure isolation
+- bounded fresh scope-aware context sections with explicit resource authorization
+
+### Planning / authorization / compilation substrate
+
+- GetDone-owned structured plan schema
+- server-authorized plan scope/source construction boundary
+- deterministic plan validator
+- AUTO / APPROVAL_REQUIRED / STRONG_APPROVAL / BLOCKED policy engine
+- budget / guardrail / kill-switch / step-up preflight
+- immutable task generation with authorization lineage
+- semantic logical task deduplication
+- deterministic executable DAG compiler
+- typed capability mapping and input revalidation
+- preconditions, verification nodes, rollback/cancellation semantics
+- future resource requirement envelopes with resource selection explicitly deferred
 
 ### Verification
 
@@ -67,12 +83,11 @@ Once the owner/infrastructure blockers are resolved, Astra should focus its high
    - model/provider kill switches
    - response schema validation and audit
 
-2. **Phases 14–18 — planning/authorization/task compilation**
-   - plan construction
-   - deterministic validation
-   - policy/preflight + strong approvals
-   - task generation
-   - executable DAG compilation
+2. **Provider-connected completion of Phases 14–17**
+   - route model-originated proposals through the production AI Gateway and the existing GetDone-owned plan schema
+   - bind policy/approval state to the real auth/session/database implementation
+   - persist task-deduplication and authorization lineage atomically
+   - preserve the existing validator, policy engine, task generator, and DAG compiler rather than replacing them
 
 3. **Phases 19–23 — durable execution**
    - persistent queues

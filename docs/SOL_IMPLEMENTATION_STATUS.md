@@ -75,6 +75,26 @@ This file tracks code actually implemented from `SOL_UPGRADE_EXECUTION_PLAN.md`.
 - Added bounded scoped context assembly with portfolio/company/sensitivity filtering and character limits.
 - Added tests for signal escalation/dedupe/cooldown, research scope/freshness, and cross-company context isolation.
 
+### SOL-8 — Signal intelligence hardening
+
+- Added transactional Signal Bus contracts for trusted-scope ingestion, dedupe, normalized signals, and out-of-order cursors.
+- Added company/resource sensing profiles, deterministic thresholds, freshness/cooldowns, and Investigation creation.
+- Added advisory research quotas/failure isolation.
+- Added fresh, scope-aware, resource-authorized context sections.
+- See `docs/PHASE_9_12_REPORT.md`.
+
+### SOL-10 — Deterministic planning and compilation
+
+- Added GetDone-owned structured plan schema for objectives/investigations/owner requests.
+- Added server-authorized plan scope/source construction boundary.
+- Added deterministic plan validation for capability fit, dependency graphs, contradictions, costs, environment/data/region, reliability, fallback, credentials, and rollback requirements.
+- Added deterministic policy outcomes: AUTO, APPROVAL_REQUIRED, STRONG_APPROVAL, BLOCKED.
+- Policy evaluation includes capability rules, environment/data/region, guardrails, budgets, kill switches, credentials, protected headroom, fallback, idempotency, approval state, and fresh step-up.
+- Added immutable autonomous task generation with authorization lineage and semantic SHA-256 logical deduplication.
+- Added deterministic executable DAG compilation with cycle/unsatisfied-dependency rejection, typed capability mapping, runtime capability-input validation, preconditions, verification nodes, rollback/cancellation semantics, and resource requirement envelopes.
+- Resource selection and durable dispatch remain explicitly deferred.
+- See `docs/PHASE_14_18_DETERMINISTIC_REPORT.md`.
+
 ### SOL-9 — CI/security hardening
 
 - Upgraded the project from vulnerable Next.js 15.5.2 to the patched 15.5.25 release line.
