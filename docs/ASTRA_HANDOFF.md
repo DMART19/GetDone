@@ -115,6 +115,18 @@ This repository has already been advanced beyond a visual scaffold. Astra should
 - candidate reports are explainable and snapshot-bound
 - no reservation, scheduler ranking, or dispatch has been added
 
+### Resource economics and simulation foundation
+
+- Phase 35 hash-bound economic snapshots cover owned/committed/reserved/spot/on-demand capacity, utilization, protected headroom, quotas, effective cost, and marginal cost
+- the cost governor can only rank resources that already passed Phase 32 hard eligibility
+- budget bindings deterministically allow, require approval, or block; economics never overrides data/security/reliability policy
+- cost/usage reconciliation compares estimates with actuals without establishing business outcome truth
+- Phase 40 simulator reuses the existing Phase 31/32/35 contracts rather than inventing a second policy path
+- historical observations and simulation projections are explicitly labeled separately
+- simulation emits assumptions, uncertainty, guardrail findings, and advisory scheduler ordering
+- AI-recommended simulations must record AI Gateway model/provider/routing-policy evidence
+- simulator has no policy mutation, reservation, dispatch, credential lookup, or automatic promotion path
+
 ### Verification pipeline
 
 CI runs install, secret-pattern scan, typecheck, lint, tests, and build. Do not bypass those gates.
@@ -175,15 +187,16 @@ Once the owner/infrastructure blockers are resolved, Astra should focus its high
    - persist Phase 32 placement requests/evaluation snapshots without adding scheduler authority
    - do not let an agent/provider/frontend bypass READY, credential, policy, or placement authority
 
-6. **Phases 33–40 — placement/resilience/economics**
+6. **Provider-connected completion of Phases 33–40**
    - reservations/capacity ledger
    - scheduler/dispatch/start verification
-   - cost governor
+   - connect the existing Phase 35 governor to real reservation state, quotas, billing/usage feeds, and durable reconciliations
    - storage fabric
    - failure domains and failover
    - adapter SDK + second provider
    - partner/DC pools
-   - zero-side-effect simulator
+   - connect the existing Phase 40 read-only simulator to durable historical placement/cost/utilization/failure/queue/outcome and AI Gateway analytics
+   - calibrate simulation projections against measured outcomes without allowing automatic policy promotion
 
 7. **Phases 41–44 — release and final gate**
    - version/release evidence
@@ -213,6 +226,7 @@ Before a heavy Astra pass, read:
 - `docs/PHASE_3_REPORT.md`
 - `docs/SOL_PHASE_24_25_REPORT.md`
 - `docs/SOL_PHASE_29_32_REPORT.md`
+- `docs/SOL_PHASE_35_40_REPORT.md`
 - latest GitHub Actions result
 
 Then continue from the first unblocked canonical phase without silently replacing the authority model.
@@ -233,6 +247,8 @@ Astra must treat the following as existing architecture, not greenfield work:
 - Phase 29 reference-only secret and minimum-scope credential lease contracts;
 - Phase 30 resource profiling, privileged-claim validation, telemetry health, and zero-side-effect simulator;
 - Phase 31 deterministic resource/data placement policy;
-- Phase 32 control-plane placement requests and explainable candidate eligibility evaluation.
+- Phase 32 control-plane placement requests and explainable candidate eligibility evaluation;
+- Phase 35 deterministic cost/capacity governor and estimate-vs-actual reconciliation;
+- Phase 40 read-only policy/economics/scheduler/guardrail simulator with explicit uncertainty and zero side effects.
 
 Canonical PASS for these phases still depends on real persistence/runtime/hardware acceptance where specified by the master plan. The existence of deterministic code is not permission to mark infrastructure-dependent acceptance complete.
