@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { ControlPlaneError } from "@/lib/control-plane/errors";
-import type { PolicyEvaluation } from "@/lib/planning/policy-engine";
+import type { AuthorizationGrant } from "@/lib/authorization/grants";
+import { assertAuthorizationGrant } from "@/lib/authorization/grants";
 import type {
   PlanProposal,
   PlanStep,
@@ -10,7 +11,8 @@ import type {
   PlanPrecondition,
   CapabilityRequest
 } from "@/lib/planning/plan-schema";
-import type { PlanValidationResult } from "@/lib/planning/plan-validator";
+import type { PlanValidationReceipt } from "@/lib/planning/validation-receipt";
+import { assertValidationReceipt } from "@/lib/planning/validation-receipt";
 
 export type TaskPriority = "low" | "normal" | "high" | "critical";
 
@@ -27,9 +29,11 @@ export interface GeneratedTask {
   planId: string;
   planStepId: string;
   scope: Readonly<{
+    userId: string;
     portfolioId: string;
     companyId: string;
     environment: "development" | "staging" | "production";
+    resourceId?: string;
     dataClass: "public" | "internal" | "customer" | "sensitive";
   }>;
   source: Readonly<{
@@ -42,6 +46,12 @@ export interface GeneratedTask {
   capabilityRequirements: readonly string[];
   operations: readonly CapabilityRequest[];
   authorizationLineage: readonly AuthorizationLineageEntry[];
+  authorizationGrantId: string;
+  authorizationGrantHash: string;
+  validationReceiptId: string;
+  validationReceiptHash: string;
+  policySnapshotId: string;
+  policySnapshotHash: string;
   dependsOnLogicalKeys: readonly string[];
   preconditions: readonly PlanPrecondition[];
   resourceRequirements: Readonly<ResourceRequirementEnvelope>;
@@ -61,10 +71,9 @@ export interface TaskGenerationDedupeStore {
 
 export interface TaskGenerationInput {
   plan: PlanProposal;
-  validation: PlanValidationResult;
+  validationReceipt: PlanValidationReceipt;
+  authorizationGrants: Readonly<Record<string, AuthorizationGrant>>;
   objectiveStatus?: "active" | "paused" | "completed";
-  stepPolicies: Readonly<Record<string, PolicyEvaluation>>;
-  authorizationLineage: readonly AuthorizationLineageEntry[];
 }
 
 export interface TaskGenerationResult {
@@ -121,6 +130,19 @@ function logicalKey(plan: PlanProposal, step: PlanStep) {
   ].join(":");
 }
 
+function lineageFromGrant(grant: AuthorizationGrant): AuthorizationLineageEntry[] {
+  return [{
+    kind: grant.disposition === "AUTO"
+      ? "auto-policy"
+      : grant.disposition === "STRONG_APPROVAL"
+        ? "strong-approval"
+        : "decision",
+    referenceId: grant.id,
+    grantedAt: grant.issuedAt,
+    actorId: grant.actor.id
+  }];
+}
+
 function deepFreeze<T>(value: T, seen = new WeakSet<object>()): T {
   if (!value || typeof value !== "object") return value;
   const object = value as object;
@@ -141,12 +163,15 @@ export class TaskGenerator {
   ) {}
 
   async generate(input: TaskGenerationInput): Promise<TaskGenerationResult> {
-    if (input.validation.status !== "valid") {
+    const now = this.now();
+    try {
+      assertValidationReceipt(input.validationReceipt, input.plan, now.getTime());
+    } catch (error) {
       return {
         status: "blocked",
         tasks: [],
         duplicateTasks: [],
-        reasons: ["Plan must pass deterministic validation before task generation"]
+        reasons: [error instanceof Error ? error.message : "Validation receipt is invalid"]
       };
     }
 
@@ -159,25 +184,37 @@ export class TaskGenerator {
       };
     }
 
+    const validatedGrants = new Map<string, AuthorizationGrant>();
+
     for (const step of input.plan.steps) {
-      const policy = input.stepPolicies[step.id];
-      if (!policy || !policy.readyForTaskGeneration) {
+      const grant = input.authorizationGrants[step.id];
+      if (!grant) {
         return {
           status: "blocked",
           tasks: [],
           duplicateTasks: [],
-          reasons: [`Step is not authorized for task generation: ${step.id}`]
+          reasons: [`Missing authorization grant for plan step: ${step.id}`]
         };
       }
 
-      if (policy.disposition !== "AUTO" && input.authorizationLineage.length === 0) {
+      try {
+        assertAuthorizationGrant({
+          grant,
+          plan: input.plan,
+          stepId: step.id,
+          receipt: input.validationReceipt,
+          scope: grant.scope,
+          now: now.getTime()
+        });
+      } catch (error) {
         return {
           status: "blocked",
           tasks: [],
           duplicateTasks: [],
-          reasons: [`Approved step is missing immutable authorization lineage: ${step.id}`]
+          reasons: [error instanceof Error ? error.message : `Invalid authorization grant: ${step.id}`]
         };
       }
+      validatedGrants.set(step.id, grant);
     }
 
     const stepLogicalKeys = new Map(
@@ -188,30 +225,21 @@ export class TaskGenerator {
     const duplicateTasks: GeneratedTask[] = [];
 
     for (const step of input.plan.steps) {
-      const policy = input.stepPolicies[step.id];
+      const grant = validatedGrants.get(step.id);
+      if (!grant) throw new ControlPlaneError("FORBIDDEN", "Validated authorization grant disappeared");
+
       const key = stepLogicalKeys.get(step.id)!;
-      const createdAt = this.now().toISOString();
-      const lineage = policy.disposition === "AUTO" && input.authorizationLineage.length === 0
-        ? [{
-            kind: "auto-policy" as const,
-            referenceId: `policy:${step.id}`,
-            grantedAt: createdAt
-          }]
-        : [...input.authorizationLineage];
-
-      if (lineage.length === 0) {
-        throw new ControlPlaneError("VALIDATION_FAILED", "Task requires authorization lineage");
-      }
-
       const candidate: GeneratedTask = deepFreeze({
         id: this.idFactory(),
         logicalKey: key,
         planId: input.plan.id,
         planStepId: step.id,
         scope: {
+          userId: grant.scope.userId,
           portfolioId: input.plan.scope.portfolioId,
           companyId: input.plan.scope.companyId,
           environment: input.plan.scope.environment,
+          resourceId: grant.scope.resourceId,
           dataClass: input.plan.scope.dataClass
         },
         source: {
@@ -231,7 +259,13 @@ export class TaskGenerator {
           capability: request.capability,
           input: request.input
         })),
-        authorizationLineage: lineage.map((item) => ({ ...item })),
+        authorizationLineage: lineageFromGrant(grant),
+        authorizationGrantId: grant.id,
+        authorizationGrantHash: grant.grantHash,
+        validationReceiptId: input.validationReceipt.id,
+        validationReceiptHash: input.validationReceipt.receiptHash,
+        policySnapshotId: grant.policySnapshotId,
+        policySnapshotHash: grant.policySnapshotHash,
         dependsOnLogicalKeys: step.dependsOn.map((dependency) => stepLogicalKeys.get(dependency)!),
         preconditions: step.preconditions.map((item) => ({ ...item })),
         resourceRequirements: {
@@ -250,15 +284,12 @@ export class TaskGenerator {
         verificationRequirements: step.verificationRequirements.map((item) => ({ ...item })),
         rollback: { ...step.rollback },
         estimatedCostCents: step.estimatedCostCents,
-        createdAt
+        createdAt: now.toISOString()
       });
 
       const claim = await this.dedupe.claim(candidate);
-      if (claim.created) {
-        tasks.push(claim.task);
-      } else {
-        duplicateTasks.push(claim.task);
-      }
+      if (claim.created) tasks.push(claim.task);
+      else duplicateTasks.push(claim.task);
     }
 
     return {

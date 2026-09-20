@@ -9,6 +9,7 @@ import { ApprovalService, type ApprovalRecord, type ApprovalStores } from "@/lib
 import { TaskService, type TaskRecord, type TaskStores } from "@/lib/domain/services/task-service";
 import { JobService, type JobRecord, type JobStores } from "@/lib/domain/services/job-service";
 import { OutcomeService, type OutcomeRecord, type OutcomeStores } from "@/lib/domain/services/outcome-service";
+import type { StepUpProof } from "@/lib/authorization/proofs";
 
 class MemoryStore<T extends AuthoritativeEntity> implements EntityStore<T> {
   constructor(public value: T) {}
@@ -56,6 +57,20 @@ function command(type: string) {
   });
 }
 
+const stepUp: StepUpProof = {
+  id: "stepup-service",
+  actorId: "user-a",
+  scope: {
+    userId: "user-a",
+    portfolioId: "portfolio-a",
+    companyId: "company-a",
+    environment: "development"
+  },
+  method: "passkey",
+  authenticatedAt: "2026-09-20T17:59:00Z",
+  expiresAt: "2099-01-01T00:00:00Z"
+};
+
 const base = {
   id: "entity-1",
   portfolioId: "portfolio-a",
@@ -77,12 +92,14 @@ describe("transactional domain services", () => {
     expect(audit.events[0].eventType).toBe("goal.active");
   });
 
-  it("requires step-up for strong approvals", async () => {
+  it("requires a real step-up proof for strong approvals", async () => {
     const store = new MemoryStore<ApprovalRecord>({
       ...base, state: "pending", decisionId: "decision-1", requirement: "strong-approval"
     });
     const service = new ApprovalService(manager<ApprovalStores>({ approvals: store }));
-    await expect(service.grant(base.id, command("approval.grant"), false)).rejects.toThrow();
+    await expect(service.grant(base.id, command("approval.grant"))).rejects.toThrow();
+    const granted = await service.grant(base.id, command("approval.grant"), stepUp);
+    expect(granted.state).toBe("granted");
   });
 
   it("requires verification evidence before task success", async () => {

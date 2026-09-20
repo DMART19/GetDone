@@ -1,7 +1,11 @@
 import { createAuditEvent } from "@/lib/domain/audit";
 import { ControlPlaneError } from "@/lib/control-plane/errors";
-import type { RequestContext } from "@/lib/control-plane/request-context";
 import type { DecisionAction } from "@/lib/control-plane/schemas";
+import {
+  commandFingerprint,
+  type AuthoritativeCommandEnvelope
+} from "@/lib/control-plane/command-envelope";
+import { assertStepUpProof, type StepUpProof } from "@/lib/authorization/proofs";
 import type { DecisionTransactionManager } from "@/lib/domain/decision-transaction";
 import { claimIdempotency } from "@/lib/domain/idempotency";
 import { assertTransition } from "@/lib/domain/state-machine";
@@ -23,13 +27,18 @@ export interface DecisionAuthorityStore {
   save(next: AuthoritativeDecision, expectedVersion: number): Promise<void>;
 }
 
-export interface ResolveDecisionInput {
-  context: RequestContext;
-  transactionManager: DecisionTransactionManager;
-  idempotencyKey: string;
+export interface DecisionMutation {
+  type: "decision.resolve";
   decisionId: string;
   action: DecisionAction;
-  stepUpSatisfied: boolean;
+}
+
+export interface ResolveDecisionInput {
+  command: AuthoritativeCommandEnvelope<DecisionMutation>;
+  transactionManager: DecisionTransactionManager;
+  decisionId: string;
+  action: DecisionAction;
+  stepUpProof?: StepUpProof;
 }
 
 function targetState(action: DecisionAction): AuthoritativeDecisionStatus {
@@ -38,51 +47,55 @@ function targetState(action: DecisionAction): AuthoritativeDecisionStatus {
   return "rejected";
 }
 
-function decisionFingerprint(input: ResolveDecisionInput) {
-  return [
-    input.context.actor.id,
-    input.context.scope.portfolioId ?? "-",
-    input.context.scope.companyId ?? "-",
-    input.decisionId,
-    input.action
-  ].join(":");
-}
-
 export async function resolveDecision(input: ResolveDecisionInput): Promise<AuthoritativeDecision> {
+  if (
+    input.command.requestedMutation.type !== "decision.resolve"
+    || input.command.requestedMutation.decisionId !== input.decisionId
+    || input.command.requestedMutation.action !== input.action
+  ) {
+    throw new ControlPlaneError("FORBIDDEN", "Decision command mutation does not match requested decision action");
+  }
+
   return input.transactionManager.run(async (transaction) => {
-    const fingerprint = decisionFingerprint(input);
+    const fingerprint = commandFingerprint(input.command);
     const claim = await claimIdempotency<AuthoritativeDecision>(
       transaction.idempotency,
-      input.idempotencyKey,
+      input.command.idempotencyKey,
       fingerprint
     );
 
     if (claim.state === "COMPLETED" && claim.record.result) return claim.record.result;
     if (claim.state === "IN_PROGRESS" || claim.state === "FAILED") {
       throw new ControlPlaneError("CONFLICT", "The same decision request is already in progress or previously failed", {
-        correlationId: input.context.correlationId
+        correlationId: input.command.correlationId
       });
     }
 
     const current = await transaction.stores.decisions.get(input.decisionId);
     if (!current) {
       throw new ControlPlaneError("NOT_FOUND", "Decision was not found", {
-        correlationId: input.context.correlationId
+        correlationId: input.command.correlationId
       });
     }
 
     if (
-      current.portfolioId !== input.context.scope.portfolioId
-      || current.companyId !== input.context.scope.companyId
+      current.portfolioId !== input.command.scope.portfolioId
+      || current.companyId !== input.command.scope.companyId
     ) {
-      throw new ControlPlaneError("FORBIDDEN", "Decision is outside the trusted request scope", {
-        correlationId: input.context.correlationId
+      throw new ControlPlaneError("FORBIDDEN", "Decision is outside the trusted command scope", {
+        correlationId: input.command.correlationId
       });
     }
 
-    if (current.requiresStepUp && input.action === "approve" && !input.stepUpSatisfied) {
-      throw new ControlPlaneError("FORBIDDEN", "Fresh step-up authentication is required for this approval", {
-        correlationId: input.context.correlationId
+    if (current.requiresStepUp && input.action === "approve") {
+      if (!input.stepUpProof) {
+        throw new ControlPlaneError("FORBIDDEN", "Fresh step-up proof is required for this approval", {
+          correlationId: input.command.correlationId
+        });
+      }
+      assertStepUpProof(input.stepUpProof, {
+        actorId: input.command.actor.id,
+        scope: input.command.scope
       });
     }
 
@@ -98,21 +111,30 @@ export async function resolveDecision(input: ResolveDecisionInput): Promise<Auth
 
     await transaction.stores.decisions.save(next, current.version);
     await transaction.audit.append(createAuditEvent({
-      correlationId: input.context.correlationId,
+      correlationId: input.command.correlationId,
       eventType: `decision.${nextState}`,
-      actor: input.context.actor,
-      scope: input.context.scope,
-      environment: input.context.environment,
+      actor: input.command.actor,
+      scope: {
+        userId: input.command.scope.userId,
+        portfolioId: input.command.scope.portfolioId,
+        companyId: input.command.scope.companyId,
+        resourceId: input.command.scope.resourceId
+      },
+      environment: input.command.environment,
       entityType: "decision",
       entityId: current.id,
       previousState: current.status,
       newState: next.status,
-      provenance: "getdone-control-plane",
-      metadata: { idempotencyKey: input.idempotencyKey }
+      provenance: input.command.provenance,
+      metadata: {
+        commandId: input.command.commandId,
+        idempotencyKey: input.command.idempotencyKey,
+        stepUpProofId: input.stepUpProof?.id ?? null
+      }
     }));
 
     await transaction.idempotency.complete(
-      input.idempotencyKey,
+      input.command.idempotencyKey,
       fingerprint,
       next,
       new Date().toISOString()

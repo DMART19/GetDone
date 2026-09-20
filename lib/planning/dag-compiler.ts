@@ -98,9 +98,11 @@ function assertSameScope(tasks: readonly GeneratedTask[]) {
 
   for (const task of tasks) {
     if (
-      task.scope.portfolioId !== first.portfolioId
+      task.scope.userId !== first.userId
+      || task.scope.portfolioId !== first.portfolioId
       || task.scope.companyId !== first.companyId
       || task.scope.environment !== first.environment
+      || task.scope.resourceId !== first.resourceId
       || task.scope.dataClass !== first.dataClass
     ) {
       throw new ControlPlaneError("FORBIDDEN", "A compiled DAG cannot cross authoritative task scope");

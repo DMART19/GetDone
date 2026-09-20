@@ -4,8 +4,7 @@ import type { GeneratedTask } from "@/lib/planning/task-generator";
 import { TaskGenerator, type TaskGenerationDedupeStore } from "@/lib/planning/task-generator";
 import { validPlan } from "@/lib/planning/test-fixture";
 import type { PlanProposal } from "@/lib/planning/plan-schema";
-import type { PlanValidationResult } from "@/lib/planning/plan-validator";
-import type { PolicyEvaluation } from "@/lib/planning/policy-engine";
+import { autoGrantFor, fixtureNow, receiptFor } from "@/lib/planning/test-security-fixture";
 
 class MemoryTaskStore implements TaskGenerationDedupeStore {
   readonly tasks = new Map<string, GeneratedTask>();
@@ -16,14 +15,6 @@ class MemoryTaskStore implements TaskGenerationDedupeStore {
     return { created: true, task };
   }
 }
-
-const autoPolicy: PolicyEvaluation = {
-  disposition: "AUTO",
-  reasons: [],
-  requiresFreshStepUp: false,
-  approvalSatisfied: true,
-  readyForTaskGeneration: true
-};
 
 function twoStepPlan(): PlanProposal {
   const source = validPlan();
@@ -53,35 +44,34 @@ function twoStepPlan(): PlanProposal {
 }
 
 async function generatedTasks(plan = twoStepPlan()) {
-  const validation: PlanValidationResult = {
-    status: "valid",
-    errors: [],
-    warnings: [],
-    ownerDecisions: [],
-    orderedStepIds: plan.steps.map((step) => step.id),
-    totalStepCostCents: plan.steps.reduce((sum, step) => sum + step.estimatedCostCents, 0)
-  };
   let counter = 0;
   const generator = new TaskGenerator(
     new MemoryTaskStore(),
     () => `task-${++counter}`,
-    () => new Date("2026-09-20T16:10:00Z")
+    () => fixtureNow
+  );
+  const receipt = receiptFor(plan);
+  const authorizationGrants = Object.fromEntries(
+    plan.steps.map((step) => [step.id, autoGrantFor(plan, step.id, receipt)])
   );
 
   const result = await generator.generate({
     plan,
-    validation,
-    objectiveStatus: "active",
-    stepPolicies: Object.fromEntries(plan.steps.map((step) => [step.id, autoPolicy])),
-    authorizationLineage: []
+    validationReceipt: receipt,
+    authorizationGrants,
+    objectiveStatus: "active"
   });
+
+  if (result.status !== "created") {
+    throw new Error(`Task fixture failed: ${result.reasons.join("; ")}`);
+  }
   return result.tasks;
 }
 
 describe("deterministic DAG compiler", () => {
   it("orders dependencies through upstream verification nodes", async () => {
     const tasks = await generatedTasks();
-    const dag = new DagCompiler(() => "dag-1", () => new Date("2026-09-20T16:11:00Z")).compile(tasks);
+    const dag = new DagCompiler(() => "dag-1", () => new Date("2026-09-20T18:31:00Z")).compile(tasks);
 
     const firstVerify = dag.nodes.find((node) => node.id === "task-1:verify")!;
     const secondAction = dag.nodes.find((node) => node.id === "task-2:cap:0")!;
@@ -179,5 +169,15 @@ describe("deterministic DAG compiler", () => {
     expect(node.resourceRequirements.reliability.minimumTier).toBe("standard");
     expect("resourceId" in (node.resourceRequirements as unknown as Record<string, unknown>)).toBe(false);
     expect(dag.resourceSelection).toBe("deferred");
+  });
+
+  it("rejects cross-user task graphs even when company scope matches", async () => {
+    const tasks = await generatedTasks();
+    const tampered: GeneratedTask = {
+      ...tasks[1],
+      scope: { ...tasks[1].scope, userId: "user-b" }
+    };
+
+    expect(() => new DagCompiler().compile([tasks[0], tampered])).toThrow();
   });
 });

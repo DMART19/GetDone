@@ -1,8 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { validPlan } from "@/lib/planning/test-fixture";
-import type { PolicyEvaluation } from "@/lib/planning/policy-engine";
+import {
+  autoGrantFor,
+  fixtureNow,
+  receiptFor
+} from "@/lib/planning/test-security-fixture";
 import { TaskGenerator, type GeneratedTask, type TaskGenerationDedupeStore } from "@/lib/planning/task-generator";
-import type { PlanValidationResult } from "@/lib/planning/plan-validator";
+import type { PlanValidationReceipt } from "@/lib/planning/validation-receipt";
 
 class MemoryTaskDedupe implements TaskGenerationDedupeStore {
   readonly tasks = new Map<string, GeneratedTask>();
@@ -15,91 +19,128 @@ class MemoryTaskDedupe implements TaskGenerationDedupeStore {
   }
 }
 
-const validValidation: PlanValidationResult = {
-  status: "valid",
-  errors: [],
-  warnings: [],
-  ownerDecisions: [],
-  orderedStepIds: ["step-1"],
-  totalStepCostCents: 20
-};
-
-function autoPolicy(): PolicyEvaluation {
+function validInput(plan = validPlan()) {
+  const receipt = receiptFor(plan);
+  const grant = autoGrantFor(plan, plan.steps[0].id, receipt);
   return {
-    disposition: "AUTO",
-    reasons: [],
-    capability: undefined,
-    requiresFreshStepUp: false,
-    approvalSatisfied: true,
-    readyForTaskGeneration: true
+    plan,
+    validationReceipt: receipt,
+    authorizationGrants: { [plan.steps[0].id]: grant },
+    objectiveStatus: "active" as const
   };
 }
 
-describe("autonomous task generator", () => {
-  it("creates immutable scoped tasks with evidence, reason, capability and authorization lineage", async () => {
-    const store = new MemoryTaskDedupe();
-    const generator = new TaskGenerator(store, () => "task-1", () => new Date("2026-09-20T16:10:00Z"));
-    const plan = validPlan();
-
-    const result = await generator.generate({
-      plan,
-      validation: validValidation,
-      objectiveStatus: "active",
-      stepPolicies: { "step-1": autoPolicy() },
-      authorizationLineage: []
-    });
+describe("authorization-bound task generator", () => {
+  it("creates immutable scoped tasks from receipt + grant authority", async () => {
+    const generator = new TaskGenerator(
+      new MemoryTaskDedupe(),
+      () => "task-1",
+      () => fixtureNow
+    );
+    const input = validInput();
+    const result = await generator.generate(input);
 
     expect(result.status).toBe("created");
-    expect(result.tasks).toHaveLength(1);
     const task = result.tasks[0];
-
     expect(task.scope).toEqual({
+      userId: "user-a",
       portfolioId: "portfolio-a",
       companyId: "company-a",
       environment: "staging",
+      resourceId: undefined,
       dataClass: "internal"
     });
-    expect(task.reason).toBe(plan.steps[0].reason);
-    expect(task.evidenceIds).toContain("evidence-1");
-    expect(task.capabilityRequirements).toEqual(["repository.inspect"]);
-    expect(task.authorizationLineage[0].kind).toBe("auto-policy");
+    expect(task.authorizationGrantId).toBe(input.authorizationGrants["step-1"].id);
+    expect(task.validationReceiptHash).toBe(input.validationReceipt.receiptHash);
+    expect(task.authorizationLineage[0].referenceId).toBe(input.authorizationGrants["step-1"].id);
     expect(Object.isFrozen(task)).toBe(true);
-    expect(Object.isFrozen(task.scope)).toBe(true);
-    expect(Object.isFrozen(task.authorizationLineage)).toBe(true);
     expect(Object.isFrozen(task.operations[0].input as object)).toBe(true);
   });
 
-  it("does not generate autonomous work from a paused objective", async () => {
-    const generator = new TaskGenerator(new MemoryTaskDedupe());
+  it("rejects arbitrary status-valid objects that are not real validation receipts", async () => {
+    const plan = validPlan();
+    const grantReceipt = receiptFor(plan);
+    const grant = autoGrantFor(plan, plan.steps[0].id, grantReceipt);
+    const generator = new TaskGenerator(new MemoryTaskDedupe(), undefined, () => fixtureNow);
+
     const result = await generator.generate({
-      plan: validPlan(),
-      validation: validValidation,
-      objectiveStatus: "paused",
-      stepPolicies: { "step-1": autoPolicy() },
-      authorizationLineage: []
+      plan,
+      validationReceipt: { status: "valid" } as PlanValidationReceipt,
+      authorizationGrants: { [plan.steps[0].id]: grant },
+      objectiveStatus: "active"
     });
 
     expect(result.status).toBe("blocked");
-    expect(result.tasks).toHaveLength(0);
   });
 
-  it("does not generate work when any step is not authorized", async () => {
-    const generator = new TaskGenerator(new MemoryTaskDedupe());
-    const blockedPolicy: PolicyEvaluation = {
-      ...autoPolicy(),
-      disposition: "BLOCKED",
-      approvalSatisfied: false,
-      readyForTaskGeneration: false
+  it("rejects expired receipts", async () => {
+    const input = validInput();
+    const generator = new TaskGenerator(
+      new MemoryTaskDedupe(),
+      undefined,
+      () => new Date("2026-09-20T18:32:00Z")
+    );
+    expect((await generator.generate(input)).status).toBe("blocked");
+  });
+
+  it("rejects a receipt after the plan is mutated", async () => {
+    const input = validInput();
+    const mutated = {
+      ...input.plan,
+      steps: [{ ...input.plan.steps[0], reason: "changed after validation" }]
     };
+    const generator = new TaskGenerator(new MemoryTaskDedupe(), undefined, () => fixtureNow);
 
     const result = await generator.generate({
-      plan: validPlan(),
-      validation: validValidation,
-      objectiveStatus: "active",
-      stepPolicies: { "step-1": blockedPolicy },
-      authorizationLineage: []
+      ...input,
+      plan: mutated
     });
+    expect(result.status).toBe("blocked");
+  });
 
+  it("rejects missing authorization grants", async () => {
+    const input = validInput();
+    const generator = new TaskGenerator(new MemoryTaskDedupe(), undefined, () => fixtureNow);
+    const result = await generator.generate({
+      ...input,
+      authorizationGrants: {}
+    });
+    expect(result.status).toBe("blocked");
+  });
+
+  it("rejects expired authorization grants", async () => {
+    const input = validInput();
+    const generator = new TaskGenerator(
+      new MemoryTaskDedupe(),
+      undefined,
+      () => new Date("2026-09-20T18:31:00Z")
+    );
+    expect((await generator.generate(input)).status).toBe("blocked");
+  });
+
+  it("rejects scope-mismatched authorization grants", async () => {
+    const input = validInput();
+    const original = input.authorizationGrants["step-1"];
+    const tampered = {
+      ...original,
+      scope: { ...original.scope, companyId: "company-b" }
+    };
+    const generator = new TaskGenerator(new MemoryTaskDedupe(), undefined, () => fixtureNow);
+
+    const result = await generator.generate({
+      ...input,
+      authorizationGrants: { "step-1": tampered }
+    });
+    expect(result.status).toBe("blocked");
+  });
+
+  it("does not generate autonomous work from a paused objective", async () => {
+    const input = validInput();
+    const generator = new TaskGenerator(new MemoryTaskDedupe(), undefined, () => fixtureNow);
+    const result = await generator.generate({
+      ...input,
+      objectiveStatus: "paused"
+    });
     expect(result.status).toBe("blocked");
   });
 
@@ -109,15 +150,9 @@ describe("autonomous task generator", () => {
     const generator = new TaskGenerator(
       store,
       () => `task-${++counter}`,
-      () => new Date("2026-09-20T16:10:00Z")
+      () => fixtureNow
     );
-    const input = {
-      plan: validPlan(),
-      validation: validValidation,
-      objectiveStatus: "active" as const,
-      stepPolicies: { "step-1": autoPolicy() },
-      authorizationLineage: [] as const
-    };
+    const input = validInput();
 
     const first = await generator.generate(input);
     const second = await generator.generate(input);
@@ -131,56 +166,15 @@ describe("autonomous task generator", () => {
   it("deduplicates equivalent work regenerated from the same source under a new plan id", async () => {
     const store = new MemoryTaskDedupe();
     let counter = 0;
-    const generator = new TaskGenerator(store, () => `task-${++counter}`);
+    const generator = new TaskGenerator(store, () => `task-${++counter}`, () => fixtureNow);
 
-    const first = await generator.generate({
-      plan: validPlan({ id: "plan-first" }),
-      validation: validValidation,
-      objectiveStatus: "active",
-      stepPolicies: { "step-1": autoPolicy() },
-      authorizationLineage: []
-    });
-
-    const second = await generator.generate({
-      plan: validPlan({ id: "plan-regenerated" }),
-      validation: validValidation,
-      objectiveStatus: "active",
-      stepPolicies: { "step-1": autoPolicy() },
-      authorizationLineage: []
-    });
+    const firstPlan = validPlan({ id: "plan-first" });
+    const secondPlan = validPlan({ id: "plan-regenerated" });
+    const first = await generator.generate(validInput(firstPlan));
+    const second = await generator.generate(validInput(secondPlan));
 
     expect(first.status).toBe("created");
     expect(second.status).toBe("duplicates-only");
     expect(second.duplicateTasks[0].id).toBe(first.tasks[0].id);
-  });
-
-  it("preserves explicit approval lineage for approved work", async () => {
-    const approvalPolicy: PolicyEvaluation = {
-      ...autoPolicy(),
-      disposition: "APPROVAL_REQUIRED",
-      approvalSatisfied: true,
-      readyForTaskGeneration: true
-    };
-    const generator = new TaskGenerator(new MemoryTaskDedupe(), () => "task-approved");
-
-    const result = await generator.generate({
-      plan: validPlan(),
-      validation: validValidation,
-      objectiveStatus: "active",
-      stepPolicies: { "step-1": approvalPolicy },
-      authorizationLineage: [{
-        kind: "decision",
-        referenceId: "decision-42",
-        grantedAt: "2026-09-20T16:09:00Z",
-        actorId: "user-a"
-      }]
-    });
-
-    expect(result.tasks[0].authorizationLineage).toEqual([{
-      kind: "decision",
-      referenceId: "decision-42",
-      grantedAt: "2026-09-20T16:09:00Z",
-      actorId: "user-a"
-    }]);
   });
 });

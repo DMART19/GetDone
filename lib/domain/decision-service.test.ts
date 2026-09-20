@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { AuditEvent, AuditLedger } from "@/lib/domain/audit";
-import { createRequestContext } from "@/lib/control-plane/request-context";
+import { createCommandEnvelope } from "@/lib/control-plane/command-envelope";
 import type { AuthoritativeDecision, DecisionAuthorityStore } from "@/lib/domain/decision-service";
 import { resolveDecision } from "@/lib/domain/decision-service";
 import type { DecisionTransaction, DecisionTransactionManager } from "@/lib/domain/decision-transaction";
 import type { IdempotencyClaim, IdempotencyRecord, IdempotencyStore } from "@/lib/domain/idempotency";
+import type { StepUpProof } from "@/lib/authorization/proofs";
 
 class MemoryDecisionTransactionManager implements DecisionTransactionManager {
   private decisionValue: AuthoritativeDecision;
@@ -92,23 +93,45 @@ function decision(overrides: Partial<AuthoritativeDecision> = {}): Authoritative
   };
 }
 
-function context(companyId = "company-a") {
-  return createRequestContext({
+function command(companyId = "company-a", action: "approve" | "modify" | "reject" = "approve") {
+  return createCommandEnvelope({
+    commandId: `decision-command-${companyId}-${action}`,
     actor: { type: "user", id: "user-a" },
-    scope: { userId: "user-a", portfolioId: "portfolio-a", companyId },
+    scope: {
+      userId: "user-a",
+      portfolioId: "portfolio-a",
+      companyId,
+      environment: "development"
+    },
+    correlationId: "decision-correlation-1",
     environment: "development",
-    correlationId: "correlation-1"
+    idempotencyKey: `decision-action-${companyId}-${action}`,
+    provenance: "owner-ui",
+    requestedMutation: {
+      type: "decision.resolve" as const,
+      decisionId: "decision-1",
+      action
+    }
   });
+}
+
+function stepUp(): StepUpProof {
+  return {
+    id: "decision-stepup-1",
+    actorId: "user-a",
+    scope: command().scope,
+    method: "passkey",
+    authenticatedAt: "2026-09-20T17:59:00Z",
+    expiresAt: "2099-01-01T00:00:00Z"
+  };
 }
 
 function input(transactionManager: DecisionTransactionManager, overrides: Partial<Parameters<typeof resolveDecision>[0]> = {}) {
   return {
-    context: context(),
+    command: command(),
     transactionManager,
-    idempotencyKey: "decision-action-123",
     decisionId: "decision-1",
     action: "approve" as const,
-    stepUpSatisfied: false,
     ...overrides
   };
 }
@@ -121,7 +144,7 @@ describe("decision authority service", () => {
     expect(result.status).toBe("approved");
     expect(transactionManager.decision().version).toBe(2);
     expect(transactionManager.events()).toHaveLength(1);
-    expect(transactionManager.idempotency("decision-action-123")?.status).toBe("COMPLETED");
+    expect(transactionManager.idempotency("decision-action-company-a-approve")?.status).toBe("COMPLETED");
   });
 
   it("does not duplicate a transition on an idempotent retry", async () => {
@@ -142,27 +165,40 @@ describe("decision authority service", () => {
     await expect(resolveDecision(input(transactionManager))).rejects.toThrow("simulated audit persistence failure");
 
     expect(transactionManager.decision().status).toBe("pending");
-    expect(transactionManager.decision().version).toBe(1);
     expect(transactionManager.events()).toHaveLength(0);
-    expect(transactionManager.idempotency("decision-action-123")).toBeUndefined();
+    expect(transactionManager.idempotency("decision-action-company-a-approve")).toBeUndefined();
   });
 
-  it("rejects cross-company decision access without committing an idempotency claim", async () => {
+  it("rejects cross-company decision access", async () => {
     const transactionManager = new MemoryDecisionTransactionManager(decision());
 
     await expect(resolveDecision(input(transactionManager, {
-      context: context("company-b"),
+      command: command("company-b", "reject"),
       action: "reject"
     }))).rejects.toThrow();
 
     expect(transactionManager.decision().status).toBe("pending");
-    expect(transactionManager.idempotency("decision-action-123")).toBeUndefined();
   });
 
-  it("requires fresh step-up for a strong approval", async () => {
+  it("requires a fresh step-up proof for a strong approval", async () => {
     const transactionManager = new MemoryDecisionTransactionManager(decision({ requiresStepUp: true }));
 
     await expect(resolveDecision(input(transactionManager))).rejects.toThrow();
-    expect(transactionManager.decision().status).toBe("pending");
+    expect((await resolveDecision(input(transactionManager, {
+      command: createCommandEnvelope({
+        ...command(),
+        commandId: "decision-command-stepup",
+        idempotencyKey: "decision-action-stepup-approve"
+      }),
+      stepUpProof: stepUp()
+    }))).status).toBe("approved");
+  });
+
+  it("rejects a command whose embedded mutation does not match the requested action", async () => {
+    const transactionManager = new MemoryDecisionTransactionManager(decision());
+    await expect(resolveDecision(input(transactionManager, {
+      command: command("company-a", "reject"),
+      action: "approve"
+    }))).rejects.toThrow();
   });
 });

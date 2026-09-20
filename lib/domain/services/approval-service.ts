@@ -1,5 +1,6 @@
 import { ControlPlaneError } from "@/lib/control-plane/errors";
 import type { AuthoritativeCommandEnvelope } from "@/lib/control-plane/command-envelope";
+import { assertStepUpProof, type StepUpProof } from "@/lib/authorization/proofs";
 import type { ControlPlaneTransactionManager } from "@/lib/domain/control-plane-transaction";
 import {
   executeTransitionCommand,
@@ -24,7 +25,7 @@ export interface ApprovalStores {
 export class ApprovalService {
   constructor(private readonly transactions: ControlPlaneTransactionManager<ApprovalStores>) {}
 
-  grant(id: string, command: AuthoritativeCommandEnvelope, stepUpSatisfied: boolean) {
+  grant(id: string, command: AuthoritativeCommandEnvelope, stepUpProof?: StepUpProof) {
     return executeTransitionCommand({
       manager: this.transactions,
       selectStore: (stores) => stores.approvals,
@@ -34,12 +35,21 @@ export class ApprovalService {
       command,
       triggeringEvent: "approval-granted",
       patch: (current) => {
-        if (current.requirement === "strong-approval" && !stepUpSatisfied) {
-          throw new ControlPlaneError("FORBIDDEN", "Fresh step-up authentication is required for strong approval");
+        if (current.requirement === "strong-approval") {
+          if (!stepUpProof) {
+            throw new ControlPlaneError("FORBIDDEN", "Fresh step-up proof is required for strong approval");
+          }
+          assertStepUpProof(stepUpProof, {
+            actorId: command.actor.id,
+            scope: command.scope
+          });
         }
         return { grantedBy: command.actor.id };
       },
-      metadata: (current) => ({ requirement: current.requirement })
+      metadata: (current) => ({
+        requirement: current.requirement,
+        stepUpProofId: stepUpProof?.id ?? null
+      })
     });
   }
 
