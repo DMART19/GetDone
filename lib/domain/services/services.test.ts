@@ -205,7 +205,7 @@ describe("transactional domain services", () => {
     });
     const service = new TaskService(manager<TaskStores>({ tasks: store }));
     const uncertain = verificationReceipt("task", base.id, "uncertain");
-    await expect(service.succeed(base.id, command("task.succeed.invalid"), uncertain)).rejects.toThrow();
+    expect(() => service.succeed(base.id, command("task.succeed.invalid"), uncertain)).toThrow();
 
     const verified = verificationReceipt("task", base.id, "verified");
     const result = await service.succeed(base.id, command("task.succeed"), verified);
@@ -275,6 +275,6 @@ describe("transactional domain services", () => {
     });
     const service = new OutcomeService(manager<OutcomeStores>({ outcomes: store }));
     const uncertain = verificationReceipt("outcome", base.id, "uncertain");
-    await expect(service.verify(base.id, command("outcome.verify"), uncertain)).rejects.toThrow();
+    expect(() => service.verify(base.id, command("outcome.verify"), uncertain)).toThrow();
   });
 });
