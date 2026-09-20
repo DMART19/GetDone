@@ -40,6 +40,7 @@ Current code includes:
 - Phase 34 deterministic scheduler/dispatch foundation with Phase-35-governed eligible-only ranking, hash-bound placement decisions, retry/fallback lineage, live Phase-33 reservation gating, Phase-29 credential binding, short-lived final dispatch-admission receipts, trusted independent start/completion verification, explainable audit records, and release through Phase 33
 - Phase 35 deterministic cost/capacity governor with owned/committed/reserved/spot/on-demand economics, protected headroom, quotas, budget caps/approval thresholds, eligible-only economic ranking, and estimate-vs-actual reconciliation
 - Phase 40 full zero-side-effect resource policy simulator with historical-vs-projection labeling, policy/economic/scheduler/guardrail simulation, uncertainty, AI Gateway model-evidence recording, and explicit no-mutation/no-reservation/no-dispatch/no-secret-lookup guarantees
+- Phase 41 machine-readable version registry and environment manifest plus per-release Git-SHA-bound machine manifest, generated operating manual, CI evidence hashing/validation, and archived release artifacts
 
 ## Not yet production-complete
 
@@ -80,6 +81,8 @@ npm run typecheck
 npm run lint
 npm test
 npm run build
+npm run release:generate
+npm run verify:release
 ```
 
 ## Current owner routes
@@ -109,6 +112,9 @@ Use these as the implementation source of truth:
 - `docs/SOL_PHASE_34_REPORT.md`
 - `docs/SOL_PHASE_35_40_REPORT.md`
 - `docs/SOL_ARCHITECTURE_INTEGRITY_REPORT.md`
+- `docs/SOL_PHASE_41_REPORT.md`
+- `release/version-registry.json`
+- `release/environment-manifest.json`
 - `docs/ASTRA_HANDOFF.md`
 
 No phase is complete merely because code exists. Canonical PASS still requires the acceptance evidence specified by the master build plan.
