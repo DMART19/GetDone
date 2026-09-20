@@ -1,10 +1,4 @@
 import type { TrustedExecutionScope } from "@/lib/control-plane/trusted-execution-scope";
-import type {
-  AllocationRecord,
-  CapacityLedger,
-  CapacityReservation,
-  ReservationMutationResult
-} from "@/lib/resources/reservations";
 import type { ResourceReliabilityTier } from "@/lib/resources/policy";
 import type { ResourceState } from "@/lib/domain/resources";
 
