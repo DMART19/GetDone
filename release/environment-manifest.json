@@ -1,0 +1,73 @@
+{
+  "manifestSchemaVersion": "1.0.0",
+  "environments": {
+    "development": {
+      "authorityMode": "deterministic-foundation",
+      "productionReady": false,
+      "dataMode": "development-seed-allowed",
+      "connections": {
+        "auth": false,
+        "database": false,
+        "aiGateway": false,
+        "durableJobEngine": false,
+        "resourceAgent": false,
+        "transactionalReservationStore": false,
+        "resourceDispatchAdapters": false,
+        "liveTelemetry": false,
+        "billingUsageFeeds": false
+      },
+      "deployment": {
+        "status": "local-development",
+        "deploymentId": null,
+        "region": null
+      }
+    },
+    "staging": {
+      "authorityMode": "not-connected",
+      "productionReady": false,
+      "dataMode": "authoritative-persistence-required",
+      "connections": {
+        "auth": false,
+        "database": false,
+        "aiGateway": false,
+        "durableJobEngine": false,
+        "resourceAgent": false,
+        "transactionalReservationStore": false,
+        "resourceDispatchAdapters": false,
+        "liveTelemetry": false,
+        "billingUsageFeeds": false
+      },
+      "deployment": {
+        "status": "not-connected",
+        "deploymentId": null,
+        "region": null
+      }
+    },
+    "production": {
+      "authorityMode": "not-connected",
+      "productionReady": false,
+      "dataMode": "authoritative-persistence-required",
+      "connections": {
+        "auth": false,
+        "database": false,
+        "aiGateway": false,
+        "durableJobEngine": false,
+        "resourceAgent": false,
+        "transactionalReservationStore": false,
+        "resourceDispatchAdapters": false,
+        "liveTelemetry": false,
+        "billingUsageFeeds": false
+      },
+      "deployment": {
+        "status": "not-connected",
+        "deploymentId": null,
+        "region": null
+      }
+    }
+  },
+  "notes": [
+    "This manifest declares connection/readiness state only; it contains no credentials.",
+    "A false connection must not be interpreted as a provider selection.",
+    "ProductionReady remains false until canonical infrastructure-dependent acceptance evidence exists."
+  ]
+}
