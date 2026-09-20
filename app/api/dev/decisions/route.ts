@@ -1,11 +1,18 @@
 import { NextResponse } from "next/server";
-import { decisions } from "@/lib/mock-data";
+import { createCorrelationId, parseEnvironment } from "@/lib/control-plane/request-context";
+import { apiSuccess } from "@/lib/control-plane/schemas";
+import { developmentOwnerRepository } from "@/lib/data/repository";
 
 export const dynamic = "force-dynamic";
 
-export function GET() {
-  if (process.env.NODE_ENV === "production") {
+export async function GET() {
+  const environment = parseEnvironment(process.env.NEXT_PUBLIC_APP_ENV);
+  if (environment === "production") {
     return NextResponse.json({ code: "DEVELOPMENT_DATA_DISABLED" }, { status: 404 });
   }
-  return NextResponse.json({ source: "development-seed", authoritative: false, data: decisions });
+
+  const correlationId = createCorrelationId();
+  const data = await developmentOwnerRepository.listDecisions();
+
+  return NextResponse.json(apiSuccess([...data], { correlationId, environment }));
 }
