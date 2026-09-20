@@ -1,3 +1,20 @@
+export const resourceSignalTypes = [
+  "resource.added",
+  "resource.ready",
+  "resource.offline",
+  "resource.degraded",
+  "resource.saturated",
+  "resource.capacity-low",
+  "resource.cost-spike",
+  "resource.failover",
+  "resource.credential-failure",
+  "resource.policy-violation",
+  "resource.drain-started",
+  "resource.drain-complete"
+] as const;
+
+export type ResourceSignalType = (typeof resourceSignalTypes)[number];
+export type SignalSeverity = "info" | "low" | "medium" | "high" | "critical";
 export type SignalClass =
   | "informational"
   | "expected"
@@ -11,99 +28,85 @@ export type SignalClass =
 
 export type AttentionAction = "IGNORE" | "RECORD" | "MONITOR" | "INVESTIGATE" | "ESCALATE";
 
-export interface RawEvent {
-  source: string;
-  externalId?: string;
+export interface TrustedSignalScope {
+  portfolioId: string;
   companyId: string;
   resourceId?: string;
+}
+
+export interface InboundSignalEvent {
+  eventId: string;
+  streamKey: string;
+  type: string;
+  occurredAt: string;
+  sequence?: number;
+  externalResourceRef?: string;
+  metric?: string;
+  value?: number;
+  unit?: string;
+  severity?: SignalSeverity;
+  expected?: boolean;
+  sustainedForSeconds?: number;
+  attributes?: Readonly<Record<string, string | number | boolean | null>>;
+}
+
+export interface NormalizedSignal {
+  id: string;
+  dedupeKey: string;
+  sourceBindingId: string;
+  eventId: string;
+  streamKey: string;
+  sequence?: number;
   type: string;
   occurredAt: string;
   receivedAt: string;
+  scope: TrustedSignalScope;
+  metric?: string;
   value?: number;
-  baseline?: number;
-  severity?: "info" | "low" | "medium" | "high" | "critical";
+  unit?: string;
+  severity?: SignalSeverity;
   expected?: boolean;
   sustainedForSeconds?: number;
+  attributes: Readonly<Record<string, string | number | boolean | null>>;
+  provenance: string;
+  outOfOrder: boolean;
 }
 
-export interface NormalizedSignal extends RawEvent {
-  dedupeKey: string;
+export interface SensedSignal extends NormalizedSignal {
   classification: SignalClass;
   action: AttentionAction;
-  provenance: string;
+  sensingProfileId?: string;
+  rationale: readonly string[];
 }
 
-export interface SignalAttentionWindow {
-  now: number;
-  maxAgeMs: number;
-  cooldownMs: number;
-  lastInvestigatedAt?: number;
+export function isResourceSignalType(value: string): value is ResourceSignalType {
+  return (resourceSignalTypes as readonly string[]).includes(value);
 }
 
-export function signalDedupeKey(event: RawEvent) {
+export function signalDedupeKey(
+  sourceBindingId: string,
+  eventId: string,
+  scope: TrustedSignalScope
+) {
   return [
-    event.source,
-    event.externalId ?? event.type,
-    event.companyId,
-    event.resourceId ?? "-",
-    event.occurredAt
+    sourceBindingId,
+    scope.portfolioId,
+    scope.companyId,
+    scope.resourceId ?? "-",
+    eventId
   ].join(":");
 }
 
-export function classifySignal(event: RawEvent): Pick<NormalizedSignal, "classification" | "action"> {
-  if (event.expected) return { classification: "expected", action: "RECORD" };
-
-  if (event.severity === "critical") return { classification: "incident", action: "ESCALATE" };
-  if (event.severity === "high") return { classification: "risk", action: "INVESTIGATE" };
-
-  const hasNumbers = typeof event.value === "number" && typeof event.baseline === "number";
-  if (hasNumbers) {
-    const baseline = Math.max(Math.abs(event.baseline as number), 0.0001);
-    const deltaRatio = Math.abs((event.value as number) - (event.baseline as number)) / baseline;
-
-    if (deltaRatio >= 1 && (event.sustainedForSeconds ?? 0) >= 300) {
-      return { classification: "anomaly", action: "ESCALATE" };
-    }
-    if (deltaRatio >= 0.5) return { classification: "anomaly", action: "INVESTIGATE" };
-    if (deltaRatio >= 0.2) return { classification: "threshold", action: "MONITOR" };
-  }
-
-  if (event.severity === "medium") return { classification: "threshold", action: "MONITOR" };
-  if (event.severity === "low") return { classification: "informational", action: "RECORD" };
-  return { classification: "informational", action: "IGNORE" };
-}
-
-export function normalizeEvent(event: RawEvent): NormalizedSignal {
-  const decision = classifySignal(event);
-  return {
-    ...event,
-    ...decision,
-    dedupeKey: signalDedupeKey(event),
-    provenance: `${event.source}:${event.externalId ?? "unkeyed"}`
-  };
-}
-
-export function isSignalFresh(signal: NormalizedSignal, now: number, maxAgeMs: number) {
-  const occurredAt = Date.parse(signal.occurredAt);
-  return Number.isFinite(occurredAt) && occurredAt <= now && now - occurredAt <= maxAgeMs;
-}
-
-export function shouldOpenInvestigation(signal: NormalizedSignal, window: SignalAttentionWindow) {
-  if (!isSignalFresh(signal, window.now, window.maxAgeMs)) return false;
-  if (signal.action !== "INVESTIGATE" && signal.action !== "ESCALATE") return false;
-  if (signal.action === "ESCALATE") return true;
-  if (window.lastInvestigatedAt === undefined) return true;
-  return window.now - window.lastInvestigatedAt >= window.cooldownMs;
-}
-
-export function dedupeSignals(signals: readonly NormalizedSignal[]) {
-  const seen = new Set<string>();
-  const result: NormalizedSignal[] = [];
-
-  for (const signal of signals) {
-    if (seen.has(signal.dedupeKey)) continue;
-    seen.add(signal.dedupeKey);
-    result.push(signal);
-  }
-  return result;
+export function signalStreamCursorKey(
+  sourceBindingId: string,
+  streamKey: string,
+  scope: TrustedSignalScope
+) {
+  return [
+    sourceBindingId,
+    scope.portfolioId,
+    scope.companyId,
+    scope.resourceId ?? "-",
+    streamKey
+  ].join(":");
 }
