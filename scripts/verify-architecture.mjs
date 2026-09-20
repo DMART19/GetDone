@@ -151,6 +151,57 @@ if (!ci.includes("npm run verify:architecture")) {
   fail("CI does not run the architectural drift gate");
 }
 
+const releaseRegistry = JSON.parse(read("release/version-registry.json"));
+const releaseEnvironment = JSON.parse(read("release/environment-manifest.json"));
+for (const required of [
+  "registrySchemaVersion",
+  "registryVersion",
+  "appVersion",
+  "schemaVersions",
+  "policy",
+  "aiGateway",
+  "adapters",
+  "environmentManifestPath",
+  "acceptanceEvidencePaths",
+  "manualSourcePaths",
+  "generatedArtifacts"
+]) {
+  if (!(required in releaseRegistry)) {
+    fail(`Phase 41 version registry is missing: ${required}`);
+  }
+}
+if (
+  releaseRegistry.appVersion !== packageJson.version
+  || releaseRegistry.environmentManifestPath !== "release/environment-manifest.json"
+) {
+  fail("Phase 41 registry app/environment binding drifted");
+}
+if (
+  releaseRegistry.aiGateway.status === "not-connected"
+  && (
+    releaseRegistry.aiGateway.adapterVersion !== "UNIMPLEMENTED"
+    || releaseRegistry.aiGateway.routingPolicyVersion !== "UNCONFIGURED"
+  )
+) {
+  fail("Disconnected AI Gateway release state must remain explicitly UNIMPLEMENTED/UNCONFIGURED");
+}
+if (
+  !releaseEnvironment.environments?.development
+  || !releaseEnvironment.environments?.staging
+  || !releaseEnvironment.environments?.production
+) {
+  fail("Phase 41 environment manifest must define development, staging, and production");
+}
+for (const requiredScript of [
+  "npm run release:generate",
+  "npm run verify:release",
+  "actions/upload-artifact@v4"
+]) {
+  if (!ci.includes(requiredScript)) {
+    fail(`CI does not preserve Phase 41 release evidence step: ${requiredScript}`);
+  }
+}
+
 if (failures.length > 0) {
   console.error("GetDone architecture integrity verification failed:");
   for (const failure of failures) console.error(`- ${failure}`);
