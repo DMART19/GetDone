@@ -209,7 +209,14 @@ export function createOrReuseActivePlacementRequest(
   if (!active) return { request: candidate, reused: false };
 
   const comparable = (item: PlacementRequestRecord) => {
-    const { id, requestHash: _requestHash, createdAt, expiresAt, ...logical } = item;
+    const {
+      id,
+      requestHash: _requestHash,
+      createdAt,
+      expiresAt,
+      status,
+      ...logical
+    } = item;
     return logical;
   };
   if (sha256Hex(comparable(active)) !== sha256Hex(comparable(candidate))) {
@@ -315,6 +322,27 @@ export function evaluatePlacementCandidates(input: {
       });
       for (const reason of policyResult.reasons) {
         rejectionReasons.push(`policy:${reason}`);
+      }
+      if (
+        input.request.allowedRegions
+        && (!candidate.region || !input.request.allowedRegions.includes(candidate.region))
+      ) {
+        rejectionReasons.push("policy:request-region-not-allowed");
+      }
+      const reliabilityRank = {
+        BEST_EFFORT: 0,
+        STANDARD: 1,
+        HIGH: 2,
+        CRITICAL: 3
+      } as const;
+      if (
+        reliabilityRank[candidate.reliabilityTier]
+        < reliabilityRank[input.request.reliabilityTier]
+      ) {
+        rejectionReasons.push("policy:request-reliability-tier-too-low");
+      }
+      if (input.request.fallbackRequired && !candidate.fallbackAvailable) {
+        rejectionReasons.push("policy:request-fallback-required");
       }
 
       const healthObservedAt = Date.parse(candidate.healthObservedAt);
