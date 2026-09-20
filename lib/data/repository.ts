@@ -1,4 +1,5 @@
 import { ControlPlaneError } from "@/lib/control-plane/errors";
+import { developmentApiAllowed } from "@/lib/control-plane/runtime-environment";
 import { decisions, getDecision, getResource, resourceSummary, resources } from "@/lib/mock-data";
 import type { Decision, Resource } from "@/lib/types";
 
@@ -11,13 +12,16 @@ export interface OwnerReadRepository {
 }
 
 function assertDevelopmentSeedAllowed() {
-  const appEnvironment = process.env.NEXT_PUBLIC_APP_ENV ?? "development";
-  const dataMode = process.env.GETDONE_DATA_MODE ?? "development-seed";
+  const allowed = developmentApiAllowed({
+    runtimeEnvironment: process.env.GETDONE_RUNTIME_ENV,
+    nodeEnvironment: process.env.NODE_ENV,
+    dataMode: process.env.GETDONE_DATA_MODE
+  });
 
-  if (appEnvironment === "production" && dataMode === "development-seed") {
+  if (!allowed) {
     throw new ControlPlaneError(
       "UNAVAILABLE",
-      "Development seed data is disabled for the production owner surface"
+      "Development seed data is disabled outside the development runtime"
     );
   }
 }

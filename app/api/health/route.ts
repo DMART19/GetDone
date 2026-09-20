@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
-import { createCorrelationId, parseEnvironment } from "@/lib/control-plane/request-context";
+import { createCorrelationId } from "@/lib/control-plane/request-context";
+import { readServerRuntimeEnvironment } from "@/lib/control-plane/runtime-environment.server";
 import { apiSuccess } from "@/lib/control-plane/schemas";
 
 export const dynamic = "force-dynamic";
 
 export function GET() {
-  const environment = parseEnvironment(process.env.NEXT_PUBLIC_APP_ENV);
+  const environment = readServerRuntimeEnvironment();
   const correlationId = createCorrelationId();
 
   return NextResponse.json(apiSuccess({
