@@ -43,7 +43,6 @@ export function receiptFor(
     policyVersion: "policy-v2",
     environment: plan.scope.environment,
     configurationVersion: "config-v1",
-    environmentConfigurationHash: "environment-config-hash",
     createdAt: new Date(now.getTime() - 1_000).toISOString(),
     expiresAt: new Date(now.getTime() + 120_000).toISOString()
   });

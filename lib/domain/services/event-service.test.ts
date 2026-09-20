@@ -142,6 +142,6 @@ describe("authoritative event service", () => {
   it("requires evidence before an event can be marked processed", async () => {
     const manager = new EventTransactionManager({ ...initial, state: "processing" });
     const service = new EventService(manager);
-    await expect(service.markProcessed("event-1", command("no-evidence"), [])).rejects.toThrow();
+    expect(() => service.markProcessed("event-1", command("no-evidence"), [])).toThrow();
   });
 });
