@@ -38,12 +38,26 @@ class MemoryAudit implements AuditLedger {
   }
 }
 
-function manager(store: MemoryEnrollmentStore): ControlPlaneTransactionManager<ResourceEnrollmentStores> {
+function manager(
+  store: MemoryEnrollmentStore,
+  registryReady = true
+): ControlPlaneTransactionManager<ResourceEnrollmentStores> {
   const audit = new MemoryAudit();
   const idempotency = new MemoryIdempotencyStore();
   return {
     run: async (operation) => operation({
-      stores: { enrollments: store },
+      stores: {
+        enrollments: store,
+        resourceReadiness: {
+          get: async (resourceId: string) => ({
+            resourceId,
+            portfolioId: "portfolio-a",
+            companyId: "company-a",
+            ready: registryReady,
+            evidenceId: "resource-readiness-evidence"
+          })
+        }
+      },
       audit,
       idempotency
     })
@@ -117,8 +131,7 @@ describe("resource enrollment workflow", () => {
     );
     const ready = await service.markReady(
       "enrollment-1",
-      command("ready"),
-      "resource-ready-evidence"
+      command("ready")
     );
 
     expect(ready.state).toBe("ready");
@@ -129,6 +142,43 @@ describe("resource enrollment workflow", () => {
       "one-time-secret",
       Date.parse("2026-09-20T20:06:00Z")
     )).toThrow();
+  });
+
+  it("does not let enrollment become READY before the Resource Registry is ready", async () => {
+    const store = new MemoryEnrollmentStore();
+    const service = new ResourceEnrollmentService(manager(store, false));
+
+    await service.identify({
+      id: "enrollment-registry-gate",
+      requestedType: "compute",
+      requestedEnvironments: ["development"],
+      ownerActionRequired: false,
+      challengeToken: "registry-secret",
+      challengeIssuedAt: "2026-09-20T20:00:00Z",
+      challengeExpiresAt: "2026-09-20T21:00:00Z"
+    }, command("identify-registry-gate"));
+    await service.createEnrollment("enrollment-registry-gate", command("create-registry-gate"));
+    await service.authenticate(
+      "enrollment-registry-gate",
+      command("authenticate-registry-gate"),
+      "registry-secret",
+      "auth-evidence",
+      "2026-09-20T20:05:00Z"
+    );
+    await service.discover("enrollment-registry-gate", command("discover-registry-gate"), "discover-evidence");
+    await service.profile("enrollment-registry-gate", command("profile-registry-gate"), "profile-evidence");
+    await service.validate("enrollment-registry-gate", command("validate-registry-gate"), "validate-evidence");
+    await service.test("enrollment-registry-gate", command("test-registry-gate"), "test-evidence");
+    await service.register(
+      "enrollment-registry-gate",
+      command("register-registry-gate"),
+      "resource-gated",
+      "registry-evidence"
+    );
+
+    await expect(
+      service.markReady("enrollment-registry-gate", command("ready-registry-gate"))
+    ).rejects.toThrow();
   });
 
   it("rejects expired challenges and supports deterministic restart", async () => {
