@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "1.0.0",
+  "schemaVersion": "1.1.0",
   "rules": [
     {
       "id": "resource-internals-private",
@@ -84,6 +84,49 @@
         "@/lib/domain/services/",
         "@/lib/execution/",
         "@/lib/resources/internal/"
+      ],
+      "allowFromPrefixes": []
+    },
+    {
+      "id": "resource-adapters-provider-only",
+      "fromPrefixes": [
+        "lib/resources/development-mock-resource-adapter.ts"
+      ],
+      "denyImportPrefixes": [
+        "@/lib/authorization/",
+        "@/lib/domain/services/",
+        "@/lib/planning/policy-engine",
+        "@/lib/credentials/broker",
+        "@/lib/execution/"
+      ],
+      "allowFromPrefixes": []
+    },
+    {
+      "id": "resource-pool-storage-resilience-no-business-authority",
+      "fromPrefixes": [
+        "lib/resources/storage-fabric.ts",
+        "lib/resources/resilience.ts",
+        "lib/resources/pools.ts",
+        "lib/resources/adapter-sdk.ts"
+      ],
+      "denyImportPrefixes": [
+        "@/lib/authorization/",
+        "@/lib/domain/services/",
+        "@/lib/execution/adapters/",
+        "@/lib/voice/"
+      ],
+      "allowFromPrefixes": []
+    },
+    {
+      "id": "phase44-harness-no-live-provider",
+      "fromPrefixes": [
+        "lib/security/phase44-adversarial-harness.ts"
+      ],
+      "denyImportPrefixes": [
+        "@/lib/resources/development-mock-resource-adapter",
+        "@/lib/ai-gateway/development-mock-adapter",
+        "@/lib/integrations/development-mock-adapter",
+        "@/lib/execution/adapters/development-mock-business-action"
       ],
       "allowFromPrefixes": []
     }
