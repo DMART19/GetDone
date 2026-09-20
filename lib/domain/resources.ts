@@ -150,3 +150,104 @@ export interface ResourceIncident {
   resolvedAt?: string;
   version: number;
 }
+
+
+export interface ResourceIdentityEvidence {
+  id: string;
+  resourceId: string;
+  portfolioId: string;
+  companyId: string;
+  subjectHash: string;
+  verifier: string;
+  status: "pending" | "verified" | "rejected" | "revoked";
+  verifiedAt?: string;
+  expiresAt?: string;
+}
+
+export interface ResourceTrustEvidence {
+  id: string;
+  resourceId: string;
+  portfolioId: string;
+  companyId: string;
+  classification: Resource["trustClass"];
+  status: "pending" | "accepted" | "rejected" | "revoked";
+  evidenceIds: readonly string[];
+  assessedAt: string;
+  expiresAt?: string;
+}
+
+export interface ResourceHealthRecord {
+  id: string;
+  resourceId: string;
+  portfolioId: string;
+  companyId: string;
+  state:
+    | "healthy"
+    | "degraded"
+    | "saturated"
+    | "draining"
+    | "unreachable"
+    | "failed"
+    | "quarantined"
+    | "maintenance";
+  healthMethod: string;
+  observedAt: string;
+  expiresAt: string;
+  evidenceIds: readonly string[];
+}
+
+export interface ResourceCapabilityBinding {
+  id: string;
+  resourceId: string;
+  portfolioId: string;
+  companyId: string;
+  capabilityName: string;
+  adapterBindingId: string;
+  status: "pending" | "validated" | "rejected" | "disabled";
+  validationEvidenceIds: readonly string[];
+  validatedAt?: string;
+}
+
+export interface ResourceLocation {
+  id: string;
+  resourceId: string;
+  portfolioId: string;
+  companyId: string;
+  locationClass: "home" | "office" | "cloud" | "colo" | "partner-dc";
+  region?: string;
+  failureDomainIds: readonly string[];
+}
+
+export interface ResourceCostProfile {
+  id: string;
+  resourceId: string;
+  portfolioId: string;
+  companyId: string;
+  currency: string;
+  fixedMonthlyCents?: number;
+  marginalHourlyCents?: number;
+  egressPerGbCents?: number;
+  effectiveAt: string;
+}
+
+export interface ResourceProviderBinding {
+  id: string;
+  resourceId: string;
+  portfolioId: string;
+  companyId: string;
+  providerId: string;
+  adapterBindingId: string;
+  status: "pending" | "active" | "disabled" | "revoked";
+  externalResourceRef?: string;
+}
+
+export interface ResourceRegistryReadModel {
+  resource: Resource;
+  identityEvidence: readonly ResourceIdentityEvidence[];
+  trustEvidence: readonly ResourceTrustEvidence[];
+  healthRecords: readonly ResourceHealthRecord[];
+  capabilityBindings: readonly ResourceCapabilityBinding[];
+  locations: readonly ResourceLocation[];
+  costProfiles: readonly ResourceCostProfile[];
+  providerBindings: readonly ResourceProviderBinding[];
+}
