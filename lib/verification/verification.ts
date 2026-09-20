@@ -17,6 +17,7 @@ export type VerificationSubjectType =
   | "job"
   | "outcome"
   | "resource"
+  | "deployment"
   | "placement"
   | "allocation";
 
