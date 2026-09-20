@@ -7,6 +7,7 @@ export type StateMachineEntity =
   | "approval"
   | "task"
   | "job"
+  | "outcome"
   | "resource"
   | "reservation";
 
@@ -61,6 +62,12 @@ const transitions: Record<StateMachineEntity, Record<string, readonly string[]>>
     failed: [],
     uncertain: [],
     cancelled: []
+  },
+  outcome: {
+    recorded: ["verified", "uncertain", "rejected"],
+    uncertain: ["verified", "rejected"],
+    verified: [],
+    rejected: []
   },
   resource: {
     discovered: ["enrolling", "disabled"],
