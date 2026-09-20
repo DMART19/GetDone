@@ -162,6 +162,9 @@ const manualLines = [
   `Git SHA: ${sha}`,
   `App version: ${registry.appVersion}`,
   `Version registry: ${registry.registryVersion} (${registrySha256})`,
+  `Version registry schema: ${registry.registrySchemaVersion}`,
+  `Release manifest schema: ${registry.schemaVersions.releaseManifest.version}`,
+  `Environment manifest schema: ${registry.environmentManifestSchemaVersion}`,
   `Production ready: ${productionReady ? "YES" : "NO"}`,
   "",
   "## Authority model",
@@ -284,6 +287,8 @@ fs.writeFileSync(
 const generatedManualSha256 = sha256(operatingManual);
 const manifestBase = {
   manifestSchemaVersion: registry.schemaVersions.releaseManifest.version,
+  registrySchemaVersion: registry.registrySchemaVersion,
+  environmentManifestSchemaVersion: registry.environmentManifestSchemaVersion,
   registryVersion: registry.registryVersion,
   registrySha256,
   generatedAt,
