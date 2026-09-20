@@ -80,6 +80,27 @@ This repository has already been advanced beyond a visual scaffold. Astra should
   IDENTIFY -> CREATE_ENROLLMENT -> OWNER_ACTION -> AUTHENTICATE -> DISCOVER -> PROFILE -> VALIDATE -> TEST -> REGISTER -> READY
 - hashed one-time enrollment challenges, expiry, replay resistance, restart/cancel behavior, scope preservation, evidence, and audit
 
+### Portfolio intelligence and security hardening
+
+- company-attributed portfolio summaries scoped to explicitly authorized companies
+- automated adversarial regression coverage for auth, tenancy, callbacks, credentials, context isolation, external authority forgery, provider kill switches, and production promotion
+- external model/provider/frontend/resource-agent authority claims fail closed
+- untrusted nested authority fields are rejected
+- future Resource Fabric spoof/replay/scheduler-bypass claim placeholders are evidence-only and never authoritative
+
+### PWA / iPhone delivery foundation
+
+- standalone manifest and iPhone web-app metadata
+- service worker caches only the offline shell/icon, never API/auth state
+- network-first navigation with explicit offline fallback
+- service-worker update and reconnection events without granting client authority
+- redacted push presentation and safe notification-click deep links
+- typed Decision / Task Result / Resource / Resource Incident / Resource Decision deep links
+- deterministic FYI/Normal/High/Critical notification policy
+- deterministic update deferral during offline/editing/strong-approval states
+- WebAuthn origin/RP/user-verification ceremony checks
+- real push provider and cryptographic WebAuthn verification remain integration work
+
 ### Verification pipeline
 
 CI runs install, secret-pattern scan, typecheck, lint, tests, and build. Do not bypass those gates.
@@ -123,7 +144,14 @@ Once the owner/infrastructure blockers are resolved, Astra should focus its high
    - persist/index the existing Phase 23 advisory memory contracts
    - do not replace the verification receipt or memory authority rules
 
-4. **Phases 26–31 — Resource Fabric integration**
+4. **Provider-connected completion of Phases 24–25**
+   - run production auth/RLS/provider/model security tests against real infrastructure
+   - connect a real Web Push/VAPID or platform push delivery backend to the existing redacted notification/deep-link contracts
+   - connect cryptographic WebAuthn/passkey verification to the existing ceremony boundary
+   - preserve the rule that push/deep links/service workers grant navigation only, never approval or execution authority
+   - prove phone-off continuity only after the durable job runtime exists
+
+5. **Phases 26–31 — Resource Fabric integration**
    - connect the existing Phase 26 registry/readiness contracts to production persistence
    - connect the existing Phase 27 enrollment state machine to real provider/device flows
    - Raspberry Pi/Linux agent
@@ -133,7 +161,7 @@ Once the owner/infrastructure blockers are resolved, Astra should focus its high
    - resource/data policy
    - do not let an agent/provider/frontend bypass the existing READY evidence gate
 
-5. **Phases 32–40 — placement/resilience/economics**
+6. **Phases 32–40 — placement/resilience/economics**
    - candidate evaluation
    - reservations/capacity ledger
    - scheduler/dispatch/start verification
@@ -144,7 +172,7 @@ Once the owner/infrastructure blockers are resolved, Astra should focus its high
    - partner/DC pools
    - zero-side-effect simulator
 
-6. **Phases 41–44 — release and final gate**
+7. **Phases 41–44 — release and final gate**
    - version/release evidence
    - operating manuals
    - voice handoff
@@ -170,6 +198,7 @@ Before a heavy Astra pass, read:
 - `docs/SOL_IMPLEMENTATION_STATUS.md`
 - `docs/PHASE_2_REPORT.md`
 - `docs/PHASE_3_REPORT.md`
+- `docs/SOL_PHASE_24_25_REPORT.md`
 - latest GitHub Actions result
 
 Then continue from the first unblocked canonical phase without silently replacing the authority model.
@@ -183,6 +212,8 @@ Astra must treat the following as existing architecture, not greenfield work:
 - hash-bound Authorization Grants and persisted Task authorization consumption;
 - Phase 22 verification requests/evidence/receipts and truth transitions;
 - Phase 23 advisory operational memory and Context Assembler integration;
+- Phase 24 attributed portfolio/security boundaries and adversarial regression suite;
+- Phase 25 PWA/service-worker/deep-link/notification/WebAuthn deterministic foundation;
 - Phase 26 Resource Registry evidence/readiness contracts and lifecycle service;
 - Phase 27 deterministic enrollment state machine and replay-resistant challenge model.
 
