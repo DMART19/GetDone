@@ -5,7 +5,8 @@ export type ContextKind =
   | "decision"
   | "policy"
   | "capability"
-  | "resource-summary";
+  | "resource-summary"
+  | "memory";
 
 export interface ContextItem {
   id: string;
@@ -44,6 +45,7 @@ export interface AssembledContext {
     policies: ContextSection;
     capabilities: ContextSection;
     resourceSummaries: ContextSection;
+    memory: ContextSection;
   };
   items: readonly ContextItem[];
   truncated: boolean;
@@ -71,7 +73,8 @@ const sectionName: Record<ContextKind, keyof AssembledContext["sections"]> = {
   decision: "decisions",
   policy: "policies",
   capability: "capabilities",
-  "resource-summary": "resourceSummaries"
+  "resource-summary": "resourceSummaries",
+  memory: "memory"
 };
 
 function emptySection(kind: ContextKind): ContextSection {
@@ -144,7 +147,8 @@ export function assembleContext(
     decisions: [],
     policies: [],
     capabilities: [],
-    resourceSummaries: []
+    resourceSummaries: [],
+    memory: []
   };
 
   const items: ContextItem[] = [];
@@ -175,7 +179,8 @@ export function assembleContext(
     decisions: { ...emptySection("decision"), items: sectionItems.decisions, characterCount: sectionItems.decisions.reduce((total, item) => total + item.content.length, 0) },
     policies: { ...emptySection("policy"), items: sectionItems.policies, characterCount: sectionItems.policies.reduce((total, item) => total + item.content.length, 0) },
     capabilities: { ...emptySection("capability"), items: sectionItems.capabilities, characterCount: sectionItems.capabilities.reduce((total, item) => total + item.content.length, 0) },
-    resourceSummaries: { ...emptySection("resource-summary"), items: sectionItems.resourceSummaries, characterCount: sectionItems.resourceSummaries.reduce((total, item) => total + item.content.length, 0) }
+    resourceSummaries: { ...emptySection("resource-summary"), items: sectionItems.resourceSummaries, characterCount: sectionItems.resourceSummaries.reduce((total, item) => total + item.content.length, 0) },
+    memory: { ...emptySection("memory"), items: sectionItems.memory, characterCount: sectionItems.memory.reduce((total, item) => total + item.content.length, 0) }
   };
 
   return {

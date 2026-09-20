@@ -13,6 +13,11 @@ import {
   type EntityStore,
   type StatefulEntity
 } from "@/lib/domain/services/common";
+import {
+  requireAuthoritativeVerificationReceipt,
+  type VerificationReceipt,
+  type VerificationReceiptStore
+} from "@/lib/verification/verification";
 
 export type JobState =
   | "created"
@@ -34,12 +39,15 @@ export interface JobRecord extends StatefulEntity {
   authorizationGrantHash?: string;
   authorizationConsumption?: AuthorizationConsumptionRecord;
   verificationEvidenceIds: readonly string[];
+  verificationReceiptId?: string;
+  verificationReceiptHash?: string;
   failureReason?: string;
 }
 
 export interface JobStores {
   jobs: EntityStore<JobRecord>;
   authorizationGrants?: AuthorizationGrantStore;
+  verificationReceipts?: VerificationReceiptStore;
 }
 
 export class JobService {
@@ -203,13 +211,13 @@ export class JobService {
     });
   }
 
-  succeed(id: string, command: AuthoritativeCommandEnvelope, evidenceIds: readonly string[]) {
-    if (evidenceIds.length === 0) {
-      throw new ControlPlaneError(
-        "VALIDATION_FAILED",
-        "Job success requires independent verification evidence"
-      );
-    }
+  succeed(
+    id: string,
+    command: AuthoritativeCommandEnvelope,
+    receiptId: string
+  ) {
+    let receipt: VerificationReceipt | undefined;
+
     return executeTransitionCommand({
       manager: this.transactions,
       selectStore: (stores) => stores.jobs,
@@ -218,11 +226,44 @@ export class JobService {
       to: "succeeded",
       command,
       triggeringEvent: "job-verified-succeeded",
-      patch: () => ({ verificationEvidenceIds: [...evidenceIds] })
+      beforeTransition: async (_current, transaction) => {
+        const store = transaction.stores.verificationReceipts;
+        if (!store) {
+          throw new ControlPlaneError(
+            "UNAVAILABLE",
+            "Authoritative verification receipt storage is required for Job success"
+          );
+        }
+        receipt = await requireAuthoritativeVerificationReceipt(store, receiptId, {
+          scope: command.scope,
+          subject: { type: "job", id },
+          allowedVerdicts: ["verified"]
+        });
+      },
+      patch: () => {
+        if (!receipt) {
+          throw new ControlPlaneError(
+            "FORBIDDEN",
+            "Authoritative Job verification receipt is unavailable"
+          );
+        }
+        return {
+          verificationEvidenceIds: [...receipt.evidenceIds],
+          verificationReceiptId: receipt.id,
+          verificationReceiptHash: receipt.receiptHash
+        };
+      },
+      metadata: () => ({ verificationReceiptId: receiptId })
     });
   }
 
-  markUncertain(id: string, command: AuthoritativeCommandEnvelope, evidenceIds: readonly string[]) {
+  markUncertain(
+    id: string,
+    command: AuthoritativeCommandEnvelope,
+    receiptId: string
+  ) {
+    let receipt: VerificationReceipt | undefined;
+
     return executeTransitionCommand({
       manager: this.transactions,
       selectStore: (stores) => stores.jobs,
@@ -231,7 +272,34 @@ export class JobService {
       to: "uncertain",
       command,
       triggeringEvent: "job-verification-uncertain",
-      patch: () => ({ verificationEvidenceIds: [...evidenceIds] })
+      beforeTransition: async (_current, transaction) => {
+        const store = transaction.stores.verificationReceipts;
+        if (!store) {
+          throw new ControlPlaneError(
+            "UNAVAILABLE",
+            "Authoritative verification receipt storage is required for uncertain Job truth"
+          );
+        }
+        receipt = await requireAuthoritativeVerificationReceipt(store, receiptId, {
+          scope: command.scope,
+          subject: { type: "job", id },
+          allowedVerdicts: ["uncertain"]
+        });
+      },
+      patch: () => {
+        if (!receipt) {
+          throw new ControlPlaneError(
+            "FORBIDDEN",
+            "Authoritative Job verification receipt is unavailable"
+          );
+        }
+        return {
+          verificationEvidenceIds: [...receipt.evidenceIds],
+          verificationReceiptId: receipt.id,
+          verificationReceiptHash: receipt.receiptHash
+        };
+      },
+      metadata: () => ({ verificationReceiptId: receiptId })
     });
   }
 

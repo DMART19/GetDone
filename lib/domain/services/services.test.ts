@@ -19,6 +19,15 @@ import {
 } from "@/lib/authorization/grants";
 import { validPlan } from "@/lib/planning/test-fixture";
 import { hashPlan, hashPlanStep } from "@/lib/planning/plan-hash";
+import {
+  createVerificationEvidence,
+  createVerificationRequest,
+  resolveVerificationRequest,
+  type VerificationReceipt,
+  type VerificationReceiptStore,
+  type VerificationSubjectType,
+  type VerificationVerdict
+} from "@/lib/verification/verification";
 
 class MemoryStore<T extends AuthoritativeEntity> implements EntityStore<T> {
   constructor(public value: T) {}
@@ -58,6 +67,14 @@ class MemoryGrantStore implements AuthorizationGrantStore {
   }
 
   async revoke() {}
+}
+
+class MemoryVerificationReceiptStore implements VerificationReceiptStore {
+  constructor(private readonly receipts: readonly VerificationReceipt[]) {}
+
+  async getReceipt(id: string) {
+    return this.receipts.find((receipt) => receipt.id === id) ?? null;
+  }
 }
 
 class MemoryAudit implements AuditLedger {
@@ -119,6 +136,46 @@ const base = {
   updatedAt: "2026-09-20T16:00:00Z"
 };
 
+function verificationReceipt(
+  subjectType: VerificationSubjectType,
+  subjectId: string,
+  verdict: VerificationVerdict = "verified"
+) {
+  const request = createVerificationRequest({
+    id: "verification-request-" + subjectType + "-" + subjectId + "-" + verdict,
+    portfolioId: "portfolio-a",
+    companyId: "company-a",
+    environment: "staging",
+    subject: { type: subjectType, id: subjectId },
+    strategies: ["system"],
+    requiresIndependentEvidence: false,
+    maxEvidenceAgeSeconds: 3_000_000_000,
+    requestedAt: "2026-09-20T19:30:00Z",
+    expiresAt: "2099-01-01T00:00:00Z"
+  });
+
+  const evidence = createVerificationEvidence({
+    id: "verification-evidence-" + subjectType + "-" + subjectId + "-" + verdict,
+    portfolioId: "portfolio-a",
+    companyId: "company-a",
+    subject: { type: subjectType, id: subjectId },
+    strategy: "system",
+    result: verdict === "verified" ? "pass" : verdict === "failed" ? "fail" : "unknown",
+    sourceType: "system-probe",
+    sourceId: "independent-verifier",
+    independenceKey: "verifier:independent",
+    observedAt: "2026-09-20T19:31:00Z",
+    payloadHash: "verification-payload-" + verdict,
+    provenance: "unit-test"
+  });
+
+  return resolveVerificationRequest(request, [evidence], {
+    receiptId: "verification-receipt-" + subjectType + "-" + subjectId + "-" + verdict,
+    verifiedAt: "2026-09-20T19:31:00Z",
+    receiptTtlSeconds: 2_000_000_000
+  });
+}
+
 describe("transactional domain services", () => {
   it("transitions goals through the universal transition service", async () => {
     const audit = new MemoryAudit();
@@ -151,14 +208,29 @@ describe("transactional domain services", () => {
     expect(granted.approvalProof?.planHash).toBe(hashPlan(plan));
   });
 
-  it("requires verification evidence before task success", async () => {
+  it("requires an authoritative verified receipt before task success", async () => {
     const store = new MemoryStore<TaskRecord>({
       ...base, state: "verifying", reason: "approved plan", evidenceIds: ["evidence-1"],
       capabilityRequirements: ["email.send"], authorizationLineage: ["approval-1"], verificationEvidenceIds: []
     });
-    const service = new TaskService(manager<TaskStores>({ tasks: store }));
-    expect(() => service.succeed(base.id, command("task.succeed"), [])).toThrow();
-    expect((await service.succeed(base.id, command("task.succeed"), ["verify-1"])).state).toBe("succeeded");
+    const uncertain = verificationReceipt("task", base.id, "uncertain");
+    const verified = verificationReceipt("task", base.id, "verified");
+    const receipts = new MemoryVerificationReceiptStore([uncertain, verified]);
+    const service = new TaskService(manager<TaskStores>({
+      tasks: store,
+      verificationReceipts: receipts
+    }));
+
+    await expect(
+      service.succeed(base.id, command("task.succeed.missing"), "missing-receipt")
+    ).rejects.toThrow();
+    await expect(
+      service.succeed(base.id, command("task.succeed.invalid"), uncertain.id)
+    ).rejects.toThrow();
+
+    const result = await service.succeed(base.id, command("task.succeed"), verified.id);
+    expect(result.state).toBe("succeeded");
+    expect(result.verificationReceiptHash).toBe(verified.receiptHash);
   });
 
   it("consumes authorization at the Task and lets Jobs inherit only persisted Task authority", async () => {
@@ -199,9 +271,11 @@ describe("transactional domain services", () => {
       attempt: 0,
       verificationEvidenceIds: []
     });
+    const verifiedJobReceipt = verificationReceipt("job", base.id, "verified");
     const jobService = new JobService(manager<JobStores>({
       jobs: jobStore,
-      authorizationGrants: grants
+      authorizationGrants: grants,
+      verificationReceipts: new MemoryVerificationReceiptStore([verifiedJobReceipt])
     }));
     const queued = await jobService.queue(
       base.id,
@@ -215,13 +289,36 @@ describe("transactional domain services", () => {
 
     await jobService.claim(base.id, command("job.claim"), "worker-1");
     expect((await jobService.start(base.id, command("job.start"))).state).toBe("running");
+    await jobService.beginVerification(base.id, command("job.verify.begin"));
+    const succeeded = await jobService.succeed(
+      base.id,
+      command("job.succeed"),
+      verifiedJobReceipt.id
+    );
+    expect(succeeded.state).toBe("succeeded");
+    expect(succeeded.verificationReceiptHash).toBe(verifiedJobReceipt.receiptHash);
   });
 
-  it("does not verify an outcome without evidence", async () => {
+  it("does not verify an outcome from a non-authoritative or uncertain receipt", async () => {
     const store = new MemoryStore<OutcomeRecord>({
       ...base, state: "recorded", jobId: "job-1", metric: "conversion-rate", value: 0.12, evidenceIds: []
     });
-    const service = new OutcomeService(manager<OutcomeStores>({ outcomes: store }));
-    expect(() => service.verify(base.id, command("outcome.verify"), [])).toThrow();
+    const uncertain = verificationReceipt("outcome", base.id, "uncertain");
+    const verified = verificationReceipt("outcome", base.id, "verified");
+    const service = new OutcomeService(manager<OutcomeStores>({
+      outcomes: store,
+      verificationReceipts: new MemoryVerificationReceiptStore([uncertain, verified])
+    }));
+
+    await expect(
+      service.verify(base.id, command("outcome.verify.missing"), "missing-receipt")
+    ).rejects.toThrow();
+    await expect(
+      service.verify(base.id, command("outcome.verify.uncertain"), uncertain.id)
+    ).rejects.toThrow();
+
+    const result = await service.verify(base.id, command("outcome.verify"), verified.id);
+    expect(result.state).toBe("verified");
+    expect(result.verificationReceiptHash).toBe(verified.receiptHash);
   });
 });
