@@ -29,6 +29,17 @@ interface ReleaseRegistryShape {
     adapterVersion: string;
     routingPolicyVersion: string;
   };
+  voice: {
+    contractVersion: string;
+    adapterContractVersion: string;
+    adapterStatus: string;
+    adapterVersion: string;
+    speechProvider: string;
+    requiredForProduction: boolean;
+    strongApprovalHandling: string;
+    credentialHandling: string;
+    sourcePath: string;
+  };
   schemaVersions: Record<string, VersionedSource>;
   adapters: Record<string, AdapterVersion>;
   acceptanceEvidencePaths: string[];
@@ -45,6 +56,13 @@ interface EnvironmentShape {
   deployment: {
     status: string;
     deploymentId: string | null;
+  };
+  voice: {
+    contractStatus: string;
+    adapterStatus: string;
+    strongApprovalAllowed: boolean;
+    rawCredentialInputAllowed: boolean;
+    secureHandoff: string;
   };
 }
 
@@ -86,6 +104,25 @@ describe("Phase 41 release/version registry", () => {
     expect(registry.database.schemaVersion).toBe("UNIMPLEMENTED");
   });
 
+  it("binds Phase 42 voice contracts and explicit live-adapter absence", () => {
+    expect(registry.schemaVersions.voiceIntent.version).toBe("1.0.0");
+    expect(registry.adapters.voiceIntent).toMatchObject({
+      status: "contract-only",
+      version: "1.0.0",
+      sourcePath: "lib/voice/voice-intents.ts"
+    });
+    expect(registry.voice).toMatchObject({
+      contractVersion: "1.0.0",
+      adapterContractVersion: "1.0.0",
+      adapterStatus: "not-connected",
+      adapterVersion: "UNIMPLEMENTED",
+      speechProvider: "UNCONFIGURED",
+      requiredForProduction: true,
+      strongApprovalHandling: "secure-phone-only",
+      credentialHandling: "secure-provider-or-phone-only"
+    });
+  });
+
   it("records the exact absence of a live AI Gateway instead of inventing a route version", () => {
     expect(registry.aiGateway.status).toBe("not-connected");
     expect(registry.aiGateway.adapterVersion).toBe("UNIMPLEMENTED");
@@ -98,6 +135,16 @@ describe("Phase 41 release/version registry", () => {
     expect(environment.environments.production.productionReady).toBe(false);
     expect(environment.environments.production.deployment.status).toBe("not-connected");
     expect(environment.environments.production.deployment.deploymentId).toBeNull();
+    for (const state of Object.values(environment.environments)) {
+      expect(state.connections.voiceAdapter).toBe(false);
+      expect(state.voice).toEqual({
+        contractStatus: "deterministic-contract",
+        adapterStatus: "not-connected",
+        strongApprovalAllowed: false,
+        rawCredentialInputAllowed: false,
+        secureHandoff: "iphone-control-surface"
+      });
+    }
     expect(
       Object.values(environment.environments.production.connections)
         .some((connected) => connected === false)
