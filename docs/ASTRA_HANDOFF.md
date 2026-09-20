@@ -194,28 +194,29 @@ Do not invent a provider and do not mark these phases PASS until those acceptanc
 
 Once the owner/infrastructure blockers are resolved, Astra should focus its higher-compute budget on the work that benefits from it:
 
-1. **Phase 13 — production AI Gateway**
-   - OpenRouter server-side adapter
-   - model-role routing
-   - capability/data/environment eligibility
-   - canaries
-   - safe fallback
-   - budgets/concurrency/rate limits
-   - model/provider kill switches
-   - response schema validation and audit
+1. **Phase 13 — provider-connected completion**
+   - preserve the existing `lib/ai-gateway` contracts/router/budget/audit layer
+   - add the OpenRouter server-side adapter and secure credential binding
+   - run real capability/provider/model canaries and populate validated ModelProfiles
+   - populate live model-role routing configuration
+   - connect persistent budget/usage/rate/concurrency state
+   - do not move eligibility, fallback safety, kill-switch handling, schema validation, or audit authority into OpenRouter
 
-2. **Provider-connected completion of Phases 14–17**
+2. **Phase 4 + provider-connected completion of Phases 14–17**
+   - connect real company integration OAuth/API adapters to the existing Company Integration Registry
+   - persist integration records and provider authentication evidence with tenant/environment isolation
+   - keep read/write scopes and credential references separate
+
    - route model-originated proposals through the production AI Gateway and the existing GetDone-owned plan schema
    - bind policy/approval state to the real auth/session/database implementation
    - persist task-deduplication and authorization lineage atomically
    - preserve the existing validator, policy engine, task generator, and DAG compiler rather than replacing them
 
-3. **Phases 19–23 — durable runtime integration**
-   - persistent queues
-   - claims/leases/heartbeats
-   - retries/dead-letter/cancellation/recovery
-   - business adapters
-   - software-worker/deployment pipeline
+3. **Phases 19–23 — provider-connected durable runtime integration**
+   - implement the existing DurableJobStore against real persistent queue/database infrastructure
+   - preserve existing claim/lease/heartbeat/retry/dead-letter/cancellation/recovery contracts
+   - implement real business adapters against the existing adapter/conformance boundary
+   - connect the existing software-worker/deployment state/evidence contracts to GitHub/build/staging/production/rollback infrastructure
    - persist and connect the existing Phase 22 verification contracts to real verifier sources
    - persist/index the existing Phase 23 advisory memory contracts
    - do not replace the verification receipt or memory authority rules
@@ -283,6 +284,7 @@ Before a heavy Astra pass, read:
 - `docs/SOL_ARCHITECTURE_INTEGRITY_REPORT.md`
 - `docs/SOL_PHASE_41_REPORT.md`
 - `docs/SOL_PHASE_42_REPORT.md`
+- `docs/SOL_QUALITY_PHASE_4_13_19_21_REPORT.md`
 - `release/version-registry.json`
 - `release/environment-manifest.json`
 - latest GitHub Actions result
@@ -311,6 +313,12 @@ Astra must treat the following as existing architecture, not greenfield work:
 - Phase 35 deterministic cost/capacity governor and estimate-vs-actual reconciliation;
 - Phase 40 read-only policy/economics/scheduler/guardrail simulator with explicit uncertainty and zero side effects;
 - Phase 41 machine-readable release/version registry, explicit environment/deployment state, Git-SHA-bound manifest/manual generator, release validator, and CI evidence archive;
-- Phase 42 typed voice-intent/adapter contracts, transcript-hash-only evidence, Control API/current-policy binding, secure phone handoff, no voice approval/step-up/execution/raw-credential authority, scoped audit, and Phase-41 version/environment/evidence bindings.
+- Phase 42 typed voice-intent/adapter contracts, transcript-hash-only evidence, Control API/current-policy binding, secure phone handoff, no voice approval/step-up/execution/raw-credential authority, scoped audit, and Phase-41 version/environment/evidence bindings;
+- quality/integrity tranche: stable Resource Fabric barrels/internal split, dependency-boundary matrix, contract-version drift gate, module/test coverage thresholds, adversarial contract vectors;
+- Phase 4 deterministic Company Integration Registry;
+- Phase 13 deterministic provider-neutral AI Gateway contract/router/budget/audit layer;
+- Phase 19 durable Job runtime/store contracts;
+- Phase 20 business action adapter/conformance contracts;
+- Phase 21 software-worker/deployment authorization/evidence contracts.
 
 Canonical PASS for these phases still depends on real persistence/runtime/hardware acceptance where specified by the master plan. The existence of deterministic code is not permission to mark infrastructure-dependent acceptance complete.
