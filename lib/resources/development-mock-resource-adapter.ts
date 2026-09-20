@@ -15,7 +15,7 @@ export class DevelopmentMockResourceAdapter implements ResourceAdapter {
       || context.scope.environment !== "development"
     ) {
       throw new Error(
-        "Development mock Resource Adapter requires DEVELOPMENT mock-provider context"
+        "Development mock Resource Adapter is DEVELOPMENT-only and requires mock-provider context"
       );
     }
   }
