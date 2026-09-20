@@ -133,6 +133,23 @@ if (failures.length === 0) {
     fail("Policy version registry drift detected");
   }
 
+  if (registry.database.status === "not-connected") {
+    if (
+      registry.database.migrationVersion !== "UNIMPLEMENTED"
+      || registry.database.schemaVersion !== "UNIMPLEMENTED"
+      || manifest.database.migrationVersion !== "UNIMPLEMENTED"
+      || manifest.database.schemaVersion !== "UNIMPLEMENTED"
+      || manifest.database.sourceSha256 !== fileHash(registry.database.sourcePath)
+    ) {
+      fail("Disconnected database must declare exact UNIMPLEMENTED migration/schema versions");
+    }
+  } else if (
+    registry.database.migrationVersion === "UNIMPLEMENTED"
+    || registry.database.schemaVersion === "UNIMPLEMENTED"
+  ) {
+    fail("Connected database cannot retain UNIMPLEMENTED migration/schema versions");
+  }
+
   if (registry.aiGateway.status === "not-connected") {
     if (
       registry.aiGateway.adapterVersion !== "UNIMPLEMENTED"
