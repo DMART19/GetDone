@@ -231,6 +231,59 @@ Not yet claimed:
 - hardware canary;
 - live registry/persistence integration.
 
+
+## September 20 Phase 24/25 deterministic tranche
+
+### Phase 24 — Portfolio Intelligence and Security Hardening
+
+**STATUS: DETERMINISTIC SUBSET IMPLEMENTED; PRODUCTION INFRASTRUCTURE/EXTERNAL RED-TEAM ACCEPTANCE STILL REQUIRED**
+
+Implemented:
+- company-attributed portfolio executive summaries with explicit authorized-company scope;
+- latest-fresh-snapshot selection and no cross-portfolio/cross-company leakage;
+- external authority boundary preventing AI/model/gateway/provider/callback/frontend/resource-agent claims from directly establishing approval, authorization, job success, outcome truth, resource READY, policy mutation, credential expansion, or production deployment authority;
+- reserved authority-field rejection for untrusted nested payloads;
+- deterministic production-promotion boundary requiring control-plane source, trusted scope, policy authorization, verified approval, fresh deployment verification, deployment reference, and rollback reference;
+- consolidated automated adversarial regression coverage across session expiry, tenant scope, forged callbacks, credential scope, cross-company context contamination, external authority forgery, provider kill switches, and production-promotion boundaries;
+- Resource Fabric adversarial placeholders/tests for resource impersonation, fake enrollment readiness, forged heartbeat, capacity spoofing, reservation replay, and scheduler bypass.
+
+Not yet claimed:
+- real production auth/database/RLS penetration results;
+- live AI Gateway model-substitution/fallback red-team execution;
+- provider-specific credential/secret systems;
+- external penetration testing;
+- real production deployment executor.
+
+### Phase 25 — PWA Packaging, Push, and Mobile Delivery
+
+**STATUS: DETERMINISTIC/CLIENT-RUNTIME SUBSET IMPLEMENTED; REAL PUSH/AUTH PROVIDERS STILL REQUIRED**
+
+Implemented:
+- standalone PWA manifest scope/id/orientation metadata;
+- iPhone web-app metadata and safe-area-compatible existing viewport;
+- service-worker registration with explicit update-available signaling;
+- reconnect signaling for authoritative server re-fetch behavior;
+- service worker that caches only the offline shell/icon and never caches `/api/*` responses or authenticated application state;
+- network-first navigation with explicit offline fallback;
+- generic/redacted service-worker push presentation and notification-click deep links;
+- safe typed deep-link contracts covering Decision, Task/Result, Resource, Resource Incident, and Resource Decision;
+- deep links are navigation-only and always require authoritative server fetch;
+- deterministic notification attention routing: FYI/Normal remain non-push, High/Critical qualify for push;
+- lock-screen detail redaction for sensitive/high-attention content;
+- deterministic PWA update policy that defers reload while offline, during unsaved owner input, or during strong approval;
+- WebAuthn ceremony boundary enforcing expiry, RP ID, allowed origin, credential identity, and user verification;
+- baseline response/security headers and service-worker no-cache policy.
+
+Not yet claimed:
+- VAPID/APNs/Web Push subscription backend;
+- notification persistence/delivery receipts;
+- cryptographic WebAuthn assertion/attestation verification by a real auth provider;
+- production secure-session persistence;
+- durable cloud jobs required to prove the phone-off acceptance criterion;
+- native Watch support.
+
+See `docs/SOL_PHASE_24_25_REPORT.md`.
+
 ## Updated handoff boundary
 
 Sol should continue deterministic contracts, validators, policy engines, simulators, tests, and repository hardening.
