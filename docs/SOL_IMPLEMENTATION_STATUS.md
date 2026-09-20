@@ -130,3 +130,109 @@ No production secret should be committed to this repository or pasted into front
 No production AI gateway, autonomous planning runtime, durable distributed job engine, real resource enrollment agent, credential broker, scheduler, reservations/capacity ledger, provider failover, or production Resource Fabric behavior has been claimed as implemented.
 
 Astra should inherit the deterministic foundation rather than recreate it.
+
+
+## September 20 authority + Phase 22/23/26/27 tranche
+
+The repository has advanced beyond the earlier status snapshot. The following deterministic work is now implemented in addition to the sections above.
+
+### Authority hardening after SOL-20
+
+- Events are a first-class authoritative control-plane domain.
+- Goal, Plan, Decision, Approval, Task, Job, Outcome, and Event transitions use the common authoritative transition boundary.
+- Authorization grants are hash-bound to trusted scope, Plan/step hashes, capability set, validation receipt, policy snapshot, proof state, issue/expiry time, and grant integrity hash.
+- Authorization consumption is recorded authoritatively at Task admission and inherited by Jobs only from persisted Task consumption.
+- Strong approval proof freshness and validator-attestation authority are tested.
+- Current head before this tranche passed the complete CI pipeline.
+
+### Phase 22 — Verification, Measurement, and Outcomes
+
+**STATUS: DETERMINISTIC SUBSET IMPLEMENTED; PRODUCTION PERSISTENCE/RUNTIME ACCEPTANCE STILL REQUIRED**
+
+Implemented:
+- VerificationRequest, VerificationEvidence, VerificationStrategyResult, and VerificationReceipt contracts.
+- execution/system/business/resource-start/resource-release/cost-reconciliation verification strategies.
+- SHA-256 integrity binding for requests, evidence, and receipts.
+- evidence freshness and expiry.
+- independent-verifier domain enforcement.
+- verified / failed / uncertain deterministic verdicts.
+- authoritative Verification state transitions and audit path.
+- Task, Job, and Outcome truth transitions now require scoped, non-expired verification receipts rather than arbitrary evidence IDs.
+
+Not yet claimed:
+- external production verifier adapters;
+- durable evidence/receipt persistence;
+- real business KPI measurement sources;
+- production resource start/release/cost reconciliation.
+
+### Phase 23 — Memory and Operational Learning
+
+**STATUS: DETERMINISTIC SUBSET IMPLEMENTED**
+
+Implemented:
+- scoped Fact, Lesson, Experiment, Observation, and OutcomeReference records;
+- confidence, sample size, confounders, evidence, sensitivity, relevance tags, expiry, and supersession;
+- record integrity hashing;
+- deterministic relevance selection;
+- strict company isolation;
+- operational-memory -> bounded Context Assembler integration;
+- memory is permanently advisory and has no policy/authorization authority.
+
+Not yet claimed:
+- production persistence/indexing;
+- long-horizon experimentation jobs;
+- automatic policy promotion (intentionally prohibited).
+
+### Phase 26 — Resource Domain and Authoritative Registry
+
+**STATUS: DETERMINISTIC SUBSET IMPLEMENTED**
+
+Implemented:
+- identity evidence;
+- trust evidence;
+- health records;
+- validated capability bindings;
+- resource locations/failure-domain metadata;
+- cost profiles;
+- provider/adapter bindings;
+- evidence-backed readiness evaluation;
+- authoritative resource lifecycle service;
+- concise resource read model for the owner surface.
+
+A Resource cannot deterministically qualify for READY without verified identity, non-untrusted trust classification, fresh healthy status, validated capabilities, location, environment permission, policy binding, and active authenticated provider/adapter binding.
+
+Not yet claimed:
+- production registry persistence;
+- real cryptographic agent identity;
+- live telemetry;
+- real provider discovery.
+
+### Phase 27 — Generic Resource Enrollment
+
+**STATUS: DETERMINISTIC SUBSET IMPLEMENTED**
+
+Implemented lifecycle:
+
+`IDENTIFY -> CREATE_ENROLLMENT -> OWNER_ACTION(if required) -> AUTHENTICATE -> DISCOVER -> PROFILE -> VALIDATE -> TEST -> REGISTER -> READY`
+
+Implemented:
+- server-side hashed one-time challenge storage;
+- challenge expiration and replay prevention;
+- trusted portfolio/company scope;
+- owner-action evidence;
+- evidence at every material stage;
+- cancellation / expiration / failure;
+- deterministic restart with a new challenge and incremented attempt;
+- authoritative lifecycle audit transitions.
+
+Not yet claimed:
+- Raspberry Pi/Linux agent;
+- real provider OAuth/device flows;
+- hardware canary;
+- live registry/persistence integration.
+
+## Updated handoff boundary
+
+Sol should continue deterministic contracts, validators, policy engines, simulators, tests, and repository hardening.
+
+Astra/higher-compute runtime work should consume these Phase 22/23/26/27 contracts rather than rebuild them. The expensive remaining work is primarily real infrastructure integration: durable queues/workers, live AI Gateway, action/deployment adapters, real node agents, secrets brokerage, telemetry, scheduler/reservations, storage/failover, second-provider integration, and end-to-end production acceptance.
