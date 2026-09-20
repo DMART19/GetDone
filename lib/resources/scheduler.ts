@@ -524,6 +524,7 @@ export function createPlacementDecision(input: {
   id: string;
   request: PlacementRequestRecord;
   placementReport: PlacementEvaluationReport;
+  governorReport: CostGovernorReport;
   rankingReport: SchedulerRankingReport;
   selectedResourceId?: string;
   decidedAt: string;
@@ -531,6 +532,7 @@ export function createPlacementDecision(input: {
   retryReason?: string;
 }): SchedulerPlacementDecision {
   assertPlacementReportIntegrity(input.placementReport);
+  assertCostGovernorReportIntegrity(input.governorReport);
   const rankingBase = {
     placementRequestId: input.rankingReport.placementRequestId,
     placementReportHash: input.rankingReport.placementReportHash,
@@ -553,6 +555,10 @@ export function createPlacementDecision(input: {
     input.request.id !== input.placementReport.placementRequestId
     || input.request.id !== input.rankingReport.placementRequestId
     || input.placementReport.reportHash !== input.rankingReport.placementReportHash
+    || input.governorReport.reportHash !== input.rankingReport.governorReportHash
+    || input.governorReport.placementRequestId !== input.request.id
+    || input.governorReport.portfolioId !== input.request.portfolioId
+    || input.governorReport.companyId !== input.request.companyId
   ) {
     throw new ControlPlaneError("FORBIDDEN", "Placement decision lineage is inconsistent");
   }
