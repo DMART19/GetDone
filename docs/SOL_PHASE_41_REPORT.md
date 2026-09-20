@@ -121,6 +121,22 @@ Remaining differences from the canonical plan are implementation/runtime gaps:
 - Phase 35 live billing/usage feeds remain absent;
 - Phases 36-39 production storage/resilience/second-provider/partner-DC work remain open;
 - Phase 40 production historical stores/calibration remain absent;
-- Phase 42 voice, Phase 43 optional Watch, and Phase 44 production end-to-end gate remain open.
+- Phase 42 deterministic voice contracts/release binding are now implemented, but live speech/native-iPhone voice transport remains absent;
+- Phase 43 optional Watch and Phase 44 production end-to-end gate remain open.
 
 Phase 41 now makes those absences machine-visible rather than leaving them implicit.
+
+
+## Phase 42 extension
+
+Phase 42 extends this release-truth layer rather than creating a parallel version system.
+
+The registry/manifest/manual now also bind:
+- voice intent contract version;
+- voice adapter-contract version;
+- live adapter/provider state;
+- strong-approval and credential handoff mode;
+- per-environment voice connection/authority state;
+- Phase 42 source/test/report evidence hashes.
+
+Release verification now fails closed if voice contract versions drift, if a disconnected runtime invents a provider/version, if voice authority is weakened, or if environment voice state contradicts the registry.
