@@ -98,7 +98,7 @@ function parseTime(value: string, label: string) {
   return parsed;
 }
 
-function uniqueSorted(values: readonly string[]) {
+function uniqueSorted<T extends string>(values: readonly T[]): T[] {
   return [...new Set(values)].sort();
 }
 
@@ -208,17 +208,29 @@ export function createOrReuseActivePlacementRequest(
 
   if (!active) return { request: candidate, reused: false };
 
-  const comparable = (item: PlacementRequestRecord) => {
-    const {
-      id,
-      requestHash: _requestHash,
-      createdAt,
-      expiresAt,
-      status,
-      ...logical
-    } = item;
-    return logical;
-  };
+  const comparable = (item: PlacementRequestRecord) => ({
+    source: item.source,
+    portfolioId: item.portfolioId,
+    companyId: item.companyId,
+    environment: item.environment,
+    jobId: item.jobId,
+    jobAuthorizationHash: item.jobAuthorizationHash,
+    requiredCapabilities: item.requiredCapabilities,
+    compute: item.compute,
+    priority: item.priority,
+    deadlineAt: item.deadlineAt,
+    checkpointable: item.checkpointable,
+    retryable: item.retryable,
+    dataClass: item.dataClass,
+    allowedRegions: item.allowedRegions,
+    preferredLocality: item.preferredLocality,
+    reliabilityTier: item.reliabilityTier,
+    fallbackRequired: item.fallbackRequired,
+    maxJobCostCents: item.maxJobCostCents,
+    pinnedResourceId: item.pinnedResourceId,
+    excludedResourceIds: item.excludedResourceIds,
+    idempotencyKey: item.idempotencyKey
+  });
   if (sha256Hex(comparable(active)) !== sha256Hex(comparable(candidate))) {
     throw new ControlPlaneError(
       "IDEMPOTENCY_CONFLICT",
