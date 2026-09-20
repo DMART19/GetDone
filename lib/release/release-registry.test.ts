@@ -4,13 +4,62 @@ import { describe, expect, it } from "vitest";
 import { CURRENT_POLICY_VERSION } from "@/lib/domain/policy-registry";
 import { POLICY_ENGINE_VERSION } from "@/lib/planning/policy-engine";
 
-const root = process.cwd();
-const readJson = (relativePath: string) =>
-  JSON.parse(fs.readFileSync(path.join(root, relativePath), "utf8")) as Record<string, any>;
+interface VersionedSource {
+  version: string;
+  sourcePath: string;
+}
 
-const registry = readJson("release/version-registry.json");
-const environment = readJson("release/environment-manifest.json");
-const packageJson = readJson("package.json");
+interface AdapterVersion extends VersionedSource {
+  status: string;
+}
+
+interface ReleaseRegistryShape {
+  appVersion: string;
+  policy: {
+    registryVersion: string;
+    engineVersion: string;
+  };
+  database: {
+    status: string;
+    migrationVersion: string;
+    schemaVersion: string;
+  };
+  aiGateway: {
+    status: string;
+    adapterVersion: string;
+    routingPolicyVersion: string;
+  };
+  schemaVersions: Record<string, VersionedSource>;
+  adapters: Record<string, AdapterVersion>;
+  acceptanceEvidencePaths: string[];
+  manualSourcePaths: string[];
+  generatedArtifacts: {
+    machineManifest: string;
+    operatingManual: string;
+  };
+}
+
+interface EnvironmentShape {
+  productionReady: boolean;
+  connections: Record<string, boolean>;
+  deployment: {
+    status: string;
+    deploymentId: string | null;
+  };
+}
+
+interface EnvironmentManifestShape {
+  environments: Record<"development" | "staging" | "production", EnvironmentShape>;
+}
+
+const root = process.cwd();
+function readJson<T>(relativePath: string): T {
+  return JSON.parse(fs.readFileSync(path.join(root, relativePath), "utf8")) as T;
+}
+
+const registry = readJson<ReleaseRegistryShape>("release/version-registry.json");
+const environment = readJson<EnvironmentManifestShape>("release/environment-manifest.json");
+const packageJson = readJson<{ version: string }>("package.json");
 
 describe("Phase 41 release/version registry", () => {
   it("binds the application and policy versions to the current codebase", () => {
@@ -20,11 +69,11 @@ describe("Phase 41 release/version registry", () => {
   });
 
   it("binds every declared schema and adapter version to an existing source file", () => {
-    for (const entry of Object.values(registry.schemaVersions) as Array<Record<string, string>>) {
+    for (const entry of Object.values(registry.schemaVersions)) {
       expect(entry.version.length).toBeGreaterThan(0);
       expect(fs.existsSync(path.join(root, entry.sourcePath))).toBe(true);
     }
-    for (const entry of Object.values(registry.adapters) as Array<Record<string, string>>) {
+    for (const entry of Object.values(registry.adapters)) {
       expect(entry.version.length).toBeGreaterThan(0);
       expect(entry.status.length).toBeGreaterThan(0);
       expect(fs.existsSync(path.join(root, entry.sourcePath))).toBe(true);
