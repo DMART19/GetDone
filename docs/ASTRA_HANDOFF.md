@@ -113,7 +113,7 @@ This repository has already been advanced beyond a visual scaffold. Astra should
 - candidate eligibility filters in scope -> policy -> health -> capability -> capacity -> credential/environment -> cost order
 - pinned resources never bypass hard constraints
 - candidate reports are explainable and snapshot-bound
-- no scheduler ranking or dispatch has been added
+- Phase 34 deterministic scheduler/dispatch contracts now exist; live dispatch remains integration work
 
 ### Phase 33 reservation and capacity-ledger foundation
 
@@ -128,6 +128,21 @@ This repository has already been advanced beyond a visual scaffold. Astra should
 - expired/inactive reservations fail the dispatchability boundary
 - pending Allocation records preserve reservation/capacity lineage but do not dispatch
 - real transactional persistence and multi-process concurrency proof remain integration work
+
+### Phase 34 scheduler, dispatch, and verification foundation
+
+- bounded ranking consumes only Phase 32 eligible candidates and never promotes an ineligible resource
+- ranking explicitly scores reliability, locality, cost, startup latency, protected-capacity impact, and owner preference
+- placement decisions are hash-bound to request/evaluation/ranking/candidate lineage and remain explainable
+- retry/fallback creates a new decision with prior decision ID/hash and an explicit reason
+- dispatch requires a live Phase 33 reservation plus matching pending Allocation lineage
+- dispatch intent is bound to resource adapter/version and reservation expiry
+- provider ACCEPTED is evidence only, never running truth
+- start verification reuses Phase 22 `resource-start` with independent evidence and dispatch-hash independence binding
+- verified running/completion records explicitly do not mutate Job truth; JobService remains authoritative
+- completion release calls the unchanged Phase 33 release contract
+- deterministic scheduler audit entries carry explanation plus hash lineage
+- live adapter calls, durable scheduler state, real start probes, crash recovery, and production fallback remain integration work
 
 ### Resource economics and simulation foundation
 
@@ -191,7 +206,7 @@ Once the owner/infrastructure blockers are resolved, Astra should focus its high
    - preserve the rule that push/deep links/service workers grant navigation only, never approval or execution authority
    - prove phone-off continuity only after the durable job runtime exists
 
-5. **Provider-connected completion of Phases 26–33**
+5. **Provider-connected completion of Phases 26–34**
    - connect the existing Phase 26 registry/readiness contracts to production persistence
    - connect the existing Phase 27 enrollment state machine to real provider/device flows
    - build the real Raspberry Pi/Linux agent and cryptographic identity/attestation path
@@ -200,10 +215,11 @@ Once the owner/infrastructure blockers are resolved, Astra should focus its high
    - persist Phase 31 policy bindings and prove them against real resource metadata
    - persist Phase 32 placement requests/evaluation snapshots without adding scheduler authority
    - implement the existing Phase 33 AtomicReservationStore against the production database with atomic ledger+reservation writes, scoped idempotency uniqueness, compare-and-swap revision/hash enforcement, durable lease expiry/reaping, and live multi-process race tests
-   - do not let an agent/provider/frontend bypass READY, credential, policy, placement, or reservation authority
+   - connect the existing Phase 34 ResourceDispatchAdapter contract to real resource/provider adapters, persist placement/dispatch/monitor records, feed independent start/completion probes into VerificationService, and transition JobService only from verified scheduler facts
+   - prove crash recovery for reserve -> dispatch -> start verify -> monitor -> completion verify -> release, including provider timeouts and lease expiry
+   - do not let an agent/provider/frontend bypass READY, credential, policy, placement, reservation, dispatch, or verification authority
 
-6. **Provider-connected completion of Phases 34–40**
-   - scheduler/dispatch/start verification
+6. **Provider-connected completion of Phases 35–40**
    - connect the existing Phase 35 governor to real reservation state, quotas, billing/usage feeds, and durable reconciliations
    - storage fabric
    - failure domains and failover
@@ -241,6 +257,7 @@ Before a heavy Astra pass, read:
 - `docs/SOL_PHASE_24_25_REPORT.md`
 - `docs/SOL_PHASE_29_32_REPORT.md`
 - `docs/SOL_PHASE_33_REPORT.md`
+- `docs/SOL_PHASE_34_REPORT.md`
 - `docs/SOL_PHASE_35_40_REPORT.md`
 - latest GitHub Actions result
 
@@ -264,6 +281,7 @@ Astra must treat the following as existing architecture, not greenfield work:
 - Phase 31 deterministic resource/data placement policy;
 - Phase 32 control-plane placement requests and explainable candidate eligibility evaluation;
 - Phase 33 deterministic atomic reservation/CAS, capacity-ledger, lease, expiry, release, and allocation-lineage contracts;
+- Phase 34 deterministic eligible-only ranking, placement decisions, reservation-gated dispatch, independent start/completion verification, monitoring, release, retry/fallback lineage, and scheduler audit contracts;
 - Phase 35 deterministic cost/capacity governor and estimate-vs-actual reconciliation;
 - Phase 40 read-only policy/economics/scheduler/guardrail simulator with explicit uncertainty and zero side effects.
 

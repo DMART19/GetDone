@@ -117,4 +117,4 @@ Canonical production PASS still requires:
 - lease reaper/sweeper behavior under crashes and restarts;
 - production recovery evidence.
 
-Phase 34 scheduler/dispatch/start verification remains explicitly deferred.
+Phase 34 deterministic scheduler/dispatch/start-verification contracts were subsequently added in `docs/SOL_PHASE_34_REPORT.md`. Phase 33 production acceptance still requires a real transactional store before live Phase 34 dispatch can safely consume reservations.

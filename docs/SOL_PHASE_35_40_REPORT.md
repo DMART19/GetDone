@@ -1,6 +1,6 @@
 # Sol Phase 35/40 Deterministic Economics and Policy Simulation Report
 
-This report records the GPT-5.6 Sol deterministic tranche for Phase 35 and Phase 40. Phase 33 deterministic reservation contracts were subsequently added in `docs/SOL_PHASE_33_REPORT.md`; this report still does not claim Phase 34 dispatch, live transactional reservation persistence, live billing integration, production historical analytics, or automatic policy mutation.
+This report records the GPT-5.6 Sol deterministic tranche for Phase 35 and Phase 40. Phase 33 deterministic reservation contracts and Phase 34 deterministic scheduler/dispatch contracts were subsequently added in `docs/SOL_PHASE_33_REPORT.md` and `docs/SOL_PHASE_34_REPORT.md`; this report still does not claim live transactional reservation persistence, live adapter dispatch, live billing integration, production historical analytics, or automatic policy mutation.
 
 ## Phase 35 — Cost and Capacity Governor
 
