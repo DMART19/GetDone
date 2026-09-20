@@ -29,7 +29,8 @@ Backend/resource complexity must not turn the product into an infrastructure adm
 - Phase 33 reservation/capacity-ledger CAS contracts;
 - Phase 34 scheduler/dispatch contracts;
 - Phase 35 cost/capacity governor;
-- Phase 40 zero-side-effect simulator.
+- Phase 40 zero-side-effect simulator;
+- Phase 41 release/version registry, explicit environment/deployment state, generated Git-SHA-bound machine manifests, operating manuals, and CI evidence archive.
 
 ### Architecture-integrity composition
 
@@ -84,6 +85,18 @@ Development seed data is confined to the development read-repository seam and fa
 - no stale architecture documentation claiming the Phase 25 service worker is still deferred.
 
 The drift gate is additive to secret scan, TypeScript, lint, unit tests, and production build.
+
+### Release truth
+
+Phase 41 makes repository/release anatomy machine-reconstructable without overstating production status.
+
+Committed inputs:
+- `release/version-registry.json`;
+- `release/environment-manifest.json`.
+
+After the normal CI build gate, `npm run release:generate` creates a machine manifest and operating manual for the exact checked-out Git SHA. `npm run verify:release` re-hashes package lock, declared schema/adapter sources, policy sources, environment declarations, evidence/manual sources, and the generated manual. GitHub Actions archives the verified `release/out/` artifacts.
+
+Disconnected infrastructure is versioned explicitly as `UNIMPLEMENTED`/`UNCONFIGURED` rather than guessed. Production readiness remains false until real acceptance evidence exists.
 
 ## Production status
 
