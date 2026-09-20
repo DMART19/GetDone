@@ -31,7 +31,19 @@ Backend/resource complexity must not turn the product into an infrastructure adm
 - Phase 35 cost/capacity governor;
 - Phase 40 zero-side-effect simulator;
 - Phase 41 release/version registry, explicit environment/deployment state, generated Git-SHA-bound machine manifests, operating manuals, and CI evidence archive;
-- Phase 42 typed voice intents and secure phone handoff, bound to trusted scope, current policy, Control API, audit, and the Phase 41 release registry.
+- Phase 42 typed voice intents and secure phone handoff, bound to trusted scope, current policy, Control API, audit, and the Phase 41 release registry;
+- Phase 4 deterministic Company Integration Registry;
+- Phase 13 provider-neutral AI Gateway contract/router/budget/audit foundation;
+- Phases 19–21 durable Job runtime, business action adapter, and software worker/deployment contracts;
+- architecture dependency-boundary matrix, contract-version drift verification, module/test coverage thresholds, and adversarial contract vectors.
+
+### Quality and contract-integrity gates
+
+The Resource Fabric public imports remain `@/lib/resources/scheduler` and `@/lib/resources/reservations`; implementation/types are split behind `lib/resources/internal/`.
+
+`architecture/dependency-boundaries.json` prevents internal/execution authority from leaking into UI, voice, integrations, AI cognition, or business adapters.
+
+`npm run verify:contract-versions` fails if a tracked contract changes without a semantic-version bump. `npm run verify:coverage` produces module/test-contract coverage evidence for critical control-plane boundaries and applies CI thresholds.
 
 ### Architecture-integrity composition
 
@@ -64,7 +76,19 @@ Provider `accepted`, HTTP success, resource-agent claims, model output, and fron
 
 ### AI boundary
 
-OpenRouter/model integration is intentionally absent from feature code today. When Phase 13 production integration begins, runtime feature code must call a GetDone-owned AI Gateway. Provider/model SDK imports and provider HTTP endpoints are forbidden outside that boundary by `npm run verify:architecture`.
+The deterministic Phase 13 GetDone-owned AI Gateway now exists under `lib/ai-gateway`. It defines roles, requirement envelopes, validated model profiles, hard eligibility, configuration-driven routes/fallbacks, budget/concurrency admission, kill-switch filtering, schema validation, and audit records.
+
+No live OpenRouter/provider adapter, key, canary, or active routing configuration is connected yet. Provider/model SDK imports and provider HTTP endpoints remain forbidden outside this boundary by `npm run verify:architecture`. DETERMINISTIC work is explicitly prohibited from invoking a model adapter.
+
+### Integration boundary
+
+`lib/integrations` owns the deterministic Company Integration Registry. Integration records are company/environment scoped, separate read/write scopes, and store credential-binding references rather than raw credentials. The in-repo adapter is DEVELOPMENT-only. Real OAuth/API adapters remain unconnected.
+
+### Durable execution boundary
+
+`lib/execution` now defines the provider-neutral contracts for durable Job leases/recovery, business action adapters, and the software-worker/deployment pipeline. There is deliberately no production in-memory queue/store, live business adapter, or production deployment executor.
+
+Provider acceptance remains evidence only; JobService and verification remain authoritative. Production software promotion requires explicit approval + staging-verification lineage.
 
 ### Voice boundary
 
