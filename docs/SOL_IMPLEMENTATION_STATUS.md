@@ -365,6 +365,56 @@ Still deferred:
 See `docs/SOL_PHASE_29_32_REPORT.md`.
 
 
+
+## September 20 Phase 33 deterministic reservation + capacity-ledger tranche
+
+### Phase 33 — Reservation, Allocation, and Capacity Ledger
+
+**STATUS: DETERMINISTIC CONCURRENCY CONTRACTS IMPLEMENTED; REAL TRANSACTIONAL PERSISTENCE/CONCURRENCY ACCEPTANCE STILL REQUIRED**
+
+Implemented:
+- resource and pool capacity ledgers with total, committed, reserved, and protected-headroom vectors;
+- SHA-256 ledger integrity plus monotonically increasing ledger revisions;
+- control-plane-only reservation authority bound to authorized Job, Placement Request, Placement Decision, Placement Decision hash, and exact selected resource/pool target;
+- requested-versus-granted capacity tracking with fail-closed partial-grant behavior unless explicitly authorized;
+- reservation leases with issue/expiry, renewal, cancellation, explicit release, and safe stale/abandoned expiry;
+- active reservation state carries capacity-held truth; terminal states cannot retain capacity;
+- scoped logical idempotency hash and deterministic replay without double reservation;
+- idempotency-key reuse with different logical requirements is rejected;
+- atomic commit envelopes bind expected ledger revision/hash, expected current reservation hash for mutations, next ledger revision/hash, next reservation hash, operation, and transaction hash;
+- production store contract requires one atomic transaction, unique scoped idempotency, ledger CAS, reservation-hash CAS, and conflict return rather than stale automatic retry;
+- stale concurrent writers fail closed on ledger revision mismatch;
+- refreshed callers still cannot consume protected headroom or exceed available capacity;
+- release/cancel/expire restores granted capacity exactly once under deterministic replay;
+- expired/inactive reservations cannot pass the dispatchability boundary;
+- pending Allocation records can be created only from a live unexpired reservation and carry reservation hash/capacity lineage;
+- no dispatch/worker/provider execution authority is added.
+
+CI/adversarial coverage includes:
+- two concurrent callers racing from the same ledger revision;
+- refreshed over-allocation after the first reservation wins;
+- idempotent reservation replay;
+- conflicting idempotency reuse;
+- unauthorized partial grants;
+- lease renewal without double reservation;
+- abandoned lease expiry restoring capacity;
+- expired reservation dispatch/allocation rejection;
+- exactly-once release replay;
+- cancellation-versus-release conflict;
+- resource and pool ledger behavior;
+- cross-company/wrong-placement-target authority rejection;
+- atomic commit tamper detection.
+
+Not yet claimed:
+- real PostgreSQL/Supabase/other transactional reservation tables;
+- production row locks/serializable transactions/advisory locks;
+- multi-process concurrency acceptance against a live database;
+- durable lease sweeper/reaper;
+- Phase 34 scheduler ranking/dispatch/start verification;
+- live resource-provider capacity mutation.
+
+See `docs/SOL_PHASE_33_REPORT.md`.
+
 ## September 20 Phase 35/40 deterministic economics + simulation tranche
 
 ### Phase 35 — Cost and Capacity Governor
@@ -382,7 +432,7 @@ Implemented:
 - estimated versus actual job/resource cost and usage reconciliation with hash-bound variance records.
 
 Not yet claimed:
-- Phase 33 atomic concurrent reservations/capacity ledger;
+- Phase 33 real transactional persistence and live multi-process concurrency evidence;
 - Phase 34 production scheduler/dispatch;
 - live provider billing feeds or durable cost/usage persistence;
 - actual capacity commitment purchases or provider quota mutation.
@@ -416,4 +466,4 @@ See `docs/SOL_PHASE_35_40_REPORT.md`.
 
 Sol should continue deterministic contracts, validators, policy engines, simulators, tests, and repository hardening.
 
-Astra/higher-compute runtime work should consume these Phase 22/23/26/27 contracts rather than rebuild them. The expensive remaining work is primarily real infrastructure integration: durable queues/workers, live AI Gateway, action/deployment adapters, real node agents, production secret/token backends, live telemetry, reservation/dispatch concurrency, measured billing/usage feeds, storage/failover, second-provider integration, production analytics persistence, and end-to-end acceptance.
+Astra/higher-compute runtime work should consume these Phase 22/23/26/27 contracts rather than rebuild them. The expensive remaining work is primarily real infrastructure integration: durable queues/workers, live AI Gateway, action/deployment adapters, real node agents, production secret/token backends, live telemetry, production reservation persistence/dispatch concurrency, measured billing/usage feeds, storage/failover, second-provider integration, production analytics persistence, and end-to-end acceptance.

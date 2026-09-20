@@ -113,7 +113,21 @@ This repository has already been advanced beyond a visual scaffold. Astra should
 - candidate eligibility filters in scope -> policy -> health -> capability -> capacity -> credential/environment -> cost order
 - pinned resources never bypass hard constraints
 - candidate reports are explainable and snapshot-bound
-- no reservation, scheduler ranking, or dispatch has been added
+- no scheduler ranking or dispatch has been added
+
+### Phase 33 reservation and capacity-ledger foundation
+
+- resource/pool ledgers track total, committed, reserved, and protected-headroom capacity
+- reservation authority is bound to authorized Job + Placement Request + Placement Decision + decision hash + exact selected target
+- scoped logical idempotency prevents duplicate capacity consumption
+- leases support renewal, release, cancellation, and safe expiry
+- requested and granted capacity are both retained; partial grants require explicit authorization
+- atomic commit envelopes bind expected ledger revision/hash and, for mutation, the current reservation hash
+- the persistence adapter contract must atomically CAS ledger + reservation and enforce unique scoped idempotency; stale conflicts must fail rather than silently retry
+- terminal replay does not restore capacity twice
+- expired/inactive reservations fail the dispatchability boundary
+- pending Allocation records preserve reservation/capacity lineage but do not dispatch
+- real transactional persistence and multi-process concurrency proof remain integration work
 
 ### Resource economics and simulation foundation
 
@@ -177,7 +191,7 @@ Once the owner/infrastructure blockers are resolved, Astra should focus its high
    - preserve the rule that push/deep links/service workers grant navigation only, never approval or execution authority
    - prove phone-off continuity only after the durable job runtime exists
 
-5. **Provider-connected completion of Phases 26–32**
+5. **Provider-connected completion of Phases 26–33**
    - connect the existing Phase 26 registry/readiness contracts to production persistence
    - connect the existing Phase 27 enrollment state machine to real provider/device flows
    - build the real Raspberry Pi/Linux agent and cryptographic identity/attestation path
@@ -185,10 +199,10 @@ Once the owner/infrastructure blockers are resolved, Astra should focus its high
    - connect Phase 30 profile/health contracts to authenticated live telemetry, benchmarks, and Signal Bus transitions
    - persist Phase 31 policy bindings and prove them against real resource metadata
    - persist Phase 32 placement requests/evaluation snapshots without adding scheduler authority
-   - do not let an agent/provider/frontend bypass READY, credential, policy, or placement authority
+   - implement the existing Phase 33 AtomicReservationStore against the production database with atomic ledger+reservation writes, scoped idempotency uniqueness, compare-and-swap revision/hash enforcement, durable lease expiry/reaping, and live multi-process race tests
+   - do not let an agent/provider/frontend bypass READY, credential, policy, placement, or reservation authority
 
-6. **Provider-connected completion of Phases 33–40**
-   - reservations/capacity ledger
+6. **Provider-connected completion of Phases 34–40**
    - scheduler/dispatch/start verification
    - connect the existing Phase 35 governor to real reservation state, quotas, billing/usage feeds, and durable reconciliations
    - storage fabric
@@ -226,6 +240,7 @@ Before a heavy Astra pass, read:
 - `docs/PHASE_3_REPORT.md`
 - `docs/SOL_PHASE_24_25_REPORT.md`
 - `docs/SOL_PHASE_29_32_REPORT.md`
+- `docs/SOL_PHASE_33_REPORT.md`
 - `docs/SOL_PHASE_35_40_REPORT.md`
 - latest GitHub Actions result
 
@@ -248,6 +263,7 @@ Astra must treat the following as existing architecture, not greenfield work:
 - Phase 30 resource profiling, privileged-claim validation, telemetry health, and zero-side-effect simulator;
 - Phase 31 deterministic resource/data placement policy;
 - Phase 32 control-plane placement requests and explainable candidate eligibility evaluation;
+- Phase 33 deterministic atomic reservation/CAS, capacity-ledger, lease, expiry, release, and allocation-lineage contracts;
 - Phase 35 deterministic cost/capacity governor and estimate-vs-actual reconciliation;
 - Phase 40 read-only policy/economics/scheduler/guardrail simulator with explicit uncertainty and zero side effects.
 

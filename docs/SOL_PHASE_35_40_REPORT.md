@@ -1,6 +1,6 @@
 # Sol Phase 35/40 Deterministic Economics and Policy Simulation Report
 
-This report records the GPT-5.6 Sol deterministic tranche for Phase 35 and Phase 40. It intentionally does not claim Phase 33/34 reservation or dispatch, live billing integration, production historical analytics, or automatic policy mutation.
+This report records the GPT-5.6 Sol deterministic tranche for Phase 35 and Phase 40. Phase 33 deterministic reservation contracts were subsequently added in `docs/SOL_PHASE_33_REPORT.md`; this report still does not claim Phase 34 dispatch, live transactional reservation persistence, live billing integration, production historical analytics, or automatic policy mutation.
 
 ## Phase 35 — Cost and Capacity Governor
 
@@ -18,7 +18,7 @@ Implemented:
 
 Authority boundary:
 - economics is a preference layer, not a hard-policy bypass;
-- no reservation, allocation, capacity mutation, provider purchase, or dispatch occurs;
+- no provider purchase or dispatch occurs; Phase 35 itself does not mutate Phase 33 reservation state;
 - budget approval requirements remain subject to the existing decision/approval authority model.
 
 ## Phase 40 — Resource Intelligence and Zero-Side-Effect Policy Simulator
