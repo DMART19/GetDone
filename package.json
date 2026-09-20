@@ -2,26 +2,31 @@
   "name": "getdone-ufo-v2",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "npm@11.19.0",
+  "engines": {
+    "node": ">=24 <25"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --max-warnings=0",
-    "test": "vitest run"
+    "test": "vitest run",
+    "verify:secrets": "node scripts/verify-no-secrets.mjs"
   },
   "dependencies": {
     "lucide-react": "^0.468.0",
-    "next": "15.5.2",
+    "next": "15.5.25",
     "react": "19.1.1",
     "react-dom": "19.1.1"
   },
   "devDependencies": {
-    "@types/node": "^22.10.2",
+    "@types/node": "^24.0.0",
     "@types/react": "^19.0.3",
     "@types/react-dom": "^19.0.2",
     "eslint": "^8.57.1",
-    "eslint-config-next": "15.5.2",
+    "eslint-config-next": "15.5.25",
     "typescript": "^5.7.2",
     "vitest": "^2.1.8"
   }
