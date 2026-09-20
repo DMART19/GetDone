@@ -393,7 +393,7 @@ export class ResourceRegistryService {
     command: AuthoritativeCommandEnvelope,
     evaluatedAt = new Date().toISOString()
   ) {
-    let snapshot: ResourceRegistryEvidenceSnapshot;
+    let snapshot: ResourceRegistryEvidenceSnapshot | undefined;
 
     return executeTransitionCommand({
       manager: this.transactions,
@@ -417,15 +417,23 @@ export class ResourceRegistryService {
           );
         }
       },
-      patch: () => ({
-        identityEvidenceIds: snapshot.identities.map((item) => item.id),
-        trustEvidenceIds: snapshot.trust.map((item) => item.id),
-        healthRecordIds: snapshot.health.map((item) => item.id),
-        capabilityBindingIds: snapshot.capabilities.map((item) => item.id),
-        locationIds: snapshot.locations.map((item) => item.id),
-        costProfileIds: snapshot.costs.map((item) => item.id),
-        providerBindingIds: snapshot.providers.map((item) => item.id)
-      })
+      patch: () => {
+        if (!snapshot) {
+          throw new ControlPlaneError(
+            "FORBIDDEN",
+            "Resource readiness evidence snapshot is unavailable"
+          );
+        }
+        return {
+          identityEvidenceIds: snapshot.identities.map((item) => item.id),
+          trustEvidenceIds: snapshot.trust.map((item) => item.id),
+          healthRecordIds: snapshot.health.map((item) => item.id),
+          capabilityBindingIds: snapshot.capabilities.map((item) => item.id),
+          locationIds: snapshot.locations.map((item) => item.id),
+          costProfileIds: snapshot.costs.map((item) => item.id),
+          providerBindingIds: snapshot.providers.map((item) => item.id)
+        };
+      }
     });
   }
 
