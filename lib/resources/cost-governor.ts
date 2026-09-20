@@ -206,6 +206,9 @@ export function evaluateCostCapacityGovernor(input: {
   now?: number;
 }): CostGovernorReport {
   const now = input.now ?? Date.now();
+  if (input.candidates.length === 0) {
+    throw new ControlPlaneError("VALIDATION_FAILED", "Cost governor requires at least one candidate");
+  }
   if (
     input.budget.portfolioId !== input.portfolioId
     || input.budget.companyId !== input.companyId
