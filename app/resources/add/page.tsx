@@ -6,7 +6,7 @@ import { AddResourceChoices } from "@/components/add-resource-choices";
 export default function AddResourcePage() {
   return (
     <AppShell navigation={false}>
-      <BackHeader title="Add Resource" href="/resources" />
+      <BackHeader title="Add Resource" href="/resources" rightLabel="Cancel" rightHref="/resources" />
       <DevelopmentBadge />
       <section className="page-content add-resource-page">
         <h2>What would you like to add?</h2>

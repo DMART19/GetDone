@@ -1,0 +1,489 @@
+/* Phase 1B — UFO v2 screenshot fidelity overrides.
+   Keep this file visually scoped; globals.css remains the baseline system stylesheet. */
+
+:root {
+  --ufo-blue: #0a84ff;
+  --ufo-blue-soft: #67b9ff;
+  --ufo-bg: #020914;
+  --ufo-panel: #071521;
+  --ufo-panel-2: #0a1a29;
+  --ufo-stroke: rgba(83, 151, 211, 0.23);
+  --ufo-stroke-soft: rgba(83, 151, 211, 0.13);
+}
+
+body {
+  background:
+    radial-gradient(circle at 50% -12%, rgba(20, 114, 226, .2), transparent 30rem),
+    #01060d;
+}
+
+.app-shell {
+  width: min(100%, 430px);
+  background:
+    radial-gradient(circle at 100% 0%, rgba(13, 103, 200, .12), transparent 18rem),
+    linear-gradient(180deg, #06111d 0%, #020914 44%, #020812 100%);
+  box-shadow: 0 0 70px rgba(0, 119, 255, .1);
+}
+
+.screen {
+  background: transparent;
+}
+
+.app-header,
+.back-header {
+  height: calc(58px + env(safe-area-inset-top));
+  padding: calc(8px + env(safe-area-inset-top)) 14px 6px;
+  border-bottom: 0;
+  background: linear-gradient(180deg, rgba(2, 9, 19, .98), rgba(2, 9, 19, .72));
+}
+
+.icon-button {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+}
+
+.avatar {
+  width: 32px;
+  height: 32px;
+  font-size: 13px;
+  background: linear-gradient(145deg, #254c99, #326edb);
+  box-shadow: 0 0 16px rgba(29, 115, 255, .23), inset 0 0 0 1px rgba(255,255,255,.14);
+}
+
+.brand-compact {
+  font-size: 21px;
+  letter-spacing: -1.3px;
+}
+
+.back-header h1 {
+  font-size: 15px;
+  font-weight: 720;
+}
+
+.header-action {
+  justify-self: end;
+  color: #238fff;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.dev-badge {
+  position: absolute;
+  z-index: 26;
+  top: calc(env(safe-area-inset-top) + 51px);
+  right: 12px;
+  margin: 0;
+  padding: 2px 5px;
+  border: 1px solid rgba(22, 136, 255, .3);
+  border-radius: 999px;
+  color: rgba(117, 184, 244, .78);
+  background: rgba(4, 17, 30, .78);
+  font-size: 7px;
+  line-height: 1;
+  letter-spacing: .08em;
+  pointer-events: none;
+}
+
+.home-content {
+  padding: 54px 22px 128px;
+}
+
+.home-content h1 {
+  margin: 12px 0 38px;
+  font-size: clamp(28px, 8.1vw, 35px);
+  line-height: 1.14;
+  font-weight: 660;
+  letter-spacing: -.035em;
+  background: linear-gradient(180deg, #c6d8f3, #91b7ee);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+
+.quick-actions {
+  gap: 8px;
+}
+
+.quick-action {
+  min-height: 55px;
+  padding: 0 14px;
+  grid-template-columns: 28px 1fr auto;
+  gap: 9px;
+  border-radius: 13px;
+  border-color: rgba(74, 128, 177, .25);
+  background: linear-gradient(180deg, rgba(9, 25, 39, .96), rgba(5, 17, 28, .96));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.018);
+}
+
+.quick-action span {
+  font-size: 12px;
+  font-weight: 560;
+}
+
+.quick-action svg {
+  color: #5cacff;
+}
+
+.quick-action em,
+.new-label {
+  padding: 2px 6px;
+  color: #03101b;
+  background: #168dff;
+  font-size: 8px;
+  box-shadow: 0 0 12px rgba(22, 141, 255, .3);
+}
+
+.composer-wrap {
+  width: min(100%, 430px);
+  bottom: calc(66px + env(safe-area-inset-bottom));
+  padding: 8px 16px 8px;
+}
+
+.composer {
+  height: 51px;
+  border-color: rgba(100, 158, 211, .35);
+  border-radius: 15px;
+  background: rgba(7, 19, 31, .98);
+}
+
+.send-button {
+  width: 39px;
+  height: 39px;
+  background: linear-gradient(180deg, #1593ff, #087df1);
+  box-shadow: 0 0 18px rgba(10,132,255,.34);
+}
+
+.bottom-nav {
+  width: min(100%, 430px);
+  height: calc(65px + env(safe-area-inset-bottom));
+  padding: 7px 25px env(safe-area-inset-bottom);
+  border-top-color: rgba(68, 118, 162, .2);
+  background: rgba(2, 9, 17, .97);
+}
+
+.nav-item {
+  gap: 2px;
+  font-size: 9px;
+}
+
+.nav-item.active {
+  color: #2293ff;
+  text-shadow: 0 0 14px rgba(34,147,255,.3);
+}
+
+.page-content {
+  padding: 10px 14px 22px;
+}
+
+.title-row h1 {
+  font-size: 25px;
+  font-weight: 730;
+}
+
+.title-row p,
+.add-resource-page > p {
+  margin: 3px 0 12px;
+  color: #9ab2cc;
+  font-size: 11px;
+  line-height: 1.32;
+}
+
+.decision-count {
+  width: 20px;
+  height: 20px;
+  font-size: 10px;
+}
+
+.summary-grid {
+  gap: 7px;
+  margin: 11px 0 9px;
+}
+
+.summary-card {
+  min-height: 86px;
+  padding: 10px;
+  border-radius: 11px;
+  border-color: rgba(76, 137, 191, .2);
+  background: linear-gradient(180deg, rgba(9,27,43,.95), rgba(5,18,30,.96));
+}
+
+.summary-card > span {
+  font-size: 9px;
+}
+
+.summary-card strong {
+  font-size: 15px;
+}
+
+.summary-card small {
+  font-size: 8px;
+}
+
+.segmented,
+.decision-filter-row {
+  gap: 4px;
+  margin: 7px 0 8px;
+}
+
+.segmented button,
+.decision-filter-row button {
+  min-height: 31px;
+  padding: 6px 10px;
+  border-radius: 9px;
+  font-size: 9px;
+}
+
+.decision-filter-row button {
+  flex: 1;
+  padding-inline: 8px;
+}
+
+.resource-list,
+.decision-list {
+  gap: 6px;
+}
+
+.resource-row {
+  min-height: 52px;
+  padding: 6px 8px;
+  grid-template-columns: 34px 1fr auto 15px;
+  gap: 7px;
+  border-radius: 10px;
+  background: rgba(5, 18, 30, .78);
+}
+
+.resource-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+}
+
+.resource-icon.large {
+  width: 56px;
+  height: 56px;
+  border-radius: 13px;
+}
+
+.resource-copy strong {
+  font-size: 11px;
+}
+
+.resource-copy small,
+.health {
+  font-size: 8px;
+}
+
+.add-resource-button {
+  height: 43px;
+  margin-top: 9px;
+  border-radius: 10px;
+  font-size: 11px;
+}
+
+.decision-card {
+  min-height: 68px;
+  padding: 8px 8px 8px 12px;
+  grid-template-columns: 38px 1fr 16px;
+  gap: 8px;
+  border-radius: 11px;
+  background: linear-gradient(180deg, rgba(8,25,40,.98), rgba(5,17,29,.98));
+}
+
+.decision-card::before {
+  width: 4px;
+}
+
+.decision-icon {
+  width: 34px;
+  height: 34px;
+}
+
+.decision-copy strong {
+  font-size: 11px;
+}
+
+.decision-copy small {
+  font-size: 8px;
+}
+
+.decision-meta {
+  margin-top: 2px;
+  font-size: 8px;
+}
+
+.priority {
+  min-width: 35px;
+  padding: 2px 6px;
+  font-size: 8px;
+}
+
+.add-resource-page {
+  padding-top: 8px;
+}
+
+.add-resource-page h2 {
+  margin-top: 5px;
+  font-size: 17px;
+}
+
+.choice-list {
+  gap: 7px;
+}
+
+.choice-row {
+  min-height: 60px;
+  padding: 7px 10px;
+  grid-template-columns: 39px 1fr 18px;
+  gap: 8px;
+  border-radius: 10px;
+}
+
+.choice-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+}
+
+.choice-row strong {
+  font-size: 11px;
+}
+
+.choice-row small {
+  font-size: 9px;
+}
+
+.describe-card {
+  margin-top: 9px;
+  padding: 10px;
+  border-radius: 10px;
+}
+
+.describe-input {
+  height: 39px;
+}
+
+.resource-detail-page {
+  padding-top: 8px;
+}
+
+.resource-hero {
+  grid-template-columns: 62px 1fr;
+  gap: 10px;
+  margin: 4px 0 8px;
+}
+
+.resource-hero h1 {
+  font-size: 18px;
+  gap: 7px;
+}
+
+.resource-hero p {
+  font-size: 9px;
+}
+
+.resource-actions {
+  width: 105px;
+  min-height: 38px;
+  margin-left: 62px;
+  font-size: 10px;
+}
+
+.detail-tabs {
+  margin: 14px -2px 9px;
+}
+
+.detail-tabs button {
+  padding: 8px 2px;
+  font-size: 9px;
+}
+
+.metric-grid {
+  margin: 9px 0 13px;
+  border-radius: 10px;
+}
+
+.metric-grid article {
+  min-height: 70px;
+  padding: 10px 5px;
+}
+
+.metric-grid strong {
+  font-size: 15px;
+}
+
+.metric-grid span {
+  font-size: 8px;
+}
+
+.info-list {
+  gap: 8px;
+  padding: 1px 3px 9px;
+}
+
+.info-list div {
+  grid-template-columns: 102px 1fr;
+  gap: 8px;
+}
+
+.info-list span,
+.info-list strong {
+  font-size: 9px;
+}
+
+.capabilities-button {
+  min-height: 43px;
+  border-radius: 10px;
+  font-size: 10px;
+}
+
+.workload-card {
+  margin-top: 9px;
+  padding: 11px;
+  border-radius: 10px;
+}
+
+.workload-card strong {
+  font-size: 10px;
+}
+
+.workload-card span {
+  font-size: 8px;
+}
+
+.inline-note,
+.local-toast {
+  font-size: 10px;
+  padding: 8px 10px;
+  border-radius: 10px;
+}
+
+:focus-visible {
+  outline: 2px solid rgba(55, 163, 255, .9);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    transition-duration: .01ms !important;
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+
+@media (min-width: 700px) {
+  body { padding: 22px 0; }
+  .app-shell {
+    min-height: calc(100dvh - 44px);
+    border-radius: 31px;
+  }
+  .screen { min-height: calc(100dvh - 44px); }
+  .bottom-nav { bottom: 22px; width: 428px; border-radius: 0 0 31px 31px; }
+  .composer-wrap { width: 428px; bottom: calc(88px + env(safe-area-inset-bottom)); }
+}
+
+@media (max-width: 360px) {
+  .home-content { padding-inline: 16px; }
+  .page-content { padding-inline: 12px; }
+  .decision-filter-row button { padding-inline: 6px; }
+}

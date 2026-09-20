@@ -24,17 +24,32 @@ export default async function ResourceDetailPage({ params }: { params: Promise<{
       <section className="page-content resource-detail-page">
         <div className="resource-hero">
           <ResourceIcon icon={resource.icon} large />
-          <div><h1>{resource.name} <HealthStatus health={resource.health} /></h1><p>{resource.role} · {resource.provider}</p></div>
+          <div>
+            <h1>{resource.name} <HealthStatus health={resource.health} /></h1>
+            <p>{resource.role} · {resource.provider}</p>
+          </div>
         </div>
-        <button type="button" className="primary-action resource-actions">Actions <span>⌄</span></button>
+
+        <button type="button" className="primary-action resource-actions">
+          Actions <span>⌄</span>
+        </button>
+
         <ResourceTabs resource={resource} />
-        <div className="metric-grid">
-          {resource.metrics.map((metric) => <article key={metric.label}><strong className={metric.tone === "good" ? "good-text" : ""}>{metric.value}</strong><span>{metric.label}</span></article>)}
-        </div>
-        <button type="button" className="capabilities-button"><span className="cube">◇</span> View Capabilities <ChevronRight size={18} /></button>
+
+        <button type="button" className="capabilities-button">
+          <span className="cube">◇</span>
+          View Capabilities
+          <ChevronRight size={17} />
+        </button>
+
         <section className="workload-card">
-          <div><strong>Current Workloads</strong><span>{resource.workloads.running} running · {resource.workloads.queued} queued</span></div>
-          <div className="progress"><i style={{ width: `${resource.workloads.utilization}%` }} /></div>
+          <div>
+            <strong>Current Workloads</strong>
+            <span>{resource.workloads.running} running · {resource.workloads.queued} queued</span>
+          </div>
+          <div className="progress">
+            <i style={{ width: `${resource.workloads.utilization}%` }} />
+          </div>
         </section>
       </section>
     </AppShell>

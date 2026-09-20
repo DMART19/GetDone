@@ -167,6 +167,28 @@ export const decisions: Decision[] = [
     status: "pending",
     rationale: "Seeded outreach decision for UI testing.",
     impact: ["No email is sent in this phase"]
+  },
+  {
+    id: "capacity-note",
+    title: "Capacity trend recorded",
+    subtitle: "Home GPU headroom remains healthy",
+    priority: "fyi",
+    age: "14h ago",
+    category: "resource",
+    status: "pending",
+    rationale: "Seeded FYI item used to represent low-attention infrastructure context.",
+    impact: ["Informational only", "No approval or action is required"]
+  },
+  {
+    id: "growth-note",
+    title: "Growth experiment summary",
+    subtitle: "Landing-page signal retained for review",
+    priority: "fyi",
+    age: "1d ago",
+    category: "growth",
+    status: "pending",
+    rationale: "Seeded FYI item used to round out the screenshot-style decision queue.",
+    impact: ["Informational only"]
   }
 ];
 
