@@ -9,6 +9,8 @@ export type StateMachineEntity =
   | "job"
   | "outcome"
   | "event"
+  | "verification"
+  | "resource-enrollment"
   | "resource"
   | "reservation";
 
@@ -78,6 +80,29 @@ const transitions: Record<StateMachineEntity, Record<string, readonly string[]>>
     processed: [],
     ignored: [],
     rejected: []
+  },
+  verification: {
+    requested: ["collecting", "cancelled"],
+    collecting: ["verified", "failed", "uncertain", "cancelled"],
+    uncertain: ["collecting", "cancelled"],
+    failed: ["collecting", "cancelled"],
+    verified: [],
+    cancelled: []
+  },
+  "resource-enrollment": {
+    identify: ["create-enrollment", "cancelled", "expired"],
+    "create-enrollment": ["owner-action", "authenticate", "cancelled", "expired"],
+    "owner-action": ["authenticate", "cancelled", "expired"],
+    authenticate: ["discover", "failed", "cancelled", "expired"],
+    discover: ["profile", "failed", "cancelled", "expired"],
+    profile: ["validate", "failed", "cancelled", "expired"],
+    validate: ["test", "failed", "cancelled", "expired"],
+    test: ["register", "failed", "cancelled", "expired"],
+    register: ["ready", "failed", "cancelled", "expired"],
+    ready: [],
+    cancelled: ["identify"],
+    expired: ["identify"],
+    failed: ["identify"]
   },
   resource: {
     discovered: ["enrolling", "disabled"],
