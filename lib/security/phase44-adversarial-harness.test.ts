@@ -12,14 +12,14 @@ import {
 import {
   createCapacityLedger,
   reserveCapacity,
+  type AllocationRecord,
   type CapacityReservation,
   type ReservationAuthority
 } from "@/lib/resources/reservations";
-import { createDispatchIntent } from "@/lib/resources/scheduler";
-import type {
-  AllocationRecord,
-  DispatchAdmissionReceipt,
-  SchedulerPlacementDecision
+import {
+  createDispatchIntent,
+  type DispatchAdmissionReceipt,
+  type SchedulerPlacementDecision
 } from "@/lib/resources/scheduler";
 import { createBusinessActionAdapterResult } from "@/lib/execution/adapters/business-action";
 import { validateResourceProfile } from "@/lib/resources/profiling";
@@ -76,7 +76,7 @@ describe("Phase 44 deterministic adversarial harness", () => {
       assertVoiceIntentRecord({
         ...record,
         authority: { ...record.authority, canApprove: true }
-      })
+      } as never)
     );
     expect(result.blocked).toBe(true);
   });
