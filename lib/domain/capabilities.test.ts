@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { getCapability, requireEnabledCapability } from "@/lib/domain/capabilities";
+import {
+  getCapability,
+  requireEnabledCapability,
+  validateCapabilityInput,
+  validateCapabilityOutput
+} from "@/lib/domain/capabilities";
 
 describe("capability registry", () => {
   it("keeps high-impact production deployment behind strong approval", () => {
@@ -11,5 +16,35 @@ describe("capability registry", () => {
   it("fails closed for unknown capabilities", () => {
     expect(getCapability("execute_anything")).toBeUndefined();
     expect(() => requireEnabledCapability("execute_anything")).toThrow();
+  });
+
+  it("validates capability input at runtime", () => {
+    const parsed = validateCapabilityInput<{ companyId: string }>("resource.health.read", {
+      companyId: "company-a",
+      resourceId: "resource-a"
+    });
+    expect(parsed.companyId).toBe("company-a");
+
+    expect(() => validateCapabilityInput("resource.health.read", {
+      companyId: "company-a",
+      resourceId: "../resource-a"
+    })).toThrow();
+  });
+
+  it("validates provider output before downstream use", () => {
+    expect(() => validateCapabilityOutput("resource.health.read", {
+      resourceId: "resource-a",
+      status: "made-up-status",
+      telemetryAt: "2026-09-20T16:00:00Z",
+      checks: []
+    })).toThrow();
+
+    const parsed = validateCapabilityOutput<{ status: string }>("resource.health.read", {
+      resourceId: "resource-a",
+      status: "ready",
+      telemetryAt: "2026-09-20T16:00:00Z",
+      checks: [{ name: "heartbeat", healthy: true }]
+    });
+    expect(parsed.status).toBe("ready");
   });
 });

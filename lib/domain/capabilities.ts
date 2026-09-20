@@ -1,11 +1,14 @@
+import type { ZodTypeAny } from "zod";
+import { ZodError } from "zod";
 import { ControlPlaneError } from "@/lib/control-plane/errors";
+import { capabilitySchemaRegistry, type CapabilityName } from "@/lib/domain/capability-schemas";
 
 export type CapabilityAccess = "read" | "write";
 export type CapabilityRisk = "low" | "medium" | "high" | "critical";
 export type ApprovalRequirement = "auto" | "approval" | "strong-approval" | "blocked";
 
 export interface CapabilityDefinition {
-  name: string;
+  name: CapabilityName;
   description: string;
   access: CapabilityAccess;
   sensitivity: "public" | "internal" | "customer" | "sensitive";
@@ -17,8 +20,8 @@ export interface CapabilityDefinition {
   adapterBinding: string;
   rateLimitPerMinute: number;
   enabled: boolean;
-  inputSchema: string;
-  outputSchema: string;
+  inputSchema: ZodTypeAny;
+  outputSchema: ZodTypeAny;
   costModel: "none" | "metered" | "provider";
 }
 
@@ -36,8 +39,8 @@ export const capabilityRegistry: readonly CapabilityDefinition[] = [
     adapterBinding: "business.revenue",
     rateLimitPerMinute: 60,
     enabled: true,
-    inputSchema: "RevenueReadInput",
-    outputSchema: "RevenueSummary",
+    inputSchema: capabilitySchemaRegistry["revenue.read"].input,
+    outputSchema: capabilitySchemaRegistry["revenue.read"].output,
     costModel: "none"
   },
   {
@@ -53,8 +56,8 @@ export const capabilityRegistry: readonly CapabilityDefinition[] = [
     adapterBinding: "business.email",
     rateLimitPerMinute: 20,
     enabled: true,
-    inputSchema: "EmailSendInput",
-    outputSchema: "EmailSendResult",
+    inputSchema: capabilitySchemaRegistry["email.send"].input,
+    outputSchema: capabilitySchemaRegistry["email.send"].output,
     costModel: "provider"
   },
   {
@@ -70,8 +73,8 @@ export const capabilityRegistry: readonly CapabilityDefinition[] = [
     adapterBinding: "software.repository",
     rateLimitPerMinute: 60,
     enabled: true,
-    inputSchema: "RepositoryInspectInput",
-    outputSchema: "RepositoryInspection",
+    inputSchema: capabilitySchemaRegistry["repository.inspect"].input,
+    outputSchema: capabilitySchemaRegistry["repository.inspect"].output,
     costModel: "provider"
   },
   {
@@ -87,8 +90,8 @@ export const capabilityRegistry: readonly CapabilityDefinition[] = [
     adapterBinding: "software.deploy",
     rateLimitPerMinute: 5,
     enabled: true,
-    inputSchema: "ProductionDeployInput",
-    outputSchema: "DeploymentResult",
+    inputSchema: capabilitySchemaRegistry["production.deploy"].input,
+    outputSchema: capabilitySchemaRegistry["production.deploy"].output,
     costModel: "provider"
   },
   {
@@ -104,8 +107,8 @@ export const capabilityRegistry: readonly CapabilityDefinition[] = [
     adapterBinding: "resource.compute",
     rateLimitPerMinute: 30,
     enabled: true,
-    inputSchema: "ComputeWorkloadInput",
-    outputSchema: "ComputeWorkloadResult",
+    inputSchema: capabilitySchemaRegistry["compute.cpu.light"].input,
+    outputSchema: capabilitySchemaRegistry["compute.cpu.light"].output,
     costModel: "metered"
   },
   {
@@ -121,8 +124,8 @@ export const capabilityRegistry: readonly CapabilityDefinition[] = [
     adapterBinding: "resource.compute",
     rateLimitPerMinute: 30,
     enabled: true,
-    inputSchema: "GpuInferenceInput",
-    outputSchema: "GpuInferenceResult",
+    inputSchema: capabilitySchemaRegistry["compute.gpu.inference"].input,
+    outputSchema: capabilitySchemaRegistry["compute.gpu.inference"].output,
     costModel: "metered"
   },
   {
@@ -138,8 +141,8 @@ export const capabilityRegistry: readonly CapabilityDefinition[] = [
     adapterBinding: "resource.storage",
     rateLimitPerMinute: 12,
     enabled: true,
-    inputSchema: "StorageBackupInput",
-    outputSchema: "StorageBackupResult",
+    inputSchema: capabilitySchemaRegistry["storage.backup"].input,
+    outputSchema: capabilitySchemaRegistry["storage.backup"].output,
     costModel: "metered"
   },
   {
@@ -155,8 +158,8 @@ export const capabilityRegistry: readonly CapabilityDefinition[] = [
     adapterBinding: "resource.health",
     rateLimitPerMinute: 120,
     enabled: true,
-    inputSchema: "ResourceHealthReadInput",
-    outputSchema: "ResourceHealthSummary",
+    inputSchema: capabilitySchemaRegistry["resource.health.read"].input,
+    outputSchema: capabilitySchemaRegistry["resource.health.read"].output,
     costModel: "none"
   }
 ];
@@ -171,4 +174,27 @@ export function requireEnabledCapability(name: string) {
     throw new ControlPlaneError("POLICY_BLOCKED", `Capability is unavailable: ${name}`);
   }
   return capability;
+}
+
+function validationFailure(name: string, direction: "input" | "output", error: ZodError) {
+  throw new ControlPlaneError("VALIDATION_FAILED", `Invalid ${direction} for capability ${name}`, {
+    details: {
+      issueCount: error.issues.length,
+      issuePaths: error.issues.map((issue) => issue.path.join(".")).join(",")
+    }
+  });
+}
+
+export function validateCapabilityInput<T = unknown>(name: string, payload: unknown): T {
+  const capability = requireEnabledCapability(name);
+  const result = capability.inputSchema.safeParse(payload);
+  if (!result.success) validationFailure(name, "input", result.error);
+  return result.data as T;
+}
+
+export function validateCapabilityOutput<T = unknown>(name: string, payload: unknown): T {
+  const capability = requireEnabledCapability(name);
+  const result = capability.outputSchema.safeParse(payload);
+  if (!result.success) validationFailure(name, "output", result.error);
+  return result.data as T;
 }

@@ -21,6 +21,39 @@ export interface Guardrail {
   protected: boolean;
 }
 
+export interface BudgetPolicy {
+  id: string;
+  scopeId: string;
+  currency: string;
+  period: "per-action" | "daily" | "monthly";
+  hardLimitCents: number;
+  approvalThresholdCents?: number;
+  enabled: boolean;
+}
+
+export type ConstraintDisposition = "allow" | "approval-required" | "blocked";
+
+export interface BudgetEvaluation {
+  disposition: ConstraintDisposition;
+  projectedSpendCents: number;
+  remainingCents: number;
+  reason?: string;
+}
+
+export interface GuardrailViolation {
+  guardrailId: string;
+  metric: string;
+  actual: number | string | boolean | undefined;
+  expected: number | string | boolean | undefined;
+  operator: Guardrail["operator"];
+  protected: boolean;
+}
+
+export interface GuardrailEvaluation {
+  disposition: ConstraintDisposition;
+  violations: readonly GuardrailViolation[];
+}
+
 export function activeObjectives(objectives: readonly Objective[]) {
   return objectives.filter((objective) => objective.status === "active");
 }
@@ -45,4 +78,96 @@ export function detectObjectiveConflicts(objectives: readonly Objective[]) {
 
 export function guardrailsForScope(guardrails: readonly Guardrail[], scopeId: string) {
   return guardrails.filter((guardrail) => guardrail.scopeId === scopeId);
+}
+
+export function evaluateBudget(
+  budget: BudgetPolicy,
+  input: { scopeId: string; currentSpendCents: number; reservedCents?: number; requestedCostCents: number }
+): BudgetEvaluation {
+  if (!budget.enabled || budget.scopeId !== input.scopeId) {
+    return {
+      disposition: "allow",
+      projectedSpendCents: input.currentSpendCents + (input.reservedCents ?? 0) + input.requestedCostCents,
+      remainingCents: Math.max(0, budget.hardLimitCents - input.currentSpendCents)
+    };
+  }
+
+  const values = [input.currentSpendCents, input.reservedCents ?? 0, input.requestedCostCents, budget.hardLimitCents];
+  if (values.some((value) => !Number.isInteger(value) || value < 0)) {
+    throw new TypeError("Budget values must be non-negative integer cents");
+  }
+
+  const projectedSpendCents = input.currentSpendCents + (input.reservedCents ?? 0) + input.requestedCostCents;
+  const remainingCents = Math.max(0, budget.hardLimitCents - projectedSpendCents);
+
+  if (projectedSpendCents > budget.hardLimitCents) {
+    return {
+      disposition: "blocked",
+      projectedSpendCents,
+      remainingCents,
+      reason: "Projected spend exceeds the hard budget limit"
+    };
+  }
+
+  if (
+    budget.approvalThresholdCents !== undefined
+    && projectedSpendCents > budget.approvalThresholdCents
+  ) {
+    return {
+      disposition: "approval-required",
+      projectedSpendCents,
+      remainingCents,
+      reason: "Projected spend exceeds the configured approval threshold"
+    };
+  }
+
+  return { disposition: "allow", projectedSpendCents, remainingCents };
+}
+
+function violatesGuardrail(guardrail: Guardrail, actual: number | string | boolean | undefined) {
+  if (actual === undefined) return true;
+
+  switch (guardrail.operator) {
+    case "min":
+      return typeof actual !== "number" || typeof guardrail.value !== "number" || actual < guardrail.value;
+    case "max":
+      return typeof actual !== "number" || typeof guardrail.value !== "number" || actual > guardrail.value;
+    case "equals":
+      return actual !== guardrail.value;
+    case "deny":
+      return guardrail.value === undefined ? Boolean(actual) : actual === guardrail.value;
+  }
+}
+
+export function evaluateGuardrails(
+  guardrails: readonly Guardrail[],
+  scopeId: string,
+  metrics: Readonly<Record<string, number | string | boolean | undefined>>
+): GuardrailEvaluation {
+  const violations = guardrailsForScope(guardrails, scopeId)
+    .filter((guardrail) => violatesGuardrail(guardrail, metrics[guardrail.metric]))
+    .map((guardrail) => ({
+      guardrailId: guardrail.id,
+      metric: guardrail.metric,
+      actual: metrics[guardrail.metric],
+      expected: guardrail.value,
+      operator: guardrail.operator,
+      protected: guardrail.protected
+    }));
+
+  if (violations.some((violation) => violation.protected)) {
+    return { disposition: "blocked", violations };
+  }
+
+  if (violations.length > 0) {
+    return { disposition: "approval-required", violations };
+  }
+
+  return { disposition: "allow", violations };
+}
+
+export function combineConstraintDispositions(...dispositions: readonly ConstraintDisposition[]): ConstraintDisposition {
+  if (dispositions.includes("blocked")) return "blocked";
+  if (dispositions.includes("approval-required")) return "approval-required";
+  return "allow";
 }
