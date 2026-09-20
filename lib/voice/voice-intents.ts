@@ -60,6 +60,8 @@ export interface VoiceAuthorityBoundary {
   canStepUp: false;
   canExecuteSideEffect: false;
   canAcceptRawCredentials: false;
+  strongApprovalHandling: "secure-phone-only";
+  credentialHandling: "secure-provider-or-phone-only";
 }
 
 export interface VoiceIntentRecord {
@@ -94,7 +96,9 @@ const authorityBoundary: VoiceAuthorityBoundary = Object.freeze({
   canApprove: false,
   canStepUp: false,
   canExecuteSideEffect: false,
-  canAcceptRawCredentials: false
+  canAcceptRawCredentials: false,
+  strongApprovalHandling: "secure-phone-only",
+  credentialHandling: "secure-provider-or-phone-only"
 });
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -373,6 +377,8 @@ export function assertVoiceIntentRecord(record: VoiceIntentRecord) {
     || record.authority.canStepUp
     || record.authority.canExecuteSideEffect
     || record.authority.canAcceptRawCredentials
+    || record.authority.strongApprovalHandling !== "secure-phone-only"
+    || record.authority.credentialHandling !== "secure-provider-or-phone-only"
   ) {
     throw new ControlPlaneError("FORBIDDEN", "Voice authority boundary was weakened");
   }
