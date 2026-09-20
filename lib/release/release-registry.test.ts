@@ -31,6 +31,12 @@ describe("Phase 41 release/version registry", () => {
     }
   });
 
+  it("records the exact absence of database migrations instead of inventing schema state", () => {
+    expect(registry.database.status).toBe("not-connected");
+    expect(registry.database.migrationVersion).toBe("UNIMPLEMENTED");
+    expect(registry.database.schemaVersion).toBe("UNIMPLEMENTED");
+  });
+
   it("records the exact absence of a live AI Gateway instead of inventing a route version", () => {
     expect(registry.aiGateway.status).toBe("not-connected");
     expect(registry.aiGateway.adapterVersion).toBe("UNIMPLEMENTED");
