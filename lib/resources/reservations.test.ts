@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  assertAtomicReservationCommit,
   assertReservationDispatchable,
   cancelReservation,
   createAllocationRecord,
@@ -278,6 +279,17 @@ describe("Phase 33 reservation and capacity ledger", () => {
     expect(allocation.reservationHash).toBe(first.reservation.reservationHash);
     expect(allocation).not.toHaveProperty("dispatchId");
     expect(allocation).not.toHaveProperty("workerId");
+  });
+
+  it("validates atomic commit integrity and rejects tampering", () => {
+    const first = reserve();
+    expect(first.commit).toBeDefined();
+    expect(assertAtomicReservationCommit(first.commit!)).toBe(first.commit);
+
+    expect(() => assertAtomicReservationCommit({
+      ...first.commit!,
+      nextLedgerRevision: first.commit!.nextLedgerRevision + 1
+    })).toThrow();
   });
 
   it("supports pool ledgers under the same reservation rules", () => {
