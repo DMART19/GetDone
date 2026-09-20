@@ -1,5 +1,5 @@
 {
-  "registrySchemaVersion": "1.0.0",
+  "registrySchemaVersion": "1.1.0",
   "registryVersion": "2026-09-20.2",
   "appVersion": "0.1.0",
   "schemaVersions": {
@@ -52,7 +52,7 @@
       "sourcePath": "lib/resources/policy-simulator.ts"
     },
     "releaseManifest": {
-      "version": "1.0.0",
+      "version": "1.1.0",
       "sourcePath": "scripts/generate-release-artifacts.mjs"
     },
     "voiceIntent": {
@@ -139,5 +139,6 @@
     "strongApprovalHandling": "secure-phone-only",
     "credentialHandling": "secure-provider-or-phone-only",
     "sourcePath": "lib/voice/voice-intents.ts"
-  }
+  },
+  "environmentManifestSchemaVersion": "1.1.0"
 }
