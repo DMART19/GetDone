@@ -124,10 +124,10 @@ export class ResourceRegistryService {
       );
     }
 
-    const requestedDataClasses = [...new Set(input.dataClassesAllowed ?? ["public"])];
+    const requestedDataClassInput = [...new Set(input.dataClassesAllowed ?? ["public"])];
     if (
-      requestedDataClasses.length !== 1
-      || requestedDataClasses[0] !== "public"
+      requestedDataClassInput.length !== 1
+      || requestedDataClassInput[0] !== "public"
     ) {
       throw new ControlPlaneError(
         "FORBIDDEN",
@@ -135,6 +135,7 @@ export class ResourceRegistryService {
       );
     }
 
+    const requestedDataClasses: Resource["dataClassesAllowed"] = Object.freeze(["public"]);
     const fingerprint = commandFingerprint(command);
 
     return this.transactions.run(async (transaction) => {
