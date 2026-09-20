@@ -91,7 +91,7 @@ describe("transactional domain services", () => {
       capabilityRequirements: ["email.send"], authorizationLineage: ["approval-1"], verificationEvidenceIds: []
     });
     const service = new TaskService(manager<TaskStores>({ tasks: store }));
-    await expect(service.succeed(base.id, command("task.succeed"), [])).rejects.toThrow();
+    expect(() => service.succeed(base.id, command("task.succeed"), [])).toThrow();
     expect((await service.succeed(base.id, command("task.succeed"), ["verify-1"])).state).toBe("succeeded");
   });
 
@@ -109,6 +109,6 @@ describe("transactional domain services", () => {
       ...base, state: "recorded", jobId: "job-1", metric: "conversion-rate", value: 0.12, evidenceIds: []
     });
     const service = new OutcomeService(manager<OutcomeStores>({ outcomes: store }));
-    await expect(service.verify(base.id, command("outcome.verify"), [])).rejects.toThrow();
+    expect(() => service.verify(base.id, command("outcome.verify"), [])).toThrow();
   });
 });
