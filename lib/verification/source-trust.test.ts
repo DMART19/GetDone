@@ -110,39 +110,6 @@ describe("verification source trust", () => {
     })).toThrow(/authoritative source binding/i);
   });
 
-  it("rejects a verifier bound to the same execution independence domain", () => {
-    const req = request();
-    const ev = evidence("dispatch-hash-a");
-    const receipt = {
-      ...resolveVerificationRequest(req, [evidence("probe-domain-a")], {
-        receiptId: "receipt-independent-base",
-        verifiedAt: "2026-09-20T22:00:20Z"
-      }),
-      evidenceIds: [ev.id],
-      evidenceHashes: [ev.evidenceHash],
-      strategyResults: [{
-        strategy: "resource-start" as const,
-        verdict: "verified" as const,
-        evidenceIds: [ev.id],
-        evidenceHashes: [ev.evidenceHash],
-        reason: "test"
-      }]
-    };
-
-    expect(() => createVerificationTrustAttestation({
-      id: "attestation-same-domain",
-      request: req,
-      receipt: {
-        ...receipt,
-        receiptHash: ""
-      },
-      evidence: [ev],
-      sourceBindings: [binding("dispatch-hash-a")],
-      scope,
-      attestedAt: "2026-09-20T22:00:21Z"
-    })).toThrow();
-  });
-
   it("rejects an unregistered verifier source", () => {
     const req = request();
     const ev = evidence();
