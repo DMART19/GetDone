@@ -14,8 +14,13 @@ function sha(value) {
 function semanticVersion(value) {
   return /^\d+\.\d+\.\d+$/.test(value);
 }
-function git(args) {
-  return execFileSync("git", args, { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
+function git(args, options = {}) {
+  const output = execFileSync("git", args, {
+    cwd: root,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "ignore"]
+  });
+  return options.preserveOutput ? output : output.trim();
 }
 function baseRef() {
   if (process.env.GITHUB_BASE_REF) {
@@ -24,7 +29,11 @@ function baseRef() {
   try { return git(["rev-parse", "HEAD^"]); } catch { return null; }
 }
 function readAt(ref, relativePath) {
-  try { return git(["show", `${ref}:${relativePath}`]); } catch { return null; }
+  try {
+    return git(["show", `${ref}:${relativePath}`], { preserveOutput: true });
+  } catch {
+    return null;
+  }
 }
 function sources(entry) {
   if (Array.isArray(entry.contractSourcePaths)) return entry.contractSourcePaths;

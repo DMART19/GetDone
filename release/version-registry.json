@@ -1,6 +1,6 @@
 {
-  "registrySchemaVersion": "1.2.0",
-  "registryVersion": "2026-09-20.3",
+  "registrySchemaVersion": "1.3.0",
+  "registryVersion": "2026-09-20.4",
   "appVersion": "0.1.0",
   "schemaVersions": {
     "controlApi": {
@@ -60,7 +60,7 @@
       "sourcePath": "lib/resources/policy-simulator.ts"
     },
     "releaseManifest": {
-      "version": "1.2.0",
+      "version": "1.3.0",
       "sourcePath": "scripts/generate-release-artifacts.mjs"
     },
     "voiceIntent": {
@@ -101,6 +101,46 @@
       "contractTracked": true,
       "contractSourcePaths": [
         "lib/execution/software-worker.ts"
+      ]
+    },
+    "storageFabric": {
+      "version": "1.0.0",
+      "sourcePath": "lib/resources/storage-fabric.ts",
+      "contractTracked": true,
+      "contractSourcePaths": [
+        "lib/resources/storage-fabric.ts"
+      ]
+    },
+    "resilience": {
+      "version": "1.0.0",
+      "sourcePath": "lib/resources/resilience.ts",
+      "contractTracked": true,
+      "contractSourcePaths": [
+        "lib/resources/resilience.ts"
+      ]
+    },
+    "resourceAdapterSdk": {
+      "version": "1.0.0",
+      "sourcePath": "lib/resources/adapter-sdk.ts",
+      "contractTracked": true,
+      "contractSourcePaths": [
+        "lib/resources/adapter-sdk.ts"
+      ]
+    },
+    "resourcePool": {
+      "version": "1.0.0",
+      "sourcePath": "lib/resources/pools.ts",
+      "contractTracked": true,
+      "contractSourcePaths": [
+        "lib/resources/pools.ts"
+      ]
+    },
+    "phase44AdversarialHarness": {
+      "version": "1.0.0",
+      "sourcePath": "lib/security/phase44-adversarial-harness.ts",
+      "contractTracked": true,
+      "contractSourcePaths": [
+        "lib/security/phase44-adversarial-harness.ts"
       ]
     }
   },
@@ -181,6 +221,15 @@
       "contractSourcePaths": [
         "lib/execution/software-worker.ts"
       ]
+    },
+    "resourceAdapterSdk": {
+      "status": "contract-only",
+      "version": "1.0.0",
+      "sourcePath": "lib/resources/adapter-sdk.ts",
+      "contractTracked": true,
+      "contractSourcePaths": [
+        "lib/resources/adapter-sdk.ts"
+      ]
     }
   },
   "environmentManifestPath": "release/environment-manifest.json",
@@ -202,7 +251,13 @@
     "lib/execution/adapters/business-action.test.ts",
     "lib/execution/software-worker.test.ts",
     "lib/security/adversarial-contract-vectors.test.ts",
-    "docs/SOL_QUALITY_PHASE_4_13_19_21_REPORT.md"
+    "docs/SOL_QUALITY_PHASE_4_13_19_21_REPORT.md",
+    "lib/resources/storage-fabric.test.ts",
+    "lib/resources/resilience.test.ts",
+    "lib/resources/adapter-sdk.test.ts",
+    "lib/resources/pools.test.ts",
+    "lib/security/phase44-adversarial-harness.test.ts",
+    "docs/SOL_PHASE_36_39_44_REPORT.md"
   ],
   "manualSourcePaths": [
     "docs/ARCHITECTURE.md",
@@ -211,7 +266,8 @@
     "docs/SOL_IMPLEMENTATION_STATUS.md",
     "release/README.md",
     "docs/SOL_PHASE_42_REPORT.md",
-    "docs/SOL_QUALITY_PHASE_4_13_19_21_REPORT.md"
+    "docs/SOL_QUALITY_PHASE_4_13_19_21_REPORT.md",
+    "docs/SOL_PHASE_36_39_44_REPORT.md"
   ],
   "generatedArtifacts": {
     "machineManifest": "release/out/release-manifest.json",
@@ -234,7 +290,7 @@
     "credentialHandling": "secure-provider-or-phone-only",
     "sourcePath": "lib/voice/voice-intents.ts"
   },
-  "environmentManifestSchemaVersion": "1.2.0",
+  "environmentManifestSchemaVersion": "1.3.0",
   "integrations": {
     "registryContractVersion": "1.0.0",
     "liveAdaptersStatus": "not-connected",
@@ -252,5 +308,27 @@
       "lib/execution/adapters/business-action.ts",
       "lib/execution/software-worker.ts"
     ]
+  },
+  "resourceFabric": {
+    "storageFabricContractVersion": "1.0.0",
+    "storageRuntimeStatus": "not-connected",
+    "resilienceContractVersion": "1.0.0",
+    "failoverRuntimeStatus": "not-connected",
+    "resourceAdapterSdkContractVersion": "1.0.0",
+    "secondProviderStatus": "not-connected",
+    "resourcePoolContractVersion": "1.0.0",
+    "partnerPoolRuntimeStatus": "not-connected",
+    "sourcePaths": [
+      "lib/resources/storage-fabric.ts",
+      "lib/resources/resilience.ts",
+      "lib/resources/adapter-sdk.ts",
+      "lib/resources/pools.ts"
+    ]
+  },
+  "phase44": {
+    "deterministicHarnessVersion": "1.0.0",
+    "deterministicHarnessStatus": "contract-and-offline-tests",
+    "productionAcceptanceStatus": "not-run",
+    "sourcePath": "lib/security/phase44-adversarial-harness.ts"
   }
 }

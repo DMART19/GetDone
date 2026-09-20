@@ -105,6 +105,26 @@ const softwareWorkerContractVersion = extractStringConst(
   "lib/execution/software-worker.ts",
   "SOFTWARE_WORKER_CONTRACT_VERSION"
 );
+const storageFabricContractVersion = extractStringConst(
+  "lib/resources/storage-fabric.ts",
+  "STORAGE_FABRIC_CONTRACT_VERSION"
+);
+const resilienceContractVersion = extractStringConst(
+  "lib/resources/resilience.ts",
+  "RESILIENCE_CONTRACT_VERSION"
+);
+const resourceAdapterSdkContractVersion = extractStringConst(
+  "lib/resources/adapter-sdk.ts",
+  "RESOURCE_ADAPTER_SDK_CONTRACT_VERSION"
+);
+const resourcePoolContractVersion = extractStringConst(
+  "lib/resources/pools.ts",
+  "RESOURCE_POOL_CONTRACT_VERSION"
+);
+const phase44HarnessVersion = extractStringConst(
+  registry.phase44.sourcePath,
+  "PHASE44_DETERMINISTIC_HARNESS_VERSION"
+);
 if (
   registry.aiGateway.contractVersion !== aiGatewayContractVersion
   || registry.aiGateway.routingPolicyContractVersion !== aiRoutingPolicyContractVersion
@@ -112,6 +132,11 @@ if (
   || registry.execution.jobRuntimeContractVersion !== jobRuntimeContractVersion
   || registry.execution.businessActionContractVersion !== businessActionContractVersion
   || registry.execution.softwareWorkerContractVersion !== softwareWorkerContractVersion
+  || registry.resourceFabric.storageFabricContractVersion !== storageFabricContractVersion
+  || registry.resourceFabric.resilienceContractVersion !== resilienceContractVersion
+  || registry.resourceFabric.resourceAdapterSdkContractVersion !== resourceAdapterSdkContractVersion
+  || registry.resourceFabric.resourcePoolContractVersion !== resourcePoolContractVersion
+  || registry.phase44.deterministicHarnessVersion !== phase44HarnessVersion
 ) {
   throw new Error("Release registry deterministic contract versions are stale");
 }
@@ -257,6 +282,27 @@ const manualLines = [
   `- Software deployment executor: ${registry.execution.softwareDeploymentStatus}`,
   ...registry.execution.sourcePaths.map((sourcePath) => `- Contract source: ${sourcePath} — ${fileHash(sourcePath)}`),
   "",
+  "## Resource Fabric Phases 36-39",
+  "",
+  `- Storage Fabric contract: ${registry.resourceFabric.storageFabricContractVersion}`,
+  `- Storage runtime: ${registry.resourceFabric.storageRuntimeStatus}`,
+  `- Resilience contract: ${registry.resourceFabric.resilienceContractVersion}`,
+  `- Failover runtime: ${registry.resourceFabric.failoverRuntimeStatus}`,
+  `- Resource Adapter SDK: ${registry.resourceFabric.resourceAdapterSdkContractVersion}`,
+  `- Second provider: ${registry.resourceFabric.secondProviderStatus}`,
+  `- ResourcePool contract: ${registry.resourceFabric.resourcePoolContractVersion}`,
+  `- Partner pool runtime: ${registry.resourceFabric.partnerPoolRuntimeStatus}`,
+  ...registry.resourceFabric.sourcePaths.map((sourcePath) => `- Resource Fabric source: ${sourcePath} — ${fileHash(sourcePath)}`),
+  "",
+  "## Phase 44 adversarial acceptance",
+  "",
+  `- Deterministic harness version: ${registry.phase44.deterministicHarnessVersion}`,
+  `- Deterministic harness status: ${registry.phase44.deterministicHarnessStatus}`,
+  `- Production end-to-end acceptance: ${registry.phase44.productionAcceptanceStatus}`,
+  `- Harness source hash: ${fileHash(registry.phase44.sourcePath)}`,
+  "",
+  "Offline adversarial checks are release evidence only. They do not promote unconnected NAS, provider, failover, partner-pool, or production infrastructure to PASS.",
+  "",
   "## Voice intent and secure handoff",
   "",
   `- Contract version: ${registry.voice.contractVersion}`,
@@ -303,6 +349,11 @@ const manualLines = [
     `- Durable Job contract/store: ${value.execution.jobRuntimeContractStatus} / ${value.execution.durableJobStoreStatus}`,
     `- Business action adapter: ${value.execution.businessActionAdapterStatus}`,
     `- Software deployment executor: ${value.execution.softwareDeploymentStatus}`,
+    `- Storage Fabric contract/runtime: ${value.resourceFabric.storageFabricContractStatus} / ${value.resourceFabric.storageRuntimeStatus}`,
+    `- Resilience contract/failover runtime: ${value.resourceFabric.resilienceContractStatus} / ${value.resourceFabric.failoverRuntimeStatus}`,
+    `- Resource Adapter SDK/second provider: ${value.resourceFabric.resourceAdapterSdkStatus} / ${value.resourceFabric.secondProviderStatus}`,
+    `- ResourcePool contract/partner runtime: ${value.resourceFabric.resourcePoolContractStatus} / ${value.resourceFabric.partnerPoolRuntimeStatus}`,
+    `- Phase 44 deterministic/production acceptance: ${value.phase44.deterministicHarnessStatus} / ${value.phase44.productionAcceptanceStatus}`,
     ...Object.entries(value.connections).map(
       ([connection, connected]) => `- ${connection}: ${connected ? "connected" : "not connected"}`
     ),
@@ -386,6 +437,14 @@ const manifestBase = {
   execution: {
     ...registry.execution,
     sourceEvidence: sourceEvidence(registry.execution.sourcePaths)
+  },
+  resourceFabric: {
+    ...registry.resourceFabric,
+    sourceEvidence: sourceEvidence(registry.resourceFabric.sourcePaths)
+  },
+  phase44: {
+    ...registry.phase44,
+    sourceSha256: fileHash(registry.phase44.sourcePath)
   },
   voice: {
     ...registry.voice,

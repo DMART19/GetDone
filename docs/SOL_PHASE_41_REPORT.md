@@ -133,7 +133,7 @@ Phase 41 now makes those absences machine-visible rather than leaving them impli
 
 Phase 42 extends this release-truth layer rather than creating a parallel version system.
 
-The release schemas are now versioned as registry `1.2.0`, environment manifest `1.2.0`, and generated release manifest `1.2.0` after adding deterministic Phase 4/13/19–21 contract/live-state separation and quality evidence.
+The release schemas are now versioned as registry `1.3.0`, environment manifest `1.3.0`, and generated release manifest `1.3.0` after adding deterministic Phase 36–39 Resource Fabric contract/live-state separation and the Phase 44 offline harness.
 
 The registry/manifest/manual now also bind:
 - voice intent contract version;
@@ -155,3 +155,12 @@ The release registry now tracks semantic contract versions for the new AI Gatewa
 `npm run verify:coverage` emits `coverage/control-plane-module-coverage.json`; CI binds that generated quality evidence into the release manifest before verification/archive.
 
 The environment manifest keeps live AI, integration, durable-job, business-action, and software-deployment connections false while separately recording deterministic contract availability.
+
+
+## Deterministic Phases 36–39 + Phase 44 extension
+
+The version registry now binds contract versions/source hashes for Storage Fabric, resilience/failover, Resource Adapter SDK, aggregate ResourcePool, and the Phase 44 deterministic adversarial harness.
+
+The environment manifest separately records that storage runtime, failover runtime, second provider, partner-pool runtime, and full production Phase 44 acceptance are still unconnected/not-run.
+
+Release generation and verification now include those contract sources and fail closed if a release claims live Phase 36–39 infrastructure or production Phase 44 acceptance before corresponding state is explicitly connected.

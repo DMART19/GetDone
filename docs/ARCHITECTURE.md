@@ -29,13 +29,18 @@ Backend/resource complexity must not turn the product into an infrastructure adm
 - Phase 33 reservation/capacity-ledger CAS contracts;
 - Phase 34 scheduler/dispatch contracts;
 - Phase 35 cost/capacity governor;
+- Phase 36 storage placement/replication/authoritative-copy contracts;
+- Phase 37 failure-domain admission, drain, and failover contracts;
+- Phase 38 Resource Adapter SDK/conformance boundary;
+- Phase 39 governed aggregate ResourcePool contracts;
 - Phase 40 zero-side-effect simulator;
 - Phase 41 release/version registry, explicit environment/deployment state, generated Git-SHA-bound machine manifests, operating manuals, and CI evidence archive;
 - Phase 42 typed voice intents and secure phone handoff, bound to trusted scope, current policy, Control API, audit, and the Phase 41 release registry;
 - Phase 4 deterministic Company Integration Registry;
 - Phase 13 provider-neutral AI Gateway contract/router/budget/audit foundation;
 - Phases 19–21 durable Job runtime, business action adapter, and software worker/deployment contracts;
-- architecture dependency-boundary matrix, contract-version drift verification, module/test coverage thresholds, and adversarial contract vectors.
+- architecture dependency-boundary matrix, contract-version drift verification, module/test coverage thresholds, and adversarial contract vectors;
+- Phase 44 deterministic offline adversarial harness over real exported authority boundaries.
 
 ### Quality and contract-integrity gates
 
@@ -90,6 +95,14 @@ No live OpenRouter/provider adapter, key, canary, or active routing configuratio
 
 Provider acceptance remains evidence only; JobService and verification remain authoritative. Production software promotion requires explicit approval + staging-verification lineage.
 
+### Resource Fabric storage/resilience/provider boundary
+
+Storage placement is separate from compute authority. HOME may host approved secondary/cache/artifact/rebuildable workloads but cannot silently become sole production authority. Authoritative replication plans must satisfy policy, freshness, encryption, RPO/RTO, and failure-domain constraints.
+
+Failure-domain degradation/circuit breakers stop unsafe new placement while allowing existing healthy work to remain when policy permits. Failover cannot claim recovery from dispatch/provider success; verified recovery requires independent verification evidence plus healthy post-failover state.
+
+The Resource Adapter SDK returns provider evidence with `authoritative: false`. Provider-specific code cannot set Job truth, trust, policy, or verification truth. Aggregate ResourcePools remain subject to the same tenant, environment, policy, credential, failure-domain, and scheduling boundaries.
+
 ### Voice boundary
 
 Voice is an evidence/query/initiation surface, not an authority system.
@@ -131,7 +144,12 @@ Development seed data is confined to the development read-repository seam and fa
 - zero-side-effect simulator isolation from reservation/dispatch/credential modules;
 - Phase 34 governor, credential, admission, trusted-verifier, and Job-truth bindings;
 - no stale architecture documentation claiming the Phase 25 service worker is still deferred;
-- Phase 42 voice cannot import approval/credential/dispatch authority, weaken secure approval/credential handoff, or drift from the release-registry environment state.
+- Phase 42 voice cannot import approval/credential/dispatch authority, weaken secure approval/credential handoff, or drift from the release-registry environment state;
+- Phase 36 HOME/authoritative-storage guardrails;
+- Phase 37 failover evidence requirement;
+- Phase 38 provider-adapter non-authority and DEVELOPMENT mock boundary;
+- Phase 39 pool governance and tenant isolation;
+- Phase 44 exact blocking-vector completeness.
 
 The drift gate is additive to secret scan, TypeScript, lint, unit tests, and production build.
 

@@ -3,11 +3,19 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { CURRENT_POLICY_VERSION } from "@/lib/domain/policy-registry";
 import { POLICY_ENGINE_VERSION } from "@/lib/planning/policy-engine";
-import { AI_GATEWAY_CONTRACT_VERSION, AI_ROUTING_POLICY_CONTRACT_VERSION } from "@/lib/ai-gateway/contracts";
+import {
+  AI_GATEWAY_CONTRACT_VERSION,
+  AI_ROUTING_POLICY_CONTRACT_VERSION
+} from "@/lib/ai-gateway/contracts";
 import { INTEGRATION_REGISTRY_CONTRACT_VERSION } from "@/lib/integrations/contracts";
 import { JOB_RUNTIME_CONTRACT_VERSION } from "@/lib/execution/job-runtime-contracts";
 import { BUSINESS_ACTION_ADAPTER_CONTRACT_VERSION } from "@/lib/execution/adapters/business-action";
 import { SOFTWARE_WORKER_CONTRACT_VERSION } from "@/lib/execution/software-worker";
+import { STORAGE_FABRIC_CONTRACT_VERSION } from "@/lib/resources/storage-fabric";
+import { RESILIENCE_CONTRACT_VERSION } from "@/lib/resources/resilience";
+import { RESOURCE_ADAPTER_SDK_CONTRACT_VERSION } from "@/lib/resources/adapter-sdk";
+import { RESOURCE_POOL_CONTRACT_VERSION } from "@/lib/resources/pools";
+import { PHASE44_DETERMINISTIC_HARNESS_VERSION } from "@/lib/security/phase44-adversarial-harness";
 
 interface VersionedSource {
   version: string;
@@ -43,6 +51,22 @@ interface ReleaseRegistryShape {
     softwareWorkerContractVersion: string;
     softwareDeploymentStatus: string;
   };
+  resourceFabric: {
+    storageFabricContractVersion: string;
+    storageRuntimeStatus: string;
+    resilienceContractVersion: string;
+    failoverRuntimeStatus: string;
+    resourceAdapterSdkContractVersion: string;
+    secondProviderStatus: string;
+    resourcePoolContractVersion: string;
+    partnerPoolRuntimeStatus: string;
+  };
+  phase44: {
+    deterministicHarnessVersion: string;
+    deterministicHarnessStatus: string;
+    productionAcceptanceStatus: string;
+    sourcePath: string;
+  };
   voice: {
     contractVersion: string;
     adapterContractVersion: string;
@@ -64,13 +88,37 @@ interface EnvironmentShape {
   productionReady: boolean;
   connections: Record<string, boolean>;
   deployment: { status: string; deploymentId: string | null };
-  aiGateway: { contractStatus: string; adapterStatus: string; routingPolicyStatus: string; provider: string };
-  integrations: { registryStatus: string; adapterStatus: string; mockAllowed: boolean };
+  aiGateway: {
+    contractStatus: string;
+    adapterStatus: string;
+    routingPolicyStatus: string;
+    provider: string;
+  };
+  integrations: {
+    registryStatus: string;
+    adapterStatus: string;
+    mockAllowed: boolean;
+  };
   execution: {
     jobRuntimeContractStatus: string;
     durableJobStoreStatus: string;
     businessActionAdapterStatus: string;
     softwareDeploymentStatus: string;
+  };
+  resourceFabric: {
+    storageFabricContractStatus: string;
+    storageRuntimeStatus: string;
+    resilienceContractStatus: string;
+    failoverRuntimeStatus: string;
+    resourceAdapterSdkStatus: string;
+    secondProviderStatus: string;
+    resourcePoolContractStatus: string;
+    partnerPoolRuntimeStatus: string;
+    developmentMockAdapterAllowed: boolean;
+  };
+  phase44: {
+    deterministicHarnessStatus: string;
+    productionAcceptanceStatus: string;
   };
   voice: {
     contractStatus: string;
@@ -96,10 +144,10 @@ const packageJson = readJson<{ version: string }>("package.json");
 
 describe("Phase 41 release/version registry", () => {
   it("binds application policy and machine-readable schema versions", () => {
-    expect(registry.registrySchemaVersion).toBe("1.2.0");
-    expect(registry.environmentManifestSchemaVersion).toBe("1.2.0");
-    expect(environment.manifestSchemaVersion).toBe("1.2.0");
-    expect(registry.schemaVersions.releaseManifest.version).toBe("1.2.0");
+    expect(registry.registrySchemaVersion).toBe("1.3.0");
+    expect(registry.environmentManifestSchemaVersion).toBe("1.3.0");
+    expect(environment.manifestSchemaVersion).toBe("1.3.0");
+    expect(registry.schemaVersions.releaseManifest.version).toBe("1.3.0");
     expect(registry.appVersion).toBe(packageJson.version);
     expect(registry.policy.registryVersion).toBe(CURRENT_POLICY_VERSION);
     expect(registry.policy.engineVersion).toBe(POLICY_ENGINE_VERSION);
@@ -144,9 +192,32 @@ describe("Phase 41 release/version registry", () => {
       softwareWorkerContractVersion: SOFTWARE_WORKER_CONTRACT_VERSION,
       softwareDeploymentStatus: "not-connected"
     });
-    expect(registry.adapters.businessAction.status).toBe("contract-only");
-    expect(registry.adapters.integration.status).toBe("contract-only");
-    expect(registry.adapters.softwareDeployment.status).toBe("contract-only");
+  });
+
+  it("binds deterministic Phases 36-39 without inventing live infrastructure", () => {
+    expect(registry.resourceFabric).toMatchObject({
+      storageFabricContractVersion: STORAGE_FABRIC_CONTRACT_VERSION,
+      storageRuntimeStatus: "not-connected",
+      resilienceContractVersion: RESILIENCE_CONTRACT_VERSION,
+      failoverRuntimeStatus: "not-connected",
+      resourceAdapterSdkContractVersion: RESOURCE_ADAPTER_SDK_CONTRACT_VERSION,
+      secondProviderStatus: "not-connected",
+      resourcePoolContractVersion: RESOURCE_POOL_CONTRACT_VERSION,
+      partnerPoolRuntimeStatus: "not-connected"
+    });
+    expect(registry.adapters.resourceAdapterSdk).toMatchObject({
+      status: "contract-only",
+      version: RESOURCE_ADAPTER_SDK_CONTRACT_VERSION
+    });
+  });
+
+  it("binds Phase 44 offline harness without claiming production acceptance", () => {
+    expect(registry.phase44).toMatchObject({
+      deterministicHarnessVersion: PHASE44_DETERMINISTIC_HARNESS_VERSION,
+      deterministicHarnessStatus: "contract-and-offline-tests",
+      productionAcceptanceStatus: "not-run",
+      sourcePath: "lib/security/phase44-adversarial-harness.ts"
+    });
   });
 
   it("records the exact absence of database migrations instead of inventing schema state", () => {
@@ -174,29 +245,28 @@ describe("Phase 41 release/version registry", () => {
   });
 
   it("defines development staging and production without overstating runtime readiness", () => {
-    expect(Object.keys(environment.environments).sort()).toEqual(["development", "production", "staging"]);
+    expect(Object.keys(environment.environments).sort())
+      .toEqual(["development", "production", "staging"]);
     expect(environment.environments.production.productionReady).toBe(false);
-    expect(environment.environments.production.deployment.status).toBe("not-connected");
     for (const [name, state] of Object.entries(environment.environments)) {
-      expect(state.connections.aiGateway).toBe(false);
-      expect(state.connections.durableJobEngine).toBe(false);
-      expect(state.connections.businessIntegrationAdapters).toBe(false);
-      expect(state.connections.businessActionAdapters).toBe(false);
-      expect(state.connections.softwareDeploymentExecutor).toBe(false);
-      expect(state.aiGateway).toMatchObject({
-        contractStatus: "deterministic-contract",
-        adapterStatus: "not-connected",
-        routingPolicyStatus: "unconfigured",
-        provider: "UNCONFIGURED"
+      expect(state.connections.storageFabricRuntime).toBe(false);
+      expect(state.connections.resilienceFailoverRuntime).toBe(false);
+      expect(state.connections.secondResourceProvider).toBe(false);
+      expect(state.connections.partnerPoolRuntime).toBe(false);
+      expect(state.resourceFabric).toMatchObject({
+        storageFabricContractStatus: "deterministic-contract",
+        storageRuntimeStatus: "not-connected",
+        resilienceContractStatus: "deterministic-contract",
+        failoverRuntimeStatus: "not-connected",
+        resourceAdapterSdkStatus: "deterministic-contract",
+        secondProviderStatus: "not-connected",
+        resourcePoolContractStatus: "deterministic-contract",
+        partnerPoolRuntimeStatus: "not-connected",
+        developmentMockAdapterAllowed: name === "development"
       });
-      expect(state.integrations.registryStatus).toBe("deterministic-contract");
-      expect(state.integrations.adapterStatus).toBe("not-connected");
-      expect(state.integrations.mockAllowed).toBe(name === "development");
-      expect(state.execution).toMatchObject({
-        jobRuntimeContractStatus: "deterministic-contract",
-        durableJobStoreStatus: "not-connected",
-        businessActionAdapterStatus: "not-connected",
-        softwareDeploymentStatus: "not-connected"
+      expect(state.phase44).toEqual({
+        deterministicHarnessStatus: "offline-blocking-suite",
+        productionAcceptanceStatus: "not-run"
       });
       expect(state.voice.strongApprovalAllowed).toBe(false);
       expect(state.voice.rawCredentialInputAllowed).toBe(false);
