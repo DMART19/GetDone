@@ -3,35 +3,52 @@ import {
   SignalBusService,
   parseInboundSignalEvent,
   type NormalizedSignalStore,
+  type SignalBusPersistence,
+  type SignalBusTransaction,
   type SignalCursorStore,
   type SignalDedupeStore,
   type SignalScopeResolver
 } from "@/lib/intelligence/signal-bus";
 import type { NormalizedSignal } from "@/lib/intelligence/signals";
 
-class MemoryDedupe implements SignalDedupeStore {
-  readonly keys = new Set<string>();
-  async claim(key: string) {
-    if (this.keys.has(key)) return false;
-    this.keys.add(key);
-    return true;
-  }
-}
+class MemorySignalPersistence implements SignalBusPersistence {
+  keys = new Set<string>();
+  cursors = new Map<string, { sequence?: number; occurredAt: string }>();
+  signals: NormalizedSignal[] = [];
+  failAppend = false;
 
-class MemoryCursors implements SignalCursorStore {
-  readonly cursors = new Map<string, { sequence?: number; occurredAt: string }>();
-  async get(key: string) {
-    return this.cursors.get(key) ?? null;
-  }
-  async advance(key: string, cursor: { sequence?: number; occurredAt: string }) {
-    this.cursors.set(key, cursor);
-  }
-}
+  async run<T>(operation: (transaction: SignalBusTransaction) => Promise<T>) {
+    const stagedKeys = new Set(this.keys);
+    const stagedCursors = new Map(this.cursors);
+    const stagedSignals = [...this.signals];
 
-class MemorySignals implements NormalizedSignalStore {
-  readonly signals: NormalizedSignal[] = [];
-  async append(signal: NormalizedSignal) {
-    this.signals.push(signal);
+    const dedupe: SignalDedupeStore = {
+      claim: async (key) => {
+        if (stagedKeys.has(key)) return false;
+        stagedKeys.add(key);
+        return true;
+      }
+    };
+
+    const cursors: SignalCursorStore = {
+      get: async (key) => stagedCursors.get(key) ?? null,
+      advance: async (key, cursor) => {
+        stagedCursors.set(key, cursor);
+      }
+    };
+
+    const signals: NormalizedSignalStore = {
+      append: async (signal) => {
+        if (this.failAppend) throw new Error("simulated signal persistence failure");
+        stagedSignals.push(signal);
+      }
+    };
+
+    const result = await operation({ dedupe, cursors, signals });
+    this.keys = stagedKeys;
+    this.cursors = stagedCursors;
+    this.signals = stagedSignals;
+    return result;
   }
 }
 
@@ -58,18 +75,14 @@ function resolver(): SignalScopeResolver {
 }
 
 function createBus() {
-  const dedupe = new MemoryDedupe();
-  const cursors = new MemoryCursors();
-  const signals = new MemorySignals();
+  const persistence = new MemorySignalPersistence();
   const bus = new SignalBusService({
     scopeResolver: resolver(),
-    dedupe,
-    cursors,
-    signals,
+    persistence,
     now: () => new Date("2026-09-20T16:05:00Z"),
-    idFactory: () => `signal-${signals.signals.length + 1}`
+    idFactory: () => `signal-${persistence.signals.length + 1}`
   });
-  return { bus, dedupe, cursors, signals };
+  return { bus, persistence };
 }
 
 const event = {
@@ -103,15 +116,15 @@ describe("signal bus", () => {
   });
 
   it("deduplicates a repeated logical provider event", async () => {
-    const { bus, signals } = createBus();
+    const { bus, persistence } = createBus();
     await bus.ingest("binding-1", event);
     const retry = await bus.ingest("binding-1", event);
     expect(retry.status).toBe("duplicate");
-    expect(signals.signals).toHaveLength(1);
+    expect(persistence.signals).toHaveLength(1);
   });
 
   it("accepts late events without regressing the stream cursor", async () => {
-    const { bus, cursors } = createBus();
+    const { bus, persistence } = createBus();
     await bus.ingest("binding-1", event);
 
     const late = await bus.ingest("binding-1", {
@@ -122,9 +135,21 @@ describe("signal bus", () => {
     });
 
     expect(late.status).toBe("accepted-out-of-order");
-    const [cursor] = [...cursors.cursors.values()];
+    const [cursor] = [...persistence.cursors.values()];
     expect(cursor.sequence).toBe(10);
     expect(cursor.occurredAt).toBe("2026-09-20T16:00:00Z");
+  });
+
+  it("rolls back a dedupe claim if normalized-signal persistence fails", async () => {
+    const { bus, persistence } = createBus();
+    persistence.failAppend = true;
+
+    await expect(bus.ingest("binding-1", event)).rejects.toThrow("simulated signal persistence failure");
+    expect(persistence.keys.size).toBe(0);
+    expect(persistence.signals).toHaveLength(0);
+
+    persistence.failAppend = false;
+    expect((await bus.ingest("binding-1", event)).status).toBe("accepted");
   });
 
   it("rejects an unknown source binding", async () => {

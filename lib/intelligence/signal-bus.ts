@@ -51,8 +51,8 @@ export interface SignalScopeResolver {
 
 export interface SignalDedupeStore {
   /**
-   * Durable implementations must atomically claim a key.
-   * Returns true only for the first logical event.
+   * Durable implementations must atomically claim a key inside the signal
+   * ingestion transaction. Returns true only for the first logical event.
    */
   claim(key: string, observedAt: string): Promise<boolean>;
 }
@@ -71,11 +71,23 @@ export interface NormalizedSignalStore {
   append(signal: NormalizedSignal): Promise<void>;
 }
 
-export interface SignalBusDependencies {
-  scopeResolver: SignalScopeResolver;
+export interface SignalBusTransaction {
   dedupe: SignalDedupeStore;
   cursors: SignalCursorStore;
   signals: NormalizedSignalStore;
+}
+
+export interface SignalBusPersistence {
+  /**
+   * Production persistence must commit dedupe claim, normalized signal append,
+   * and stream-cursor advancement atomically.
+   */
+  run<T>(operation: (transaction: SignalBusTransaction) => Promise<T>): Promise<T>;
+}
+
+export interface SignalBusDependencies {
+  scopeResolver: SignalScopeResolver;
+  persistence: SignalBusPersistence;
   now?: () => Date;
   idFactory?: () => string;
 }
@@ -140,49 +152,51 @@ export class SignalBusService {
       throw new ControlPlaneError("FORBIDDEN", "Resolved signal scope does not match the trusted source binding");
     }
 
-    const dedupeKey = signalDedupeKey(sourceBindingId, event.eventId, scope);
-    const claimed = await this.dependencies.dedupe.claim(dedupeKey, event.occurredAt);
-    if (!claimed) return { status: "duplicate", dedupeKey };
+    return this.dependencies.persistence.run(async (transaction) => {
+      const dedupeKey = signalDedupeKey(sourceBindingId, event.eventId, scope);
+      const claimed = await transaction.dedupe.claim(dedupeKey, event.occurredAt);
+      if (!claimed) return { status: "duplicate", dedupeKey };
 
-    const cursorKey = signalStreamCursorKey(sourceBindingId, event.streamKey, scope);
-    const cursor = await this.dependencies.cursors.get(cursorKey);
-    const outOfOrder = isOutOfOrder(event, cursor);
-    const receivedAt = (this.dependencies.now ?? (() => new Date()))().toISOString();
+      const cursorKey = signalStreamCursorKey(sourceBindingId, event.streamKey, scope);
+      const cursor = await transaction.cursors.get(cursorKey);
+      const outOfOrder = isOutOfOrder(event, cursor);
+      const receivedAt = (this.dependencies.now ?? (() => new Date()))().toISOString();
 
-    const signal: NormalizedSignal = {
-      id: (this.dependencies.idFactory ?? (() => crypto.randomUUID()))(),
-      dedupeKey,
-      sourceBindingId,
-      eventId: event.eventId,
-      streamKey: event.streamKey,
-      sequence: event.sequence,
-      type: event.type,
-      occurredAt: event.occurredAt,
-      receivedAt,
-      scope,
-      metric: event.metric,
-      value: event.value,
-      unit: event.unit,
-      severity: event.severity,
-      expected: event.expected,
-      sustainedForSeconds: event.sustainedForSeconds,
-      attributes: Object.freeze({ ...(event.attributes ?? {}) }),
-      provenance: `${resolved.binding.sourceName}:${sourceBindingId}:${event.eventId}`,
-      outOfOrder
-    };
+      const signal: NormalizedSignal = {
+        id: (this.dependencies.idFactory ?? (() => crypto.randomUUID()))(),
+        dedupeKey,
+        sourceBindingId,
+        eventId: event.eventId,
+        streamKey: event.streamKey,
+        sequence: event.sequence,
+        type: event.type,
+        occurredAt: event.occurredAt,
+        receivedAt,
+        scope,
+        metric: event.metric,
+        value: event.value,
+        unit: event.unit,
+        severity: event.severity,
+        expected: event.expected,
+        sustainedForSeconds: event.sustainedForSeconds,
+        attributes: Object.freeze({ ...(event.attributes ?? {}) }),
+        provenance: `${resolved.binding.sourceName}:${sourceBindingId}:${event.eventId}`,
+        outOfOrder
+      };
 
-    await this.dependencies.signals.append(signal);
+      await transaction.signals.append(signal);
 
-    if (shouldAdvanceCursor(event, cursor)) {
-      await this.dependencies.cursors.advance(cursorKey, {
-        sequence: event.sequence ?? cursor?.sequence,
-        occurredAt: event.occurredAt
-      });
-    }
+      if (shouldAdvanceCursor(event, cursor)) {
+        await transaction.cursors.advance(cursorKey, {
+          sequence: event.sequence ?? cursor?.sequence,
+          occurredAt: event.occurredAt
+        });
+      }
 
-    return {
-      status: outOfOrder ? "accepted-out-of-order" : "accepted",
-      signal
-    };
+      return {
+        status: outOfOrder ? "accepted-out-of-order" : "accepted",
+        signal
+      };
+    });
   }
 }

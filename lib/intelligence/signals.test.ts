@@ -3,6 +3,7 @@ import type { Investigation, InvestigationStore } from "@/lib/intelligence/inves
 import { InvestigationCoordinator } from "@/lib/intelligence/investigations";
 import {
   evaluateSignal,
+  ScopedSensingProfileResolver,
   SensingEngine,
   validateSensingProfile,
   type RecentSignalReader,
@@ -99,6 +100,27 @@ describe("deterministic sensing", () => {
     );
     expect(result.action).toBe("INVESTIGATE");
     expect(result.classification).toBe("anomaly");
+  });
+
+  it("prefers a resource-specific baseline over the company fallback", async () => {
+    const resolver = new ScopedSensingProfileResolver({
+      listForCompany: async () => [
+        profile,
+        {
+          ...profile,
+          id: "resource-profile",
+          resourceId: "r1",
+          baselineValue: 0.005
+        }
+      ]
+    });
+
+    const resolved = await resolver.resolve(signal({
+      scope: { portfolioId: "p1", companyId: "c1", resourceId: "r1" }
+    }));
+
+    expect(resolved?.id).toBe("resource-profile");
+    expect(resolved?.baselineValue).toBe(0.005);
   });
 
   it("escalates critical resource vocabulary before expected-source downgrades", () => {

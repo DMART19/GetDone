@@ -106,13 +106,16 @@ export function validateResearchMission(mission: ResearchMission) {
   const integerLimits = [
     mission.maxRequestsPerRun,
     mission.maxCostCentsPerRun,
-    mission.rateWindowSeconds,
     mission.maxRequestsPerWindow,
     mission.maxCostCentsPerWindow
   ];
 
   if (integerLimits.some((value) => !Number.isInteger(value) || value < 0)) {
     throw new TypeError("Research mission limits must be non-negative integers");
+  }
+
+  if (!Number.isInteger(mission.rateWindowSeconds) || mission.rateWindowSeconds <= 0) {
+    throw new TypeError("Research mission rate window must be a positive integer");
   }
 
   if (!mission.portfolioId || !mission.companyId || !mission.id || !mission.topic) {
@@ -192,7 +195,7 @@ export class ResearchMissionService {
 
 export function isResearchEvidenceStale(evidence: ResearchEvidence, now = Date.now()) {
   const retrievedAt = Date.parse(evidence.retrievedAt);
-  if (!Number.isFinite(retrievedAt)) return true;
+  if (!Number.isFinite(retrievedAt) || evidence.freshnessSeconds < 0 || retrievedAt > now) return true;
   return now - retrievedAt > evidence.freshnessSeconds * 1000;
 }
 

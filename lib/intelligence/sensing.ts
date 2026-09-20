@@ -30,8 +30,41 @@ export interface SensingProfile {
   cooldownSeconds: number;
 }
 
+export interface SensingProfileStore {
+  listForCompany(input: {
+    portfolioId: string;
+    companyId: string;
+  }): Promise<readonly SensingProfile[]>;
+}
+
 export interface SensingProfileResolver {
   resolve(signal: NormalizedSignal): Promise<SensingProfile | null>;
+}
+
+export class ScopedSensingProfileResolver implements SensingProfileResolver {
+  constructor(private readonly store: SensingProfileStore) {}
+
+  async resolve(signal: NormalizedSignal) {
+    const profiles = await this.store.listForCompany({
+      portfolioId: signal.scope.portfolioId,
+      companyId: signal.scope.companyId
+    });
+
+    const matching = profiles
+      .filter((profile) => profile.portfolioId === signal.scope.portfolioId)
+      .filter((profile) => profile.companyId === signal.scope.companyId)
+      .filter((profile) => profile.signalType === signal.type)
+      .filter((profile) => !profile.metric || profile.metric === signal.metric)
+      .filter((profile) => !profile.resourceId || profile.resourceId === signal.scope.resourceId)
+      .map(validateSensingProfile);
+
+    if (signal.scope.resourceId) {
+      const resourceSpecific = matching.find((profile) => profile.resourceId === signal.scope.resourceId);
+      if (resourceSpecific) return resourceSpecific;
+    }
+
+    return matching.find((profile) => !profile.resourceId) ?? null;
+  }
 }
 
 export interface RecentSignalReader {
@@ -92,6 +125,10 @@ export function validateSensingProfile(profile: SensingProfile) {
   ];
   if (durations.some((value) => !Number.isInteger(value) || value < 0)) {
     throw new ControlPlaneError("VALIDATION_FAILED", "Sensing window values must be non-negative integers");
+  }
+
+  if (!profile.id || !profile.portfolioId || !profile.companyId || !profile.signalType) {
+    throw new ControlPlaneError("VALIDATION_FAILED", "Sensing profile must be scoped and named");
   }
 
   return profile;
