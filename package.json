@@ -16,7 +16,9 @@
     "test:coverage": "vitest run --coverage",
     "verify:runtime": "node scripts/verify-runtime.mjs",
     "verify:secrets": "node scripts/verify-no-secrets.mjs",
-    "verify:architecture": "node scripts/verify-architecture.mjs"
+    "verify:architecture": "node scripts/verify-architecture.mjs",
+    "release:generate": "node scripts/generate-release-artifacts.mjs",
+    "verify:release": "node scripts/verify-release-artifacts.mjs"
   },
   "dependencies": {
     "lucide-react": "0.468.0",
