@@ -1,5 +1,5 @@
 {
-  "manifestSchemaVersion": "1.1.0",
+  "manifestSchemaVersion": "1.2.0",
   "environments": {
     "development": {
       "authorityMode": "deterministic-foundation",
@@ -15,7 +15,10 @@
         "resourceDispatchAdapters": false,
         "liveTelemetry": false,
         "billingUsageFeeds": false,
-        "voiceAdapter": false
+        "voiceAdapter": false,
+        "businessIntegrationAdapters": false,
+        "businessActionAdapters": false,
+        "softwareDeploymentExecutor": false
       },
       "deployment": {
         "status": "local-development",
@@ -28,6 +31,23 @@
         "strongApprovalAllowed": false,
         "rawCredentialInputAllowed": false,
         "secureHandoff": "iphone-control-surface"
+      },
+      "aiGateway": {
+        "contractStatus": "deterministic-contract",
+        "adapterStatus": "not-connected",
+        "routingPolicyStatus": "unconfigured",
+        "provider": "UNCONFIGURED"
+      },
+      "integrations": {
+        "registryStatus": "deterministic-contract",
+        "adapterStatus": "not-connected",
+        "mockAllowed": true
+      },
+      "execution": {
+        "jobRuntimeContractStatus": "deterministic-contract",
+        "durableJobStoreStatus": "not-connected",
+        "businessActionAdapterStatus": "not-connected",
+        "softwareDeploymentStatus": "not-connected"
       }
     },
     "staging": {
@@ -44,7 +64,10 @@
         "resourceDispatchAdapters": false,
         "liveTelemetry": false,
         "billingUsageFeeds": false,
-        "voiceAdapter": false
+        "voiceAdapter": false,
+        "businessIntegrationAdapters": false,
+        "businessActionAdapters": false,
+        "softwareDeploymentExecutor": false
       },
       "deployment": {
         "status": "not-connected",
@@ -57,6 +80,23 @@
         "strongApprovalAllowed": false,
         "rawCredentialInputAllowed": false,
         "secureHandoff": "iphone-control-surface"
+      },
+      "aiGateway": {
+        "contractStatus": "deterministic-contract",
+        "adapterStatus": "not-connected",
+        "routingPolicyStatus": "unconfigured",
+        "provider": "UNCONFIGURED"
+      },
+      "integrations": {
+        "registryStatus": "deterministic-contract",
+        "adapterStatus": "not-connected",
+        "mockAllowed": false
+      },
+      "execution": {
+        "jobRuntimeContractStatus": "deterministic-contract",
+        "durableJobStoreStatus": "not-connected",
+        "businessActionAdapterStatus": "not-connected",
+        "softwareDeploymentStatus": "not-connected"
       }
     },
     "production": {
@@ -73,7 +113,10 @@
         "resourceDispatchAdapters": false,
         "liveTelemetry": false,
         "billingUsageFeeds": false,
-        "voiceAdapter": false
+        "voiceAdapter": false,
+        "businessIntegrationAdapters": false,
+        "businessActionAdapters": false,
+        "softwareDeploymentExecutor": false
       },
       "deployment": {
         "status": "not-connected",
@@ -86,6 +129,23 @@
         "strongApprovalAllowed": false,
         "rawCredentialInputAllowed": false,
         "secureHandoff": "iphone-control-surface"
+      },
+      "aiGateway": {
+        "contractStatus": "deterministic-contract",
+        "adapterStatus": "not-connected",
+        "routingPolicyStatus": "unconfigured",
+        "provider": "UNCONFIGURED"
+      },
+      "integrations": {
+        "registryStatus": "deterministic-contract",
+        "adapterStatus": "not-connected",
+        "mockAllowed": false
+      },
+      "execution": {
+        "jobRuntimeContractStatus": "deterministic-contract",
+        "durableJobStoreStatus": "not-connected",
+        "businessActionAdapterStatus": "not-connected",
+        "softwareDeploymentStatus": "not-connected"
       }
     }
   },
@@ -93,6 +153,9 @@
     "This manifest declares connection/readiness state only; it contains no credentials.",
     "A false connection must not be interpreted as a provider selection.",
     "ProductionReady remains false until canonical infrastructure-dependent acceptance evidence exists.",
-    "Phase 42 voice contracts are present, but no live speech/voice adapter is connected in any environment."
+    "Phase 42 voice contracts are present, but no live speech/voice adapter is connected in any environment.",
+    "Phase 13 AI Gateway contracts/router/budget/audit are present, but no live OpenRouter/provider adapter or routing configuration is connected.",
+    "Phase 4 Integration Registry contracts are present; only explicit DEVELOPMENT mock adapters exist in-repo.",
+    "Phases 19-21 durable Job Store, business action adapter, and software worker/deployment contracts are present; no production queue/store/action/deployment adapter is connected."
   ]
 }
