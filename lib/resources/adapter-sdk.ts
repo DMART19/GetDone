@@ -103,18 +103,21 @@ export async function assertResourceAdapterConformance(input: {
   if (context.providerId !== adapter.providerId) {
     throw new ControlPlaneError("FORBIDDEN", "Resource adapter provider/context mismatch");
   }
-  const evidence = [
-    await adapter.metadata(context),
-    await adapter.discover(context),
-    await adapter.authenticate(context),
-    await adapter.capabilities(context, fixtureTargetId),
-    await adapter.health(context, fixtureTargetId),
-    await adapter.capacity(context, fixtureTargetId),
-    await adapter.cost(context, fixtureTargetId)
-  ];
-  for (const item of evidence) assertResourceAdapterEvidence(item, adapter);
+  const metadata = await adapter.metadata(context);
+  const discovery = await adapter.discover(context);
+  const authentication = await adapter.authenticate(context);
+  const capabilities = await adapter.capabilities(context, fixtureTargetId);
+  const health = await adapter.health(context, fixtureTargetId);
+  const capacity = await adapter.capacity(context, fixtureTargetId);
+  const cost = await adapter.cost(context, fixtureTargetId);
 
-  const metadata = evidence[0] as ResourceAdapterEvidence<ResourceAdapterMetadata>;
+  assertResourceAdapterEvidence(metadata, adapter);
+  assertResourceAdapterEvidence(discovery, adapter);
+  assertResourceAdapterEvidence(authentication, adapter);
+  assertResourceAdapterEvidence(capabilities, adapter);
+  assertResourceAdapterEvidence(health, adapter);
+  assertResourceAdapterEvidence(capacity, adapter);
+  assertResourceAdapterEvidence(cost, adapter);
   if (
     metadata.payload.mock
     && context.scope.environment !== "development"
