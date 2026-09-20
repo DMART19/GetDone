@@ -147,8 +147,16 @@ describe("Phase 24 adversarial security regression", () => {
       receiptHash: "receipt-hash"
     };
 
+    const scope = {
+      userId: "user-a",
+      portfolioId: "portfolio-a",
+      companyId: "company-a",
+      environment: "production" as const
+    };
+
     expect(() => assertProductionPromotionBoundary({
       source: "provider",
+      scope,
       authenticated: true,
       trustedScopeResolved: true,
       policyAuthorized: true,
@@ -160,6 +168,7 @@ describe("Phase 24 adversarial security regression", () => {
 
     expect(assertProductionPromotionBoundary({
       source: "control-plane",
+      scope,
       authenticated: true,
       trustedScopeResolved: true,
       policyAuthorized: true,
