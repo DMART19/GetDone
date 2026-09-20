@@ -223,6 +223,73 @@ for (const required of [
   if (!softwareWorker.includes(required)) fail(`Phase 21 software worker guard missing: ${required}`);
 }
 
+const storageFabric = read("lib/resources/storage-fabric.ts");
+for (const required of [
+  'STORAGE_FABRIC_CONTRACT_VERSION = "1.0.0"',
+  "authoritative-primary",
+  "home-cannot-hold-sole-authoritative-copy",
+  "Production authoritative state cannot depend only on HOME storage",
+  "distinct failure domains"
+]) {
+  if (!storageFabric.includes(required)) fail(`Phase 36 storage authority guard missing: ${required}`);
+}
+
+const resilience = read("lib/resources/resilience.ts");
+for (const required of [
+  'RESILIENCE_CONTRACT_VERSION = "1.0.0"',
+  "circuitBreaker",
+  "beginDrain",
+  "createFailoverPlan",
+  "requiresIndependentVerification: true",
+  "Failover cannot claim recovery without verified receipt"
+]) {
+  if (!resilience.includes(required)) fail(`Phase 37 resilience guard missing: ${required}`);
+}
+
+const resourceAdapterSdk = read("lib/resources/adapter-sdk.ts");
+for (const required of [
+  'RESOURCE_ADAPTER_SDK_CONTRACT_VERSION = "1.0.0"',
+  "discover(context",
+  "authenticate(context",
+  "capabilities(context",
+  "reserve(context",
+  "dispatch(context",
+  "authoritative: false",
+  "assertResourceAdapterConformance"
+]) {
+  if (!resourceAdapterSdk.includes(required)) fail(`Phase 38 Resource Adapter SDK guard missing: ${required}`);
+}
+
+const pools = read("lib/resources/pools.ts");
+for (const required of [
+  'RESOURCE_POOL_CONTRACT_VERSION = "1.0.0"',
+  "credentialBindingIds",
+  "failureDomainIds",
+  "autoSchedulingEnabled",
+  "evaluateResourcePoolReadiness",
+  "assertResourcePoolEligible",
+  "buildResourcePoolReadModel"
+]) {
+  if (!pools.includes(required)) fail(`Phase 39 ResourcePool guard missing: ${required}`);
+}
+
+const phase44 = read("lib/security/phase44-adversarial-harness.ts");
+for (const required of [
+  'PHASE44_DETERMINISTIC_HARNESS_VERSION = "1.0.0"',
+  "voice-approval-bypass",
+  "staging-production-scope-misuse",
+  "forged-resource-capability",
+  "reservation-replay",
+  "scheduler-bypass",
+  "provider-success-spoofing",
+  "credential-scope-escalation",
+  "cross-company-contamination",
+  "release-registry-tampering",
+  "model-provider-authority-attempt"
+]) {
+  if (!phase44.includes(required)) fail(`Phase 44 deterministic adversarial vector missing: ${required}`);
+}
+
 const voice = read("lib/voice/voice-intents.ts");
 for (const required of [
   "usesControlApi: true",
@@ -272,6 +339,8 @@ for (const required of [
   "aiGateway",
   "integrations",
   "execution",
+  "resourceFabric",
+  "phase44",
   "voice",
   "adapters",
   "environmentManifestPath",
@@ -313,6 +382,26 @@ if (
   fail("Phases 19-21 release state drifted");
 }
 if (
+  releaseRegistry.resourceFabric?.storageFabricContractVersion !== "1.0.0"
+  || releaseRegistry.resourceFabric?.storageRuntimeStatus !== "not-connected"
+  || releaseRegistry.resourceFabric?.resilienceContractVersion !== "1.0.0"
+  || releaseRegistry.resourceFabric?.failoverRuntimeStatus !== "not-connected"
+  || releaseRegistry.resourceFabric?.resourceAdapterSdkContractVersion !== "1.0.0"
+  || releaseRegistry.resourceFabric?.secondProviderStatus !== "not-connected"
+  || releaseRegistry.resourceFabric?.resourcePoolContractVersion !== "1.0.0"
+  || releaseRegistry.resourceFabric?.partnerPoolRuntimeStatus !== "not-connected"
+  || releaseRegistry.adapters?.resourceAdapterSdk?.status !== "contract-only"
+) {
+  fail("Phases 36-39 release state drifted");
+}
+if (
+  releaseRegistry.phase44?.deterministicHarnessVersion !== "1.0.0"
+  || releaseRegistry.phase44?.deterministicHarnessStatus !== "contract-and-offline-tests"
+  || releaseRegistry.phase44?.productionAcceptanceStatus !== "not-run"
+) {
+  fail("Phase 44 deterministic/live acceptance state drifted");
+}
+if (
   releaseRegistry.voice?.strongApprovalHandling !== "secure-phone-only"
   || releaseRegistry.voice?.credentialHandling !== "secure-provider-or-phone-only"
 ) {
@@ -329,6 +418,16 @@ for (const [name, state] of Object.entries(releaseEnvironment.environments ?? {}
     || state.execution?.durableJobStoreStatus !== "not-connected"
     || state.execution?.businessActionAdapterStatus !== "not-connected"
     || state.execution?.softwareDeploymentStatus !== "not-connected"
+    || state.resourceFabric?.storageFabricContractStatus !== "deterministic-contract"
+    || state.resourceFabric?.storageRuntimeStatus !== "not-connected"
+    || state.resourceFabric?.resilienceContractStatus !== "deterministic-contract"
+    || state.resourceFabric?.failoverRuntimeStatus !== "not-connected"
+    || state.resourceFabric?.resourceAdapterSdkStatus !== "deterministic-contract"
+    || state.resourceFabric?.secondProviderStatus !== "not-connected"
+    || state.resourceFabric?.resourcePoolContractStatus !== "deterministic-contract"
+    || state.resourceFabric?.partnerPoolRuntimeStatus !== "not-connected"
+    || state.phase44?.deterministicHarnessStatus !== "offline-blocking-suite"
+    || state.phase44?.productionAcceptanceStatus !== "not-run"
   ) {
     fail(`Deterministic/live environment boundary drifted: ${name}`);
   }
