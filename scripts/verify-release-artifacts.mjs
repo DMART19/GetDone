@@ -116,6 +116,42 @@ if (failures.length === 0) {
     }
   }
 
+  const voiceIntentContractVersion = extractStringConst(
+    registry.voice.sourcePath,
+    "VOICE_INTENT_CONTRACT_VERSION"
+  );
+  const voiceAdapterContractVersion = extractStringConst(
+    registry.voice.sourcePath,
+    "VOICE_ADAPTER_CONTRACT_VERSION"
+  );
+  if (
+    voiceIntentContractVersion !== registry.voice.contractVersion
+    || voiceAdapterContractVersion !== registry.voice.adapterContractVersion
+    || registry.schemaVersions.voiceIntent?.version !== voiceIntentContractVersion
+    || registry.adapters.voiceIntent?.version !== voiceAdapterContractVersion
+    || manifest.voice.contractVersion !== voiceIntentContractVersion
+    || manifest.voice.adapterContractVersion !== voiceAdapterContractVersion
+    || manifest.voice.sourceSha256 !== fileHash(registry.voice.sourcePath)
+  ) {
+    fail("Voice contract/version registry drift detected");
+  }
+  if (
+    registry.voice.adapterStatus === "not-connected"
+    && (
+      registry.voice.adapterVersion !== "UNIMPLEMENTED"
+      || registry.voice.speechProvider !== "UNCONFIGURED"
+      || registry.adapters.voiceIntent?.status !== "contract-only"
+    )
+  ) {
+    fail("Disconnected voice runtime must remain explicitly UNIMPLEMENTED/UNCONFIGURED with a contract-only adapter");
+  }
+  if (
+    registry.voice.strongApprovalHandling !== "secure-phone-only"
+    || registry.voice.credentialHandling !== "secure-provider-or-phone-only"
+  ) {
+    fail("Voice release state cannot weaken strong approval or credential handoff");
+  }
+
   const policyVersion = extractStringConst(
     registry.policy.registrySourcePath,
     "CURRENT_POLICY_VERSION"
@@ -178,11 +214,30 @@ if (failures.length === 0) {
     fail("Generated operating manual hash does not match the release manifest");
   }
 
+  for (const [name, environmentState] of Object.entries(environment.environments)) {
+    if (
+      !environmentState.voice
+      || environmentState.voice.contractStatus !== "deterministic-contract"
+      || environmentState.voice.strongApprovalAllowed !== false
+      || environmentState.voice.rawCredentialInputAllowed !== false
+      || environmentState.voice.secureHandoff !== "iphone-control-surface"
+    ) {
+      fail(`Voice environment authority drift: ${name}`);
+    }
+    if (
+      environmentState.connections.voiceAdapter === false
+      && environmentState.voice.adapterStatus !== "not-connected"
+    ) {
+      fail(`Voice adapter connection/status mismatch: ${name}`);
+    }
+  }
+
   const production = environment.environments.production;
   if (
     production.productionReady
     && (
       Object.values(production.connections).some((connected) => connected !== true)
+      || (registry.voice.requiredForProduction && production.connections.voiceAdapter !== true)
       || production.deployment?.status !== "connected"
       || !production.deployment?.deploymentId
     )
