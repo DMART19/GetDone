@@ -37,6 +37,7 @@ Current code includes:
 - Phase 31 deterministic resource/data placement policy with HOME/customer-data/critical-copy defaults, encryption, region, reliability, fallback, interruption, and workload hard constraints
 - Phase 32 control-plane-only placement requests, active idempotency reuse, snapshot-bound candidate evaluation, full rejection reasons, and explainable eligibility without reservation or dispatch
 - Phase 33 deterministic resource/pool capacity ledgers, CAS-bound atomic reservation commit envelopes, scoped idempotency, leases/renewal/expiry, requested-vs-granted capacity, protected headroom, cancellation/release, pending allocation records, and exactly-once deterministic capacity restoration
+- Phase 34 deterministic scheduler/dispatch foundation with bounded eligible-only ranking, hash-bound placement decisions, retry/fallback lineage, live-reservation dispatch gating, adapter result contracts, independent resource-start verification, monitoring/completion verification, explainable audit records, and release through Phase 33
 - Phase 35 deterministic cost/capacity governor with owned/committed/reserved/spot/on-demand economics, protected headroom, quotas, budget caps/approval thresholds, eligible-only economic ranking, and estimate-vs-actual reconciliation
 - Phase 40 full zero-side-effect resource policy simulator with historical-vs-projection labeling, policy/economic/scheduler/guardrail simulation, uncertainty, AI Gateway model-evidence recording, and explicit no-mutation/no-reservation/no-dispatch/no-secret-lookup guarantees
 
@@ -52,7 +53,7 @@ The repository does **not** claim production autonomy yet. Canonical acceptance 
 - real Resource Fabric agent/hardware enrollment
 - production secret backend/token exchange and secure credential delivery transport
 - live authenticated hardware profiling/telemetry and Resource Fabric signal emission
-- durable transactional persistence for Phase 33 reservation/CAS commits plus production scheduler/dispatch/failover and measured economic execution
+- durable transactional persistence for Phase 33 reservation/CAS commits plus live resource-adapter dispatch, production start/completion probes, scheduler persistence/recovery, failover, and measured economic execution
 - production historical placement/cost/AI-route analytics stores and simulation evidence persistence
 - production push subscription/delivery provider and notification persistence
 - cryptographic WebAuthn/passkey verification through a real auth provider
@@ -104,6 +105,7 @@ Use these as the implementation source of truth:
 - `docs/SOL_PHASE_24_25_REPORT.md`
 - `docs/SOL_PHASE_29_32_REPORT.md`
 - `docs/SOL_PHASE_33_REPORT.md`
+- `docs/SOL_PHASE_34_REPORT.md`
 - `docs/SOL_PHASE_35_40_REPORT.md`
 - `docs/ASTRA_HANDOFF.md`
 
