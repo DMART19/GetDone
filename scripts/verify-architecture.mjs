@@ -158,6 +158,7 @@ for (const required of [
   "registryVersion",
   "appVersion",
   "schemaVersions",
+  "database",
   "policy",
   "aiGateway",
   "adapters",
