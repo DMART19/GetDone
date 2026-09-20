@@ -153,6 +153,13 @@ const manualLines = [
   "",
   "This generated manual is release evidence, not execution authority. It contains references and versions only; raw credentials must never be placed here.",
   "",
+  "## Database and migrations",
+  "",
+  `- Status: ${registry.database.status}`,
+  `- Migration version: ${registry.database.migrationVersion}`,
+  `- Schema version: ${registry.database.schemaVersion}`,
+  `- Source hash: ${fileHash(registry.database.sourcePath)}`,
+  "",
   "## Policy",
   "",
   `- Policy registry version: ${registry.policy.registryVersion}`,
@@ -245,6 +252,10 @@ const manifestBase = {
   appVersion: registry.appVersion,
   packageLockSha256,
   schemaVersions,
+  database: {
+    ...registry.database,
+    sourceSha256: fileHash(registry.database.sourcePath)
+  },
   policy: {
     ...registry.policy,
     registrySourceSha256: fileHash(registry.policy.registrySourcePath),
