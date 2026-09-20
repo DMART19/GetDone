@@ -15,6 +15,11 @@
         "resourceDispatchAdapters": false,
         "liveTelemetry": false,
         "billingUsageFeeds": false
+      },
+      "deployment": {
+        "status": "local-development",
+        "deploymentId": null,
+        "region": null
       }
     },
     "staging": {
@@ -31,6 +36,11 @@
         "resourceDispatchAdapters": false,
         "liveTelemetry": false,
         "billingUsageFeeds": false
+      },
+      "deployment": {
+        "status": "not-connected",
+        "deploymentId": null,
+        "region": null
       }
     },
     "production": {
@@ -47,6 +57,11 @@
         "resourceDispatchAdapters": false,
         "liveTelemetry": false,
         "billingUsageFeeds": false
+      },
+      "deployment": {
+        "status": "not-connected",
+        "deploymentId": null,
+        "region": null
       }
     }
   },
