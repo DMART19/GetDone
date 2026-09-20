@@ -1,3 +1,4 @@
+import { ControlPlaneError } from "@/lib/control-plane/errors";
 import type { AuthoritativeCommandEnvelope } from "@/lib/control-plane/command-envelope";
 import type { ControlPlaneTransactionManager } from "@/lib/domain/control-plane-transaction";
 import {
@@ -49,6 +50,7 @@ export class VerificationService {
   resolve(
     id: string,
     command: AuthoritativeCommandEnvelope,
+    request: VerificationRequest,
     evidence: readonly VerificationEvidence[],
     input: {
       receiptId: string;
@@ -56,41 +58,34 @@ export class VerificationService {
       receiptTtlSeconds?: number;
     }
   ) {
-    let receipt: VerificationReceipt | undefined;
+    const receipt = resolveVerificationRequest(request, evidence, input);
 
     return executeTransitionCommand({
       manager: this.transactions,
       selectStore: (stores) => stores.verifications,
       entityType: "verification",
       entityId: id,
-      to: "uncertain",
+      to: receipt.verdict,
       command,
-      triggeringEvent: "verification-resolved",
+      triggeringEvent: "verification-" + receipt.verdict,
       beforeTransition: (current) => {
-        receipt = resolveVerificationRequest(current.request, evidence, input);
+        if (
+          current.request.id !== request.id
+          || current.request.requestHash !== request.requestHash
+        ) {
+          throw new ControlPlaneError(
+            "FORBIDDEN",
+            "Verification request differs from authoritative storage"
+          );
+        }
       },
       patch: () => ({ receipt }),
       metadata: () => ({
-        receiptId: input.receiptId,
-        evidenceCount: evidence.length
+        receiptId: receipt.id,
+        receiptHash: receipt.receiptHash,
+        verdict: receipt.verdict,
+        evidenceCount: receipt.evidenceIds.length
       })
-    }).then(async (intermediate) => {
-      if (!receipt || receipt.verdict === "uncertain") return intermediate;
-
-      return executeTransitionCommand({
-        manager: this.transactions,
-        selectStore: (stores) => stores.verifications,
-        entityType: "verification",
-        entityId: id,
-        to: receipt.verdict,
-        command: {
-          ...command,
-          commandId: command.commandId + ":" + receipt.verdict,
-          idempotencyKey: command.idempotencyKey + ":" + receipt.verdict
-        },
-        triggeringEvent: "verification-" + receipt.verdict,
-        patch: () => ({ receipt })
-      });
     });
   }
 
