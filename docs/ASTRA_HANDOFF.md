@@ -56,6 +56,28 @@ This repository has already been advanced beyond a visual scaffold. Astra should
 - preconditions, verification nodes, rollback/cancellation semantics
 - future resource requirement envelopes with resource selection explicitly deferred
 
+### Verification, outcomes, and operational memory
+
+- first-class Verification state machine
+- hash-bound VerificationRequest / VerificationEvidence / VerificationReceipt contracts
+- freshness, expiry, target/scope binding, and evidence-integrity checks
+- independent-source requirements and explicit uncertain results
+- Job and Outcome completion paths bound to verification receipts
+- advisory Fact / Lesson / Experiment / Observation / OutcomeReference memory records
+- confidence, sample size, confounders, evidence, expiry, supersession, and relevance ranking
+- strict company isolation and bounded memory context integration
+- memory cannot promote itself into policy authority
+
+### Resource Registry and enrollment foundation
+
+- expanded authoritative Resource vocabulary and lifecycle
+- identity/trust evidence, health records, capability bindings, locations, cost profiles, and provider bindings
+- tenant-scoped Resource Registry read models
+- fail-closed READY gate for identity, trust, health, capability, policy, environment, and adapter evidence
+- deterministic enrollment state machine from IDENTIFY through READY
+- hashed one-time token/challenge storage, expiry, replay resistance, cancellation/failure/expiry, and restart semantics
+- no real Pi/Linux agent or scheduler is represented as implemented
+
 ### Verification
 
 CI runs install, secret-pattern scan, typecheck, lint, tests, and build. Do not bypass those gates.
@@ -89,24 +111,29 @@ Once the owner/infrastructure blockers are resolved, Astra should focus its high
    - persist task-deduplication and authorization lineage atomically
    - preserve the existing validator, policy engine, task generator, and DAG compiler rather than replacing them
 
-3. **Phases 19–23 — durable execution**
+3. **Phases 19–21 — durable execution and software delivery**
    - persistent queues
    - claims/leases/heartbeats
    - retries/dead-letter/cancellation/recovery
    - business adapters
    - software-worker/deployment pipeline
-   - verification/outcomes/memory
 
-4. **Phases 26–31 — Resource Fabric**
-   - authoritative production registry
-   - generic enrollment
+4. **Provider-connected completion of Phases 22–23**
+   - persist verification requests/evidence/receipts atomically
+   - connect real system/business measurement collectors
+   - persist operational memory and retrieval indexes
+   - preserve the existing verification and advisory-memory authority boundaries
+
+5. **Provider-connected completion of Phases 26–31 — Resource Fabric**
+   - persist the existing registry/enrollment contracts
    - Raspberry Pi/Linux agent
-   - cryptographic resource identity
+   - real cryptographic resource identity evidence
    - credential broker
    - profiling/authenticated telemetry
    - resource/data policy
+   - do not replace the existing READY or enrollment authority gates
 
-5. **Phases 32–40 — placement/resilience/economics**
+6. **Phases 32–40 — placement/resilience/economics**
    - candidate evaluation
    - reservations/capacity ledger
    - scheduler/dispatch/start verification
@@ -117,7 +144,7 @@ Once the owner/infrastructure blockers are resolved, Astra should focus its high
    - partner/DC pools
    - zero-side-effect simulator
 
-6. **Phases 41–44 — release and final gate**
+7. **Phases 41–44 — release and final gate**
    - version/release evidence
    - operating manuals
    - voice handoff
@@ -143,6 +170,7 @@ Before a heavy Astra pass, read:
 - `docs/SOL_IMPLEMENTATION_STATUS.md`
 - `docs/PHASE_2_REPORT.md`
 - `docs/PHASE_3_REPORT.md`
+- `docs/SOL_PHASE_22_23_26_27_REPORT.md`
 - latest GitHub Actions result
 
 Then continue from the first unblocked canonical phase without silently replacing the authority model.
