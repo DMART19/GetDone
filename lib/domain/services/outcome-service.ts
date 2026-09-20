@@ -1,3 +1,4 @@
+import { ControlPlaneError } from "@/lib/control-plane/errors";
 import type { AuthoritativeCommandEnvelope } from "@/lib/control-plane/command-envelope";
 import type { ControlPlaneTransactionManager } from "@/lib/domain/control-plane-transaction";
 import {
@@ -6,8 +7,9 @@ import {
   type StatefulEntity
 } from "@/lib/domain/services/common";
 import {
-  assertVerificationReceipt,
-  type VerificationReceipt
+  requireAuthoritativeVerificationReceipt,
+  type VerificationReceipt,
+  type VerificationReceiptStore
 } from "@/lib/verification/verification";
 
 export type OutcomeState = "recorded" | "verified" | "uncertain" | "rejected";
@@ -27,6 +29,7 @@ export interface OutcomeRecord extends StatefulEntity {
 
 export interface OutcomeStores {
   outcomes: EntityStore<OutcomeRecord>;
+  verificationReceipts?: VerificationReceiptStore;
 }
 
 export class OutcomeService {
@@ -35,85 +38,72 @@ export class OutcomeService {
   verify(
     id: string,
     command: AuthoritativeCommandEnvelope,
-    receipt: VerificationReceipt
+    receiptId: string
   ) {
-    assertVerificationReceipt(receipt, {
-      scope: command.scope,
-      subject: { type: "outcome", id },
-      allowedVerdicts: ["verified"]
-    });
-
-    return executeTransitionCommand({
-      manager: this.transactions,
-      selectStore: (stores) => stores.outcomes,
-      entityType: "outcome",
-      entityId: id,
-      to: "verified",
-      command,
-      triggeringEvent: "outcome-verified",
-      patch: () => ({
-        evidenceIds: [...receipt.evidenceIds],
-        verificationReceiptId: receipt.id,
-        verificationReceiptHash: receipt.receiptHash
-      }),
-      metadata: () => ({
-        verificationReceiptId: receipt.id,
-        verificationReceiptHash: receipt.receiptHash
-      })
-    });
+    return this.resolveWithReceipt(id, command, receiptId, "verified", "verified");
   }
 
   markUncertain(
     id: string,
     command: AuthoritativeCommandEnvelope,
-    receipt: VerificationReceipt
+    receiptId: string
   ) {
-    assertVerificationReceipt(receipt, {
-      scope: command.scope,
-      subject: { type: "outcome", id },
-      allowedVerdicts: ["uncertain"]
-    });
-
-    return executeTransitionCommand({
-      manager: this.transactions,
-      selectStore: (stores) => stores.outcomes,
-      entityType: "outcome",
-      entityId: id,
-      to: "uncertain",
-      command,
-      triggeringEvent: "outcome-uncertain",
-      patch: () => ({
-        evidenceIds: [...receipt.evidenceIds],
-        verificationReceiptId: receipt.id,
-        verificationReceiptHash: receipt.receiptHash
-      })
-    });
+    return this.resolveWithReceipt(id, command, receiptId, "uncertain", "uncertain");
   }
 
   reject(
     id: string,
     command: AuthoritativeCommandEnvelope,
-    receipt: VerificationReceipt
+    receiptId: string
   ) {
-    assertVerificationReceipt(receipt, {
-      scope: command.scope,
-      subject: { type: "outcome", id },
-      allowedVerdicts: ["failed"]
-    });
+    return this.resolveWithReceipt(id, command, receiptId, "rejected", "failed");
+  }
+
+  private resolveWithReceipt(
+    id: string,
+    command: AuthoritativeCommandEnvelope,
+    receiptId: string,
+    to: OutcomeState,
+    allowedVerdict: "verified" | "uncertain" | "failed"
+  ) {
+    let receipt: VerificationReceipt | undefined;
 
     return executeTransitionCommand({
       manager: this.transactions,
       selectStore: (stores) => stores.outcomes,
       entityType: "outcome",
       entityId: id,
-      to: "rejected",
+      to,
       command,
-      triggeringEvent: "outcome-rejected",
-      patch: () => ({
-        evidenceIds: [...receipt.evidenceIds],
-        verificationReceiptId: receipt.id,
-        verificationReceiptHash: receipt.receiptHash
-      })
+      triggeringEvent: "outcome-" + to,
+      beforeTransition: async (_current, transaction) => {
+        const store = transaction.stores.verificationReceipts;
+        if (!store) {
+          throw new ControlPlaneError(
+            "UNAVAILABLE",
+            "Authoritative verification receipt storage is required for Outcome truth"
+          );
+        }
+        receipt = await requireAuthoritativeVerificationReceipt(store, receiptId, {
+          scope: command.scope,
+          subject: { type: "outcome", id },
+          allowedVerdicts: [allowedVerdict]
+        });
+      },
+      patch: () => {
+        if (!receipt) {
+          throw new ControlPlaneError(
+            "FORBIDDEN",
+            "Authoritative Outcome verification receipt is unavailable"
+          );
+        }
+        return {
+          evidenceIds: [...receipt.evidenceIds],
+          verificationReceiptId: receipt.id,
+          verificationReceiptHash: receipt.receiptHash
+        };
+      },
+      metadata: () => ({ verificationReceiptId: receiptId })
     });
   }
 }
