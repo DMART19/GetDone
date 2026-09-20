@@ -4,15 +4,16 @@ import { BackHeader } from "@/components/back-header";
 import { DecisionActions } from "@/components/decision-actions";
 import { DevelopmentBadge } from "@/components/dev-badge";
 import { PriorityPill } from "@/components/status";
-import { decisions, getDecision } from "@/lib/mock-data";
+import { developmentOwnerRepository } from "@/lib/data/repository";
 
-export function generateStaticParams() {
+export async function generateStaticParams() {
+  const decisions = await developmentOwnerRepository.listDecisions();
   return decisions.map((decision) => ({ id: decision.id }));
 }
 
 export default async function DecisionDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const decision = getDecision(id);
+  const decision = await developmentOwnerRepository.getDecision(id);
   if (!decision) notFound();
 
   return (
