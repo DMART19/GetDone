@@ -44,7 +44,7 @@ function approvalProof(
     planHash: "plan-hash",
     stepHash: "step-hash",
     grantedAt: "2026-09-20T18:29:00Z",
-    expiresAt: "2026-09-20T18:35:00Z",
+    expiresAt: level === "strong-approval" ? "2026-09-20T18:34:00Z" : "2026-09-20T18:35:00Z",
     stepUpProofId: level === "strong-approval" ? "stepup-1" : undefined
   });
 }
