@@ -67,6 +67,8 @@ export interface CostGovernorReport {
   placementRequestId: string;
   portfolioId: string;
   companyId: string;
+  evaluatedAt: string;
+  expiresAt: string;
   rankedAllowedCandidateIds: readonly string[];
   approvalRequiredCandidateIds: readonly string[];
   blockedCandidateIds: readonly string[];
@@ -328,10 +330,15 @@ export function evaluateCostCapacityGovernor(input: {
     .filter((candidate) => candidate.disposition === "blocked")
     .map((candidate) => candidate.resourceId);
 
+  const reportExpiresAt = Math.min(
+    ...input.candidates.map((candidate) => Date.parse(candidate.economicSnapshot.expiresAt))
+  );
   const base: Omit<CostGovernorReport, "reportHash"> = {
     placementRequestId: input.placementReport.placementRequestId,
     portfolioId: input.portfolioId,
     companyId: input.companyId,
+    evaluatedAt: new Date(now).toISOString(),
+    expiresAt: new Date(reportExpiresAt).toISOString(),
     rankedAllowedCandidateIds: Object.freeze(rankedAllowedCandidateIds),
     approvalRequiredCandidateIds: Object.freeze(approvalRequiredCandidateIds),
     blockedCandidateIds: Object.freeze(blockedCandidateIds),
@@ -410,11 +417,15 @@ export function assertGovernorAllowsAutonomousScheduling(
     portfolioId: string;
     companyId: string;
     resourceId: string;
+    now?: number;
   }
 ) {
   assertCostGovernorReportIntegrity(report);
+  const now = input.now ?? Date.now();
   if (
-    report.placementRequestId !== input.placementRequestId
+    Date.parse(report.evaluatedAt) > now
+    || Date.parse(report.expiresAt) <= now
+    || report.placementRequestId !== input.placementRequestId
     || report.portfolioId !== input.portfolioId
     || report.companyId !== input.companyId
   ) {
