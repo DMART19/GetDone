@@ -1,7 +1,20 @@
 import { describe, expect, it } from "vitest";
-import type { ApprovalProof, StepUpProof } from "@/lib/authorization/proofs";
+import {
+  createApprovalProof,
+  createStepUpProof,
+  type ApprovalProof,
+  type StepUpProof
+} from "@/lib/authorization/proofs";
 import type { TrustedExecutionScope } from "@/lib/control-plane/trusted-execution-scope";
-import { evaluatePolicy, evaluateStepPolicy, type PolicyEvaluationInput } from "@/lib/planning/policy-engine";
+import { createBudgetReservation } from "@/lib/domain/budget-reservation";
+import { createProtectedCapacitySnapshot } from "@/lib/domain/protected-capacity";
+import {
+  evaluatePolicy,
+  evaluateStepPolicy,
+  POLICY_ENGINE_VERSION,
+  POLICY_RULES_HASH,
+  type PolicyEvaluationInput
+} from "@/lib/planning/policy-engine";
 
 const now = Date.parse("2026-09-20T18:30:00Z");
 
@@ -21,7 +34,7 @@ function approvalProof(
   level: "approval" | "strong-approval",
   scope: TrustedExecutionScope = stagingScope
 ): ApprovalProof {
-  return {
+  return createApprovalProof({
     id: `proof-${level}`,
     decisionId: "decision-1",
     approvalId: "approval-1",
@@ -33,18 +46,18 @@ function approvalProof(
     grantedAt: "2026-09-20T18:29:00Z",
     expiresAt: "2026-09-20T18:35:00Z",
     stepUpProofId: level === "strong-approval" ? "stepup-1" : undefined
-  };
+  });
 }
 
 function stepUpProof(): StepUpProof {
-  return {
+  return createStepUpProof({
     id: "stepup-1",
     actorId: "user-a",
     scope: productionScope,
     method: "passkey",
     authenticatedAt: "2026-09-20T18:29:00Z",
     expiresAt: "2026-09-20T18:34:00Z"
-  };
+  });
 }
 
 function input(overrides: Partial<PolicyEvaluationInput> = {}): PolicyEvaluationInput {
@@ -61,10 +74,7 @@ function input(overrides: Partial<PolicyEvaluationInput> = {}): PolicyEvaluation
     allowedEnvironments: ["development", "staging"],
     allowedDataClasses: ["public", "internal"],
     allowedRegions: ["us-west"],
-    credentialBindingIds: [],
-    credentialBindingsAvailable: true,
-    credentialBindingRequired: false,
-    protectedHeadroomSatisfied: true,
+    credentialRequirementIds: [],
     fallbackRequired: false,
     fallbackAvailable: true,
     idempotencyKey: "policy-request-12345678",
@@ -75,13 +85,15 @@ function input(overrides: Partial<PolicyEvaluationInput> = {}): PolicyEvaluation
 }
 
 describe("deterministic policy engine", () => {
-  it("returns AUTO only when all hard preflight constraints pass", () => {
+  it("returns versioned AUTO only when all hard preflight constraints pass", () => {
     const result = evaluatePolicy(input());
     expect(result.disposition).toBe("AUTO");
     expect(result.readyForTaskGeneration).toBe(true);
+    expect(result.policyEngineVersion).toBe(POLICY_ENGINE_VERSION);
+    expect(result.policyRulesHash).toBe(POLICY_RULES_HASH);
   });
 
-  it("requires a matching approval proof for approval capabilities", () => {
+  it("requires a matching hash-bound approval proof for approval capabilities", () => {
     const pending = evaluatePolicy(input({ capability: "email.send" }));
     expect(pending.disposition).toBe("APPROVAL_REQUIRED");
     expect(pending.readyForTaskGeneration).toBe(false);
@@ -157,9 +169,24 @@ describe("deterministic policy engine", () => {
     expect(result.disposition).toBe("BLOCKED");
   });
 
-  it("turns a budget approval threshold into approval", () => {
+  it("requires a bound budget reservation before budgeted work can be admitted", () => {
+    const reservation = createBudgetReservation({
+      id: "reservation-1",
+      portfolioId: "portfolio-a",
+      companyId: "company-a",
+      policyId: "budget-1",
+      policyVersion: "budget-v1",
+      planHash: "plan-hash",
+      stepHash: "step-hash",
+      amountCents: 10_000,
+      currency: "USD",
+      reservedAt: "2026-09-20T18:29:00Z",
+      expiresAt: "2026-09-20T18:35:00Z"
+    });
+
     const result = evaluatePolicy(input({
       approvalProof: approvalProof("approval"),
+      budgetReservation: reservation,
       budget: {
         policy: {
           id: "budget-1",
@@ -189,10 +216,7 @@ describe("deterministic policy engine", () => {
       approvalProof: approvalProof("strong-approval", productionScope),
       stepUpProof: stepUpProof()
     });
-    const {
-      capability: ignoredCapability,
-      ...stepInput
-    } = base;
+    const { capability: ignoredCapability, ...stepInput } = base;
     void ignoredCapability;
 
     const result = evaluateStepPolicy({
@@ -205,11 +229,23 @@ describe("deterministic policy engine", () => {
   });
 
   it("fails closed for missing idempotency, credentials, fallback or protected headroom", () => {
+    const capacitySnapshot = createProtectedCapacitySnapshot({
+      id: "capacity-bad",
+      portfolioId: "portfolio-a",
+      companyId: "company-a",
+      capacityClass: "cpu",
+      totalUnits: 100,
+      committedUnits: 95,
+      protectedMinimumFreeUnits: 10,
+      requestedUnits: 1,
+      observedAt: "2026-09-20T18:29:00Z",
+      expiresAt: "2026-09-20T18:35:00Z"
+    });
+
     const result = evaluatePolicy(input({
       idempotencyKey: undefined,
-      credentialBindingRequired: true,
-      credentialBindingsAvailable: false,
-      protectedHeadroomSatisfied: false,
+      credentialRequirementIds: ["credential-required"],
+      capacitySnapshot,
       fallbackRequired: true,
       fallbackAvailable: false
     }));
@@ -218,7 +254,7 @@ describe("deterministic policy engine", () => {
     expect(result.reasons.map((reason) => reason.code)).toEqual(expect.arrayContaining([
       "IDEMPOTENCY_MISSING",
       "CREDENTIAL_MISSING",
-      "HEADROOM_BLOCKED",
+      "CAPACITY_SNAPSHOT_INVALID",
       "FALLBACK_MISSING"
     ]));
   });

@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { assertApprovalProof, assertStepUpProof, type ApprovalProof, type StepUpProof } from "@/lib/authorization/proofs";
+import {
+  assertApprovalProof,
+  assertStepUpProof,
+  createApprovalProof,
+  createStepUpProof,
+  type ApprovalProof,
+  type StepUpProof
+} from "@/lib/authorization/proofs";
 import type { TrustedExecutionScope } from "@/lib/control-plane/trusted-execution-scope";
 
 const now = Date.parse("2026-09-20T18:30:00Z");
@@ -10,8 +17,8 @@ const scope: TrustedExecutionScope = {
   environment: "production"
 };
 
-function stepUp(overrides: Partial<StepUpProof> = {}): StepUpProof {
-  return {
+function stepUp(overrides: Partial<Omit<StepUpProof, "proofHash">> = {}): StepUpProof {
+  return createStepUpProof({
     id: "stepup-1",
     actorId: "user-a",
     scope,
@@ -19,11 +26,11 @@ function stepUp(overrides: Partial<StepUpProof> = {}): StepUpProof {
     authenticatedAt: "2026-09-20T18:29:00Z",
     expiresAt: "2026-09-20T18:35:00Z",
     ...overrides
-  };
+  });
 }
 
-function approval(overrides: Partial<ApprovalProof> = {}): ApprovalProof {
-  return {
+function approval(overrides: Partial<Omit<ApprovalProof, "proofHash">> = {}): ApprovalProof {
+  return createApprovalProof({
     id: "approval-proof-1",
     decisionId: "decision-1",
     approvalId: "approval-1",
@@ -36,15 +43,18 @@ function approval(overrides: Partial<ApprovalProof> = {}): ApprovalProof {
     expiresAt: "2026-09-20T18:34:00Z",
     stepUpProofId: "stepup-1",
     ...overrides
-  };
+  });
 }
 
 describe("approval and step-up proofs", () => {
-  it("accepts a fresh matching step-up proof", () => {
-    expect(assertStepUpProof(stepUp(), { actorId: "user-a", scope, now }).id).toBe("stepup-1");
+  it("accepts fresh immutable hash-bound proofs", () => {
+    const proof = stepUp();
+    expect(assertStepUpProof(proof, { actorId: "user-a", scope, now }).id).toBe("stepup-1");
+    expect(proof.proofHash).toHaveLength(64);
+    expect(Object.isFrozen(proof)).toBe(true);
   });
 
-  it("rejects expired or cross-scope step-up proof", () => {
+  it("rejects expired, cross-scope, or tampered step-up proof", () => {
     expect(() => assertStepUpProof(stepUp({ expiresAt: "2026-09-20T18:29:59Z" }), {
       actorId: "user-a", scope, now
     })).toThrow();
@@ -52,10 +62,16 @@ describe("approval and step-up proofs", () => {
     expect(() => assertStepUpProof(stepUp({
       scope: { ...scope, companyId: "company-b" }
     }), { actorId: "user-a", scope, now })).toThrow();
+
+    const valid = stepUp();
+    expect(() => assertStepUpProof({ ...valid, actorId: "attacker" }, {
+      actorId: "attacker", scope, now
+    })).toThrow();
   });
 
   it("binds strong approval to the exact plan step and step-up proof", () => {
-    expect(assertApprovalProof(approval(), {
+    const proof = approval();
+    expect(assertApprovalProof(proof, {
       actorId: "user-a",
       scope,
       planHash: "plan-hash",
@@ -64,8 +80,9 @@ describe("approval and step-up proofs", () => {
       now,
       stepUpProof: stepUp()
     }).id).toBe("approval-proof-1");
+    expect(proof.proofHash).toHaveLength(64);
 
-    expect(() => assertApprovalProof(approval(), {
+    expect(() => assertApprovalProof(proof, {
       actorId: "user-a",
       scope,
       planHash: "different-plan",

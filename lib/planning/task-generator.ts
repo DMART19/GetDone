@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { ControlPlaneError } from "@/lib/control-plane/errors";
-import type { AuthorizationGrant } from "@/lib/authorization/grants";
-import { assertAuthorizationGrant } from "@/lib/authorization/grants";
+import type { AuthorizationConsumptionRecord, AuthorizationGrant } from "@/lib/authorization/grants";
+import { assertAuthorizationGrant, createAuthorizationConsumptionRecord } from "@/lib/authorization/grants";
 import type {
   PlanProposal,
   PlanStep,
@@ -48,6 +48,7 @@ export interface GeneratedTask {
   authorizationLineage: readonly AuthorizationLineageEntry[];
   authorizationGrantId: string;
   authorizationGrantHash: string;
+  authorizationConsumption: AuthorizationConsumptionRecord;
   validationReceiptId: string;
   validationReceiptHash: string;
   policySnapshotId: string;
@@ -229,8 +230,16 @@ export class TaskGenerator {
       if (!grant) throw new ControlPlaneError("FORBIDDEN", "Validated authorization grant disappeared");
 
       const key = stepLogicalKeys.get(step.id)!;
+      const taskId = this.idFactory();
+      const authorizationConsumption = createAuthorizationConsumptionRecord({
+        id: `authorization-consumption:${taskId}`,
+        grant,
+        consumerType: "task",
+        consumerId: taskId,
+        consumedAt: now.toISOString()
+      });
       const candidate: GeneratedTask = deepFreeze({
-        id: this.idFactory(),
+        id: taskId,
         logicalKey: key,
         planId: input.plan.id,
         planStepId: step.id,
@@ -262,6 +271,7 @@ export class TaskGenerator {
         authorizationLineage: lineageFromGrant(grant),
         authorizationGrantId: grant.id,
         authorizationGrantHash: grant.grantHash,
+        authorizationConsumption,
         validationReceiptId: input.validationReceipt.id,
         validationReceiptHash: input.validationReceipt.receiptHash,
         policySnapshotId: grant.policySnapshotId,

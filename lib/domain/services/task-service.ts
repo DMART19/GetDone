@@ -1,4 +1,5 @@
 import { ControlPlaneError } from "@/lib/control-plane/errors";
+import { assertAuthorizationGrantEnvelope, type AuthorizationGrant } from "@/lib/authorization/grants";
 import type { AuthoritativeCommandEnvelope } from "@/lib/control-plane/command-envelope";
 import type { ControlPlaneTransactionManager } from "@/lib/domain/control-plane-transaction";
 import {
@@ -15,6 +16,8 @@ export interface TaskRecord extends StatefulEntity {
   evidenceIds: readonly string[];
   capabilityRequirements: readonly string[];
   authorizationLineage: readonly string[];
+  authorizationGrantId?: string;
+  authorizationGrantHash?: string;
   verificationEvidenceIds: readonly string[];
   failureReason?: string;
 }
@@ -26,8 +29,8 @@ export interface TaskStores {
 export class TaskService {
   constructor(private readonly transactions: ControlPlaneTransactionManager<TaskStores>) {}
 
-  authorize(id: string, command: AuthoritativeCommandEnvelope, authorizationId: string) {
-    if (!authorizationId) throw new ControlPlaneError("VALIDATION_FAILED", "Task authorization lineage is required");
+  authorize(id: string, command: AuthoritativeCommandEnvelope, grant: AuthorizationGrant) {
+    assertAuthorizationGrantEnvelope(grant, command.scope);
     return executeTransitionCommand({
       manager: this.transactions,
       selectStore: (stores) => stores.tasks,
@@ -36,8 +39,23 @@ export class TaskService {
       to: "authorized",
       command,
       triggeringEvent: "task-authorized",
-      patch: (current) => ({ authorizationLineage: [...current.authorizationLineage, authorizationId] }),
-      metadata: () => ({ authorizationId })
+      beforeTransition: undefined,
+      patch: (current) => {
+        const required = [...new Set(current.capabilityRequirements)].sort();
+        const granted = [...new Set(grant.capabilityNames)].sort();
+        if (required.length !== granted.length || required.some((item, index) => item !== granted[index])) {
+          throw new ControlPlaneError("FORBIDDEN", "Authorization grant capabilities do not match the task requirements");
+        }
+        return {
+          authorizationLineage: [...current.authorizationLineage, grant.id],
+          authorizationGrantId: grant.id,
+          authorizationGrantHash: grant.grantHash
+        };
+      },
+      metadata: () => ({
+        authorizationGrantId: grant.id,
+        authorizationGrantHash: grant.grantHash
+      })
     });
   }
 

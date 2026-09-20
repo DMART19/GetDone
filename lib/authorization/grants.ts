@@ -159,6 +159,27 @@ export function issueAuthorizationGrant(input: {
   });
 }
 
+export function assertAuthorizationGrantEnvelope(
+  grant: AuthorizationGrant,
+  scope: TrustedExecutionScope,
+  now = Date.now()
+) {
+  const { grantHash, ...base } = grant;
+  if (sha256Hex(base) !== grantHash) {
+    throw new ControlPlaneError("FORBIDDEN", "Authorization grant integrity check failed");
+  }
+  if (grant.status !== "active") {
+    throw new ControlPlaneError("FORBIDDEN", "Authorization grant is not active");
+  }
+  assertTrustedExecutionScopeEqual(scope, grant.scope, {
+    requireSameResource: Boolean(scope.resourceId || grant.scope.resourceId)
+  });
+  if (Date.parse(grant.issuedAt) > now || Date.parse(grant.expiresAt) <= now) {
+    throw new ControlPlaneError("FORBIDDEN", "Authorization grant is not currently valid");
+  }
+  return grant;
+}
+
 export function assertAuthorizationGrant(input: {
   grant: AuthorizationGrant;
   plan: PlanProposal;
@@ -167,21 +188,11 @@ export function assertAuthorizationGrant(input: {
   scope: TrustedExecutionScope;
   now?: number;
 }) {
-  const { grantHash, ...base } = input.grant;
-  if (sha256Hex(base) !== grantHash) {
-    throw new ControlPlaneError("FORBIDDEN", "Authorization grant integrity check failed");
-  }
-  if (input.grant.status !== "active") {
-    throw new ControlPlaneError("FORBIDDEN", "Authorization grant is not active");
-  }
+  assertAuthorizationGrantEnvelope(input.grant, input.scope, input.now ?? Date.now());
 
   assertValidationReceipt(input.receipt, input.plan, input.now);
   assertScopeMatchesPlan(input.grant.scope, input.plan);
   assertScopeMatchesPlan(input.scope, input.plan);
-  assertTrustedExecutionScopeEqual(input.scope, input.grant.scope, {
-    requireSameResource: Boolean(input.scope.resourceId || input.grant.scope.resourceId)
-  });
-
   const step = stepFor(input.plan, input.stepId);
   if (
     input.grant.planId !== input.plan.id
@@ -193,11 +204,6 @@ export function assertAuthorizationGrant(input: {
     || !sameCapabilities(input.grant.capabilityNames, step.capabilityRequests.map((request) => request.capability))
   ) {
     throw new ControlPlaneError("FORBIDDEN", "Authorization grant does not match the current plan/step/receipt");
-  }
-
-  const now = input.now ?? Date.now();
-  if (Date.parse(input.grant.issuedAt) > now || Date.parse(input.grant.expiresAt) <= now) {
-    throw new ControlPlaneError("FORBIDDEN", "Authorization grant is not currently valid");
   }
 
   return input.grant;

@@ -5,7 +5,7 @@ import type { AuthoritativeDecision, DecisionAuthorityStore } from "@/lib/domain
 import { resolveDecision } from "@/lib/domain/decision-service";
 import type { DecisionTransaction, DecisionTransactionManager } from "@/lib/domain/decision-transaction";
 import type { IdempotencyClaim, IdempotencyRecord, IdempotencyStore } from "@/lib/domain/idempotency";
-import type { StepUpProof } from "@/lib/authorization/proofs";
+import { createStepUpProof, type StepUpProof } from "@/lib/authorization/proofs";
 
 class MemoryDecisionTransactionManager implements DecisionTransactionManager {
   private decisionValue: AuthoritativeDecision;
@@ -116,14 +116,14 @@ function command(companyId = "company-a", action: "approve" | "modify" | "reject
 }
 
 function stepUp(): StepUpProof {
-  return {
+  return createStepUpProof({
     id: "decision-stepup-1",
     actorId: "user-a",
     scope: command().scope,
     method: "passkey",
     authenticatedAt: "2026-09-20T17:59:00Z",
     expiresAt: "2099-01-01T00:00:00Z"
-  };
+  });
 }
 
 function input(transactionManager: DecisionTransactionManager, overrides: Partial<Parameters<typeof resolveDecision>[0]> = {}) {

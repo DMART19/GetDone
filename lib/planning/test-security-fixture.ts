@@ -40,10 +40,12 @@ export function receiptFor(
 ): PlanValidationReceipt {
   const snapshot = createValidationSnapshot({
     id: "validation-snapshot-1",
-    policyVersion: "policy-v1",
+    policyVersion: "policy-v2",
     environment: plan.scope.environment,
     configurationVersion: "config-v1",
-    createdAt: new Date(now.getTime() - 1_000).toISOString()
+    environmentConfigurationHash: "environment-config-hash",
+    createdAt: new Date(now.getTime() - 1_000).toISOString(),
+    expiresAt: new Date(now.getTime() + 120_000).toISOString()
   });
 
   return createValidationReceipt({
@@ -65,7 +67,7 @@ export function policySnapshotFor(
   const scope = fixtureScope(plan);
   return createPolicySnapshot({
     id: `policy-snapshot-${stepId}`,
-    policyVersion: "policy-v1",
+    policyVersion: "policy-v2",
     scope,
     planHash: hashPlan(plan),
     stepHash: hashPlanStep(step),
@@ -76,9 +78,7 @@ export function policySnapshotFor(
     allowedDataClasses: [plan.scope.dataClass],
     allowedRegions: ["us-west"],
     killSwitches: [],
-    credentialBindingIds: [],
-    credentialBindingsAvailable: true,
-    protectedHeadroomSatisfied: true,
+    credentialRequirementIds: [],
     fallbackRequired: false,
     fallbackAvailable: true,
     idempotencyKey: `policy-${stepId}-12345678`,
@@ -106,10 +106,7 @@ export function autoPolicyFor(
     allowedEnvironments: [plan.scope.environment],
     allowedDataClasses: [plan.scope.dataClass],
     allowedRegions: ["us-west"],
-    credentialBindingIds: [],
-    credentialBindingsAvailable: true,
-    credentialBindingRequired: false,
-    protectedHeadroomSatisfied: true,
+    credentialRequirementIds: [],
     fallbackRequired: false,
     fallbackAvailable: true,
     idempotencyKey: `policy-${stepId}-12345678`,

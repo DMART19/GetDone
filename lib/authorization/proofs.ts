@@ -1,4 +1,5 @@
 import { ControlPlaneError } from "@/lib/control-plane/errors";
+import { sha256Hex } from "@/lib/control-plane/canonical-hash";
 import type { TrustedExecutionScope } from "@/lib/control-plane/trusted-execution-scope";
 import { assertTrustedExecutionScopeEqual } from "@/lib/control-plane/trusted-execution-scope";
 
@@ -12,6 +13,7 @@ export interface StepUpProof {
   method: StepUpMethod;
   authenticatedAt: string;
   expiresAt: string;
+  proofHash: string;
 }
 
 export interface ApprovalProof {
@@ -26,12 +28,51 @@ export interface ApprovalProof {
   grantedAt: string;
   expiresAt: string;
   stepUpProofId?: string;
+  proofHash: string;
+}
+
+function deepFreeze<T>(value: T, seen = new WeakSet<object>()): T {
+  if (!value || typeof value !== "object") return value;
+  const object = value as object;
+  if (seen.has(object)) return value;
+  seen.add(object);
+  for (const child of Object.values(value as Record<string, unknown>)) deepFreeze(child, seen);
+  return Object.freeze(value);
+}
+
+export function createStepUpProof(input: Omit<StepUpProof, "proofHash">): StepUpProof {
+  const base = {
+    ...input,
+    scope: { ...input.scope }
+  };
+  return deepFreeze({
+    ...base,
+    proofHash: sha256Hex(base)
+  });
+}
+
+export function createApprovalProof(input: Omit<ApprovalProof, "proofHash">): ApprovalProof {
+  const base = {
+    ...input,
+    scope: { ...input.scope }
+  };
+  return deepFreeze({
+    ...base,
+    proofHash: sha256Hex(base)
+  });
+}
+
+function assertProofHash(proof: StepUpProof | ApprovalProof, label: string) {
+  const { proofHash, ...base } = proof;
+  if (!proofHash || sha256Hex(base) !== proofHash) {
+    throw new ControlPlaneError("FORBIDDEN", `${label} integrity check failed`);
+  }
 }
 
 function assertTimeWindow(issuedAt: string, expiresAt: string, now: number, label: string) {
   const issued = Date.parse(issuedAt);
   const expires = Date.parse(expiresAt);
-  if (!Number.isFinite(issued) || !Number.isFinite(expires) || issued > expires) {
+  if (!Number.isFinite(issued) || !Number.isFinite(expires) || issued >= expires) {
     throw new ControlPlaneError("VALIDATION_FAILED", `${label} has an invalid time window`);
   }
   if (issued > now) throw new ControlPlaneError("FORBIDDEN", `${label} is not active yet`);
@@ -43,6 +84,7 @@ export function assertStepUpProof(proof: StepUpProof, input: {
   scope: TrustedExecutionScope;
   now?: number;
 }) {
+  assertProofHash(proof, "Step-up proof");
   assertTrustedExecutionScopeEqual(input.scope, proof.scope, {
     requireSameResource: Boolean(input.scope.resourceId || proof.scope.resourceId)
   });
@@ -62,6 +104,7 @@ export function assertApprovalProof(proof: ApprovalProof, input: {
   now?: number;
   stepUpProof?: StepUpProof;
 }) {
+  assertProofHash(proof, "Approval proof");
   assertTrustedExecutionScopeEqual(input.scope, proof.scope, {
     requireSameResource: Boolean(input.scope.resourceId || proof.scope.resourceId)
   });

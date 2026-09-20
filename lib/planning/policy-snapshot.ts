@@ -4,6 +4,10 @@ import type { BudgetPolicy, Guardrail } from "@/lib/domain/objectives";
 import type { TrustedExecutionScope } from "@/lib/control-plane/trusted-execution-scope";
 import { sha256Hex } from "@/lib/control-plane/canonical-hash";
 import type { ResourceRequirementEnvelope } from "@/lib/planning/plan-schema";
+import type { CredentialAvailabilitySnapshot } from "@/lib/domain/credential-binding";
+import type { BudgetReservation } from "@/lib/domain/budget-reservation";
+import type { ProtectedCapacitySnapshot } from "@/lib/domain/protected-capacity";
+import { POLICY_ENGINE_VERSION, POLICY_RULES_HASH } from "@/lib/planning/policy-engine";
 
 export interface PolicyBudgetSnapshot {
   policy: BudgetPolicy;
@@ -39,12 +43,14 @@ export interface PolicySnapshotInput {
   workloadClass?: string;
 
   budget?: PolicyBudgetSnapshot;
+  budgetReservation?: BudgetReservation;
   guardrails?: PolicyGuardrailSnapshot;
   killSwitches: readonly KillSwitch[];
 
-  credentialBindingIds: readonly string[];
-  credentialBindingsAvailable: boolean;
-  protectedHeadroomSatisfied: boolean;
+  credentialRequirementIds: readonly string[];
+  credentialSnapshot?: CredentialAvailabilitySnapshot;
+  capacitySnapshot?: ProtectedCapacitySnapshot;
+
   fallbackRequired: boolean;
   fallbackAvailable: boolean;
   idempotencyKey: string;
@@ -54,9 +60,15 @@ export interface PolicySnapshotInput {
 }
 
 export interface PolicySnapshot extends PolicySnapshotInput {
+  policyEngineVersion: string;
+  policyRulesHash: string;
   capabilityRegistryVersion: string;
   capabilityRegistryHash: string;
   resourceRequirementsHash: string;
+  credentialSnapshotHash?: string;
+  budgetReservationHash?: string;
+  capacitySnapshotHash?: string;
+  policyInputHash: string;
   snapshotHash: string;
 }
 
@@ -70,6 +82,34 @@ function deepFreeze<T>(value: T, seen = new WeakSet<object>()): T {
 }
 
 export function createPolicySnapshot(input: PolicySnapshotInput): PolicySnapshot {
+  const policyInput = {
+    policyVersion: input.policyVersion,
+    scope: input.scope,
+    capabilityNames: [...new Set(input.capabilityNames)].sort(),
+    dataClass: input.dataClass,
+    region: input.region,
+    allowedEnvironments: [...input.allowedEnvironments],
+    allowedDataClasses: [...input.allowedDataClasses],
+    allowedRegions: input.allowedRegions ? [...input.allowedRegions] : undefined,
+    integrationId: input.integrationId,
+    resourceId: input.resourceId,
+    poolId: input.poolId,
+    providerId: input.providerId,
+    failureDomainId: input.failureDomainId,
+    workloadClass: input.workloadClass,
+    budget: input.budget,
+    budgetReservationHash: input.budgetReservation?.reservationHash,
+    guardrails: input.guardrails,
+    killSwitches: input.killSwitches,
+    credentialRequirementIds: [...new Set(input.credentialRequirementIds)].sort(),
+    credentialSnapshotHash: input.credentialSnapshot?.snapshotHash,
+    capacitySnapshotHash: input.capacitySnapshot?.snapshotHash,
+    fallbackRequired: input.fallbackRequired,
+    fallbackAvailable: input.fallbackAvailable,
+    idempotencyKey: input.idempotencyKey,
+    resourceRequirementsHash: sha256Hex(input.resourceRequirements)
+  };
+
   const base = {
     ...input,
     scope: { ...input.scope },
@@ -78,13 +118,36 @@ export function createPolicySnapshot(input: PolicySnapshotInput): PolicySnapshot
     allowedDataClasses: [...input.allowedDataClasses],
     allowedRegions: input.allowedRegions ? [...input.allowedRegions] : undefined,
     killSwitches: input.killSwitches.map((item) => ({ ...item })),
-    credentialBindingIds: [...input.credentialBindingIds].sort(),
+    credentialRequirementIds: [...new Set(input.credentialRequirementIds)].sort(),
+    policyEngineVersion: POLICY_ENGINE_VERSION,
+    policyRulesHash: POLICY_RULES_HASH,
     capabilityRegistryVersion: CAPABILITY_REGISTRY_VERSION,
     capabilityRegistryHash: CAPABILITY_REGISTRY_HASH,
-    resourceRequirementsHash: sha256Hex(input.resourceRequirements)
+    resourceRequirementsHash: sha256Hex(input.resourceRequirements),
+    credentialSnapshotHash: input.credentialSnapshot?.snapshotHash,
+    budgetReservationHash: input.budgetReservation?.reservationHash,
+    capacitySnapshotHash: input.capacitySnapshot?.snapshotHash,
+    policyInputHash: sha256Hex(policyInput)
   };
+
   return deepFreeze({
     ...base,
     snapshotHash: sha256Hex(base)
   });
+}
+
+export function assertPolicySnapshotIntegrity(snapshot: PolicySnapshot) {
+  const { snapshotHash, ...base } = snapshot;
+  if (sha256Hex(base) !== snapshotHash) {
+    throw new Error("Policy snapshot integrity check failed");
+  }
+  if (
+    snapshot.policyEngineVersion !== POLICY_ENGINE_VERSION
+    || snapshot.policyRulesHash !== POLICY_RULES_HASH
+    || snapshot.capabilityRegistryVersion !== CAPABILITY_REGISTRY_VERSION
+    || snapshot.capabilityRegistryHash !== CAPABILITY_REGISTRY_HASH
+  ) {
+    throw new Error("Policy snapshot references stale policy or capability definitions");
+  }
+  return snapshot;
 }

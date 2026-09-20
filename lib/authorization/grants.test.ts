@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { issueAuthorizationGrant, assertAuthorizationGrant } from "@/lib/authorization/grants";
-import type { ApprovalProof, StepUpProof } from "@/lib/authorization/proofs";
+import {
+  issueAuthorizationGrant,
+  assertAuthorizationGrant,
+  createAuthorizationConsumptionRecord,
+  assertAuthorizationConsumption
+} from "@/lib/authorization/grants";
+import {
+  createApprovalProof,
+  createStepUpProof
+} from "@/lib/authorization/proofs";
 import { hashPlan, hashPlanStep } from "@/lib/planning/plan-hash";
 import { createPolicySnapshot } from "@/lib/planning/policy-snapshot";
 import { evaluateStepPolicy } from "@/lib/planning/policy-engine";
@@ -8,15 +16,17 @@ import { validPlan } from "@/lib/planning/test-fixture";
 import { fixtureNow, fixtureScope, receiptFor, autoGrantFor } from "@/lib/planning/test-security-fixture";
 
 describe("authorization grants", () => {
-  it("issues an immutable AUTO grant bound to plan, step, receipt and policy snapshot", () => {
+  it("issues an immutable AUTO grant bound to plan version, hashes, receipt and policy version", () => {
     const plan = validPlan();
     const receipt = receiptFor(plan);
     const grant = autoGrantFor(plan, plan.steps[0].id, receipt);
 
     expect(grant.disposition).toBe("AUTO");
+    expect(grant.planVersion).toBe(plan.proposalVersion);
     expect(grant.planHash).toBe(hashPlan(plan));
     expect(grant.stepHash).toBe(hashPlanStep(plan.steps[0]));
     expect(grant.validationReceiptHash).toBe(receipt.receiptHash);
+    expect(grant.policyVersion).toBe(receipt.snapshot.policyVersion);
     expect(grant.grantHash).toHaveLength(64);
     expect(Object.isFrozen(grant)).toBe(true);
   });
@@ -55,7 +65,25 @@ describe("authorization grants", () => {
     })).toThrow();
   });
 
-  it("issues STRONG_APPROVAL only from matching approval and step-up proofs", () => {
+  it("records hash-bound authorization consumption by Task/Job", () => {
+    const plan = validPlan();
+    const receipt = receiptFor(plan);
+    const grant = autoGrantFor(plan, plan.steps[0].id, receipt);
+    const consumption = createAuthorizationConsumptionRecord({
+      id: "consumption-1",
+      grant,
+      consumerType: "task",
+      consumerId: "task-1",
+      consumedAt: fixtureNow.toISOString()
+    });
+
+    expect(consumption.consumerType).toBe("task");
+    expect(consumption.consumerId).toBe("task-1");
+    expect(consumption.consumptionHash).toHaveLength(64);
+    expect(assertAuthorizationConsumption(consumption, grant)).toBe(consumption);
+  });
+
+  it("issues STRONG_APPROVAL only from matching immutable approval and step-up proofs", () => {
     const base = validPlan();
     const productionPlan = {
       ...base,
@@ -95,15 +123,15 @@ describe("authorization grants", () => {
     const receipt = receiptFor(productionPlan);
     const scope = fixtureScope(productionPlan);
     const step = productionPlan.steps[0];
-    const stepUp: StepUpProof = {
+    const stepUp = createStepUpProof({
       id: "stepup-strong",
       actorId: "user-a",
       scope,
       method: "passkey",
       authenticatedAt: "2026-09-20T18:29:00Z",
       expiresAt: "2026-09-20T18:35:00Z"
-    };
-    const approval: ApprovalProof = {
+    });
+    const approval = createApprovalProof({
       id: "approval-proof-strong",
       decisionId: "decision-1",
       approvalId: "approval-1",
@@ -115,10 +143,10 @@ describe("authorization grants", () => {
       grantedAt: "2026-09-20T18:29:30Z",
       expiresAt: "2026-09-20T18:34:00Z",
       stepUpProofId: stepUp.id
-    };
+    });
     const policySnapshot = createPolicySnapshot({
       id: "policy-snapshot-strong",
-      policyVersion: "policy-v1",
+      policyVersion: "policy-v2",
       scope,
       planHash: hashPlan(productionPlan),
       stepHash: hashPlanStep(step),
@@ -129,9 +157,7 @@ describe("authorization grants", () => {
       allowedDataClasses: ["sensitive"],
       allowedRegions: ["us-west"],
       killSwitches: [],
-      credentialBindingIds: [],
-      credentialBindingsAvailable: true,
-      protectedHeadroomSatisfied: true,
+      credentialRequirementIds: [],
       fallbackRequired: false,
       fallbackAvailable: true,
       idempotencyKey: "strong-policy-12345678",
@@ -151,10 +177,7 @@ describe("authorization grants", () => {
       allowedEnvironments: ["production"],
       allowedDataClasses: ["sensitive"],
       allowedRegions: ["us-west"],
-      credentialBindingIds: [],
-      credentialBindingsAvailable: true,
-      credentialBindingRequired: false,
-      protectedHeadroomSatisfied: true,
+      credentialRequirementIds: [],
       fallbackRequired: false,
       fallbackAvailable: true,
       idempotencyKey: "strong-policy-12345678",
@@ -181,6 +204,8 @@ describe("authorization grants", () => {
 
     expect(grant.disposition).toBe("STRONG_APPROVAL");
     expect(grant.approvalProofId).toBe(approval.id);
+    expect(grant.approvalProofHash).toBe(approval.proofHash);
     expect(grant.stepUpProofId).toBe(stepUp.id);
+    expect(grant.stepUpProofHash).toBe(stepUp.proofHash);
   });
 });

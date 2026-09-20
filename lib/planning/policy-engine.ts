@@ -1,5 +1,6 @@
 import type { GetDoneEnvironment } from "@/lib/control-plane/request-context";
 import type { TrustedExecutionScope } from "@/lib/control-plane/trusted-execution-scope";
+import { sha256Hex } from "@/lib/control-plane/canonical-hash";
 import { getCapability, type CapabilityDefinition } from "@/lib/domain/capabilities";
 import { blockingKillSwitches, type KillSwitch } from "@/lib/domain/kill-switch";
 import {
@@ -8,6 +9,18 @@ import {
   type BudgetPolicy,
   type Guardrail
 } from "@/lib/domain/objectives";
+import {
+  evaluateCredentialAvailability,
+  type CredentialAvailabilitySnapshot
+} from "@/lib/domain/credential-binding";
+import {
+  assertBudgetReservation,
+  type BudgetReservation
+} from "@/lib/domain/budget-reservation";
+import {
+  assertProtectedCapacitySnapshot,
+  type ProtectedCapacitySnapshot
+} from "@/lib/domain/protected-capacity";
 import {
   assertApprovalProof,
   type ApprovalProof,
@@ -19,6 +32,32 @@ export type PolicyDisposition =
   | "APPROVAL_REQUIRED"
   | "STRONG_APPROVAL"
   | "BLOCKED";
+
+export const POLICY_ENGINE_VERSION = "2026-09-20.2";
+export const POLICY_PRECEDENCE: readonly PolicyDisposition[] = Object.freeze([
+  "AUTO",
+  "APPROVAL_REQUIRED",
+  "STRONG_APPROVAL",
+  "BLOCKED"
+]);
+export const POLICY_RULES_HASH = sha256Hex({
+  version: POLICY_ENGINE_VERSION,
+  precedence: POLICY_PRECEDENCE,
+  rules: [
+    "identity-and-scope",
+    "capability-approval",
+    "environment-data-region",
+    "credential-snapshot",
+    "protected-capacity-snapshot",
+    "fallback",
+    "idempotency",
+    "all-kill-switch-scopes",
+    "budget-reservation",
+    "guardrails",
+    "approval-proof",
+    "strong-step-up-proof"
+  ]
+});
 
 export interface PolicyEvaluationInput {
   authenticated: boolean;
@@ -41,11 +80,10 @@ export interface PolicyEvaluationInput {
   failureDomainId?: string;
   workloadClass?: string;
 
-  credentialBindingIds: readonly string[];
-  credentialBindingsAvailable: boolean;
-  credentialBindingRequired: boolean;
+  credentialRequirementIds: readonly string[];
+  credentialSnapshot?: CredentialAvailabilitySnapshot;
+  capacitySnapshot?: ProtectedCapacitySnapshot;
 
-  protectedHeadroomSatisfied: boolean;
   fallbackRequired: boolean;
   fallbackAvailable: boolean;
 
@@ -58,6 +96,7 @@ export interface PolicyEvaluationInput {
     reservedCents?: number;
     requestedCostCents: number;
   };
+  budgetReservation?: BudgetReservation;
 
   guardrails?: {
     scopeId?: string;
@@ -80,12 +119,16 @@ export interface PolicyReason {
     | "DATA_CLASS_BLOCKED"
     | "REGION_BLOCKED"
     | "CREDENTIAL_MISSING"
+    | "CREDENTIAL_SNAPSHOT_INVALID"
     | "HEADROOM_BLOCKED"
+    | "CAPACITY_SNAPSHOT_INVALID"
     | "FALLBACK_MISSING"
     | "IDEMPOTENCY_MISSING"
     | "KILL_SWITCH"
     | "BUDGET_BLOCKED"
     | "BUDGET_APPROVAL"
+    | "BUDGET_RESERVATION_MISSING"
+    | "BUDGET_RESERVATION_INVALID"
     | "GUARDRAIL_BLOCKED"
     | "GUARDRAIL_APPROVAL"
     | "CAPABILITY_APPROVAL"
@@ -99,6 +142,8 @@ export interface PolicyEvaluation {
   disposition: PolicyDisposition;
   reasons: readonly PolicyReason[];
   capability?: CapabilityDefinition;
+  policyEngineVersion: string;
+  policyRulesHash: string;
   requiresFreshStepUp: boolean;
   approvalSatisfied: boolean;
   readyForTaskGeneration: boolean;
@@ -108,6 +153,8 @@ export interface StepPolicyEvaluation {
   disposition: PolicyDisposition;
   reasons: readonly PolicyReason[];
   capabilityEvaluations: Readonly<Record<string, PolicyEvaluation>>;
+  policyEngineVersion: string;
+  policyRulesHash: string;
   requiresFreshStepUp: boolean;
   approvalSatisfied: boolean;
   readyForTaskGeneration: boolean;
@@ -166,7 +213,7 @@ function proofSatisfied(
         : "APPROVAL_PROOF_INVALID",
       message: disposition === "STRONG_APPROVAL"
         ? "Strong approval requires matching fresh approval and step-up proofs"
-        : "Approval proof is missing, expired, or does not match this plan step"
+        : "Approval proof is missing, expired, tampered, or does not match this plan step"
     });
     return false;
   }
@@ -177,6 +224,7 @@ function proofSatisfied(
 export function evaluatePolicy(input: PolicyEvaluationInput): PolicyEvaluation {
   const reasons: PolicyReason[] = [];
   let disposition: PolicyDisposition = "AUTO";
+  const now = input.now ?? Date.now();
 
   const block = (code: PolicyReason["code"], message: string) => {
     disposition = "BLOCKED";
@@ -215,12 +263,42 @@ export function evaluatePolicy(input: PolicyEvaluationInput): PolicyEvaluation {
     block("REGION_BLOCKED", `Region is not permitted: ${input.region}`);
   }
 
-  if (input.credentialBindingRequired && !input.credentialBindingsAvailable) {
-    block("CREDENTIAL_MISSING", "Required credential binding is unavailable");
+  if (input.credentialRequirementIds.length > 0) {
+    if (!input.credentialSnapshot) {
+      block("CREDENTIAL_MISSING", "Credential requirements exist but no credential availability snapshot was supplied");
+    } else {
+      try {
+        const knownRequirements = new Set(input.credentialSnapshot.requirements.map((item) => item.id));
+        if (input.credentialRequirementIds.some((id) => !knownRequirements.has(id))) {
+          block("CREDENTIAL_MISSING", "Credential snapshot does not contain all required credential requirements");
+        } else {
+          const result = evaluateCredentialAvailability(input.credentialSnapshot, {
+            scope: input.trustedScope,
+            capabilities: [input.capability],
+            now
+          });
+          if (!result.satisfied) {
+            block("CREDENTIAL_MISSING", `Required credential bindings are unavailable: ${result.missingRequirementIds.join(", ")}`);
+          }
+        }
+      } catch {
+        block("CREDENTIAL_SNAPSHOT_INVALID", "Credential availability snapshot is stale, tampered, or out of scope");
+      }
+    }
   }
 
-  if (!input.protectedHeadroomSatisfied) {
-    block("HEADROOM_BLOCKED", "Protected capacity/headroom requirement is not satisfied");
+  if (input.capacitySnapshot) {
+    try {
+      assertProtectedCapacitySnapshot({
+        snapshot: input.capacitySnapshot,
+        scope: input.trustedScope,
+        resourceId: input.resourceId ?? input.trustedScope.resourceId,
+        poolId: input.poolId,
+        now
+      });
+    } catch {
+      block("CAPACITY_SNAPSHOT_INVALID", "Protected capacity snapshot is stale, tampered, out of scope, or lacks required headroom");
+    }
   }
 
   if (input.fallbackRequired && !input.fallbackAvailable) {
@@ -256,9 +334,30 @@ export function evaluatePolicy(input: PolicyEvaluationInput): PolicyEvaluation {
 
     if (budget.disposition === "blocked") {
       block("BUDGET_BLOCKED", budget.reason ?? "Budget policy blocked the action");
-    } else if (budget.disposition === "approval-required") {
-      disposition = strongestDisposition(disposition, "APPROVAL_REQUIRED");
-      reasons.push({ code: "BUDGET_APPROVAL", message: budget.reason ?? "Budget threshold requires approval" });
+    } else {
+      if (input.budget.requestedCostCents > 0) {
+        if (!input.budgetReservation) {
+          block("BUDGET_RESERVATION_MISSING", "Budgeted work requires a bound budget reservation");
+        } else {
+          try {
+            assertBudgetReservation({
+              reservation: input.budgetReservation,
+              scope: input.trustedScope,
+              planHash: input.planHash,
+              stepHash: input.stepHash,
+              minimumAmountCents: input.budget.requestedCostCents,
+              now
+            });
+          } catch {
+            block("BUDGET_RESERVATION_INVALID", "Budget reservation is stale, tampered, out of scope, or insufficient");
+          }
+        }
+      }
+
+      if (budget.disposition === "approval-required") {
+        disposition = strongestDisposition(disposition, "APPROVAL_REQUIRED");
+        reasons.push({ code: "BUDGET_APPROVAL", message: budget.reason ?? "Budget threshold requires approval" });
+      }
     }
   }
 
@@ -284,6 +383,8 @@ export function evaluatePolicy(input: PolicyEvaluationInput): PolicyEvaluation {
     disposition,
     reasons,
     capability,
+    policyEngineVersion: POLICY_ENGINE_VERSION,
+    policyRulesHash: POLICY_RULES_HASH,
     requiresFreshStepUp,
     approvalSatisfied,
     readyForTaskGeneration: disposition !== "BLOCKED" && approvalSatisfied
@@ -316,6 +417,8 @@ export function evaluateStepPolicy(
     disposition,
     reasons: Object.freeze(dedupedReasons),
     capabilityEvaluations: Object.freeze(capabilityEvaluations),
+    policyEngineVersion: POLICY_ENGINE_VERSION,
+    policyRulesHash: POLICY_RULES_HASH,
     requiresFreshStepUp: disposition === "STRONG_APPROVAL",
     approvalSatisfied: readyForTaskGeneration,
     readyForTaskGeneration

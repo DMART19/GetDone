@@ -11,7 +11,7 @@ describe("plan validation receipt", () => {
   it("binds a clean validation result to the exact plan and registry snapshot", () => {
     const plan = validPlan();
     const receipt = receiptFor(plan);
-    expect(assertValidationReceipt(receipt, plan, fixtureNow.getTime()).planId).toBe(plan.id);
+    expect(assertValidationReceipt(receipt, plan, fixtureNow.getTime()).planId).toBe(plan.id);\n    expect(receipt.validationHash).toHaveLength(64);\n    expect(receipt.snapshot.policyRulesHash).toHaveLength(64);\n    expect(receipt.snapshot.environmentConfigurationHash).toHaveLength(64);
   });
 
   it("rejects a mutated plan after validation", () => {
@@ -43,6 +43,28 @@ describe("plan validation receipt", () => {
       policyVersion: "policy-v1",
       environment: plan.scope.environment,
       configurationVersion: "config-v1",
+      environmentConfigurationHash: "environment-config-owner-decision",
+      healthReference: {
+        id: "health-1",
+        version: "1",
+        hash: "health-hash",
+        observedAt: "2026-09-20T18:28:00Z",
+        expiresAt: "2026-09-20T18:35:00Z"
+      },
+      capacityReference: {
+        id: "capacity-1",
+        version: "1",
+        hash: "capacity-hash",
+        observedAt: "2026-09-20T18:28:00Z",
+        expiresAt: "2026-09-20T18:35:00Z"
+      },
+      credentialReference: {
+        id: "credentials-1",
+        version: "1",
+        hash: "credentials-hash",
+        observedAt: "2026-09-20T18:28:00Z",
+        expiresAt: "2026-09-20T18:35:00Z"
+      },
       createdAt: "2026-09-20T18:29:00Z"
     });
     const validation = {

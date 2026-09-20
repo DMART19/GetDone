@@ -1,4 +1,5 @@
 import { ControlPlaneError } from "@/lib/control-plane/errors";
+import { assertAuthorizationGrantEnvelope, type AuthorizationGrant } from "@/lib/authorization/grants";
 import type { AuthoritativeCommandEnvelope } from "@/lib/control-plane/command-envelope";
 import type { ControlPlaneTransactionManager } from "@/lib/domain/control-plane-transaction";
 import {
@@ -23,7 +24,8 @@ export interface PlanRecord extends StatefulEntity {
   requestedCapabilities: readonly string[];
   validationEvidenceId?: string;
   validationErrors: readonly string[];
-  authorizationId?: string;
+  authorizationGrantId?: string;
+  authorizationGrantHash?: string;
   compiledGraphId?: string;
 }
 
@@ -94,8 +96,11 @@ export class PlanService {
     });
   }
 
-  authorize(id: string, command: AuthoritativeCommandEnvelope, authorizationId: string) {
-    if (!authorizationId) throw new ControlPlaneError("VALIDATION_FAILED", "Authorization lineage is required");
+  authorize(id: string, command: AuthoritativeCommandEnvelope, grant: AuthorizationGrant) {
+    assertAuthorizationGrantEnvelope(grant, command.scope);
+    if (grant.planId !== id) {
+      throw new ControlPlaneError("FORBIDDEN", "Authorization grant belongs to a different plan");
+    }
     return executeTransitionCommand({
       manager: this.transactions,
       selectStore: (stores) => stores.plans,
@@ -104,8 +109,14 @@ export class PlanService {
       to: "authorized",
       command,
       triggeringEvent: "plan-authorized",
-      patch: () => ({ authorizationId }),
-      metadata: () => ({ authorizationId })
+      patch: () => ({
+        authorizationGrantId: grant.id,
+        authorizationGrantHash: grant.grantHash
+      }),
+      metadata: () => ({
+        authorizationGrantId: grant.id,
+        authorizationGrantHash: grant.grantHash
+      })
     });
   }
 

@@ -9,7 +9,7 @@ import { ApprovalService, type ApprovalRecord, type ApprovalStores } from "@/lib
 import { TaskService, type TaskRecord, type TaskStores } from "@/lib/domain/services/task-service";
 import { JobService, type JobRecord, type JobStores } from "@/lib/domain/services/job-service";
 import { OutcomeService, type OutcomeRecord, type OutcomeStores } from "@/lib/domain/services/outcome-service";
-import type { StepUpProof } from "@/lib/authorization/proofs";
+import { createStepUpProof } from "@/lib/authorization/proofs";
 
 class MemoryStore<T extends AuthoritativeEntity> implements EntityStore<T> {
   constructor(public value: T) {}
@@ -57,7 +57,7 @@ function command(type: string) {
   });
 }
 
-const stepUp: StepUpProof = {
+const stepUp = createStepUpProof({
   id: "stepup-service",
   actorId: "user-a",
   scope: {
@@ -69,7 +69,7 @@ const stepUp: StepUpProof = {
   method: "passkey",
   authenticatedAt: "2026-09-20T17:59:00Z",
   expiresAt: "2099-01-01T00:00:00Z"
-};
+});
 
 const base = {
   id: "entity-1",
@@ -80,7 +80,7 @@ const base = {
 };
 
 describe("transactional domain services", () => {
-  it("transitions goals through the universal transaction boundary", async () => {
+  it("transitions goals through the universal transition service", async () => {
     const audit = new MemoryAudit();
     const store = new MemoryStore<GoalRecord>({
       ...base, state: "draft", title: "Grow", metric: "revenue", target: 100, priority: 1
@@ -92,7 +92,7 @@ describe("transactional domain services", () => {
     expect(audit.events[0].eventType).toBe("goal.active");
   });
 
-  it("requires a real step-up proof for strong approvals", async () => {
+  it("requires a hash-bound step-up proof for strong approvals", async () => {
     const store = new MemoryStore<ApprovalRecord>({
       ...base, state: "pending", decisionId: "decision-1", requirement: "strong-approval"
     });
