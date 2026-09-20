@@ -6,7 +6,7 @@ const resourceId = id;
 const isoDateTime = z.string().datetime({ offset: true });
 const environment = z.enum(["development", "staging", "production"]);
 const dataClass = z.enum(["public", "internal", "customer", "sensitive"]);
-const repository = z.string().regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/);
+const repository = z.string().regex(/^(?!\.{1,2}\/)(?!.*\/\.{1,2}$)[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/);
 const commitSha = z.string().regex(/^[a-fA-F0-9]{7,40}$/);
 const currency = z.string().length(3).regex(/^[A-Z]{3}$/);
 
