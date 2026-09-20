@@ -108,5 +108,11 @@
   "generatedArtifacts": {
     "machineManifest": "release/out/release-manifest.json",
     "operatingManual": "release/out/OPERATING_MANUAL.md"
+  },
+  "database": {
+    "status": "not-connected",
+    "migrationVersion": "UNIMPLEMENTED",
+    "schemaVersion": "UNIMPLEMENTED",
+    "sourcePath": "docs/ARCHITECTURE.md"
   }
 }
