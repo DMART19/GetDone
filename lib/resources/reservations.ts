@@ -311,12 +311,16 @@ function assertAuthority(
 
 function createLedgerBase(input: Omit<CapacityLedger, "ledgerHash">): CapacityLedger {
   const base: Omit<CapacityLedger, "ledgerHash"> = {
-    ...input,
+    id: input.id,
+    portfolioId: input.portfolioId,
+    companyId: input.companyId,
     target: Object.freeze({ ...input.target }),
     totalCapacity: normalizeVector(input.totalCapacity, "Total capacity"),
     committedCapacity: normalizeVector(input.committedCapacity, "Committed capacity"),
     reservedCapacity: normalizeVector(input.reservedCapacity, "Reserved capacity"),
-    protectedHeadroom: normalizeVector(input.protectedHeadroom, "Protected headroom")
+    protectedHeadroom: normalizeVector(input.protectedHeadroom, "Protected headroom"),
+    revision: input.revision,
+    updatedAt: input.updatedAt
   };
   const ledger = Object.freeze({ ...base, ledgerHash: sha256Hex(base) });
   assertLedgerIntegrity(ledger);
