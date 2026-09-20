@@ -9,6 +9,10 @@ import {
 } from "@/lib/authorization/grants";
 import type { ControlPlaneTransactionManager } from "@/lib/domain/control-plane-transaction";
 import {
+  assertVerificationReceipt,
+  type VerificationReceipt
+} from "@/lib/verification/verification";
+import {
   executeTransitionCommand,
   type EntityStore,
   type StatefulEntity
@@ -34,6 +38,8 @@ export interface JobRecord extends StatefulEntity {
   authorizationGrantHash?: string;
   authorizationConsumption?: AuthorizationConsumptionRecord;
   verificationEvidenceIds: readonly string[];
+  verificationReceiptId?: string;
+  verificationReceiptHash?: string;
   failureReason?: string;
 }
 
@@ -203,13 +209,13 @@ export class JobService {
     });
   }
 
-  succeed(id: string, command: AuthoritativeCommandEnvelope, evidenceIds: readonly string[]) {
-    if (evidenceIds.length === 0) {
-      throw new ControlPlaneError(
-        "VALIDATION_FAILED",
-        "Job success requires independent verification evidence"
-      );
-    }
+  succeed(id: string, command: AuthoritativeCommandEnvelope, receipt: VerificationReceipt) {
+    assertVerificationReceipt(receipt, {
+      scope: command.scope,
+      targetType: "job",
+      targetId: id,
+      expectedResult: "verified"
+    });
     return executeTransitionCommand({
       manager: this.transactions,
       selectStore: (stores) => stores.jobs,
@@ -218,11 +224,25 @@ export class JobService {
       to: "succeeded",
       command,
       triggeringEvent: "job-verified-succeeded",
-      patch: () => ({ verificationEvidenceIds: [...evidenceIds] })
+      patch: () => ({
+        verificationEvidenceIds: [...receipt.evidenceIds],
+        verificationReceiptId: receipt.id,
+        verificationReceiptHash: receipt.receiptHash
+      }),
+      metadata: () => ({
+        verificationReceiptId: receipt.id,
+        verificationReceiptHash: receipt.receiptHash
+      })
     });
   }
 
-  markUncertain(id: string, command: AuthoritativeCommandEnvelope, evidenceIds: readonly string[]) {
+  markUncertain(id: string, command: AuthoritativeCommandEnvelope, receipt: VerificationReceipt) {
+    assertVerificationReceipt(receipt, {
+      scope: command.scope,
+      targetType: "job",
+      targetId: id,
+      expectedResult: "uncertain"
+    });
     return executeTransitionCommand({
       manager: this.transactions,
       selectStore: (stores) => stores.jobs,
@@ -231,7 +251,15 @@ export class JobService {
       to: "uncertain",
       command,
       triggeringEvent: "job-verification-uncertain",
-      patch: () => ({ verificationEvidenceIds: [...evidenceIds] })
+      patch: () => ({
+        verificationEvidenceIds: [...receipt.evidenceIds],
+        verificationReceiptId: receipt.id,
+        verificationReceiptHash: receipt.receiptHash
+      }),
+      metadata: () => ({
+        verificationReceiptId: receipt.id,
+        verificationReceiptHash: receipt.receiptHash
+      })
     });
   }
 
