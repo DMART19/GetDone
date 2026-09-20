@@ -1,4 +1,3 @@
-import { ControlPlaneError } from "@/lib/control-plane/errors";
 import type { AuthoritativeCommandEnvelope } from "@/lib/control-plane/command-envelope";
 import type { ControlPlaneTransactionManager } from "@/lib/domain/control-plane-transaction";
 import {
@@ -6,6 +5,10 @@ import {
   type EntityStore,
   type StatefulEntity
 } from "@/lib/domain/services/common";
+import {
+  assertVerificationReceipt,
+  type VerificationReceipt
+} from "@/lib/verification/verification";
 
 export type OutcomeState = "recorded" | "verified" | "uncertain" | "rejected";
 
@@ -17,6 +20,8 @@ export interface OutcomeRecord extends StatefulEntity {
   metric: string;
   value: number | string | boolean;
   evidenceIds: readonly string[];
+  verificationReceiptId?: string;
+  verificationReceiptHash?: string;
   confidence?: number;
 }
 
@@ -27,25 +32,88 @@ export interface OutcomeStores {
 export class OutcomeService {
   constructor(private readonly transactions: ControlPlaneTransactionManager<OutcomeStores>) {}
 
-  verify(id: string, command: AuthoritativeCommandEnvelope, evidenceIds: readonly string[]) {
-    if (evidenceIds.length === 0) throw new ControlPlaneError("VALIDATION_FAILED", "Verified outcomes require evidence");
+  verify(
+    id: string,
+    command: AuthoritativeCommandEnvelope,
+    receipt: VerificationReceipt
+  ) {
+    assertVerificationReceipt(receipt, {
+      scope: command.scope,
+      subject: { type: "outcome", id },
+      allowedVerdicts: ["verified"]
+    });
+
     return executeTransitionCommand({
-      manager: this.transactions, selectStore: (stores) => stores.outcomes, entityType: "outcome", entityId: id, to: "verified", command,
-      triggeringEvent: "outcome-verified", patch: () => ({ evidenceIds: [...evidenceIds] })
+      manager: this.transactions,
+      selectStore: (stores) => stores.outcomes,
+      entityType: "outcome",
+      entityId: id,
+      to: "verified",
+      command,
+      triggeringEvent: "outcome-verified",
+      patch: () => ({
+        evidenceIds: [...receipt.evidenceIds],
+        verificationReceiptId: receipt.id,
+        verificationReceiptHash: receipt.receiptHash
+      }),
+      metadata: () => ({
+        verificationReceiptId: receipt.id,
+        verificationReceiptHash: receipt.receiptHash
+      })
     });
   }
 
-  markUncertain(id: string, command: AuthoritativeCommandEnvelope, evidenceIds: readonly string[] = []) {
+  markUncertain(
+    id: string,
+    command: AuthoritativeCommandEnvelope,
+    receipt: VerificationReceipt
+  ) {
+    assertVerificationReceipt(receipt, {
+      scope: command.scope,
+      subject: { type: "outcome", id },
+      allowedVerdicts: ["uncertain"]
+    });
+
     return executeTransitionCommand({
-      manager: this.transactions, selectStore: (stores) => stores.outcomes, entityType: "outcome", entityId: id, to: "uncertain", command,
-      triggeringEvent: "outcome-uncertain", patch: () => ({ evidenceIds: [...evidenceIds] })
+      manager: this.transactions,
+      selectStore: (stores) => stores.outcomes,
+      entityType: "outcome",
+      entityId: id,
+      to: "uncertain",
+      command,
+      triggeringEvent: "outcome-uncertain",
+      patch: () => ({
+        evidenceIds: [...receipt.evidenceIds],
+        verificationReceiptId: receipt.id,
+        verificationReceiptHash: receipt.receiptHash
+      })
     });
   }
 
-  reject(id: string, command: AuthoritativeCommandEnvelope, evidenceIds: readonly string[] = []) {
+  reject(
+    id: string,
+    command: AuthoritativeCommandEnvelope,
+    receipt: VerificationReceipt
+  ) {
+    assertVerificationReceipt(receipt, {
+      scope: command.scope,
+      subject: { type: "outcome", id },
+      allowedVerdicts: ["failed"]
+    });
+
     return executeTransitionCommand({
-      manager: this.transactions, selectStore: (stores) => stores.outcomes, entityType: "outcome", entityId: id, to: "rejected", command,
-      triggeringEvent: "outcome-rejected", patch: () => ({ evidenceIds: [...evidenceIds] })
+      manager: this.transactions,
+      selectStore: (stores) => stores.outcomes,
+      entityType: "outcome",
+      entityId: id,
+      to: "rejected",
+      command,
+      triggeringEvent: "outcome-rejected",
+      patch: () => ({
+        evidenceIds: [...receipt.evidenceIds],
+        verificationReceiptId: receipt.id,
+        verificationReceiptHash: receipt.receiptHash
+      })
     });
   }
 }
