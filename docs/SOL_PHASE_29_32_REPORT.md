@@ -73,4 +73,4 @@ Resource agents and providers report evidence; they do not establish credential,
 
 ## Canonical PASS boundary
 
-Phases 29–32 now have deterministic contracts and CI-testable safety behavior. Canonical production acceptance still requires the real secret/token infrastructure, node/hardware telemetry, durable persistence, and—starting in Phase 33—atomic concurrent reservation/capacity evidence.
+Phases 29–32 now have deterministic contracts and CI-testable safety behavior. Phase 33 deterministic reservation/capacity-ledger contracts were subsequently added in `docs/SOL_PHASE_33_REPORT.md`. Canonical production acceptance still requires the real secret/token infrastructure, node/hardware telemetry, durable persistence, and live transactional multi-process reservation evidence.
