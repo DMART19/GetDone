@@ -194,6 +194,9 @@ const manualLines = [
     `- Authority mode: ${value.authorityMode}`,
     `- Production ready: ${value.productionReady ? "yes" : "no"}`,
     `- Data mode: ${value.dataMode}`,
+    `- Deployment status: ${value.deployment.status}`,
+    `- Deployment ID: ${value.deployment.deploymentId ?? "n/a"}`,
+    `- Deployment region: ${value.deployment.region ?? "n/a"}`,
     ...Object.entries(value.connections).map(
       ([connection, connected]) => `- ${connection}: ${connected ? "connected" : "not connected"}`
     ),
