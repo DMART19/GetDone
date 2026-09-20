@@ -4,6 +4,7 @@ import {
   assertVoiceIntentRecord,
   createVoiceIntentAuditEvent,
   createVoiceIntentRecord,
+  createVoiceSummaryResponse,
   parseVoiceAdapterCandidate,
   VOICE_ADAPTER_CONTRACT_VERSION,
   VOICE_INTENT_CONTRACT_VERSION,
@@ -158,6 +159,32 @@ describe("Phase 42 voice intent and secure handoff", () => {
       controlApiOperation: "production.deploy"
     };
     expect(() => assertVoiceIntentRecord(tampered)).toThrow();
+  });
+
+  it("creates only brief redacted Control API summaries with no authorization authority", () => {
+    const record = createVoiceIntentRecord({
+      id: "voice-summary",
+      correlationId: "correlation-summary",
+      trustedScope: scope,
+      candidate: candidate("whats-important"),
+      createdAt: "2026-09-20T22:10:00Z"
+    });
+
+    const response = createVoiceSummaryResponse({
+      record,
+      summary: "One high-priority decision needs your attention.",
+      generatedAt: "2026-09-20T22:10:05Z"
+    });
+    expect(response.source).toBe("control-api");
+    expect(response.presentation).toBe("brief-redacted");
+    expect(response.voiceIntentHash).toBe(record.intentHash);
+    expect(response.canAuthorize).toBe(false);
+
+    expect(() => createVoiceSummaryResponse({
+      record,
+      summary: "Bearer abcdefghijklmnopqrstuvwxyz",
+      generatedAt: "2026-09-20T22:10:05Z"
+    })).toThrow();
   });
 
   it("creates a scoped audit event without raw transcript or credential data", () => {
