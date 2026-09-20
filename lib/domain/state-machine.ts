@@ -9,7 +9,9 @@ export type StateMachineEntity =
   | "job"
   | "outcome"
   | "event"
+  | "verification"
   | "resource"
+  | "enrollment"
   | "reservation";
 
 const transitions: Record<StateMachineEntity, Record<string, readonly string[]>> = {
@@ -79,6 +81,15 @@ const transitions: Record<StateMachineEntity, Record<string, readonly string[]>>
     ignored: [],
     rejected: []
   },
+  verification: {
+    requested: ["collecting", "cancelled"],
+    collecting: ["evaluating", "cancelled"],
+    evaluating: ["verified", "failed", "uncertain", "cancelled"],
+    verified: [],
+    failed: [],
+    uncertain: [],
+    cancelled: []
+  },
   resource: {
     discovered: ["enrolling", "disabled"],
     enrolling: ["profiling", "failed", "disabled"],
@@ -93,6 +104,21 @@ const transitions: Record<StateMachineEntity, Record<string, readonly string[]>>
     quarantined: ["validating", "maintenance", "disabled"],
     maintenance: ["validating", "disabled"],
     disabled: ["enrolling"]
+  },
+  enrollment: {
+    identify: ["create-enrollment", "cancelled", "failed", "expired"],
+    "create-enrollment": ["owner-action", "cancelled", "failed", "expired"],
+    "owner-action": ["authenticate", "cancelled", "failed", "expired"],
+    authenticate: ["discover", "cancelled", "failed", "expired"],
+    discover: ["profile", "cancelled", "failed", "expired"],
+    profile: ["validate", "cancelled", "failed", "expired"],
+    validate: ["test", "cancelled", "failed", "expired"],
+    test: ["register", "cancelled", "failed", "expired"],
+    register: ["ready", "cancelled", "failed", "expired"],
+    ready: [],
+    cancelled: ["identify"],
+    failed: ["identify"],
+    expired: ["identify"]
   },
   reservation: {
     requested: ["active", "rejected", "expired", "cancelled"],
