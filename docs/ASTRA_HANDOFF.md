@@ -243,10 +243,10 @@ Once the owner/infrastructure blockers are resolved, Astra should focus its high
 
 6. **Provider-connected completion of Phases 35–40**
    - connect the existing Phase 35 governor to real reservation state, quotas, billing/usage feeds, and durable reconciliations
-   - storage fabric
-   - failure domains and failover
-   - adapter SDK + second provider
-   - partner/DC pools
+   - connect the existing Phase 36 Storage Fabric contracts to real Home NAS/cloud/backup/archive storage, replication, checksum, restore, and measured RPO/RTO
+   - connect the existing Phase 37 failure-domain/drain/failover contracts to real telemetry, reroute, checkpoint recovery, and verified post-failover health
+   - implement a real second provider against the existing Phase 38 Resource Adapter SDK/conformance boundary rather than adding provider logic to scheduler/business code
+   - connect the existing Phase 39 ResourcePool contracts to real partner/colo aggregate discovery, quotas, cost, credentials, health, capacity, and workload state
    - connect the existing Phase 40 read-only simulator to durable historical placement/cost/utilization/failure/queue/outcome and AI Gateway analytics
    - calibrate simulation projections against measured outcomes without allowing automatic policy promotion
 
@@ -255,7 +255,7 @@ Once the owner/infrastructure blockers are resolved, Astra should focus its high
    - archive real staging/production deployment evidence through the existing Phase 41 manifest/manual path
    - connect the existing Phase 42 VoiceIntentAdapter contract to live speech/native-iPhone transport while preserving secure-phone approval/credential handoff
    - Phase 43 optional Watch
-   - Phase 44 adversarial/end-to-end production acceptance
+   - extend the existing Phase 44 deterministic attack matrix with live adapters and run the full adversarial/end-to-end production acceptance
 
 ## Non-negotiable constraints
 
@@ -285,6 +285,7 @@ Before a heavy Astra pass, read:
 - `docs/SOL_PHASE_41_REPORT.md`
 - `docs/SOL_PHASE_42_REPORT.md`
 - `docs/SOL_QUALITY_PHASE_4_13_19_21_REPORT.md`
+- `docs/SOL_PHASE_36_39_44_REPORT.md`
 - `release/version-registry.json`
 - `release/environment-manifest.json`
 - latest GitHub Actions result
@@ -319,6 +320,11 @@ Astra must treat the following as existing architecture, not greenfield work:
 - Phase 13 deterministic provider-neutral AI Gateway contract/router/budget/audit layer;
 - Phase 19 durable Job runtime/store contracts;
 - Phase 20 business action adapter/conformance contracts;
-- Phase 21 software-worker/deployment authorization/evidence contracts.
+- Phase 21 software-worker/deployment authorization/evidence contracts;
+- Phase 36 deterministic Storage Fabric placement/replication/authority contracts;
+- Phase 37 failure-domain/drain/failover contracts;
+- Phase 38 Resource Adapter SDK/conformance contract and DEVELOPMENT mock;
+- Phase 39 governed aggregate ResourcePool contracts;
+- Phase 44 deterministic offline adversarial harness covering the current authority boundaries.
 
 Canonical PASS for these phases still depends on real persistence/runtime/hardware acceptance where specified by the master plan. The existence of deterministic code is not permission to mark infrastructure-dependent acceptance complete.
