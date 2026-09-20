@@ -15,6 +15,7 @@ import {
   computeHmacSha256,
   verifyHmacSha256Callback
 } from "@/lib/security/callback-signature";
+import { assertProductionPromotionBoundary } from "@/lib/security/production-boundary";
 
 describe("Phase 24 adversarial security regression", () => {
   it("rejects expired sessions", () => {
@@ -127,6 +128,46 @@ describe("Phase 24 adversarial security regression", () => {
         metadata: { productionAuthorized: true }
       }
     })).toThrow();
+  });
+
+  it("prevents provider or worker production promotion even with a verified receipt", () => {
+    const verificationReceipt = {
+      id: "receipt-1",
+      requestId: "request-1",
+      portfolioId: "portfolio-a",
+      companyId: "company-a",
+      environment: "production" as const,
+      subject: { type: "deployment" as const, id: "deployment-1" },
+      verdict: "verified" as const,
+      strategyResults: [],
+      evidenceIds: ["evidence-1"],
+      evidenceHashes: ["hash-1"],
+      verifiedAt: "2026-09-20T20:59:00Z",
+      expiresAt: "2026-09-20T21:05:00Z",
+      receiptHash: "receipt-hash"
+    };
+
+    expect(() => assertProductionPromotionBoundary({
+      source: "provider",
+      authenticated: true,
+      trustedScopeResolved: true,
+      policyAuthorized: true,
+      approvalProofVerified: true,
+      verificationReceipt,
+      deploymentRef: "deployment-1",
+      rollbackRef: "rollback-1"
+    }, Date.parse("2026-09-20T21:00:00Z"))).toThrow();
+
+    expect(assertProductionPromotionBoundary({
+      source: "control-plane",
+      authenticated: true,
+      trustedScopeResolved: true,
+      policyAuthorized: true,
+      approvalProofVerified: true,
+      verificationReceipt,
+      deploymentRef: "deployment-1",
+      rollbackRef: "rollback-1"
+    }, Date.parse("2026-09-20T21:00:00Z")).deploymentRef).toBe("deployment-1");
   });
 
   it("honors provider kill switches before new work admission", () => {
