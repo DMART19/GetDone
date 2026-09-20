@@ -47,6 +47,8 @@ describe("Phase 41 release/version registry", () => {
     expect(Object.keys(environment.environments).sort())
       .toEqual(["development", "production", "staging"]);
     expect(environment.environments.production.productionReady).toBe(false);
+    expect(environment.environments.production.deployment.status).toBe("not-connected");
+    expect(environment.environments.production.deployment.deploymentId).toBeNull();
     expect(
       Object.values(environment.environments.production.connections)
         .some((connected) => connected === false)
