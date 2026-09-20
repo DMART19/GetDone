@@ -9,6 +9,19 @@ export interface TrustedExecutionScope {
   resourceId?: string;
 }
 
+export interface PlanAuthorityScope {
+  portfolioId: string;
+  companyId: string;
+  environment: GetDoneEnvironment;
+}
+
+export interface ExecutionScopeChain {
+  requestScope: TrustedExecutionScope;
+  planScope: PlanAuthorityScope;
+  taskScope: TrustedExecutionScope;
+  invocationScope: TrustedExecutionScope;
+}
+
 export function requireTrustedExecutionScope(context: RequestContext): TrustedExecutionScope {
   if (!context.scope.portfolioId || !context.scope.companyId) {
     throw new ControlPlaneError("FORBIDDEN", "Authoritative portfolio/company scope is required", {
@@ -45,6 +58,31 @@ export function assertTrustedExecutionScopeEqual(
   ) {
     throw new ControlPlaneError("FORBIDDEN", "Trusted resource scope does not match");
   }
+}
+
+export function assertExecutionScopeChain(chain: ExecutionScopeChain) {
+  const resourceScoped = Boolean(
+    chain.requestScope.resourceId
+    || chain.taskScope.resourceId
+    || chain.invocationScope.resourceId
+  );
+
+  assertTrustedExecutionScopeEqual(chain.requestScope, chain.taskScope, {
+    requireSameResource: resourceScoped
+  });
+  assertTrustedExecutionScopeEqual(chain.requestScope, chain.invocationScope, {
+    requireSameResource: resourceScoped
+  });
+
+  if (
+    chain.planScope.portfolioId !== chain.requestScope.portfolioId
+    || chain.planScope.companyId !== chain.requestScope.companyId
+    || chain.planScope.environment !== chain.requestScope.environment
+  ) {
+    throw new ControlPlaneError("FORBIDDEN", "Plan scope does not match trusted request scope");
+  }
+
+  return chain;
 }
 
 export function trustedScopeKey(scope: TrustedExecutionScope) {

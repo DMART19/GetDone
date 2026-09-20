@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   verify:
@@ -21,20 +21,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-
-      - name: Bootstrap package-lock once
-        shell: bash
-        run: |
-          if [ ! -f package-lock.json ]; then
-            npm install --package-lock-only --ignore-scripts --no-audit --no-fund
-            if [ "${{ github.event_name }}" = "push" ] && [ "${{ github.ref }}" = "refs/heads/main" ]; then
-              git config user.name "getdone-ci"
-              git config user.email "getdone-ci@users.noreply.github.com"
-              git add package-lock.json
-              git commit -m "Add reproducible npm package lock [skip ci]"
-              git push origin HEAD:main
-            fi
-          fi
+          cache: npm
 
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - run: npm run verify:runtime

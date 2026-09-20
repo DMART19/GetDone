@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { bindCapabilityInvocation } from "@/lib/control-plane/capability-invocation";
+import {
+  bindAutonomousCapabilityInvocation,
+  bindCapabilityInvocation
+} from "@/lib/control-plane/capability-invocation";
 import type { TrustedExecutionScope } from "@/lib/control-plane/trusted-execution-scope";
 
 const scope: TrustedExecutionScope = {
@@ -90,5 +93,38 @@ describe("trusted capability invocation", () => {
       idempotencyKey: "idem-compute-5"
     });
     expect(bound.input.dataClass).toBe("customer");
+  });
+
+  it("rejects an autonomous invocation when plan/task/invocation scope drifts", () => {
+    expect(() => bindAutonomousCapabilityInvocation({
+      requestScope: scope,
+      planScope: {
+        portfolioId: "portfolio-b",
+        companyId: scope.companyId,
+        environment: scope.environment
+      },
+      taskScope: scope,
+      scope,
+      capability: "repository.inspect",
+      parameters: { repository: "DMART19/GetDone" },
+      correlationId: "correlation-6",
+      idempotencyKey: "idem-autonomous-6"
+    })).toThrow();
+
+    const bound = bindAutonomousCapabilityInvocation({
+      requestScope: scope,
+      planScope: {
+        portfolioId: scope.portfolioId,
+        companyId: scope.companyId,
+        environment: scope.environment
+      },
+      taskScope: scope,
+      scope,
+      capability: "repository.inspect",
+      parameters: { repository: "DMART19/GetDone" },
+      correlationId: "correlation-7",
+      idempotencyKey: "idem-autonomous-7"
+    });
+    expect(bound.input).toMatchObject({ companyId: "company-a" });
   });
 });

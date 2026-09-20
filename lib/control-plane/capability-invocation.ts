@@ -4,7 +4,11 @@ import {
   requireEnabledCapability,
   validateCapabilityInput
 } from "@/lib/domain/capabilities";
-import type { TrustedExecutionScope } from "@/lib/control-plane/trusted-execution-scope";
+import {
+  assertExecutionScopeChain,
+  type PlanAuthorityScope,
+  type TrustedExecutionScope
+} from "@/lib/control-plane/trusted-execution-scope";
 
 export type InvocationDataClass = "public" | "internal" | "customer" | "sensitive";
 
@@ -16,6 +20,12 @@ export interface CapabilityInvocationEnvelope {
   idempotencyKey: string;
   dataClass?: InvocationDataClass;
   authorizationRef?: string;
+}
+
+export interface AutonomousCapabilityInvocationEnvelope extends CapabilityInvocationEnvelope {
+  requestScope: TrustedExecutionScope;
+  planScope: PlanAuthorityScope;
+  taskScope: TrustedExecutionScope;
 }
 
 export interface BoundCapabilityInvocation<T = unknown> {
@@ -104,4 +114,16 @@ export function bindCapabilityInvocation<T = unknown>(
     authorizationRef: envelope.authorizationRef,
     adapterBinding: definition.adapterBinding
   });
+}
+
+export function bindAutonomousCapabilityInvocation<T = unknown>(
+  envelope: AutonomousCapabilityInvocationEnvelope
+): BoundCapabilityInvocation<T> {
+  assertExecutionScopeChain({
+    requestScope: envelope.requestScope,
+    planScope: envelope.planScope,
+    taskScope: envelope.taskScope,
+    invocationScope: envelope.scope
+  });
+  return bindCapabilityInvocation<T>(envelope);
 }
