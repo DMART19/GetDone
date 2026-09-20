@@ -1,32 +1,133 @@
-# Astra handoff
+# Astra Handoff — Updated After Sol Foundation Pass
 
-This repository was intentionally front-loaded with work that is low-risk and deterministic: the Phase 0 empty-repo reconnaissance, Phase 1 owner-facing shell, typed development read models, a provider-neutral frontend control-plane contract, and CI scaffolding.
+This repository has already been advanced beyond a visual scaffold. Astra should inspect the current code and completion reports before editing and should **not** rebuild deterministic work that already exists.
 
-## Do not mistake the mock UI for authority
+## What is already present
 
-Everything that can look consequential in the current UI is a development preview. No resource is actually enrolled, no approval is authoritative, no production action is dispatched, and no AI/provider is connected.
+### Owner surface
 
-## Best next work for a stronger coding agent
+- Home / Chat
+- Decisions + Decision Detail
+- Resources
+- Add Resource
+- Resource Detail
+- Sign-in shell
+- loading / error / not-found / offline presentation
+- screenshot-focused iPhone styling
+- permanent bottom navigation exactly Chat | Decisions | Resources
 
-Continue in the master build-plan order rather than jumping straight to autonomy:
+### Control/authority foundation
 
-1. Phase 2 — secure authentication/sessions and step-up architecture.
-2. Phase 3 — User → Portfolio → Company membership hierarchy plus RLS/authorization tests.
-3. Phase 4 — business integration onboarding with server-side credentials.
-4. Phase 5–8 — capability registry, objectives/guardrails, deterministic state machines, audit/idempotency.
-5. Later intelligence/execution phases — only after server authority is real.
-6. Phase 13 AI Gateway — OpenRouter behind a GetDone-owned interface; models never become authority.
-7. Resource Fabric phases — registry/enrollment/agent/credentials/policy/placement in the specified order.
+- provider-neutral Control API contracts
+- typed API envelopes and errors
+- correlation and idempotency helpers
+- development read-repository boundary
+- authentication/session/step-up interfaces
+- tenant-scope/tampering guards
+- typed capability registry
+- objectives + guardrails domain
+- deterministic state machines
+- audit contract
+- idempotency foundation
+- kill switches
+- side-effect admission checks
 
-## Important implementation constraints
+### Intelligence substrate
 
-- Keep bottom navigation exactly Chat | Decisions | Resources.
-- Keep the screenshot-simple owner experience even as backend complexity grows.
-- Never let frontend/model/provider callbacks set approval, job, resource-trust, placement, or verification truth.
-- Do not put raw production secrets in browser storage, client bundles, logs, prompts, resource metadata, or docs.
-- Prefer vertical slices and deterministic tests over broad placeholder abstractions.
-- Run the build-plan completion gate at the end of every numbered phase and write/update a phase report.
+- normalized signals
+- deterministic attention filtering
+- freshness/cooldown/deduplication
+- external research mission/evidence contracts
+- bounded scope-aware context assembly
 
-## Current extension seam
+### Verification
 
-`lib/control-plane/contracts.ts` is only a frontend-facing seam. Replace development transport with authenticated server-authoritative APIs when Phase 2+ begins; do not turn the browser contract itself into the authority layer.
+CI runs install, secret-pattern scan, typecheck, lint, tests, and build. Do not bypass those gates.
+
+## Owner-action blockers before canonical Phase 2/3 PASS
+
+1. Select/provision the real authentication/session implementation.
+2. Select/provision the authoritative database.
+3. Add real migrations and RLS/authorization rules.
+4. Run real session revocation, tenant isolation, and cross-company leakage tests.
+
+Do not invent a provider and do not mark these phases PASS until those acceptance checks are real.
+
+## Work reserved for Astra
+
+Once the owner/infrastructure blockers are resolved, Astra should focus its higher-compute budget on the work that benefits from it:
+
+1. **Phase 13 — production AI Gateway**
+   - OpenRouter server-side adapter
+   - model-role routing
+   - capability/data/environment eligibility
+   - canaries
+   - safe fallback
+   - budgets/concurrency/rate limits
+   - model/provider kill switches
+   - response schema validation and audit
+
+2. **Phases 14–18 — planning/authorization/task compilation**
+   - plan construction
+   - deterministic validation
+   - policy/preflight + strong approvals
+   - task generation
+   - executable DAG compilation
+
+3. **Phases 19–23 — durable execution**
+   - persistent queues
+   - claims/leases/heartbeats
+   - retries/dead-letter/cancellation/recovery
+   - business adapters
+   - software-worker/deployment pipeline
+   - verification/outcomes/memory
+
+4. **Phases 26–31 — Resource Fabric**
+   - authoritative production registry
+   - generic enrollment
+   - Raspberry Pi/Linux agent
+   - cryptographic resource identity
+   - credential broker
+   - profiling/authenticated telemetry
+   - resource/data policy
+
+5. **Phases 32–40 — placement/resilience/economics**
+   - candidate evaluation
+   - reservations/capacity ledger
+   - scheduler/dispatch/start verification
+   - cost governor
+   - storage fabric
+   - failure domains and failover
+   - adapter SDK + second provider
+   - partner/DC pools
+   - zero-side-effect simulator
+
+6. **Phases 41–44 — release and final gate**
+   - version/release evidence
+   - operating manuals
+   - voice handoff
+   - optional Watch
+   - adversarial/end-to-end production acceptance
+
+## Non-negotiable constraints
+
+- AI thinks; GetDone authorizes.
+- Frontend is a control surface, not execution authority.
+- Models/providers/resources never set approval, job, placement, trust, or verification truth.
+- OpenRouter/model SDK code stays behind the GetDone AI Gateway.
+- Raw production secrets stay out of browser storage, client bundles, normal logs, prompts, resource metadata, and docs.
+- Every consequential side effect remains scoped, typed, policy-checked, authorized, idempotent, auditable, failure-aware, and independently verified.
+- Keep the owner experience screenshot-simple as backend complexity grows.
+
+## Start condition for Astra
+
+Before a heavy Astra pass, read:
+
+- `docs/GetDone_UFO_v2_MASTER_BUILD_PLAN.md`
+- `docs/SOL_UPGRADE_EXECUTION_PLAN.md`
+- `docs/SOL_IMPLEMENTATION_STATUS.md`
+- `docs/PHASE_2_REPORT.md`
+- `docs/PHASE_3_REPORT.md`
+- latest GitHub Actions result
+
+Then continue from the first unblocked canonical phase without silently replacing the authority model.

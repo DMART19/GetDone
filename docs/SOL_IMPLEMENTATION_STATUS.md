@@ -1,67 +1,112 @@
 # Sol Upgrade Implementation Status
 
-This file tracks code actually implemented from `SOL_UPGRADE_EXECUTION_PLAN.md`. It does not replace canonical phase reports.
+This file tracks code actually implemented from `SOL_UPGRADE_EXECUTION_PLAN.md`. It does not replace canonical phase reports and it does not label infrastructure-dependent phases PASS before their real acceptance evidence exists.
 
 ## Implemented in code
 
 ### SOL-1 — Phase 1B screenshot fidelity
-- Added dedicated UFO v2 fidelity stylesheet.
+
+- Added dedicated UFO v2 fidelity styling.
 - Tightened the owner shell around iPhone-sized composition.
-- Made the DEV marker non-layout-disruptive.
-- Added Add Resource Cancel action.
-- Reordered Resource Detail to tabs -> metrics -> metadata -> capabilities -> workloads.
-- Expanded screenshot-style seeded Decisions data.
+- Preserved permanent navigation as Chat | Decisions | Resources.
+- Made the DEVELOPMENT marker non-layout-disruptive.
+- Added screenshot-style Add Resource Cancel behavior.
+- Reordered Resource Detail to identity -> Actions -> tabs -> metrics -> metadata -> capabilities -> workloads.
+- Expanded screenshot-style seeded Decisions content and priority counts.
+- Preserved the screenshot-simple experience instead of turning Resources into an infrastructure console.
 
 ### SOL-2 — Phase 1C UI state hardening
-- Added loading, error, not-found, reduced-motion, focus-visible, and skeleton states.
+
+- Added route loading, error, and not-found states.
+- Added reduced-motion and focus-visible handling.
+- Added skeleton loading presentation.
 - Added `docs/VISUAL_ACCEPTANCE.md`.
 
 ### SOL-3 — Control API foundation
+
 - Added typed control-plane errors.
-- Added request correlation/environment/idempotency helpers.
-- Added runtime parsing for decision-action requests and typed API envelopes.
+- Added correlation/environment/idempotency request helpers.
+- Added typed success/error API envelopes.
+- Added runtime parsing for decision-action requests.
+- Added a provider-neutral Control API transport contract.
+- Aligned the development client with the API envelope.
 - Added a provider-neutral owner read-repository seam.
-- Owner pages now read through the repository seam instead of importing seed arrays directly.
-- Development seed data is blocked when `NEXT_PUBLIC_APP_ENV=production` and `GETDONE_DATA_MODE=development-seed`.
+- Owner Resources/Decisions/detail pages no longer import seed arrays directly.
+- DEVELOPMENT seed data fails closed on a production owner surface.
+- Development resource/decision APIs now return correlation IDs and typed envelopes.
+- Health API explicitly reports that auth, persistence, AI gateway, durable jobs, and authoritative control plane are not connected.
 
 ### SOL-4 — Authentication architecture scaffold
-- Added AuthAdapter, AuthSession, StepUpChallenge, passkey descriptor, and session authority helpers.
-- Added tests for expiration/revocation and independent fresh step-up.
-- Real provider/session persistence is not connected.
+
+- Added `AuthAdapter`, `AuthSession`, `StepUpChallenge`, passkey descriptor, and auth-requirement contracts.
+- Added active-session validation.
+- Added expiration and revocation handling.
+- Added independent fresh step-up validation.
+- Added a server-request authorization helper.
+- Added unit tests for session authority.
+- Real provider/session persistence remains an owner/infrastructure checkpoint.
+
+### SOL-5 — Tenant-scope foundation
+
+- Added trusted membership/scope guard.
+- Added portfolio/company/resource ID-tampering tests.
+- Added revoked-membership denial.
+- Real User -> Portfolio -> Company persistence and RLS remain blocked on database selection.
 
 ### SOL-6 — Deterministic authority foundation
+
 - Added typed capability registry with fail-closed lookup.
-- Added objective/guardrail domain types and deterministic conflict detection.
-- Added explicit state-transition maps for goal/plan/decision/approval/task/job/resource/reservation.
-- Added immutable transition records carrying actor/scope/event metadata.
+- Added examples for business, software, compute, storage, and resource-health capabilities.
+- Added objective/guardrail domain types, pause semantics, and conflict detection.
+- Added explicit state-transition maps for Goal, Plan, Decision, Approval, Task, Job, Resource, and Reservation.
+- Added transition records carrying actor, scope, trigger, and timestamp.
 - Added audit-event contract.
-- Added idempotency store contract, in-memory test implementation, duplicate handling, and conflict handling.
+- Added idempotency store contract and conflict handling.
+- Added global/portfolio/company/integration/capability/resource/pool/provider/failure-domain/workload-class kill switches.
+- Added a deterministic side-effect preflight contract requiring authentication, typed capability, trusted scope, policy, authorization, idempotency, timeout, retry, audit, and verification.
+- Added tests for capabilities, objectives/guardrails, state transitions, idempotency, kill switches, and side-effect admission.
 
 ### SOL-7 — Deterministic intelligence substrate
-- Added normalized signal model, dedupe key, deterministic attention classification, and deduplication.
-- Added bounded scoped context assembly with portfolio/company/sensitivity filtering.
-- Added tests for dedupe/escalation and cross-company context isolation.
+
+- Added normalized signal model.
+- Added deterministic signal classification and attention actions.
+- Added signal deduplication, freshness checks, and investigation cooldown behavior.
+- Added external-research mission/evidence contracts with freshness, confidence, relevance, and scope.
+- Added bounded scoped context assembly with portfolio/company/sensitivity filtering and character limits.
+- Added tests for signal escalation/dedupe/cooldown, research scope/freshness, and cross-company context isolation.
+
+### SOL-9 — CI/security hardening
+
+- Upgraded the project from vulnerable Next.js 15.5.2 to the patched 15.5.25 release line.
+- Pinned CI to Node 24.
+- Added Vitest path-alias configuration.
+- Added secret-pattern scanning to CI.
+- CI now runs install -> secret scan -> typecheck -> lint -> unit tests -> production build.
+- Multiple consecutive CI runs have passed after the Vitest/CI bootstrap fixes.
 
 ## Verification state
 
-Automated tests were added for:
-- control API parsing
-- session authority
-- state transitions
-- idempotency
-- deterministic signals
-- context scope
+Verified in GitHub Actions after the CI repair:
 
-GitHub CI/build evidence is still required before any canonical phase is marked PASS.
+- dependency installation
+- secret-pattern scan
+- TypeScript typecheck
+- ESLint
+- Vitest unit tests
+- Next.js production build
+
+The visual screenshot checklist remains a human/visual review item; automated CI passing is not treated as proof of pixel-level visual fidelity.
 
 ## Owner action still required
 
-Canonical Phase 2 cannot PASS until a production auth/session implementation is chosen and connected.
+Canonical Phase 2 cannot PASS until a production authentication/session implementation is chosen, provisioned, connected, and tested.
 
-Canonical Phase 3 cannot PASS until an authoritative database/persistence target is chosen and migrations/RLS/tenant tests run against it.
+Canonical Phase 3 cannot PASS until an authoritative database/persistence target is chosen and real migrations/RLS/tenant-isolation tests run against it.
 
-No production secrets should be committed to this repository.
+No production secret should be committed to this repository or pasted into frontend configuration.
 
 ## Astra handoff still deferred
 
-No production AI gateway, durable distributed job engine, real resource enrollment/agent, credential broker, scheduler, reservations/capacity ledger, provider failover, or production Resource Fabric behavior has been claimed or implemented here.
+No production AI gateway, autonomous planning runtime, durable distributed job engine, real resource enrollment agent, credential broker, scheduler, reservations/capacity ledger, provider failover, or production Resource Fabric behavior has been claimed as implemented.
+
+Astra should inherit the deterministic foundation rather than recreate it.
