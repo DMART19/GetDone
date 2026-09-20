@@ -131,6 +131,8 @@ Phase 41 now makes those absences machine-visible rather than leaving them impli
 
 Phase 42 extends this release-truth layer rather than creating a parallel version system.
 
+The voice-aware release schemas are now versioned as registry `1.1.0`, environment manifest `1.1.0`, and generated release manifest `1.1.0`.
+
 The registry/manifest/manual now also bind:
 - voice intent contract version;
 - voice adapter-contract version;
