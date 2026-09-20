@@ -13,9 +13,15 @@ describe("context scope", () => {
     expect(result.items.map((item) => item.id)).toEqual(["a"]);
   });
 
-  it("bounds the context size", () => {
+  it("bounds the context item count", () => {
     const result = assembleContext(items, { portfolioId: "p1", allowedSensitivity: ["internal"] }, 1);
     expect(result.items).toHaveLength(1);
+    expect(result.truncated).toBe(true);
+  });
+
+  it("bounds total content size", () => {
+    const result = assembleContext(items, { portfolioId: "p1", allowedSensitivity: ["internal"] }, 30, 10);
+    expect(result.characterCount).toBeLessThanOrEqual(10);
     expect(result.truncated).toBe(true);
   });
 });

@@ -33,6 +33,13 @@ export interface NormalizedSignal extends RawEvent {
   provenance: string;
 }
 
+export interface SignalAttentionWindow {
+  now: number;
+  maxAgeMs: number;
+  cooldownMs: number;
+  lastInvestigatedAt?: number;
+}
+
 export function signalDedupeKey(event: RawEvent) {
   return [
     event.source,
@@ -74,6 +81,19 @@ export function normalizeEvent(event: RawEvent): NormalizedSignal {
     dedupeKey: signalDedupeKey(event),
     provenance: `${event.source}:${event.externalId ?? "unkeyed"}`
   };
+}
+
+export function isSignalFresh(signal: NormalizedSignal, now: number, maxAgeMs: number) {
+  const occurredAt = Date.parse(signal.occurredAt);
+  return Number.isFinite(occurredAt) && occurredAt <= now && now - occurredAt <= maxAgeMs;
+}
+
+export function shouldOpenInvestigation(signal: NormalizedSignal, window: SignalAttentionWindow) {
+  if (!isSignalFresh(signal, window.now, window.maxAgeMs)) return false;
+  if (signal.action !== "INVESTIGATE" && signal.action !== "ESCALATE") return false;
+  if (signal.action === "ESCALATE") return true;
+  if (window.lastInvestigatedAt === undefined) return true;
+  return window.now - window.lastInvestigatedAt >= window.cooldownMs;
 }
 
 export function dedupeSignals(signals: readonly NormalizedSignal[]) {
