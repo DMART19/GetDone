@@ -57,7 +57,7 @@ export async function executeTransitionCommand<T extends StatefulEntity, TStores
   to: string;
   command: AuthoritativeCommandEnvelope;
   triggeringEvent: string;
-  patch?: (current: T) => Partial<T>;
+  patch?: (current: T) => Partial<T> | Record<string, unknown>;
   metadata?: (current: T) => Readonly<Record<string, string | number | boolean | null>>;
 }): Promise<T> {
   const fingerprint = commandFingerprint(input.command);
