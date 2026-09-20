@@ -14,8 +14,9 @@ import {
   type StatefulEntity
 } from "@/lib/domain/services/common";
 import {
-  assertVerificationReceipt,
-  type VerificationReceipt
+  requireAuthoritativeVerificationReceipt,
+  type VerificationReceipt,
+  type VerificationReceiptStore
 } from "@/lib/verification/verification";
 
 export type TaskState =
@@ -47,6 +48,7 @@ export interface TaskRecord extends StatefulEntity {
 export interface TaskStores {
   tasks: EntityStore<TaskRecord>;
   authorizationGrants?: AuthorizationGrantStore;
+  verificationReceipts?: VerificationReceiptStore;
 }
 
 export class TaskService {
@@ -176,13 +178,9 @@ export class TaskService {
   succeed(
     id: string,
     command: AuthoritativeCommandEnvelope,
-    receipt: VerificationReceipt
+    receiptId: string
   ) {
-    assertVerificationReceipt(receipt, {
-      scope: command.scope,
-      subject: { type: "task", id },
-      allowedVerdicts: ["verified"]
-    });
+    let receipt: VerificationReceipt | undefined;
 
     return executeTransitionCommand({
       manager: this.transactions,
@@ -192,28 +190,43 @@ export class TaskService {
       to: "succeeded",
       command,
       triggeringEvent: "task-verified-succeeded",
-      patch: () => ({
-        verificationEvidenceIds: [...receipt.evidenceIds],
-        verificationReceiptId: receipt.id,
-        verificationReceiptHash: receipt.receiptHash
-      }),
-      metadata: () => ({
-        verificationReceiptId: receipt.id,
-        verificationReceiptHash: receipt.receiptHash
-      })
+      beforeTransition: async (_current, transaction) => {
+        const store = transaction.stores.verificationReceipts;
+        if (!store) {
+          throw new ControlPlaneError(
+            "UNAVAILABLE",
+            "Authoritative verification receipt storage is required for Task success"
+          );
+        }
+        receipt = await requireAuthoritativeVerificationReceipt(store, receiptId, {
+          scope: command.scope,
+          subject: { type: "task", id },
+          allowedVerdicts: ["verified"]
+        });
+      },
+      patch: () => {
+        if (!receipt) {
+          throw new ControlPlaneError(
+            "FORBIDDEN",
+            "Authoritative Task verification receipt is unavailable"
+          );
+        }
+        return {
+          verificationEvidenceIds: [...receipt.evidenceIds],
+          verificationReceiptId: receipt.id,
+          verificationReceiptHash: receipt.receiptHash
+        };
+      },
+      metadata: () => ({ verificationReceiptId: receiptId })
     });
   }
 
   markUncertain(
     id: string,
     command: AuthoritativeCommandEnvelope,
-    receipt: VerificationReceipt
+    receiptId: string
   ) {
-    assertVerificationReceipt(receipt, {
-      scope: command.scope,
-      subject: { type: "task", id },
-      allowedVerdicts: ["uncertain"]
-    });
+    let receipt: VerificationReceipt | undefined;
 
     return executeTransitionCommand({
       manager: this.transactions,
@@ -223,15 +236,34 @@ export class TaskService {
       to: "uncertain",
       command,
       triggeringEvent: "task-verification-uncertain",
-      patch: () => ({
-        verificationEvidenceIds: [...receipt.evidenceIds],
-        verificationReceiptId: receipt.id,
-        verificationReceiptHash: receipt.receiptHash
-      }),
-      metadata: () => ({
-        verificationReceiptId: receipt.id,
-        verificationReceiptHash: receipt.receiptHash
-      })
+      beforeTransition: async (_current, transaction) => {
+        const store = transaction.stores.verificationReceipts;
+        if (!store) {
+          throw new ControlPlaneError(
+            "UNAVAILABLE",
+            "Authoritative verification receipt storage is required for uncertain Task truth"
+          );
+        }
+        receipt = await requireAuthoritativeVerificationReceipt(store, receiptId, {
+          scope: command.scope,
+          subject: { type: "task", id },
+          allowedVerdicts: ["uncertain"]
+        });
+      },
+      patch: () => {
+        if (!receipt) {
+          throw new ControlPlaneError(
+            "FORBIDDEN",
+            "Authoritative Task verification receipt is unavailable"
+          );
+        }
+        return {
+          verificationEvidenceIds: [...receipt.evidenceIds],
+          verificationReceiptId: receipt.id,
+          verificationReceiptHash: receipt.receiptHash
+        };
+      },
+      metadata: () => ({ verificationReceiptId: receiptId })
     });
   }
 
