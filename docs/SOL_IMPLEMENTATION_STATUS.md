@@ -364,8 +364,56 @@ Still deferred:
 
 See `docs/SOL_PHASE_29_32_REPORT.md`.
 
+
+## September 20 Phase 35/40 deterministic economics + simulation tranche
+
+### Phase 35 — Cost and Capacity Governor
+
+**STATUS: DETERMINISTIC GOVERNOR SUBSET IMPLEMENTED; LIVE RESERVATION/SCHEDULER/USAGE PERSISTENCE STILL REQUIRED**
+
+Implemented:
+- capacity-economic classes for owned, committed, reserved, spot/preemptible, and variable/on-demand capacity;
+- hash-bound economic snapshots with total/used/reserved/requested capacity, protected headroom, quotas, effective cost, marginal cost, utilization, freshness, and expiry;
+- economics consumes Phase 32 placement eligibility and cannot promote a policy-ineligible candidate;
+- protected headroom and quotas block candidates even when they are cheap;
+- budget bindings support hard cap BLOCKED and approval-threshold APPROVAL_REQUIRED outcomes;
+- deterministic ranking exists only for budget-allowed, already-placement-eligible candidates;
+- ranking uses estimated effective cost, marginal cost, utilization, and deterministic resource-id tie breaking;
+- estimated versus actual job/resource cost and usage reconciliation with hash-bound variance records.
+
+Not yet claimed:
+- Phase 33 atomic concurrent reservations/capacity ledger;
+- Phase 34 production scheduler/dispatch;
+- live provider billing feeds or durable cost/usage persistence;
+- actual capacity commitment purchases or provider quota mutation.
+
+### Phase 40 — Resource Intelligence and Zero-Side-Effect Policy Simulator
+
+**STATUS: DETERMINISTIC READ-ONLY SIMULATOR IMPLEMENTED; LIVE HISTORICAL STORES/MEASURED OUTCOME LOOP STILL REQUIRED**
+
+Implemented:
+- read-only scoped historical analysis for placement cost, utilization, queueing, failure, verified outcomes, and AI Gateway route/cost/latency/success observations;
+- explicit `historical-summary` versus `simulation-projection` labels so projections are not presented as facts;
+- policy simulation reuses Phase 31 hard policy and Phase 32 candidate evaluation;
+- economic simulation reuses Phase 35 budget/headroom/quota governor;
+- deterministic scheduler-preference simulation uses cost/reliability/capacity weights but has no placement authority;
+- proposed guardrails can test minimum eligible candidates/capacity, maximum projected failure rate, and maximum expected cost;
+- assumptions and low/medium/high uncertainty are emitted with sample-size reasons;
+- AI-recommended simulations require recorded AI Gateway request/provider/model/routing-policy evidence;
+- cross-company historical observations are excluded from analysis;
+- result hard-codes no policy mutation, no reservation, no dispatch, no secret lookup, no automatic policy promotion, and an empty side-effects set.
+
+Not yet claimed:
+- production historical warehouse/time-series analytics;
+- live AI Gateway recommendation invocation;
+- measured production simulation-vs-outcome calibration;
+- automatic policy promotion (intentionally prohibited);
+- any reservation, dispatch, or policy mutation path.
+
+See `docs/SOL_PHASE_35_40_REPORT.md`.
+
 ## Updated handoff boundary
 
 Sol should continue deterministic contracts, validators, policy engines, simulators, tests, and repository hardening.
 
-Astra/higher-compute runtime work should consume these Phase 22/23/26/27 contracts rather than rebuild them. The expensive remaining work is primarily real infrastructure integration: durable queues/workers, live AI Gateway, action/deployment adapters, real node agents, production secret/token backends, live telemetry, reservation/dispatch concurrency, storage/failover, second-provider integration, and end-to-end production acceptance.
+Astra/higher-compute runtime work should consume these Phase 22/23/26/27 contracts rather than rebuild them. The expensive remaining work is primarily real infrastructure integration: durable queues/workers, live AI Gateway, action/deployment adapters, real node agents, production secret/token backends, live telemetry, reservation/dispatch concurrency, measured billing/usage feeds, storage/failover, second-provider integration, production analytics persistence, and end-to-end acceptance.
