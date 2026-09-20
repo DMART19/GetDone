@@ -124,6 +124,11 @@ The audit record contains no raw transcript or credential material.
 
 Phase 41 has been extended to bind Phase 42.
 
+Machine-readable schema evolution:
+- version-registry schema: `1.1.0`;
+- environment-manifest schema: `1.1.0`;
+- generated release-manifest schema: `1.1.0`.
+
 `release/version-registry.json` now records:
 - voice intent schema/contract version;
 - voice adapter-contract version;
