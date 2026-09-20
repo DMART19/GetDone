@@ -47,8 +47,21 @@ export interface ResourceEnrollmentStore extends EntityStore<ResourceEnrollmentR
   create(record: ResourceEnrollmentRecord): Promise<void>;
 }
 
+export interface ResourceEnrollmentReadinessRecord {
+  resourceId: string;
+  portfolioId: string;
+  companyId: string;
+  ready: boolean;
+  evidenceId: string;
+}
+
+export interface ResourceEnrollmentReadinessStore {
+  get(resourceId: string): Promise<ResourceEnrollmentReadinessRecord | null>;
+}
+
 export interface ResourceEnrollmentStores {
   enrollments: ResourceEnrollmentStore;
+  resourceReadiness: ResourceEnrollmentReadinessStore;
 }
 
 export interface IdentifyResourceEnrollmentInput {
@@ -333,13 +346,8 @@ export class ResourceEnrollmentService {
     });
   }
 
-  markReady(id: string, command: AuthoritativeCommandEnvelope, evidenceId: string) {
-    if (!evidenceId) {
-      throw new ControlPlaneError(
-        "VALIDATION_FAILED",
-        "Enrollment READY transition requires registry evidence"
-      );
-    }
+  markReady(id: string, command: AuthoritativeCommandEnvelope) {
+    let readinessEvidenceId: string | undefined;
 
     return executeTransitionCommand({
       manager: this.transactions,
@@ -349,18 +357,45 @@ export class ResourceEnrollmentService {
       to: "ready",
       command,
       triggeringEvent: "resource-enrollment-ready",
-      beforeTransition: (current) => {
+      beforeTransition: async (current, transaction) => {
         if (!current.resourceId) {
           throw new ControlPlaneError(
             "FORBIDDEN",
             "Enrollment cannot become READY before authoritative resource registration"
           );
         }
+
+        const readiness = await transaction.stores.resourceReadiness.get(current.resourceId);
+        if (
+          !readiness
+          || !readiness.ready
+          || readiness.resourceId !== current.resourceId
+          || readiness.portfolioId !== current.portfolioId
+          || readiness.companyId !== current.companyId
+          || !readiness.evidenceId
+        ) {
+          throw new ControlPlaneError(
+            "FORBIDDEN",
+            "Enrollment cannot become READY until the authoritative Resource Registry does"
+          );
+        }
+
+        readinessEvidenceId = readiness.evidenceId;
       },
-      patch: (current) => ({
-        evidenceIds: [...current.evidenceIds, evidenceId]
-      }),
-      metadata: () => ({ evidenceId })
+      patch: (current) => {
+        if (!readinessEvidenceId) {
+          throw new ControlPlaneError(
+            "FORBIDDEN",
+            "Resource readiness evidence is unavailable"
+          );
+        }
+        return {
+          evidenceIds: [...current.evidenceIds, readinessEvidenceId]
+        };
+      },
+      metadata: () => ({
+        readinessEvidenceId: readinessEvidenceId ?? "unavailable"
+      })
     });
   }
 
