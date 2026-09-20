@@ -130,10 +130,20 @@ export class ResourceEnrollmentService {
         "Enrollment challenge has an invalid time window"
       );
     }
-    if (input.requestedEnvironments.length === 0) {
+    const requestedEnvironments = [...new Set(input.requestedEnvironments)];
+    if (requestedEnvironments.length === 0) {
       throw new ControlPlaneError(
         "VALIDATION_FAILED",
         "Enrollment requires at least one environment permission"
+      );
+    }
+    if (
+      requestedEnvironments.length !== 1
+      || requestedEnvironments[0] !== command.scope.environment
+    ) {
+      throw new ControlPlaneError(
+        "FORBIDDEN",
+        "Enrollment cannot request environment authority beyond the trusted command scope"
       );
     }
 
@@ -162,7 +172,7 @@ export class ResourceEnrollmentService {
         companyId: command.scope.companyId,
         state: "identify",
         requestedType: input.requestedType,
-        requestedEnvironments: Object.freeze([...input.requestedEnvironments]),
+        requestedEnvironments: Object.freeze(requestedEnvironments),
         ownerActionRequired: input.ownerActionRequired,
         ownerActionDescription: input.ownerActionDescription,
         challengeHash: hashEnrollmentChallenge(input.challengeToken),
