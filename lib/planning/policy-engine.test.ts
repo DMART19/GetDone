@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ApprovalProof, StepUpProof } from "@/lib/authorization/proofs";
+import type { TrustedExecutionScope } from "@/lib/control-plane/trusted-execution-scope";
 import { evaluatePolicy, evaluateStepPolicy, type PolicyEvaluationInput } from "@/lib/planning/policy-engine";
 
 const now = Date.parse("2026-09-20T18:30:00Z");
@@ -16,7 +17,10 @@ const productionScope = {
   environment: "production" as const
 };
 
-function approvalProof(level: "approval" | "strong-approval", scope = stagingScope): ApprovalProof {
+function approvalProof(
+  level: "approval" | "strong-approval",
+  scope: TrustedExecutionScope = stagingScope
+): ApprovalProof {
   return {
     id: `proof-${level}`,
     decisionId: "decision-1",
