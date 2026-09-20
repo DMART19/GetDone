@@ -1,6 +1,6 @@
 {
-  "registrySchemaVersion": "1.1.0",
-  "registryVersion": "2026-09-20.2",
+  "registrySchemaVersion": "1.2.0",
+  "registryVersion": "2026-09-20.3",
   "appVersion": "0.1.0",
   "schemaVersions": {
     "controlApi": {
@@ -37,11 +37,19 @@
     },
     "reservationLedger": {
       "version": "1.0.0",
-      "sourcePath": "lib/resources/reservations.ts"
+      "sourcePath": "lib/resources/internal/reservation-types.ts",
+      "contractTracked": true,
+      "contractSourcePaths": [
+        "lib/resources/internal/reservation-types.ts"
+      ]
     },
     "schedulerDispatch": {
       "version": "1.1.0",
-      "sourcePath": "lib/resources/scheduler.ts"
+      "sourcePath": "lib/resources/internal/scheduler-types.ts",
+      "contractTracked": true,
+      "contractSourcePaths": [
+        "lib/resources/internal/scheduler-types.ts"
+      ]
     },
     "costGovernor": {
       "version": "1.0.0",
@@ -52,12 +60,48 @@
       "sourcePath": "lib/resources/policy-simulator.ts"
     },
     "releaseManifest": {
-      "version": "1.1.0",
+      "version": "1.2.0",
       "sourcePath": "scripts/generate-release-artifacts.mjs"
     },
     "voiceIntent": {
       "version": "1.0.0",
-      "sourcePath": "lib/voice/voice-intents.ts"
+      "sourcePath": "lib/voice/voice-intents.ts",
+      "contractTracked": true,
+      "contractSourcePaths": [
+        "lib/voice/voice-intents.ts"
+      ]
+    },
+    "aiGatewayContract": {
+      "version": "1.0.0",
+      "sourcePath": "lib/ai-gateway/contracts.ts",
+      "contractTracked": true,
+      "contractSourcePaths": [
+        "lib/ai-gateway/contracts.ts"
+      ]
+    },
+    "integrationRegistry": {
+      "version": "1.0.0",
+      "sourcePath": "lib/integrations/contracts.ts",
+      "contractTracked": true,
+      "contractSourcePaths": [
+        "lib/integrations/contracts.ts"
+      ]
+    },
+    "jobRuntime": {
+      "version": "1.0.0",
+      "sourcePath": "lib/execution/job-runtime-contracts.ts",
+      "contractTracked": true,
+      "contractSourcePaths": [
+        "lib/execution/job-runtime-contracts.ts"
+      ]
+    },
+    "softwareWorker": {
+      "version": "1.0.0",
+      "sourcePath": "lib/execution/software-worker.ts",
+      "contractTracked": true,
+      "contractSourcePaths": [
+        "lib/execution/software-worker.ts"
+      ]
     }
   },
   "policy": {
@@ -67,36 +111,76 @@
     "engineSourcePath": "lib/planning/policy-engine.ts"
   },
   "aiGateway": {
+    "contractVersion": "1.0.0",
+    "routingPolicyContractVersion": "1.0.0",
     "status": "not-connected",
     "adapterVersion": "UNIMPLEMENTED",
     "routingPolicyVersion": "UNCONFIGURED",
-    "sourcePath": "docs/ARCHITECTURE.md"
+    "sourcePath": "lib/ai-gateway/contracts.ts"
   },
   "adapters": {
     "resourceDispatch": {
       "status": "contract-only",
       "version": "1.0.0",
-      "sourcePath": "lib/resources/scheduler.ts"
+      "sourcePath": "lib/resources/internal/scheduler-types.ts",
+      "contractTracked": true,
+      "contractSourcePaths": [
+        "lib/resources/internal/scheduler-types.ts"
+      ]
     },
     "atomicReservationStore": {
       "status": "contract-only",
       "version": "1.0.0",
-      "sourcePath": "lib/resources/reservations.ts"
+      "sourcePath": "lib/resources/internal/reservation-types.ts",
+      "contractTracked": true,
+      "contractSourcePaths": [
+        "lib/resources/internal/reservation-types.ts"
+      ]
     },
     "businessAction": {
-      "status": "not-implemented",
-      "version": "UNIMPLEMENTED",
-      "sourcePath": "docs/GetDone_UFO_v2_MASTER_BUILD_PLAN.md"
+      "status": "contract-only",
+      "version": "1.0.0",
+      "sourcePath": "lib/execution/adapters/business-action.ts",
+      "contractTracked": true,
+      "contractSourcePaths": [
+        "lib/execution/adapters/business-action.ts"
+      ]
     },
     "aiGateway": {
-      "status": "not-connected",
-      "version": "UNIMPLEMENTED",
-      "sourcePath": "docs/ARCHITECTURE.md"
+      "status": "contract-only",
+      "version": "1.0.0",
+      "sourcePath": "lib/ai-gateway/contracts.ts",
+      "contractTracked": true,
+      "contractSourcePaths": [
+        "lib/ai-gateway/contracts.ts"
+      ]
     },
     "voiceIntent": {
       "status": "contract-only",
       "version": "1.0.0",
-      "sourcePath": "lib/voice/voice-intents.ts"
+      "sourcePath": "lib/voice/voice-intents.ts",
+      "contractTracked": true,
+      "contractSourcePaths": [
+        "lib/voice/voice-intents.ts"
+      ]
+    },
+    "integration": {
+      "status": "contract-only",
+      "version": "1.0.0",
+      "sourcePath": "lib/integrations/contracts.ts",
+      "contractTracked": true,
+      "contractSourcePaths": [
+        "lib/integrations/contracts.ts"
+      ]
+    },
+    "softwareDeployment": {
+      "status": "contract-only",
+      "version": "1.0.0",
+      "sourcePath": "lib/execution/software-worker.ts",
+      "contractTracked": true,
+      "contractSourcePaths": [
+        "lib/execution/software-worker.ts"
+      ]
     }
   },
   "environmentManifestPath": "release/environment-manifest.json",
@@ -109,7 +193,16 @@
     "docs/SOL_PHASE_35_40_REPORT.md",
     "docs/SOL_PHASE_41_REPORT.md",
     "lib/voice/voice-intents.test.ts",
-    "docs/SOL_PHASE_42_REPORT.md"
+    "docs/SOL_PHASE_42_REPORT.md",
+    "architecture/dependency-boundaries.json",
+    "architecture/coverage-policy.json",
+    "lib/ai-gateway/ai-gateway.test.ts",
+    "lib/integrations/registry.test.ts",
+    "lib/execution/job-runtime-contracts.test.ts",
+    "lib/execution/adapters/business-action.test.ts",
+    "lib/execution/software-worker.test.ts",
+    "lib/security/adversarial-contract-vectors.test.ts",
+    "docs/SOL_QUALITY_PHASE_4_13_19_21_REPORT.md"
   ],
   "manualSourcePaths": [
     "docs/ARCHITECTURE.md",
@@ -117,7 +210,8 @@
     "docs/GetDone_UFO_v2_MASTER_BUILD_PLAN.md",
     "docs/SOL_IMPLEMENTATION_STATUS.md",
     "release/README.md",
-    "docs/SOL_PHASE_42_REPORT.md"
+    "docs/SOL_PHASE_42_REPORT.md",
+    "docs/SOL_QUALITY_PHASE_4_13_19_21_REPORT.md"
   ],
   "generatedArtifacts": {
     "machineManifest": "release/out/release-manifest.json",
@@ -140,5 +234,23 @@
     "credentialHandling": "secure-provider-or-phone-only",
     "sourcePath": "lib/voice/voice-intents.ts"
   },
-  "environmentManifestSchemaVersion": "1.1.0"
+  "environmentManifestSchemaVersion": "1.2.0",
+  "integrations": {
+    "registryContractVersion": "1.0.0",
+    "liveAdaptersStatus": "not-connected",
+    "sourcePath": "lib/integrations/contracts.ts"
+  },
+  "execution": {
+    "jobRuntimeContractVersion": "1.0.0",
+    "durableJobStoreStatus": "not-connected",
+    "businessActionContractVersion": "1.0.0",
+    "businessAdaptersStatus": "not-connected",
+    "softwareWorkerContractVersion": "1.0.0",
+    "softwareDeploymentStatus": "not-connected",
+    "sourcePaths": [
+      "lib/execution/job-runtime-contracts.ts",
+      "lib/execution/adapters/business-action.ts",
+      "lib/execution/software-worker.ts"
+    ]
+  }
 }

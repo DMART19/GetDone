@@ -27,9 +27,11 @@ jobs:
       - run: npm run verify:runtime
       - run: npm run verify:secrets
       - run: npm run verify:architecture
+      - run: npm run verify:contract-versions
       - run: npm run typecheck
       - run: npm run lint
       - run: npm test
+      - run: npm run verify:coverage
       - run: npm run build
         env:
           NEXT_PUBLIC_APP_ENV: development
@@ -40,6 +42,8 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: getdone-release-evidence-${{ github.run_number }}
-          path: release/out/
+          path: |
+            release/out/
+            coverage/control-plane-module-coverage.json
           if-no-files-found: error
           retention-days: 30

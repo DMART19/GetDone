@@ -13,12 +13,14 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --max-warnings=0",
     "test": "vitest run",
-    "test:coverage": "vitest run --coverage",
+    "test:coverage": "npm run verify:coverage",
     "verify:runtime": "node scripts/verify-runtime.mjs",
     "verify:secrets": "node scripts/verify-no-secrets.mjs",
     "verify:architecture": "node scripts/verify-architecture.mjs",
     "release:generate": "node scripts/generate-release-artifacts.mjs",
-    "verify:release": "node scripts/verify-release-artifacts.mjs"
+    "verify:release": "node scripts/verify-release-artifacts.mjs",
+    "verify:coverage": "node scripts/verify-control-plane-coverage.mjs",
+    "verify:contract-versions": "node scripts/verify-contract-versions.mjs"
   },
   "dependencies": {
     "lucide-react": "0.468.0",

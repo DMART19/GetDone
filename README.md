@@ -19,6 +19,10 @@ Current code includes:
 - trusted execution scope and tenant tampering guards
 - authentication/session/step-up contracts
 - capability registry with runtime input/output schemas
+- Phase 4 deterministic Company Integration Registry with explicit read/write scopes, environment binding, credential-reference-only records, lifecycle transitions, tenant enforcement, and DEVELOPMENT-only mock adapters
+- Phase 13 deterministic AI Gateway with provider-neutral role/requirement/profile contracts, hard eligibility filtering, configuration-driven routing/fallback, budgets/concurrency, kill switches, response-schema validation, audit records, and DEVELOPMENT-only mock adapter
+- Phases 19–21 durable Job Store/lease/recovery contracts, business action adapter SDK/conformance boundary, and software-worker/deployment authorization/evidence contracts
+- architecture dependency-boundary matrix, Resource Fabric internal-module split behind stable public exports, control-plane module/test coverage thresholds, contract-version drift verification, and deterministic adversarial vectors
 - objectives, guardrails, budgets, kill switches, and protected capacity
 - authoritative Goal / Plan / Decision / Approval / Task / Job / Outcome / Event transitions
 - atomic control-plane transaction and idempotency contracts
@@ -79,9 +83,11 @@ Then open `http://localhost:3000`.
 npm run verify:runtime
 npm run verify:secrets
 npm run verify:architecture
+npm run verify:contract-versions
 npm run typecheck
 npm run lint
 npm test
+npm run verify:coverage
 npm run build
 npm run release:generate
 npm run verify:release
@@ -116,6 +122,7 @@ Use these as the implementation source of truth:
 - `docs/SOL_ARCHITECTURE_INTEGRITY_REPORT.md`
 - `docs/SOL_PHASE_41_REPORT.md`
 - `docs/SOL_PHASE_42_REPORT.md`
+- `docs/SOL_QUALITY_PHASE_4_13_19_21_REPORT.md`
 - `release/version-registry.json`
 - `release/environment-manifest.json`
 - `docs/ASTRA_HANDOFF.md`

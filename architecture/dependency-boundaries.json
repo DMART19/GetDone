@@ -1,0 +1,91 @@
+{
+  "schemaVersion": "1.0.0",
+  "rules": [
+    {
+      "id": "resource-internals-private",
+      "fromPrefixes": [
+        "app/",
+        "components/",
+        "lib/"
+      ],
+      "denyImportPrefixes": [
+        "@/lib/resources/internal/"
+      ],
+      "allowFromPrefixes": [
+        "lib/resources/internal/",
+        "lib/resources/scheduler.ts",
+        "lib/resources/reservations.ts"
+      ]
+    },
+    {
+      "id": "voice-non-authoritative",
+      "fromPrefixes": [
+        "lib/voice/"
+      ],
+      "denyImportPrefixes": [
+        "@/lib/authorization/",
+        "@/lib/credentials/",
+        "@/lib/domain/services/",
+        "@/lib/execution/",
+        "@/lib/resources/internal/",
+        "@/lib/resources/scheduler",
+        "@/lib/resources/reservations"
+      ],
+      "allowFromPrefixes": []
+    },
+    {
+      "id": "ai-gateway-cognition-only",
+      "fromPrefixes": [
+        "lib/ai-gateway/"
+      ],
+      "denyImportPrefixes": [
+        "@/lib/domain/services/",
+        "@/lib/execution/adapters/",
+        "@/lib/resources/scheduler",
+        "@/lib/resources/reservations",
+        "@/lib/credentials/broker"
+      ],
+      "allowFromPrefixes": []
+    },
+    {
+      "id": "integration-registry-not-execution",
+      "fromPrefixes": [
+        "lib/integrations/"
+      ],
+      "denyImportPrefixes": [
+        "@/lib/authorization/",
+        "@/lib/domain/services/",
+        "@/lib/execution/",
+        "@/lib/resources/scheduler",
+        "@/lib/resources/reservations"
+      ],
+      "allowFromPrefixes": []
+    },
+    {
+      "id": "business-adapters-cannot-authorize",
+      "fromPrefixes": [
+        "lib/execution/adapters/"
+      ],
+      "denyImportPrefixes": [
+        "@/lib/authorization/",
+        "@/lib/planning/policy-engine",
+        "@/lib/domain/services/"
+      ],
+      "allowFromPrefixes": []
+    },
+    {
+      "id": "frontend-no-execution-authority",
+      "fromPrefixes": [
+        "components/"
+      ],
+      "denyImportPrefixes": [
+        "@/lib/authorization/",
+        "@/lib/credentials/",
+        "@/lib/domain/services/",
+        "@/lib/execution/",
+        "@/lib/resources/internal/"
+      ],
+      "allowFromPrefixes": []
+    }
+  ]
+}

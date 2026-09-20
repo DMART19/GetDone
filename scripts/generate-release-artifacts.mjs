@@ -81,6 +81,41 @@ if (registry.appVersion !== packageJson.version) {
   );
 }
 
+const aiGatewayContractVersion = extractStringConst(
+  registry.aiGateway.sourcePath,
+  "AI_GATEWAY_CONTRACT_VERSION"
+);
+const aiRoutingPolicyContractVersion = extractStringConst(
+  registry.aiGateway.sourcePath,
+  "AI_ROUTING_POLICY_CONTRACT_VERSION"
+);
+const integrationRegistryContractVersion = extractStringConst(
+  registry.integrations.sourcePath,
+  "INTEGRATION_REGISTRY_CONTRACT_VERSION"
+);
+const jobRuntimeContractVersion = extractStringConst(
+  "lib/execution/job-runtime-contracts.ts",
+  "JOB_RUNTIME_CONTRACT_VERSION"
+);
+const businessActionContractVersion = extractStringConst(
+  "lib/execution/adapters/business-action.ts",
+  "BUSINESS_ACTION_ADAPTER_CONTRACT_VERSION"
+);
+const softwareWorkerContractVersion = extractStringConst(
+  "lib/execution/software-worker.ts",
+  "SOFTWARE_WORKER_CONTRACT_VERSION"
+);
+if (
+  registry.aiGateway.contractVersion !== aiGatewayContractVersion
+  || registry.aiGateway.routingPolicyContractVersion !== aiRoutingPolicyContractVersion
+  || registry.integrations.registryContractVersion !== integrationRegistryContractVersion
+  || registry.execution.jobRuntimeContractVersion !== jobRuntimeContractVersion
+  || registry.execution.businessActionContractVersion !== businessActionContractVersion
+  || registry.execution.softwareWorkerContractVersion !== softwareWorkerContractVersion
+) {
+  throw new Error("Release registry deterministic contract versions are stale");
+}
+
 const voiceIntentContractVersion = extractStringConst(
   registry.voice.sourcePath,
   "VOICE_INTENT_CONTRACT_VERSION"
@@ -125,6 +160,13 @@ const registrySha256 = sha256(canonicalJson(registry));
 const environmentSha256 = sha256(canonicalJson(environment));
 const packageLockSha256 = fileHash("package-lock.json");
 const workflowSha256 = fileHash(".github/workflows/ci.yml");
+const coveragePath = "coverage/control-plane-module-coverage.json";
+const qualityEvidence = fs.existsSync(path.join(root, coveragePath))
+  ? sourceEvidence([coveragePath])
+  : [];
+if (isGitHubActions && qualityEvidence.length === 0) {
+  throw new Error("CI release generation requires control-plane coverage evidence");
+}
 
 const productionEnvironment = environment.environments.production;
 const productionReady = Boolean(productionEnvironment?.productionReady);
@@ -144,9 +186,11 @@ const ciEvidence = {
         "runtime-verification",
         "secret-scan",
         "architecture-integrity",
+        "contract-version-drift",
         "typecheck",
         "lint",
         "tests",
+        "control-plane-module-coverage",
         "production-build"
       ]
     : [],
@@ -189,11 +233,29 @@ const manualLines = [
   "",
   "## AI Gateway and routing",
   "",
-  `- Status: ${registry.aiGateway.status}`,
-  `- Adapter version: ${registry.aiGateway.adapterVersion}`,
-  `- Model-role routing-policy version: ${registry.aiGateway.routingPolicyVersion}`,
+  `- Contract version: ${registry.aiGateway.contractVersion}`,
+  `- Routing policy contract version: ${registry.aiGateway.routingPolicyContractVersion}`,
+  `- Live status: ${registry.aiGateway.status}`,
+  `- Live adapter version: ${registry.aiGateway.adapterVersion}`,
+  `- Active model-role routing-policy version: ${registry.aiGateway.routingPolicyVersion}`,
   "",
-  "An UNIMPLEMENTED or UNCONFIGURED value is intentional evidence that no live AI Gateway/routing policy is active in this release. It must not be replaced with an invented provider/version.",
+  "The deterministic AI Gateway contract/router/budget/audit layer exists, while UNIMPLEMENTED/UNCONFIGURED intentionally records that no live OpenRouter/provider adapter or active routing configuration exists.",
+  "",
+  "## Company Integration Registry",
+  "",
+  `- Registry contract version: ${registry.integrations.registryContractVersion}`,
+  `- Live adapter status: ${registry.integrations.liveAdaptersStatus}`,
+  `- Source hash: ${fileHash(registry.integrations.sourcePath)}`,
+  "",
+  "## Durable execution contracts",
+  "",
+  `- Job runtime contract: ${registry.execution.jobRuntimeContractVersion}`,
+  `- Durable Job Store: ${registry.execution.durableJobStoreStatus}`,
+  `- Business action adapter contract: ${registry.execution.businessActionContractVersion}`,
+  `- Business action adapters: ${registry.execution.businessAdaptersStatus}`,
+  `- Software worker contract: ${registry.execution.softwareWorkerContractVersion}`,
+  `- Software deployment executor: ${registry.execution.softwareDeploymentStatus}`,
+  ...registry.execution.sourcePaths.map((sourcePath) => `- Contract source: ${sourcePath} — ${fileHash(sourcePath)}`),
   "",
   "## Voice intent and secure handoff",
   "",
@@ -236,6 +298,11 @@ const manualLines = [
     `- Voice strong approval allowed: ${value.voice.strongApprovalAllowed ? "yes" : "no"}`,
     `- Voice raw credential input allowed: ${value.voice.rawCredentialInputAllowed ? "yes" : "no"}`,
     `- Voice secure handoff: ${value.voice.secureHandoff}`,
+    `- AI Gateway contract/live adapter: ${value.aiGateway.contractStatus} / ${value.aiGateway.adapterStatus}`,
+    `- Integration registry/live adapter: ${value.integrations.registryStatus} / ${value.integrations.adapterStatus}`,
+    `- Durable Job contract/store: ${value.execution.jobRuntimeContractStatus} / ${value.execution.durableJobStoreStatus}`,
+    `- Business action adapter: ${value.execution.businessActionAdapterStatus}`,
+    `- Software deployment executor: ${value.execution.softwareDeploymentStatus}`,
     ...Object.entries(value.connections).map(
       ([connection, connected]) => `- ${connection}: ${connected ? "connected" : "not connected"}`
     ),
@@ -273,6 +340,9 @@ const manualLines = [
   ...acceptanceEvidence.map(
     (entry) => `- acceptance evidence: ${entry.sourcePath} — ${entry.sourceSha256}`
   ),
+  ...qualityEvidence.map(
+    (entry) => `- generated quality evidence: ${entry.sourcePath} — ${entry.sourceSha256}`
+  ),
   ""
 ];
 
@@ -309,6 +379,14 @@ const manifestBase = {
     ...registry.aiGateway,
     sourceSha256: fileHash(registry.aiGateway.sourcePath)
   },
+  integrations: {
+    ...registry.integrations,
+    sourceSha256: fileHash(registry.integrations.sourcePath)
+  },
+  execution: {
+    ...registry.execution,
+    sourceEvidence: sourceEvidence(registry.execution.sourcePaths)
+  },
   voice: {
     ...registry.voice,
     sourceSha256: fileHash(registry.voice.sourcePath)
@@ -321,6 +399,7 @@ const manifestBase = {
   },
   ciEvidence,
   acceptanceEvidence,
+  qualityEvidence,
   manuals: {
     generatedOperatingManualPath: registry.generatedArtifacts.operatingManual,
     generatedOperatingManualSha256: generatedManualSha256,

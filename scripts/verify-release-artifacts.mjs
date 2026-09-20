@@ -124,6 +124,50 @@ if (failures.length === 0) {
     }
   }
 
+  const aiGatewayContractVersion = extractStringConst(
+    registry.aiGateway.sourcePath,
+    "AI_GATEWAY_CONTRACT_VERSION"
+  );
+  const aiRoutingPolicyContractVersion = extractStringConst(
+    registry.aiGateway.sourcePath,
+    "AI_ROUTING_POLICY_CONTRACT_VERSION"
+  );
+  const integrationRegistryContractVersion = extractStringConst(
+    registry.integrations.sourcePath,
+    "INTEGRATION_REGISTRY_CONTRACT_VERSION"
+  );
+  const jobRuntimeContractVersion = extractStringConst(
+    "lib/execution/job-runtime-contracts.ts",
+    "JOB_RUNTIME_CONTRACT_VERSION"
+  );
+  const businessActionContractVersion = extractStringConst(
+    "lib/execution/adapters/business-action.ts",
+    "BUSINESS_ACTION_ADAPTER_CONTRACT_VERSION"
+  );
+  const softwareWorkerContractVersion = extractStringConst(
+    "lib/execution/software-worker.ts",
+    "SOFTWARE_WORKER_CONTRACT_VERSION"
+  );
+  if (
+    registry.aiGateway.contractVersion !== aiGatewayContractVersion
+    || registry.aiGateway.routingPolicyContractVersion !== aiRoutingPolicyContractVersion
+    || manifest.aiGateway.contractVersion !== aiGatewayContractVersion
+    || manifest.aiGateway.routingPolicyContractVersion !== aiRoutingPolicyContractVersion
+    || registry.integrations.registryContractVersion !== integrationRegistryContractVersion
+    || manifest.integrations.registryContractVersion !== integrationRegistryContractVersion
+    || manifest.integrations.sourceSha256 !== fileHash(registry.integrations.sourcePath)
+    || registry.execution.jobRuntimeContractVersion !== jobRuntimeContractVersion
+    || registry.execution.businessActionContractVersion !== businessActionContractVersion
+    || registry.execution.softwareWorkerContractVersion !== softwareWorkerContractVersion
+  ) {
+    fail("Deterministic Phase 4/13/19-21 contract/version registry drift detected");
+  }
+  for (const evidence of manifest.execution.sourceEvidence ?? []) {
+    if (evidence.sourceSha256 !== fileHash(evidence.sourcePath)) {
+      fail(`Execution contract source drift: ${evidence.sourcePath}`);
+    }
+  }
+
   const voiceIntentContractVersion = extractStringConst(
     registry.voice.sourcePath,
     "VOICE_INTENT_CONTRACT_VERSION"
@@ -198,14 +242,24 @@ if (failures.length === 0) {
     if (
       registry.aiGateway.adapterVersion !== "UNIMPLEMENTED"
       || registry.aiGateway.routingPolicyVersion !== "UNCONFIGURED"
+      || registry.adapters.aiGateway?.status !== "contract-only"
     ) {
-      fail("Disconnected AI Gateway must declare exact UNIMPLEMENTED/UNCONFIGURED versions");
+      fail("Disconnected AI Gateway must retain contract-only adapter state plus UNIMPLEMENTED/UNCONFIGURED live state");
     }
   } else if (
     registry.aiGateway.adapterVersion === "UNIMPLEMENTED"
     || registry.aiGateway.routingPolicyVersion === "UNCONFIGURED"
   ) {
     fail("Connected AI Gateway cannot retain unimplemented routing/adapter versions");
+  }
+
+  if (
+    registry.integrations.liveAdaptersStatus !== "not-connected"
+    || registry.execution.durableJobStoreStatus !== "not-connected"
+    || registry.execution.businessAdaptersStatus !== "not-connected"
+    || registry.execution.softwareDeploymentStatus !== "not-connected"
+  ) {
+    fail("Release registry must not claim live Phase 4/19-21 runtime adapters before they exist");
   }
 
   for (const evidence of manifest.acceptanceEvidence) {
@@ -223,6 +277,22 @@ if (failures.length === 0) {
   }
 
   for (const [name, environmentState] of Object.entries(environment.environments)) {
+    if (
+      !environmentState.aiGateway
+      || environmentState.aiGateway.contractStatus !== "deterministic-contract"
+      || environmentState.aiGateway.adapterStatus !== "not-connected"
+      || environmentState.connections.aiGateway !== false
+      || !environmentState.integrations
+      || environmentState.integrations.registryStatus !== "deterministic-contract"
+      || environmentState.integrations.adapterStatus !== "not-connected"
+      || !environmentState.execution
+      || environmentState.execution.jobRuntimeContractStatus !== "deterministic-contract"
+      || environmentState.execution.durableJobStoreStatus !== "not-connected"
+      || environmentState.execution.businessActionAdapterStatus !== "not-connected"
+      || environmentState.execution.softwareDeploymentStatus !== "not-connected"
+    ) {
+      fail(`Phase 4/13/19-21 environment contract/live-state drift: ${name}`);
+    }
     if (
       !environmentState.voice
       || environmentState.voice.contractStatus !== "deterministic-contract"
@@ -261,6 +331,15 @@ if (failures.length === 0) {
   }
 
   if (process.env.GITHUB_ACTIONS === "true") {
+    const coverageEvidence = (manifest.qualityEvidence ?? []).find(
+      (entry) => entry.sourcePath === "coverage/control-plane-module-coverage.json"
+    );
+    if (
+      !coverageEvidence
+      || coverageEvidence.sourceSha256 !== fileHash("coverage/control-plane-module-coverage.json")
+    ) {
+      fail("GitHub Actions release evidence is missing verified control-plane coverage output");
+    }
     if (
       manifest.ciEvidence.provider !== "github-actions"
       || manifest.ciEvidence.runId !== process.env.GITHUB_RUN_ID

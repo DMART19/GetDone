@@ -625,3 +625,30 @@ Not yet claimed:
 
 See `docs/SOL_PHASE_42_REPORT.md`.
 
+
+
+## September 20 quality + deterministic Phase 4 / 13 / 19–21 tranche
+
+**STATUS: DETERMINISTIC CONTRACTS IMPLEMENTED; LIVE PROVIDERS/PERSISTENCE/WORKERS REMAIN REQUIRED**
+
+Implemented:
+- stable Resource Fabric public barrels with scheduler/reservation contracts and implementation moved under internal modules;
+- machine-readable dependency-boundary matrix enforced by `verify:architecture`;
+- dependency-free critical control-plane module/test coverage report and thresholds;
+- semantic contract-version drift verification against the previous Git baseline;
+- deterministic adversarial contract vector catalog;
+- Phase 4 Company Integration Registry with scope/environment/read/write/credential-reference/lifecycle contracts and DEVELOPMENT-only mock adapter;
+- Phase 13 provider-neutral AI Gateway roles, requirement envelope, ModelProfile, deterministic eligibility, route/fallback policy, budget/concurrency admission, kill-switch filtering, output-schema validation, audit records, and DEVELOPMENT-only mock adapter;
+- Phase 19 durable Job Store/queue envelope/claim/lease/heartbeat/retry/dead-letter/cancellation/recovery contracts;
+- Phase 20 business action adapter SDK + conformance contract where provider acceptance cannot mutate Job truth;
+- Phase 21 software-worker/deployment pipeline contracts with CODING role, evidence requirements, staging verification, explicit production promotion receipt, rollback requirement, and non-authoritative deployment executor;
+- Phase 41 release registry/environment/manifests advanced to schema 1.2.0 and now distinguish deterministic contract presence from live runtime connectivity for these systems.
+
+Still not production-connected:
+- real company OAuth/API integrations;
+- OpenRouter/provider AI adapter/key/canaries/routing configuration;
+- durable distributed queue/database Job Store/workers;
+- real business action adapters;
+- real software repository/build/staging/production/rollback execution.
+
+See `docs/SOL_QUALITY_PHASE_4_13_19_21_REPORT.md`.
