@@ -1,9 +1,8 @@
-import type { AuditLedger } from "@/lib/domain/audit";
 import { ControlPlaneError } from "@/lib/control-plane/errors";
-import type { RequestContext } from "@/lib/control-plane/request-context";
+import type { AuthoritativeCommandEnvelope } from "@/lib/control-plane/command-envelope";
+import type { ControlPlaneTransactionManager } from "@/lib/domain/control-plane-transaction";
 import {
-  requireEntity,
-  transitionEntity,
+  executeTransitionCommand,
   type EntityStore,
   type StatefulEntity
 } from "@/lib/domain/services/common";
@@ -21,51 +20,32 @@ export interface OutcomeRecord extends StatefulEntity {
   confidence?: number;
 }
 
+export interface OutcomeStores {
+  outcomes: EntityStore<OutcomeRecord>;
+}
+
 export class OutcomeService {
-  constructor(
-    private readonly store: EntityStore<OutcomeRecord>,
-    private readonly audit: AuditLedger
-  ) {}
+  constructor(private readonly transactions: ControlPlaneTransactionManager<OutcomeStores>) {}
 
-  async verify(id: string, request: RequestContext, evidenceIds: readonly string[]) {
-    if (evidenceIds.length === 0) {
-      throw new ControlPlaneError("VALIDATION_FAILED", "Verified outcomes require evidence");
-    }
-    const current = await requireEntity(this.store, id, request);
-    return transitionEntity(
-      "outcome",
-      current,
-      "verified",
-      { request, triggeringEvent: "outcome-verified" },
-      this.store,
-      this.audit,
-      { evidenceIds: [...evidenceIds] }
-    );
+  verify(id: string, command: AuthoritativeCommandEnvelope, evidenceIds: readonly string[]) {
+    if (evidenceIds.length === 0) throw new ControlPlaneError("VALIDATION_FAILED", "Verified outcomes require evidence");
+    return executeTransitionCommand({
+      manager: this.transactions, selectStore: (stores) => stores.outcomes, entityType: "outcome", entityId: id, to: "verified", command,
+      triggeringEvent: "outcome-verified", patch: () => ({ evidenceIds: [...evidenceIds] })
+    });
   }
 
-  async markUncertain(id: string, request: RequestContext, evidenceIds: readonly string[] = []) {
-    const current = await requireEntity(this.store, id, request);
-    return transitionEntity(
-      "outcome",
-      current,
-      "uncertain",
-      { request, triggeringEvent: "outcome-uncertain" },
-      this.store,
-      this.audit,
-      { evidenceIds: [...evidenceIds] }
-    );
+  markUncertain(id: string, command: AuthoritativeCommandEnvelope, evidenceIds: readonly string[] = []) {
+    return executeTransitionCommand({
+      manager: this.transactions, selectStore: (stores) => stores.outcomes, entityType: "outcome", entityId: id, to: "uncertain", command,
+      triggeringEvent: "outcome-uncertain", patch: () => ({ evidenceIds: [...evidenceIds] })
+    });
   }
 
-  async reject(id: string, request: RequestContext, evidenceIds: readonly string[] = []) {
-    const current = await requireEntity(this.store, id, request);
-    return transitionEntity(
-      "outcome",
-      current,
-      "rejected",
-      { request, triggeringEvent: "outcome-rejected" },
-      this.store,
-      this.audit,
-      { evidenceIds: [...evidenceIds] }
-    );
+  reject(id: string, command: AuthoritativeCommandEnvelope, evidenceIds: readonly string[] = []) {
+    return executeTransitionCommand({
+      manager: this.transactions, selectStore: (stores) => stores.outcomes, entityType: "outcome", entityId: id, to: "rejected", command,
+      triggeringEvent: "outcome-rejected", patch: () => ({ evidenceIds: [...evidenceIds] })
+    });
   }
 }

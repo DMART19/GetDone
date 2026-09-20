@@ -1,9 +1,8 @@
-import type { AuditLedger } from "@/lib/domain/audit";
 import { ControlPlaneError } from "@/lib/control-plane/errors";
-import type { RequestContext } from "@/lib/control-plane/request-context";
+import type { AuthoritativeCommandEnvelope } from "@/lib/control-plane/command-envelope";
+import type { ControlPlaneTransactionManager } from "@/lib/domain/control-plane-transaction";
 import {
-  requireEntity,
-  transitionEntity,
+  executeTransitionCommand,
   type EntityStore,
   type StatefulEntity
 } from "@/lib/domain/services/common";
@@ -28,86 +27,112 @@ export interface PlanRecord extends StatefulEntity {
   compiledGraphId?: string;
 }
 
+export interface PlanStores {
+  plans: EntityStore<PlanRecord>;
+}
+
 export class PlanService {
-  constructor(
-    private readonly store: EntityStore<PlanRecord>,
-    private readonly audit: AuditLedger
-  ) {}
+  constructor(private readonly transactions: ControlPlaneTransactionManager<PlanStores>) {}
 
-  async beginValidation(id: string, request: RequestContext) {
-    const current = await requireEntity(this.store, id, request);
-    return transitionEntity("plan", current, "validating", { request, triggeringEvent: "plan-validation-started" }, this.store, this.audit);
+  beginValidation(id: string, command: AuthoritativeCommandEnvelope) {
+    return executeTransitionCommand({
+      manager: this.transactions,
+      selectStore: (stores) => stores.plans,
+      entityType: "plan",
+      entityId: id,
+      to: "validating",
+      command,
+      triggeringEvent: "plan-validation-started"
+    });
   }
 
-  async markValidated(id: string, request: RequestContext, evidenceId: string) {
+  markValidated(id: string, command: AuthoritativeCommandEnvelope, evidenceId: string) {
     if (!evidenceId) throw new ControlPlaneError("VALIDATION_FAILED", "Validation evidence is required");
-    const current = await requireEntity(this.store, id, request);
-    if (current.validationErrors.length > 0) {
-      throw new ControlPlaneError("VALIDATION_FAILED", "Plan with validation errors cannot be marked validated");
+    return executeTransitionCommand({
+      manager: this.transactions,
+      selectStore: (stores) => stores.plans,
+      entityType: "plan",
+      entityId: id,
+      to: "validated",
+      command,
+      triggeringEvent: "plan-validation-passed",
+      patch: (current) => {
+        if (current.validationErrors.length > 0) {
+          throw new ControlPlaneError("VALIDATION_FAILED", "Plan with validation errors cannot be marked validated");
+        }
+        return { validationEvidenceId: evidenceId };
+      },
+      metadata: () => ({ validationEvidenceId: evidenceId })
+    });
+  }
+
+  reject(id: string, command: AuthoritativeCommandEnvelope, errors: readonly string[]) {
+    if (errors.length === 0) {
+      throw new ControlPlaneError("VALIDATION_FAILED", "A rejected plan requires at least one validation error");
     }
-    return transitionEntity(
-      "plan",
-      current,
-      "validated",
-      { request, triggeringEvent: "plan-validation-passed" },
-      this.store,
-      this.audit,
-      { validationEvidenceId: evidenceId },
-      { validationEvidenceId: evidenceId }
-    );
+    return executeTransitionCommand({
+      manager: this.transactions,
+      selectStore: (stores) => stores.plans,
+      entityType: "plan",
+      entityId: id,
+      to: "rejected",
+      command,
+      triggeringEvent: "plan-validation-rejected",
+      patch: () => ({ validationErrors: [...errors] })
+    });
   }
 
-  async reject(id: string, request: RequestContext, errors: readonly string[]) {
-    if (errors.length === 0) throw new ControlPlaneError("VALIDATION_FAILED", "A rejected plan requires at least one validation error");
-    const current = await requireEntity(this.store, id, request);
-    return transitionEntity(
-      "plan",
-      current,
-      "rejected",
-      { request, triggeringEvent: "plan-validation-rejected" },
-      this.store,
-      this.audit,
-      { validationErrors: [...errors] }
-    );
+  requestAuthorization(id: string, command: AuthoritativeCommandEnvelope) {
+    return executeTransitionCommand({
+      manager: this.transactions,
+      selectStore: (stores) => stores.plans,
+      entityType: "plan",
+      entityId: id,
+      to: "awaiting-authorization",
+      command,
+      triggeringEvent: "plan-authorization-requested"
+    });
   }
 
-  async requestAuthorization(id: string, request: RequestContext) {
-    const current = await requireEntity(this.store, id, request);
-    return transitionEntity("plan", current, "awaiting-authorization", { request, triggeringEvent: "plan-authorization-requested" }, this.store, this.audit);
-  }
-
-  async authorize(id: string, request: RequestContext, authorizationId: string) {
+  authorize(id: string, command: AuthoritativeCommandEnvelope, authorizationId: string) {
     if (!authorizationId) throw new ControlPlaneError("VALIDATION_FAILED", "Authorization lineage is required");
-    const current = await requireEntity(this.store, id, request);
-    return transitionEntity(
-      "plan",
-      current,
-      "authorized",
-      { request, triggeringEvent: "plan-authorized" },
-      this.store,
-      this.audit,
-      { authorizationId },
-      { authorizationId }
-    );
+    return executeTransitionCommand({
+      manager: this.transactions,
+      selectStore: (stores) => stores.plans,
+      entityType: "plan",
+      entityId: id,
+      to: "authorized",
+      command,
+      triggeringEvent: "plan-authorized",
+      patch: () => ({ authorizationId }),
+      metadata: () => ({ authorizationId })
+    });
   }
 
-  async compile(id: string, request: RequestContext, compiledGraphId: string) {
+  compile(id: string, command: AuthoritativeCommandEnvelope, compiledGraphId: string) {
     if (!compiledGraphId) throw new ControlPlaneError("VALIDATION_FAILED", "Compiled graph reference is required");
-    const current = await requireEntity(this.store, id, request);
-    return transitionEntity(
-      "plan",
-      current,
-      "compiled",
-      { request, triggeringEvent: "plan-compiled" },
-      this.store,
-      this.audit,
-      { compiledGraphId },
-      { compiledGraphId }
-    );
+    return executeTransitionCommand({
+      manager: this.transactions,
+      selectStore: (stores) => stores.plans,
+      entityType: "plan",
+      entityId: id,
+      to: "compiled",
+      command,
+      triggeringEvent: "plan-compiled",
+      patch: () => ({ compiledGraphId }),
+      metadata: () => ({ compiledGraphId })
+    });
   }
 
-  async cancel(id: string, request: RequestContext) {
-    const current = await requireEntity(this.store, id, request);
-    return transitionEntity("plan", current, "cancelled", { request, triggeringEvent: "plan-cancelled" }, this.store, this.audit);
+  cancel(id: string, command: AuthoritativeCommandEnvelope) {
+    return executeTransitionCommand({
+      manager: this.transactions,
+      selectStore: (stores) => stores.plans,
+      entityType: "plan",
+      entityId: id,
+      to: "cancelled",
+      command,
+      triggeringEvent: "plan-cancelled"
+    });
   }
 }

@@ -1,6 +1,9 @@
-import type { RequestContext } from "@/lib/control-plane/request-context";
+import { createAuditEvent } from "@/lib/domain/audit";
 import { ControlPlaneError } from "@/lib/control-plane/errors";
-import { createAuditEvent, type AuditLedger } from "@/lib/domain/audit";
+import type { AuthoritativeCommandEnvelope } from "@/lib/control-plane/command-envelope";
+import { commandFingerprint } from "@/lib/control-plane/command-envelope";
+import type { ControlPlaneTransactionManager } from "@/lib/domain/control-plane-transaction";
+import { claimIdempotency } from "@/lib/domain/idempotency";
 import { assertTransition, type StateMachineEntity } from "@/lib/domain/state-machine";
 
 export interface AuthoritativeEntity {
@@ -20,75 +23,103 @@ export interface EntityStore<T extends AuthoritativeEntity> {
   save(next: T, expectedVersion: number): Promise<void>;
 }
 
-export interface DomainMutationContext {
-  request: RequestContext;
-  triggeringEvent: string;
-}
-
-export function assertEntityScope(entity: AuthoritativeEntity, context: RequestContext) {
+export function assertEntityScope(entity: AuthoritativeEntity, command: AuthoritativeCommandEnvelope) {
   if (
-    entity.portfolioId !== context.scope.portfolioId
-    || entity.companyId !== context.scope.companyId
+    entity.portfolioId !== command.scope.portfolioId
+    || entity.companyId !== command.scope.companyId
   ) {
-    throw new ControlPlaneError("FORBIDDEN", "Entity is outside the trusted request scope", {
-      correlationId: context.correlationId
+    throw new ControlPlaneError("FORBIDDEN", "Entity is outside the trusted command scope", {
+      correlationId: command.correlationId
     });
   }
-}
-
-export async function transitionEntity<T extends StatefulEntity>(
-  entityType: StateMachineEntity,
-  current: T,
-  to: string,
-  context: DomainMutationContext,
-  store: EntityStore<T>,
-  audit: AuditLedger,
-  patch: Partial<T> = {},
-  metadata: Readonly<Record<string, string | number | boolean | null>> = {}
-): Promise<T> {
-  assertEntityScope(current, context.request);
-  assertTransition(entityType, current.state, to);
-
-  const next = {
-    ...current,
-    ...patch,
-    state: to,
-    version: current.version + 1,
-    updatedAt: new Date().toISOString()
-  } as T;
-
-  await store.save(next, current.version);
-  await audit.append(createAuditEvent({
-    correlationId: context.request.correlationId,
-    eventType: `${entityType}.${to}`,
-    actor: context.request.actor,
-    scope: context.request.scope,
-    environment: context.request.environment,
-    entityType,
-    entityId: current.id,
-    previousState: current.state,
-    newState: to,
-    provenance: "getdone-control-plane",
-    metadata: {
-      triggeringEvent: context.triggeringEvent,
-      ...metadata
-    }
-  }));
-
-  return next;
 }
 
 export async function requireEntity<T extends AuthoritativeEntity>(
   store: EntityStore<T>,
   id: string,
-  context: RequestContext
+  command: AuthoritativeCommandEnvelope
 ) {
   const entity = await store.get(id);
   if (!entity) {
     throw new ControlPlaneError("NOT_FOUND", "Authoritative entity was not found", {
-      correlationId: context.correlationId
+      correlationId: command.correlationId
     });
   }
-  assertEntityScope(entity, context);
+  assertEntityScope(entity, command);
   return entity;
+}
+
+export async function executeTransitionCommand<T extends StatefulEntity, TStores>(input: {
+  manager: ControlPlaneTransactionManager<TStores>;
+  selectStore: (stores: TStores) => EntityStore<T>;
+  entityType: StateMachineEntity;
+  entityId: string;
+  to: string;
+  command: AuthoritativeCommandEnvelope;
+  triggeringEvent: string;
+  patch?: (current: T) => Partial<T>;
+  metadata?: (current: T) => Readonly<Record<string, string | number | boolean | null>>;
+}): Promise<T> {
+  const fingerprint = commandFingerprint(input.command);
+
+  return input.manager.run(async (transaction) => {
+    const claim = await claimIdempotency<T>(
+      transaction.idempotency,
+      input.command.idempotencyKey,
+      fingerprint
+    );
+
+    if (claim.state === "COMPLETED" && claim.record.result) return claim.record.result;
+    if (claim.state === "IN_PROGRESS" || claim.state === "FAILED") {
+      throw new ControlPlaneError("CONFLICT", "The authoritative command is already in progress or previously failed", {
+        correlationId: input.command.correlationId
+      });
+    }
+
+    const store = input.selectStore(transaction.stores);
+    const current = await requireEntity(store, input.entityId, input.command);
+    assertTransition(input.entityType, current.state, input.to);
+
+    const next = {
+      ...current,
+      ...(input.patch?.(current) ?? {}),
+      state: input.to,
+      version: current.version + 1,
+      updatedAt: new Date().toISOString()
+    } as T;
+
+    await store.save(next, current.version);
+    await transaction.audit.append(createAuditEvent({
+      correlationId: input.command.correlationId,
+      eventType: `${input.entityType}.${input.to}`,
+      actor: input.command.actor,
+      scope: {
+        userId: input.command.scope.userId,
+        portfolioId: input.command.scope.portfolioId,
+        companyId: input.command.scope.companyId,
+        resourceId: input.command.scope.resourceId
+      },
+      environment: input.command.environment,
+      entityType: input.entityType,
+      entityId: current.id,
+      previousState: current.state,
+      newState: input.to,
+      provenance: input.command.provenance,
+      metadata: {
+        commandId: input.command.commandId,
+        idempotencyKey: input.command.idempotencyKey,
+        triggeringEvent: input.triggeringEvent,
+        ...(input.metadata?.(current) ?? {})
+      }
+    }));
+
+    await transaction.idempotency.complete(
+      input.command.idempotencyKey,
+      fingerprint,
+      next,
+      new Date().toISOString()
+    );
+
+    return next;
+  });
 }

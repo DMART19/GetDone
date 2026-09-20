@@ -4,7 +4,7 @@ import { createRequestContext } from "@/lib/control-plane/request-context";
 import type { AuthoritativeDecision, DecisionAuthorityStore } from "@/lib/domain/decision-service";
 import { resolveDecision } from "@/lib/domain/decision-service";
 import type { DecisionTransaction, DecisionTransactionManager } from "@/lib/domain/decision-transaction";
-import type { IdempotencyRecord, IdempotencyStore } from "@/lib/domain/idempotency";
+import type { IdempotencyClaim, IdempotencyRecord, IdempotencyStore } from "@/lib/domain/idempotency";
 
 class MemoryDecisionTransactionManager implements DecisionTransactionManager {
   private decisionValue: AuthoritativeDecision;
@@ -16,17 +16,9 @@ class MemoryDecisionTransactionManager implements DecisionTransactionManager {
     this.decisionValue = { ...initialDecision };
   }
 
-  decision() {
-    return { ...this.decisionValue };
-  }
-
-  events() {
-    return [...this.auditEvents];
-  }
-
-  idempotency(key: string) {
-    return this.idempotencyRecords.get(key);
-  }
+  decision() { return { ...this.decisionValue }; }
+  events() { return [...this.auditEvents]; }
+  idempotency(key: string) { return this.idempotencyRecords.get(key); }
 
   async run<T>(operation: (transaction: DecisionTransaction) => Promise<T>): Promise<T> {
     let stagedDecision = { ...this.decisionValue };
@@ -50,15 +42,36 @@ class MemoryDecisionTransactionManager implements DecisionTransactionManager {
     };
 
     const idempotency: IdempotencyStore = {
-      get: async <R = unknown>(key: string) => {
-        return (stagedIdempotency.get(key) as IdempotencyRecord<R> | undefined) ?? null;
+      async claim<R = unknown>(key: string, fingerprint: string, createdAt: string): Promise<IdempotencyClaim<R>> {
+        const existing = stagedIdempotency.get(key) as IdempotencyRecord<R> | undefined;
+        if (existing) {
+          if (existing.fingerprint !== fingerprint) return { state: "CONFLICT", record: existing };
+          return { state: existing.status, record: existing };
+        }
+        const record: IdempotencyRecord<R> = { key, fingerprint, status: "IN_PROGRESS", createdAt };
+        stagedIdempotency.set(key, record as IdempotencyRecord);
+        return { state: "CREATED", record };
       },
-      put: async <R = unknown>(record: IdempotencyRecord<R>) => {
-        stagedIdempotency.set(record.key, record as IdempotencyRecord);
+      async complete<R = unknown>(key: string, fingerprint: string, result: R, completedAt: string) {
+        const existing = stagedIdempotency.get(key);
+        if (!existing || existing.fingerprint !== fingerprint) throw new Error("idempotency completion conflict");
+        const record: IdempotencyRecord<R> = { ...existing, status: "COMPLETED", completedAt, result };
+        stagedIdempotency.set(key, record as IdempotencyRecord);
+        return record;
+      },
+      async fail(key: string, fingerprint: string, errorCode: string, failedAt: string) {
+        const existing = stagedIdempotency.get(key);
+        if (!existing || existing.fingerprint !== fingerprint) throw new Error("idempotency failure conflict");
+        const record: IdempotencyRecord = { ...existing, status: "FAILED", failedAt, errorCode };
+        stagedIdempotency.set(key, record);
+        return record;
+      },
+      async get<R = unknown>(key: string) {
+        return (stagedIdempotency.get(key) as IdempotencyRecord<R> | undefined) ?? null;
       }
     };
 
-    const result = await operation({ decisions, audit, idempotency });
+    const result = await operation({ stores: { decisions }, audit, idempotency });
     this.decisionValue = stagedDecision;
     this.auditEvents = stagedEvents;
     this.idempotencyRecords = stagedIdempotency;
@@ -108,7 +121,7 @@ describe("decision authority service", () => {
     expect(result.status).toBe("approved");
     expect(transactionManager.decision().version).toBe(2);
     expect(transactionManager.events()).toHaveLength(1);
-    expect(transactionManager.idempotency("decision-action-123")?.status).toBe("completed");
+    expect(transactionManager.idempotency("decision-action-123")?.status).toBe("COMPLETED");
   });
 
   it("does not duplicate a transition on an idempotent retry", async () => {

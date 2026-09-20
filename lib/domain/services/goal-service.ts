@@ -1,8 +1,7 @@
-import type { AuditLedger } from "@/lib/domain/audit";
-import type { RequestContext } from "@/lib/control-plane/request-context";
+import type { AuthoritativeCommandEnvelope } from "@/lib/control-plane/command-envelope";
+import type { ControlPlaneTransactionManager } from "@/lib/domain/control-plane-transaction";
 import {
-  requireEntity,
-  transitionEntity,
+  executeTransitionCommand,
   type EntityStore,
   type StatefulEntity
 } from "@/lib/domain/services/common";
@@ -18,30 +17,38 @@ export interface GoalRecord extends StatefulEntity {
   deadline?: string;
 }
 
+export interface GoalStores {
+  goals: EntityStore<GoalRecord>;
+}
+
 export class GoalService {
-  constructor(
-    private readonly store: EntityStore<GoalRecord>,
-    private readonly audit: AuditLedger
-  ) {}
+  constructor(private readonly transactions: ControlPlaneTransactionManager<GoalStores>) {}
 
-  private async move(id: string, to: GoalState, request: RequestContext, triggeringEvent: string) {
-    const current = await requireEntity(this.store, id, request);
-    return transitionEntity("goal", current, to, { request, triggeringEvent }, this.store, this.audit);
+  private move(id: string, to: GoalState, command: AuthoritativeCommandEnvelope, triggeringEvent: string) {
+    return executeTransitionCommand({
+      manager: this.transactions,
+      selectStore: (stores) => stores.goals,
+      entityType: "goal",
+      entityId: id,
+      to,
+      command,
+      triggeringEvent
+    });
   }
 
-  activate(id: string, request: RequestContext) {
-    return this.move(id, "active", request, "goal-activated");
+  activate(id: string, command: AuthoritativeCommandEnvelope) {
+    return this.move(id, "active", command, "goal-activated");
   }
 
-  pause(id: string, request: RequestContext) {
-    return this.move(id, "paused", request, "goal-paused");
+  pause(id: string, command: AuthoritativeCommandEnvelope) {
+    return this.move(id, "paused", command, "goal-paused");
   }
 
-  complete(id: string, request: RequestContext) {
-    return this.move(id, "completed", request, "goal-completed");
+  complete(id: string, command: AuthoritativeCommandEnvelope) {
+    return this.move(id, "completed", command, "goal-completed");
   }
 
-  cancel(id: string, request: RequestContext) {
-    return this.move(id, "cancelled", request, "goal-cancelled");
+  cancel(id: string, command: AuthoritativeCommandEnvelope) {
+    return this.move(id, "cancelled", command, "goal-cancelled");
   }
 }

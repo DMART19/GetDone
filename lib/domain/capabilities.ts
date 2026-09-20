@@ -49,7 +49,7 @@ export const capabilityRegistry: readonly CapabilityDefinition[] = [
     enabled: true,
     inputSchema: capabilitySchemaRegistry["revenue.read"].input,
     outputSchema: capabilitySchemaRegistry["revenue.read"].output,
-    costModel: "none"
+    costModel: "none",
     schemaVersion: "1.0.0",
     authorityBindings: { companyId: true }
   },
@@ -68,7 +68,7 @@ export const capabilityRegistry: readonly CapabilityDefinition[] = [
     enabled: true,
     inputSchema: capabilitySchemaRegistry["email.send"].input,
     outputSchema: capabilitySchemaRegistry["email.send"].output,
-    costModel: "provider"
+    costModel: "provider",
     schemaVersion: "1.0.0",
     authorityBindings: { companyId: true }
   },
@@ -87,7 +87,7 @@ export const capabilityRegistry: readonly CapabilityDefinition[] = [
     enabled: true,
     inputSchema: capabilitySchemaRegistry["repository.inspect"].input,
     outputSchema: capabilitySchemaRegistry["repository.inspect"].output,
-    costModel: "provider"
+    costModel: "provider",
     schemaVersion: "1.0.0",
     authorityBindings: { companyId: true }
   },
@@ -106,7 +106,7 @@ export const capabilityRegistry: readonly CapabilityDefinition[] = [
     enabled: true,
     inputSchema: capabilitySchemaRegistry["production.deploy"].input,
     outputSchema: capabilitySchemaRegistry["production.deploy"].output,
-    costModel: "provider"
+    costModel: "provider",
     schemaVersion: "1.0.0",
     authorityBindings: { companyId: true, environment: true }
   },
@@ -125,7 +125,7 @@ export const capabilityRegistry: readonly CapabilityDefinition[] = [
     enabled: true,
     inputSchema: capabilitySchemaRegistry["compute.cpu.light"].input,
     outputSchema: capabilitySchemaRegistry["compute.cpu.light"].output,
-    costModel: "metered"
+    costModel: "metered",
     schemaVersion: "1.0.0",
     authorityBindings: { companyId: true, environment: true, dataClass: true }
   },
@@ -144,7 +144,7 @@ export const capabilityRegistry: readonly CapabilityDefinition[] = [
     enabled: true,
     inputSchema: capabilitySchemaRegistry["compute.gpu.inference"].input,
     outputSchema: capabilitySchemaRegistry["compute.gpu.inference"].output,
-    costModel: "metered"
+    costModel: "metered",
     schemaVersion: "1.0.0",
     authorityBindings: { companyId: true, environment: true, dataClass: true }
   },
@@ -163,7 +163,7 @@ export const capabilityRegistry: readonly CapabilityDefinition[] = [
     enabled: true,
     inputSchema: capabilitySchemaRegistry["storage.backup"].input,
     outputSchema: capabilitySchemaRegistry["storage.backup"].output,
-    costModel: "metered"
+    costModel: "metered",
     schemaVersion: "1.0.0",
     authorityBindings: { companyId: true, dataClass: true }
   },
@@ -182,7 +182,7 @@ export const capabilityRegistry: readonly CapabilityDefinition[] = [
     enabled: true,
     inputSchema: capabilitySchemaRegistry["resource.health.read"].input,
     outputSchema: capabilitySchemaRegistry["resource.health.read"].output,
-    costModel: "none"
+    costModel: "none",
     schemaVersion: "1.0.0",
     authorityBindings: { companyId: true, resourceId: true }
   }

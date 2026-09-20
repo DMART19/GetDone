@@ -1,9 +1,8 @@
-import type { AuditLedger } from "@/lib/domain/audit";
 import { ControlPlaneError } from "@/lib/control-plane/errors";
-import type { RequestContext } from "@/lib/control-plane/request-context";
+import type { AuthoritativeCommandEnvelope } from "@/lib/control-plane/command-envelope";
+import type { ControlPlaneTransactionManager } from "@/lib/domain/control-plane-transaction";
 import {
-  requireEntity,
-  transitionEntity,
+  executeTransitionCommand,
   type EntityStore,
   type StatefulEntity
 } from "@/lib/domain/services/common";
@@ -19,101 +18,89 @@ export interface JobRecord extends StatefulEntity {
   failureReason?: string;
 }
 
+export interface JobStores {
+  jobs: EntityStore<JobRecord>;
+}
+
 export class JobService {
-  constructor(
-    private readonly store: EntityStore<JobRecord>,
-    private readonly audit: AuditLedger
-  ) {}
+  constructor(private readonly transactions: ControlPlaneTransactionManager<JobStores>) {}
 
-  async queue(id: string, request: RequestContext) {
-    const current = await requireEntity(this.store, id, request);
-    return transitionEntity("job", current, "queued", { request, triggeringEvent: "job-queued" }, this.store, this.audit);
+  queue(id: string, command: AuthoritativeCommandEnvelope) {
+    return executeTransitionCommand({ manager: this.transactions, selectStore: (stores) => stores.jobs, entityType: "job", entityId: id, to: "queued", command, triggeringEvent: "job-queued" });
   }
 
-  async claim(id: string, request: RequestContext, workerId: string) {
+  claim(id: string, command: AuthoritativeCommandEnvelope, workerId: string) {
     if (!workerId) throw new ControlPlaneError("VALIDATION_FAILED", "Worker identity is required");
-    const current = await requireEntity(this.store, id, request);
-    return transitionEntity(
-      "job",
-      current,
-      "claimed",
-      { request, triggeringEvent: "job-claimed" },
-      this.store,
-      this.audit,
-      { workerId, attempt: current.attempt + 1 },
-      { workerId, attempt: current.attempt + 1 }
-    );
+    return executeTransitionCommand({
+      manager: this.transactions,
+      selectStore: (stores) => stores.jobs,
+      entityType: "job",
+      entityId: id,
+      to: "claimed",
+      command,
+      triggeringEvent: "job-claimed",
+      patch: (current) => ({ workerId, attempt: current.attempt + 1 }),
+      metadata: (current) => ({ workerId, attempt: current.attempt + 1 })
+    });
   }
 
-  async releaseClaim(id: string, request: RequestContext) {
-    const current = await requireEntity(this.store, id, request);
-    return transitionEntity(
-      "job",
-      current,
-      "queued",
-      { request, triggeringEvent: "job-claim-released" },
-      this.store,
-      this.audit,
-      { workerId: undefined }
-    );
+  releaseClaim(id: string, command: AuthoritativeCommandEnvelope) {
+    return executeTransitionCommand({
+      manager: this.transactions,
+      selectStore: (stores) => stores.jobs,
+      entityType: "job",
+      entityId: id,
+      to: "queued",
+      command,
+      triggeringEvent: "job-claim-released",
+      patch: () => ({ workerId: undefined })
+    });
   }
 
-  async start(id: string, request: RequestContext) {
-    const current = await requireEntity(this.store, id, request);
-    if (!current.workerId) throw new ControlPlaneError("CONFLICT", "A claimed worker is required before job start");
-    return transitionEntity("job", current, "running", { request, triggeringEvent: "job-started" }, this.store, this.audit);
+  start(id: string, command: AuthoritativeCommandEnvelope) {
+    return executeTransitionCommand({
+      manager: this.transactions,
+      selectStore: (stores) => stores.jobs,
+      entityType: "job",
+      entityId: id,
+      to: "running",
+      command,
+      triggeringEvent: "job-started",
+      patch: (current) => {
+        if (!current.workerId) throw new ControlPlaneError("CONFLICT", "A claimed worker is required before job start");
+        return {};
+      }
+    });
   }
 
-  async beginVerification(id: string, request: RequestContext) {
-    const current = await requireEntity(this.store, id, request);
-    return transitionEntity("job", current, "verifying", { request, triggeringEvent: "job-verification-started" }, this.store, this.audit);
+  beginVerification(id: string, command: AuthoritativeCommandEnvelope) {
+    return executeTransitionCommand({ manager: this.transactions, selectStore: (stores) => stores.jobs, entityType: "job", entityId: id, to: "verifying", command, triggeringEvent: "job-verification-started" });
   }
 
-  async succeed(id: string, request: RequestContext, evidenceIds: readonly string[]) {
-    if (evidenceIds.length === 0) {
-      throw new ControlPlaneError("VALIDATION_FAILED", "Job success requires independent verification evidence");
-    }
-    const current = await requireEntity(this.store, id, request);
-    return transitionEntity(
-      "job",
-      current,
-      "succeeded",
-      { request, triggeringEvent: "job-verified-succeeded" },
-      this.store,
-      this.audit,
-      { verificationEvidenceIds: [...evidenceIds] }
-    );
+  succeed(id: string, command: AuthoritativeCommandEnvelope, evidenceIds: readonly string[]) {
+    if (evidenceIds.length === 0) throw new ControlPlaneError("VALIDATION_FAILED", "Job success requires independent verification evidence");
+    return executeTransitionCommand({
+      manager: this.transactions, selectStore: (stores) => stores.jobs, entityType: "job", entityId: id, to: "succeeded", command,
+      triggeringEvent: "job-verified-succeeded", patch: () => ({ verificationEvidenceIds: [...evidenceIds] })
+    });
   }
 
-  async markUncertain(id: string, request: RequestContext, evidenceIds: readonly string[]) {
-    const current = await requireEntity(this.store, id, request);
-    return transitionEntity(
-      "job",
-      current,
-      "uncertain",
-      { request, triggeringEvent: "job-verification-uncertain" },
-      this.store,
-      this.audit,
-      { verificationEvidenceIds: [...evidenceIds] }
-    );
+  markUncertain(id: string, command: AuthoritativeCommandEnvelope, evidenceIds: readonly string[]) {
+    return executeTransitionCommand({
+      manager: this.transactions, selectStore: (stores) => stores.jobs, entityType: "job", entityId: id, to: "uncertain", command,
+      triggeringEvent: "job-verification-uncertain", patch: () => ({ verificationEvidenceIds: [...evidenceIds] })
+    });
   }
 
-  async fail(id: string, request: RequestContext, failureReason: string) {
+  fail(id: string, command: AuthoritativeCommandEnvelope, failureReason: string) {
     if (!failureReason) throw new ControlPlaneError("VALIDATION_FAILED", "Job failure requires a reason");
-    const current = await requireEntity(this.store, id, request);
-    return transitionEntity(
-      "job",
-      current,
-      "failed",
-      { request, triggeringEvent: "job-failed" },
-      this.store,
-      this.audit,
-      { failureReason }
-    );
+    return executeTransitionCommand({
+      manager: this.transactions, selectStore: (stores) => stores.jobs, entityType: "job", entityId: id, to: "failed", command,
+      triggeringEvent: "job-failed", patch: () => ({ failureReason })
+    });
   }
 
-  async cancel(id: string, request: RequestContext) {
-    const current = await requireEntity(this.store, id, request);
-    return transitionEntity("job", current, "cancelled", { request, triggeringEvent: "job-cancelled" }, this.store, this.audit);
+  cancel(id: string, command: AuthoritativeCommandEnvelope) {
+    return executeTransitionCommand({ manager: this.transactions, selectStore: (stores) => stores.jobs, entityType: "job", entityId: id, to: "cancelled", command, triggeringEvent: "job-cancelled" });
   }
 }

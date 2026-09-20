@@ -50,22 +50,21 @@ function decisionFingerprint(input: ResolveDecisionInput) {
 
 export async function resolveDecision(input: ResolveDecisionInput): Promise<AuthoritativeDecision> {
   return input.transactionManager.run(async (transaction) => {
-    const claim = await claimIdempotency(
+    const fingerprint = decisionFingerprint(input);
+    const claim = await claimIdempotency<AuthoritativeDecision>(
       transaction.idempotency,
       input.idempotencyKey,
-      decisionFingerprint(input)
+      fingerprint
     );
 
-    if (!claim.isNew) {
-      if (claim.record.status === "completed" && claim.record.result) {
-        return claim.record.result as AuthoritativeDecision;
-      }
+    if (claim.state === "COMPLETED" && claim.record.result) return claim.record.result;
+    if (claim.state === "IN_PROGRESS" || claim.state === "FAILED") {
       throw new ControlPlaneError("CONFLICT", "The same decision request is already in progress or previously failed", {
         correlationId: input.context.correlationId
       });
     }
 
-    const current = await transaction.decisions.get(input.decisionId);
+    const current = await transaction.stores.decisions.get(input.decisionId);
     if (!current) {
       throw new ControlPlaneError("NOT_FOUND", "Decision was not found", {
         correlationId: input.context.correlationId
@@ -97,7 +96,7 @@ export async function resolveDecision(input: ResolveDecisionInput): Promise<Auth
       updatedAt: new Date().toISOString()
     };
 
-    await transaction.decisions.save(next, current.version);
+    await transaction.stores.decisions.save(next, current.version);
     await transaction.audit.append(createAuditEvent({
       correlationId: input.context.correlationId,
       eventType: `decision.${nextState}`,
@@ -112,12 +111,12 @@ export async function resolveDecision(input: ResolveDecisionInput): Promise<Auth
       metadata: { idempotencyKey: input.idempotencyKey }
     }));
 
-    await transaction.idempotency.put({
-      ...claim.record,
-      status: "completed",
-      completedAt: new Date().toISOString(),
-      result: next
-    });
+    await transaction.idempotency.complete(
+      input.idempotencyKey,
+      fingerprint,
+      next,
+      new Date().toISOString()
+    );
 
     return next;
   });

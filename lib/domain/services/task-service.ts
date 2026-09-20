@@ -1,9 +1,8 @@
-import type { AuditLedger } from "@/lib/domain/audit";
 import { ControlPlaneError } from "@/lib/control-plane/errors";
-import type { RequestContext } from "@/lib/control-plane/request-context";
+import type { AuthoritativeCommandEnvelope } from "@/lib/control-plane/command-envelope";
+import type { ControlPlaneTransactionManager } from "@/lib/domain/control-plane-transaction";
 import {
-  requireEntity,
-  transitionEntity,
+  executeTransitionCommand,
   type EntityStore,
   type StatefulEntity
 } from "@/lib/domain/services/common";
@@ -20,87 +19,64 @@ export interface TaskRecord extends StatefulEntity {
   failureReason?: string;
 }
 
+export interface TaskStores {
+  tasks: EntityStore<TaskRecord>;
+}
+
 export class TaskService {
-  constructor(
-    private readonly store: EntityStore<TaskRecord>,
-    private readonly audit: AuditLedger
-  ) {}
+  constructor(private readonly transactions: ControlPlaneTransactionManager<TaskStores>) {}
 
-  async authorize(id: string, request: RequestContext, authorizationId: string) {
+  authorize(id: string, command: AuthoritativeCommandEnvelope, authorizationId: string) {
     if (!authorizationId) throw new ControlPlaneError("VALIDATION_FAILED", "Task authorization lineage is required");
-    const current = await requireEntity(this.store, id, request);
-    return transitionEntity(
-      "task",
-      current,
-      "authorized",
-      { request, triggeringEvent: "task-authorized" },
-      this.store,
-      this.audit,
-      { authorizationLineage: [...current.authorizationLineage, authorizationId] },
-      { authorizationId }
-    );
+    return executeTransitionCommand({
+      manager: this.transactions,
+      selectStore: (stores) => stores.tasks,
+      entityType: "task",
+      entityId: id,
+      to: "authorized",
+      command,
+      triggeringEvent: "task-authorized",
+      patch: (current) => ({ authorizationLineage: [...current.authorizationLineage, authorizationId] }),
+      metadata: () => ({ authorizationId })
+    });
   }
 
-  async queue(id: string, request: RequestContext) {
-    const current = await requireEntity(this.store, id, request);
-    return transitionEntity("task", current, "queued", { request, triggeringEvent: "task-queued" }, this.store, this.audit);
+  queue(id: string, command: AuthoritativeCommandEnvelope) {
+    return executeTransitionCommand({ manager: this.transactions, selectStore: (stores) => stores.tasks, entityType: "task", entityId: id, to: "queued", command, triggeringEvent: "task-queued" });
   }
 
-  async start(id: string, request: RequestContext) {
-    const current = await requireEntity(this.store, id, request);
-    return transitionEntity("task", current, "running", { request, triggeringEvent: "task-started" }, this.store, this.audit);
+  start(id: string, command: AuthoritativeCommandEnvelope) {
+    return executeTransitionCommand({ manager: this.transactions, selectStore: (stores) => stores.tasks, entityType: "task", entityId: id, to: "running", command, triggeringEvent: "task-started" });
   }
 
-  async beginVerification(id: string, request: RequestContext) {
-    const current = await requireEntity(this.store, id, request);
-    return transitionEntity("task", current, "verifying", { request, triggeringEvent: "task-verification-started" }, this.store, this.audit);
+  beginVerification(id: string, command: AuthoritativeCommandEnvelope) {
+    return executeTransitionCommand({ manager: this.transactions, selectStore: (stores) => stores.tasks, entityType: "task", entityId: id, to: "verifying", command, triggeringEvent: "task-verification-started" });
   }
 
-  async succeed(id: string, request: RequestContext, evidenceIds: readonly string[]) {
-    if (evidenceIds.length === 0) {
-      throw new ControlPlaneError("VALIDATION_FAILED", "Task success requires verification evidence");
-    }
-    const current = await requireEntity(this.store, id, request);
-    return transitionEntity(
-      "task",
-      current,
-      "succeeded",
-      { request, triggeringEvent: "task-verified-succeeded" },
-      this.store,
-      this.audit,
-      { verificationEvidenceIds: [...evidenceIds] }
-    );
+  succeed(id: string, command: AuthoritativeCommandEnvelope, evidenceIds: readonly string[]) {
+    if (evidenceIds.length === 0) throw new ControlPlaneError("VALIDATION_FAILED", "Task success requires verification evidence");
+    return executeTransitionCommand({
+      manager: this.transactions, selectStore: (stores) => stores.tasks, entityType: "task", entityId: id, to: "succeeded", command,
+      triggeringEvent: "task-verified-succeeded", patch: () => ({ verificationEvidenceIds: [...evidenceIds] })
+    });
   }
 
-  async markUncertain(id: string, request: RequestContext, evidenceIds: readonly string[]) {
-    const current = await requireEntity(this.store, id, request);
-    return transitionEntity(
-      "task",
-      current,
-      "uncertain",
-      { request, triggeringEvent: "task-verification-uncertain" },
-      this.store,
-      this.audit,
-      { verificationEvidenceIds: [...evidenceIds] }
-    );
+  markUncertain(id: string, command: AuthoritativeCommandEnvelope, evidenceIds: readonly string[]) {
+    return executeTransitionCommand({
+      manager: this.transactions, selectStore: (stores) => stores.tasks, entityType: "task", entityId: id, to: "uncertain", command,
+      triggeringEvent: "task-verification-uncertain", patch: () => ({ verificationEvidenceIds: [...evidenceIds] })
+    });
   }
 
-  async fail(id: string, request: RequestContext, failureReason: string) {
+  fail(id: string, command: AuthoritativeCommandEnvelope, failureReason: string) {
     if (!failureReason) throw new ControlPlaneError("VALIDATION_FAILED", "Task failure requires a reason");
-    const current = await requireEntity(this.store, id, request);
-    return transitionEntity(
-      "task",
-      current,
-      "failed",
-      { request, triggeringEvent: "task-failed" },
-      this.store,
-      this.audit,
-      { failureReason }
-    );
+    return executeTransitionCommand({
+      manager: this.transactions, selectStore: (stores) => stores.tasks, entityType: "task", entityId: id, to: "failed", command,
+      triggeringEvent: "task-failed", patch: () => ({ failureReason })
+    });
   }
 
-  async cancel(id: string, request: RequestContext) {
-    const current = await requireEntity(this.store, id, request);
-    return transitionEntity("task", current, "cancelled", { request, triggeringEvent: "task-cancelled" }, this.store, this.audit);
+  cancel(id: string, command: AuthoritativeCommandEnvelope) {
+    return executeTransitionCommand({ manager: this.transactions, selectStore: (stores) => stores.tasks, entityType: "task", entityId: id, to: "cancelled", command, triggeringEvent: "task-cancelled" });
   }
 }

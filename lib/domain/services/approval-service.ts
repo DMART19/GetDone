@@ -1,9 +1,8 @@
-import type { AuditLedger } from "@/lib/domain/audit";
 import { ControlPlaneError } from "@/lib/control-plane/errors";
-import type { RequestContext } from "@/lib/control-plane/request-context";
+import type { AuthoritativeCommandEnvelope } from "@/lib/control-plane/command-envelope";
+import type { ControlPlaneTransactionManager } from "@/lib/domain/control-plane-transaction";
 import {
-  requireEntity,
-  transitionEntity,
+  executeTransitionCommand,
   type EntityStore,
   type StatefulEntity
 } from "@/lib/domain/services/common";
@@ -18,44 +17,54 @@ export interface ApprovalRecord extends StatefulEntity {
   deniedBy?: string;
 }
 
+export interface ApprovalStores {
+  approvals: EntityStore<ApprovalRecord>;
+}
+
 export class ApprovalService {
-  constructor(
-    private readonly store: EntityStore<ApprovalRecord>,
-    private readonly audit: AuditLedger
-  ) {}
+  constructor(private readonly transactions: ControlPlaneTransactionManager<ApprovalStores>) {}
 
-  async grant(id: string, request: RequestContext, stepUpSatisfied: boolean) {
-    const current = await requireEntity(this.store, id, request);
-    if (current.requirement === "strong-approval" && !stepUpSatisfied) {
-      throw new ControlPlaneError("FORBIDDEN", "Fresh step-up authentication is required for strong approval");
-    }
-    return transitionEntity(
-      "approval",
-      current,
-      "granted",
-      { request, triggeringEvent: "approval-granted" },
-      this.store,
-      this.audit,
-      { grantedBy: request.actor.id },
-      { requirement: current.requirement }
-    );
+  grant(id: string, command: AuthoritativeCommandEnvelope, stepUpSatisfied: boolean) {
+    return executeTransitionCommand({
+      manager: this.transactions,
+      selectStore: (stores) => stores.approvals,
+      entityType: "approval",
+      entityId: id,
+      to: "granted",
+      command,
+      triggeringEvent: "approval-granted",
+      patch: (current) => {
+        if (current.requirement === "strong-approval" && !stepUpSatisfied) {
+          throw new ControlPlaneError("FORBIDDEN", "Fresh step-up authentication is required for strong approval");
+        }
+        return { grantedBy: command.actor.id };
+      },
+      metadata: (current) => ({ requirement: current.requirement })
+    });
   }
 
-  async deny(id: string, request: RequestContext) {
-    const current = await requireEntity(this.store, id, request);
-    return transitionEntity(
-      "approval",
-      current,
-      "denied",
-      { request, triggeringEvent: "approval-denied" },
-      this.store,
-      this.audit,
-      { deniedBy: request.actor.id }
-    );
+  deny(id: string, command: AuthoritativeCommandEnvelope) {
+    return executeTransitionCommand({
+      manager: this.transactions,
+      selectStore: (stores) => stores.approvals,
+      entityType: "approval",
+      entityId: id,
+      to: "denied",
+      command,
+      triggeringEvent: "approval-denied",
+      patch: () => ({ deniedBy: command.actor.id })
+    });
   }
 
-  async expire(id: string, request: RequestContext) {
-    const current = await requireEntity(this.store, id, request);
-    return transitionEntity("approval", current, "expired", { request, triggeringEvent: "approval-expired" }, this.store, this.audit);
+  expire(id: string, command: AuthoritativeCommandEnvelope) {
+    return executeTransitionCommand({
+      manager: this.transactions,
+      selectStore: (stores) => stores.approvals,
+      entityType: "approval",
+      entityId: id,
+      to: "expired",
+      command,
+      triggeringEvent: "approval-expired"
+    });
   }
 }
