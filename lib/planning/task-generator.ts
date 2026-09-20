@@ -64,10 +64,14 @@ export interface GeneratedTask {
 
 export interface TaskGenerationDedupeStore {
   /**
-   * Durable implementations must atomically claim the logical key.
-   * If the key already exists, return the existing authoritative task.
+   * Durable implementations MUST atomically persist the logical task claim
+   * and its authorization-consumption record in one transaction.
+   * A grant already consumed by different work MUST fail closed.
    */
-  claim(task: GeneratedTask): Promise<{ created: boolean; task: GeneratedTask }>;
+  claim(
+    task: GeneratedTask,
+    consumption: AuthorizationConsumptionRecord
+  ): Promise<{ created: boolean; task: GeneratedTask; consumption: AuthorizationConsumptionRecord }>;
 }
 
 export interface TaskGenerationInput {
@@ -232,7 +236,7 @@ export class TaskGenerator {
       const key = stepLogicalKeys.get(step.id)!;
       const taskId = this.idFactory();
       const authorizationConsumption = createAuthorizationConsumptionRecord({
-        id: `authorization-consumption:${taskId}`,
+        id: `authorization-consumption:${grant.id}`,
         grant,
         consumerType: "task",
         consumerId: taskId,
@@ -297,7 +301,10 @@ export class TaskGenerator {
         createdAt: now.toISOString()
       });
 
-      const claim = await this.dedupe.claim(candidate);
+      const claim = await this.dedupe.claim(candidate, authorizationConsumption);
+      if (claim.consumption.grantId !== grant.id || claim.consumption.consumerId !== claim.task.id) {
+        throw new ControlPlaneError("FORBIDDEN", "Atomic task claim returned mismatched authorization consumption");
+      }
       if (claim.created) tasks.push(claim.task);
       else duplicateTasks.push(claim.task);
     }

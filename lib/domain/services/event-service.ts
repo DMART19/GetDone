@@ -1,6 +1,9 @@
 import { ControlPlaneError } from "@/lib/control-plane/errors";
 import type { AuthoritativeCommandEnvelope } from "@/lib/control-plane/command-envelope";
+import { commandFingerprint } from "@/lib/control-plane/command-envelope";
+import { createAuditEvent } from "@/lib/domain/audit";
 import type { ControlPlaneTransactionManager } from "@/lib/domain/control-plane-transaction";
+import { claimIdempotency } from "@/lib/domain/idempotency";
 import {
   executeTransitionCommand,
   type EntityStore,
@@ -28,12 +31,110 @@ export interface EventRecord extends StatefulEntity {
   reason?: string;
 }
 
+export interface EventStore extends EntityStore<EventRecord> {
+  create(record: EventRecord): Promise<void>;
+}
+
 export interface EventStores {
-  events: EntityStore<EventRecord>;
+  events: EventStore;
+}
+
+export interface RecordEventInput {
+  id: string;
+  eventType: string;
+  source: string;
+  provenance: string;
+  payloadHash: string;
+  subjectType?: string;
+  subjectId?: string;
+  evidenceIds?: readonly string[];
+  recordedAt?: string;
 }
 
 export class EventService {
   constructor(private readonly transactions: ControlPlaneTransactionManager<EventStores>) {}
+
+  async record(input: RecordEventInput, command: AuthoritativeCommandEnvelope) {
+    if (!input.id || !input.eventType || !input.source || !input.provenance || !input.payloadHash) {
+      throw new ControlPlaneError(
+        "VALIDATION_FAILED",
+        "Authoritative events require identity, type, source, provenance, and payload hash"
+      );
+    }
+
+    const fingerprint = commandFingerprint(command);
+    const recordedAt = input.recordedAt ?? new Date().toISOString();
+
+    return this.transactions.run(async (transaction) => {
+      const claim = await claimIdempotency<EventRecord>(
+        transaction.idempotency,
+        command.idempotencyKey,
+        fingerprint,
+        new Date(recordedAt)
+      );
+
+      if (claim.state === "COMPLETED" && claim.record.result) {
+        return claim.record.result;
+      }
+      if (claim.state === "IN_PROGRESS" || claim.state === "FAILED") {
+        throw new ControlPlaneError(
+          "CONFLICT",
+          "The authoritative event command is already in progress or previously failed",
+          { correlationId: command.correlationId }
+        );
+      }
+
+      const record: EventRecord = Object.freeze({
+        id: input.id,
+        portfolioId: command.scope.portfolioId,
+        companyId: command.scope.companyId,
+        state: "recorded",
+        eventType: input.eventType,
+        source: input.source,
+        provenance: input.provenance,
+        payloadHash: input.payloadHash,
+        subjectType: input.subjectType,
+        subjectId: input.subjectId,
+        evidenceIds: Object.freeze([...(input.evidenceIds ?? [])]),
+        version: 1,
+        updatedAt: recordedAt
+      });
+
+      await transaction.stores.events.create(record);
+      await transaction.audit.append(createAuditEvent({
+        correlationId: command.correlationId,
+        eventType: "event.recorded",
+        actor: command.actor,
+        scope: {
+          userId: command.scope.userId,
+          portfolioId: command.scope.portfolioId,
+          companyId: command.scope.companyId,
+          resourceId: command.scope.resourceId
+        },
+        environment: command.environment,
+        entityType: "event",
+        entityId: record.id,
+        newState: "recorded",
+        provenance: command.provenance,
+        metadata: {
+          commandId: command.commandId,
+          idempotencyKey: command.idempotencyKey,
+          source: record.source,
+          eventType: record.eventType,
+          payloadHash: record.payloadHash
+        }
+      }));
+
+      await transaction.idempotency.complete(
+        command.idempotencyKey,
+        fingerprint,
+        record,
+        recordedAt
+      );
+
+      return record;
+    });
+  }
 
   accept(id: string, command: AuthoritativeCommandEnvelope) {
     return executeTransitionCommand({

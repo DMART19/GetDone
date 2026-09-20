@@ -131,6 +131,12 @@ export function assertApprovalProof(proof: ApprovalProof, input: {
       scope: proof.scope,
       now
     });
+    if (Date.parse(proof.expiresAt) > Date.parse(input.stepUpProof.expiresAt)) {
+      throw new ControlPlaneError(
+        "FORBIDDEN",
+        "Strong approval proof cannot outlive its step-up proof"
+      );
+    }
   }
 
   return proof;

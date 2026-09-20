@@ -8,6 +8,11 @@ import type { CredentialAvailabilitySnapshot } from "@/lib/domain/credential-bin
 import type { BudgetReservation } from "@/lib/domain/budget-reservation";
 import type { ProtectedCapacitySnapshot } from "@/lib/domain/protected-capacity";
 import { POLICY_ENGINE_VERSION, POLICY_RULES_HASH } from "@/lib/planning/policy-engine";
+import {
+  CURRENT_POLICY_REGISTRY_HASH,
+  CURRENT_POLICY_VERSION,
+  assertCurrentPolicyVersion
+} from "@/lib/domain/policy-registry";
 
 export interface PolicyBudgetSnapshot {
   policy: BudgetPolicy;
@@ -50,6 +55,7 @@ export interface PolicySnapshotInput {
   credentialRequirementIds: readonly string[];
   credentialSnapshot?: CredentialAvailabilitySnapshot;
   capacitySnapshot?: ProtectedCapacitySnapshot;
+  capacityEvidenceRequired?: boolean;
 
   fallbackRequired: boolean;
   fallbackAvailable: boolean;
@@ -60,11 +66,14 @@ export interface PolicySnapshotInput {
 }
 
 export interface PolicySnapshot extends PolicySnapshotInput {
+  policyRegistryHash: string;
   policyEngineVersion: string;
   policyRulesHash: string;
   capabilityRegistryVersion: string;
   capabilityRegistryHash: string;
   resourceRequirementsHash: string;
+  killSwitchSnapshotHash: string;
+  capacityEvidenceRequired: boolean;
   credentialSnapshotHash?: string;
   budgetReservationHash?: string;
   capacitySnapshotHash?: string;
@@ -81,9 +90,34 @@ function deepFreeze<T>(value: T, seen = new WeakSet<object>()): T {
   return Object.freeze(value);
 }
 
+function normalizedKillSwitches(killSwitches: readonly KillSwitch[]) {
+  return [...killSwitches]
+    .map((item) => ({ ...item }))
+    .sort((left, right) => left.id.localeCompare(right.id));
+}
+
+export function hashKillSwitchSnapshot(killSwitches: readonly KillSwitch[]) {
+  return sha256Hex(normalizedKillSwitches(killSwitches));
+}
+
 export function createPolicySnapshot(input: PolicySnapshotInput): PolicySnapshot {
+  assertCurrentPolicyVersion(input.policyVersion);
+
+  const capacityEvidenceRequired =
+    input.capacityEvidenceRequired
+    ?? Boolean(input.resourceId || input.poolId || input.resourceRequirements.compute);
+
+  if (capacityEvidenceRequired && !input.capacitySnapshot) {
+    throw new Error("Policy snapshot requires protected-capacity evidence");
+  }
+
+  const killSwitches = normalizedKillSwitches(input.killSwitches);
+  const killSwitchSnapshotHash = hashKillSwitchSnapshot(killSwitches);
+  const resourceRequirementsHash = sha256Hex(input.resourceRequirements);
+
   const policyInput = {
     policyVersion: input.policyVersion,
+    policyRegistryHash: CURRENT_POLICY_REGISTRY_HASH,
     scope: input.scope,
     capabilityNames: [...new Set(input.capabilityNames)].sort(),
     dataClass: input.dataClass,
@@ -100,30 +134,35 @@ export function createPolicySnapshot(input: PolicySnapshotInput): PolicySnapshot
     budget: input.budget,
     budgetReservationHash: input.budgetReservation?.reservationHash,
     guardrails: input.guardrails,
-    killSwitches: input.killSwitches,
+    killSwitchSnapshotHash,
     credentialRequirementIds: [...new Set(input.credentialRequirementIds)].sort(),
     credentialSnapshotHash: input.credentialSnapshot?.snapshotHash,
     capacitySnapshotHash: input.capacitySnapshot?.snapshotHash,
+    capacityEvidenceRequired,
     fallbackRequired: input.fallbackRequired,
     fallbackAvailable: input.fallbackAvailable,
     idempotencyKey: input.idempotencyKey,
-    resourceRequirementsHash: sha256Hex(input.resourceRequirements)
+    resourceRequirementsHash
   };
 
   const base = {
     ...input,
+    policyVersion: CURRENT_POLICY_VERSION,
+    policyRegistryHash: CURRENT_POLICY_REGISTRY_HASH,
     scope: { ...input.scope },
     capabilityNames: [...new Set(input.capabilityNames)].sort(),
     allowedEnvironments: [...input.allowedEnvironments],
     allowedDataClasses: [...input.allowedDataClasses],
     allowedRegions: input.allowedRegions ? [...input.allowedRegions] : undefined,
-    killSwitches: input.killSwitches.map((item) => ({ ...item })),
+    killSwitches,
     credentialRequirementIds: [...new Set(input.credentialRequirementIds)].sort(),
+    capacityEvidenceRequired,
     policyEngineVersion: POLICY_ENGINE_VERSION,
     policyRulesHash: POLICY_RULES_HASH,
     capabilityRegistryVersion: CAPABILITY_REGISTRY_VERSION,
     capabilityRegistryHash: CAPABILITY_REGISTRY_HASH,
-    resourceRequirementsHash: sha256Hex(input.resourceRequirements),
+    resourceRequirementsHash,
+    killSwitchSnapshotHash,
     credentialSnapshotHash: input.credentialSnapshot?.snapshotHash,
     budgetReservationHash: input.budgetReservation?.reservationHash,
     capacitySnapshotHash: input.capacitySnapshot?.snapshotHash,
@@ -142,12 +181,23 @@ export function assertPolicySnapshotIntegrity(snapshot: PolicySnapshot) {
     throw new Error("Policy snapshot integrity check failed");
   }
   if (
-    snapshot.policyEngineVersion !== POLICY_ENGINE_VERSION
+    snapshot.policyVersion !== CURRENT_POLICY_VERSION
+    || snapshot.policyRegistryHash !== CURRENT_POLICY_REGISTRY_HASH
+    || snapshot.policyEngineVersion !== POLICY_ENGINE_VERSION
     || snapshot.policyRulesHash !== POLICY_RULES_HASH
     || snapshot.capabilityRegistryVersion !== CAPABILITY_REGISTRY_VERSION
     || snapshot.capabilityRegistryHash !== CAPABILITY_REGISTRY_HASH
+    || snapshot.killSwitchSnapshotHash !== hashKillSwitchSnapshot(snapshot.killSwitches)
   ) {
-    throw new Error("Policy snapshot references stale policy or capability definitions");
+    throw new Error("Policy snapshot references stale policy, capability, or kill-switch definitions");
   }
+
+  const requiresCapacity =
+    snapshot.capacityEvidenceRequired
+    || Boolean(snapshot.resourceId || snapshot.poolId || snapshot.resourceRequirements.compute);
+  if (requiresCapacity && !snapshot.capacitySnapshotHash) {
+    throw new Error("Policy snapshot is missing required protected-capacity evidence");
+  }
+
   return snapshot;
 }

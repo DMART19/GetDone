@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createPolicySnapshot, assertPolicySnapshotIntegrity } from "@/lib/planning/policy-snapshot";
 import { POLICY_ENGINE_VERSION, POLICY_RULES_HASH } from "@/lib/planning/policy-engine";
+import { CURRENT_POLICY_VERSION, CURRENT_POLICY_REGISTRY_HASH } from "@/lib/domain/policy-registry";
 import { validPlan } from "@/lib/planning/test-fixture";
 import { fixtureNow, fixtureScope } from "@/lib/planning/test-security-fixture";
 import { hashPlan, hashPlanStep } from "@/lib/planning/plan-hash";
@@ -11,7 +12,7 @@ describe("policy snapshot", () => {
     const step = plan.steps[0];
     const snapshot = createPolicySnapshot({
       id: "policy-snapshot-test",
-      policyVersion: "policy-v2",
+      policyVersion: CURRENT_POLICY_VERSION,
       scope: fixtureScope(plan),
       planHash: hashPlan(plan),
       stepHash: hashPlanStep(step),
@@ -38,6 +39,8 @@ describe("policy snapshot", () => {
     expect(snapshot.policyInputHash).toHaveLength(64);
     expect(snapshot.snapshotHash).toHaveLength(64);
     expect(snapshot.policyEngineVersion).toBe(POLICY_ENGINE_VERSION);
+    expect(snapshot.policyRegistryHash).toBe(CURRENT_POLICY_REGISTRY_HASH);
+    expect(snapshot.killSwitchSnapshotHash).toHaveLength(64);
     expect(snapshot.policyRulesHash).toBe(POLICY_RULES_HASH);
     expect(snapshot.integrationId).toBe("github-binding");
     expect(snapshot.providerId).toBe("github");
@@ -50,7 +53,7 @@ describe("policy snapshot", () => {
     const step = plan.steps[0];
     const base = {
       id: "policy-snapshot-test",
-      policyVersion: "policy-v2",
+      policyVersion: CURRENT_POLICY_VERSION,
       scope: fixtureScope(plan),
       planHash: hashPlan(plan),
       stepHash: hashPlanStep(step),

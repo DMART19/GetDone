@@ -83,6 +83,7 @@ export interface PolicyEvaluationInput {
   credentialRequirementIds: readonly string[];
   credentialSnapshot?: CredentialAvailabilitySnapshot;
   capacitySnapshot?: ProtectedCapacitySnapshot;
+  capacityEvidenceRequired?: boolean;
 
   fallbackRequired: boolean;
   fallbackAvailable: boolean;
@@ -121,6 +122,7 @@ export interface PolicyReason {
     | "CREDENTIAL_MISSING"
     | "CREDENTIAL_SNAPSHOT_INVALID"
     | "HEADROOM_BLOCKED"
+    | "CAPACITY_REQUIRED"
     | "CAPACITY_SNAPSHOT_INVALID"
     | "FALLBACK_MISSING"
     | "IDEMPOTENCY_MISSING"
@@ -285,6 +287,10 @@ export function evaluatePolicy(input: PolicyEvaluationInput): PolicyEvaluation {
         block("CREDENTIAL_SNAPSHOT_INVALID", "Credential availability snapshot is stale, tampered, or out of scope");
       }
     }
+  }
+
+  if (input.capacityEvidenceRequired && !input.capacitySnapshot) {
+    block("CAPACITY_REQUIRED", "Protected-capacity evidence is required before authorization");
   }
 
   if (input.capacitySnapshot) {

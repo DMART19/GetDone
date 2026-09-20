@@ -14,6 +14,7 @@ import { createPolicySnapshot } from "@/lib/planning/policy-snapshot";
 import { evaluateStepPolicy } from "@/lib/planning/policy-engine";
 import { validPlan } from "@/lib/planning/test-fixture";
 import { fixtureNow, fixtureScope, receiptFor, autoGrantFor } from "@/lib/planning/test-security-fixture";
+import { CURRENT_POLICY_VERSION } from "@/lib/domain/policy-registry";
 
 describe("authorization grants", () => {
   it("issues an immutable AUTO grant bound to plan version, hashes, receipt and policy version", () => {
@@ -70,13 +71,14 @@ describe("authorization grants", () => {
     const receipt = receiptFor(plan);
     const grant = autoGrantFor(plan, plan.steps[0].id, receipt);
     const consumption = createAuthorizationConsumptionRecord({
-      id: "consumption-1",
+      id: `authorization-consumption:${grant.id}`,
       grant,
       consumerType: "task",
       consumerId: "task-1",
       consumedAt: fixtureNow.toISOString()
     });
 
+    expect(consumption.id).toBe(`authorization-consumption:${grant.id}`);
     expect(consumption.consumerType).toBe("task");
     expect(consumption.consumerId).toBe("task-1");
     expect(consumption.consumptionHash).toHaveLength(64);
@@ -146,7 +148,7 @@ describe("authorization grants", () => {
     });
     const policySnapshot = createPolicySnapshot({
       id: "policy-snapshot-strong",
-      policyVersion: "policy-v2",
+      policyVersion: CURRENT_POLICY_VERSION,
       scope,
       planHash: hashPlan(productionPlan),
       stepHash: hashPlanStep(step),

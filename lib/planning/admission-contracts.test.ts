@@ -130,6 +130,7 @@ describe("typed work-admission contracts", () => {
       credentialRequirementIds: ["credential-requirement-1"],
       credentialSnapshot: credentials,
       capacitySnapshot: capacity,
+      capacityEvidenceRequired: true,
       fallbackRequired: false,
       fallbackAvailable: true,
       idempotencyKey: "admission-policy-1",
@@ -153,6 +154,7 @@ describe("typed work-admission contracts", () => {
       credentialRequirementIds: ["credential-requirement-1"],
       credentialSnapshot: credentials,
       capacitySnapshot: capacity,
+      capacityEvidenceRequired: true,
       fallbackRequired: false,
       fallbackAvailable: true,
       idempotencyKey: "admission-policy-1",
@@ -196,10 +198,87 @@ describe("typed work-admission contracts", () => {
     expect(admission.credentialSnapshotHash).toBe(credentials.snapshotHash);
     expect(admission.budgetReservationHash).toBe(budgetReservation.reservationHash);
     expect(admission.capacitySnapshotHash).toBe(capacity.snapshotHash);
+    expect(admission.killSwitchSnapshotHash).toBe(policySnapshot.killSwitchSnapshotHash);
     expect(Object.isFrozen(admission)).toBe(true);
     expect(assertWorkAdmissionEnvelope(admission, {
       scope,
       now: fixtureNow.getTime()
     })).toBe(admission);
+  });
+
+  it("fails closed when kill-switch state changes after policy evaluation", () => {
+    const plan = validPlan();
+    const step = plan.steps[0];
+    const scope = fixtureScope(plan);
+    const receipt = receiptFor(plan);
+    const policySnapshot = createPolicySnapshot({
+      id: "policy-snapshot-kill-switch",
+      policyVersion: receipt.snapshot.policyVersion,
+      scope,
+      planHash: hashPlan(plan),
+      stepHash: hashPlanStep(step),
+      capabilityNames: ["repository.inspect"],
+      dataClass: plan.scope.dataClass,
+      allowedEnvironments: [plan.scope.environment],
+      allowedDataClasses: [plan.scope.dataClass],
+      killSwitches: [],
+      credentialRequirementIds: [],
+      fallbackRequired: false,
+      fallbackAvailable: true,
+      idempotencyKey: "kill-switch-admission-1",
+      resourceRequirements: step.resourceRequirements,
+      createdAt: fixtureNow.toISOString()
+    });
+    const policyEvaluation = evaluateStepPolicy({
+      authenticated: true,
+      scopeResolved: true,
+      trustedScope: scope,
+      capabilities: ["repository.inspect"],
+      planHash: hashPlan(plan),
+      stepHash: hashPlanStep(step),
+      environment: plan.scope.environment,
+      dataClass: plan.scope.dataClass,
+      allowedEnvironments: [plan.scope.environment],
+      allowedDataClasses: [plan.scope.dataClass],
+      credentialRequirementIds: [],
+      fallbackRequired: false,
+      fallbackAvailable: true,
+      idempotencyKey: "kill-switch-admission-1",
+      killSwitches: [],
+      now: fixtureNow.getTime()
+    });
+    const grant = issueAuthorizationGrant({
+      id: "grant-kill-switch",
+      plan,
+      stepId: step.id,
+      receipt,
+      policySnapshot,
+      policyEvaluation,
+      actor: { type: "system", id: "getdone-policy" },
+      scope,
+      issuedAt: fixtureNow.toISOString(),
+      expiresAt: "2026-09-20T18:30:30Z"
+    });
+
+    expect(() => createWorkAdmissionEnvelope({
+      id: "admission-kill-switch",
+      plan,
+      stepId: step.id,
+      scope,
+      receipt,
+      policySnapshot,
+      grant,
+      killSwitches: [{
+        id: "ks-company",
+        scopeType: "company",
+        scopeId: scope.companyId,
+        enabled: true,
+        reason: "incident",
+        activatedAt: "2026-09-20T18:30:01Z",
+        activatedBy: "user-a"
+      }],
+      createdAt: "2026-09-20T18:30:05Z",
+      expiresAt: "2026-09-20T18:30:20Z"
+    })).toThrow();
   });
 });

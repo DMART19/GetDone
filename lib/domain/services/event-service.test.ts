@@ -31,6 +31,10 @@ class EventTransactionManager implements ControlPlaneTransactionManager<EventSto
       save: async (next: EventRecord, expectedVersion: number) => {
         if (staged.version !== expectedVersion) throw new Error("optimistic concurrency conflict");
         staged = { ...next };
+      },
+      create: async (record: EventRecord) => {
+        if (staged.id === record.id) throw new Error("event already exists");
+        staged = { ...record };
       }
     };
 
@@ -110,6 +114,23 @@ const initial: EventRecord = {
 };
 
 describe("authoritative event service", () => {
+  it("records first-class authoritative events transactionally", async () => {
+    const manager = new EventTransactionManager(initial);
+    const service = new EventService(manager);
+    const recorded = await service.record({
+      id: "event-2",
+      eventType: "task.authorization.consumed",
+      source: "control-plane",
+      provenance: "task:task-1",
+      payloadHash: "payload-sha256",
+      recordedAt: "2026-09-20T18:01:00Z"
+    }, command("record"));
+
+    expect(recorded.state).toBe("recorded");
+    expect(recorded.companyId).toBe("company-a");
+    expect(manager.audit()[0].eventType).toBe("event.recorded");
+  });
+
   it("treats control-plane events as first-class stateful entities", async () => {
     const manager = new EventTransactionManager(initial);
     const service = new EventService(manager);

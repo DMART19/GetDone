@@ -2,17 +2,31 @@ import { describe, expect, it } from "vitest";
 import { DagCompiler } from "@/lib/planning/dag-compiler";
 import type { GeneratedTask } from "@/lib/planning/task-generator";
 import { TaskGenerator, type TaskGenerationDedupeStore } from "@/lib/planning/task-generator";
+import type { AuthorizationConsumptionRecord } from "@/lib/authorization/grants";
 import { validPlan } from "@/lib/planning/test-fixture";
 import type { PlanProposal } from "@/lib/planning/plan-schema";
 import { autoGrantFor, fixtureNow, receiptFor } from "@/lib/planning/test-security-fixture";
 
 class MemoryTaskStore implements TaskGenerationDedupeStore {
   readonly tasks = new Map<string, GeneratedTask>();
-  async claim(task: GeneratedTask) {
+  readonly consumptions = new Map<string, AuthorizationConsumptionRecord>();
+
+  async claim(task: GeneratedTask, consumption: AuthorizationConsumptionRecord) {
     const existing = this.tasks.get(task.logicalKey);
-    if (existing) return { created: false, task: existing };
+    if (existing) {
+      return {
+        created: false,
+        task: existing,
+        consumption: existing.authorizationConsumption
+      };
+    }
+    const prior = this.consumptions.get(consumption.grantId);
+    if (prior && prior.consumerId !== consumption.consumerId) {
+      throw new Error("authorization grant already consumed");
+    }
     this.tasks.set(task.logicalKey, task);
-    return { created: true, task };
+    this.consumptions.set(consumption.grantId, consumption);
+    return { created: true, task, consumption };
   }
 }
 

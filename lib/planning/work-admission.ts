@@ -10,10 +10,13 @@ import type { BudgetReservation } from "@/lib/domain/budget-reservation";
 import { assertBudgetReservation } from "@/lib/domain/budget-reservation";
 import type { ProtectedCapacitySnapshot } from "@/lib/domain/protected-capacity";
 import { assertProtectedCapacitySnapshot } from "@/lib/domain/protected-capacity";
-import type { KillSwitch } from "@/lib/domain/kill-switch";
+import { blockingKillSwitches, type KillSwitch } from "@/lib/domain/kill-switch";
 import type { ResourceRequirementEnvelope, PlanProposal } from "@/lib/planning/plan-schema";
 import type { PolicySnapshot } from "@/lib/planning/policy-snapshot";
-import { assertPolicySnapshotIntegrity } from "@/lib/planning/policy-snapshot";
+import {
+  assertPolicySnapshotIntegrity,
+  hashKillSwitchSnapshot
+} from "@/lib/planning/policy-snapshot";
 import type { PlanValidationReceipt } from "@/lib/planning/validation-receipt";
 import { assertValidationReceipt } from "@/lib/planning/validation-receipt";
 import { hashPlan, hashPlanStep } from "@/lib/planning/plan-hash";
@@ -44,7 +47,8 @@ export interface WorkAdmissionEnvelope {
   capacitySnapshotId?: string;
   capacitySnapshotHash?: string;
 
-  killSwitchIds: readonly string[];
+  killSwitchSnapshotHash: string;
+  evaluatedKillSwitchIds: readonly string[];
   resourceRequirements: ResourceRequirementEnvelope;
   createdAt: string;
   expiresAt: string;
@@ -101,13 +105,48 @@ export function createWorkAdmissionEnvelope(input: {
 
   const planHash = hashPlan(input.plan);
   const stepHash = hashPlanStep(step);
+
   if (
     input.policySnapshot.planHash !== planHash
     || input.policySnapshot.stepHash !== stepHash
     || input.grant.policySnapshotId !== input.policySnapshot.id
     || input.grant.policySnapshotHash !== input.policySnapshot.snapshotHash
   ) {
-    throw new ControlPlaneError("FORBIDDEN", "Admission authority chain does not bind to the same plan step");
+    throw new ControlPlaneError(
+      "FORBIDDEN",
+      "Admission authority chain does not bind to the same plan step"
+    );
+  }
+
+  const killSwitchSnapshotHash = hashKillSwitchSnapshot(input.killSwitches);
+  if (killSwitchSnapshotHash !== input.policySnapshot.killSwitchSnapshotHash) {
+    throw new ControlPlaneError(
+      "POLICY_BLOCKED",
+      "Kill-switch state changed after policy evaluation; re-evaluation is required"
+    );
+  }
+
+  const blocking = step.capabilityRequests.flatMap((request) =>
+    blockingKillSwitches(input.killSwitches, {
+      portfolioId: input.scope.portfolioId,
+      companyId: input.scope.companyId,
+      integrationId: input.policySnapshot.integrationId,
+      capability: request.capability,
+      resourceId: input.policySnapshot.resourceId ?? input.scope.resourceId,
+      poolId: input.policySnapshot.poolId,
+      providerId: input.policySnapshot.providerId,
+      failureDomainId: input.policySnapshot.failureDomainId,
+      workloadClass: input.policySnapshot.workloadClass
+    })
+  );
+
+  if (blocking.length > 0) {
+    throw new ControlPlaneError(
+      "POLICY_BLOCKED",
+      `Work admission is blocked by kill switch: ${[
+        ...new Set(blocking.map((item) => item.id))
+      ].join(", ")}`
+    );
   }
 
   if (input.credentialSnapshot) {
@@ -117,13 +156,22 @@ export function createWorkAdmissionEnvelope(input: {
       now: createdAt
     });
     if (!credentialResult.satisfied) {
-      throw new ControlPlaneError("POLICY_BLOCKED", "Credential requirements are not satisfied for admitted work");
+      throw new ControlPlaneError(
+        "POLICY_BLOCKED",
+        "Credential requirements are not satisfied for admitted work"
+      );
     }
     if (input.policySnapshot.credentialSnapshotHash !== input.credentialSnapshot.snapshotHash) {
-      throw new ControlPlaneError("FORBIDDEN", "Admission credential snapshot differs from policy snapshot");
+      throw new ControlPlaneError(
+        "FORBIDDEN",
+        "Admission credential snapshot differs from policy snapshot"
+      );
     }
   } else if (input.policySnapshot.credentialRequirementIds.length > 0) {
-    throw new ControlPlaneError("POLICY_BLOCKED", "Credential-bound work requires a credential snapshot");
+    throw new ControlPlaneError(
+      "POLICY_BLOCKED",
+      "Credential-bound work requires a credential snapshot"
+    );
   }
 
   if (input.budgetReservation) {
@@ -136,10 +184,28 @@ export function createWorkAdmissionEnvelope(input: {
       now: createdAt
     });
     if (input.policySnapshot.budgetReservationHash !== input.budgetReservation.reservationHash) {
-      throw new ControlPlaneError("FORBIDDEN", "Admission budget reservation differs from policy snapshot");
+      throw new ControlPlaneError(
+        "FORBIDDEN",
+        "Admission budget reservation differs from policy snapshot"
+      );
     }
   } else if (step.estimatedCostCents > 0 && input.policySnapshot.budget) {
-    throw new ControlPlaneError("POLICY_BLOCKED", "Budgeted work requires a reservation before admission");
+    throw new ControlPlaneError(
+      "POLICY_BLOCKED",
+      "Budgeted work requires a reservation before admission"
+    );
+  }
+
+  const capacityRequired =
+    input.policySnapshot.capacityEvidenceRequired
+    || Boolean(step.resourceRequirements.compute)
+    || Boolean(input.policySnapshot.resourceId || input.policySnapshot.poolId);
+
+  if (capacityRequired && !input.capacitySnapshot) {
+    throw new ControlPlaneError(
+      "POLICY_BLOCKED",
+      "Resource-backed work requires fresh protected-capacity evidence"
+    );
   }
 
   if (input.capacitySnapshot) {
@@ -150,13 +216,28 @@ export function createWorkAdmissionEnvelope(input: {
       poolId: input.policySnapshot.poolId,
       now: createdAt
     });
+
     if (input.policySnapshot.capacitySnapshotHash !== input.capacitySnapshot.snapshotHash) {
-      throw new ControlPlaneError("FORBIDDEN", "Admission capacity snapshot differs from policy snapshot");
+      throw new ControlPlaneError(
+        "FORBIDDEN",
+        "Admission capacity snapshot differs from policy snapshot"
+      );
     }
+  } else if (input.policySnapshot.capacitySnapshotHash) {
+    throw new ControlPlaneError(
+      "POLICY_BLOCKED",
+      "Policy evaluated capacity evidence that is missing at admission"
+    );
   }
 
-  if (input.grant.expiresAt < input.expiresAt || input.receipt.expiresAt < input.expiresAt) {
-    throw new ControlPlaneError("FORBIDDEN", "Work admission cannot outlive its validation or authorization");
+  if (
+    Date.parse(input.grant.expiresAt) < expiresAt
+    || Date.parse(input.receipt.expiresAt) < expiresAt
+  ) {
+    throw new ControlPlaneError(
+      "FORBIDDEN",
+      "Work admission cannot outlive its validation or authorization"
+    );
   }
 
   const base = {
@@ -166,7 +247,9 @@ export function createWorkAdmissionEnvelope(input: {
     planHash,
     stepId: step.id,
     stepHash,
-    capabilityNames: [...new Set(step.capabilityRequests.map((request) => request.capability))].sort(),
+    capabilityNames: [
+      ...new Set(step.capabilityRequests.map((request) => request.capability))
+    ].sort(),
     environment: input.plan.scope.environment,
     dataClass: input.plan.scope.dataClass,
     region: input.policySnapshot.region,
@@ -182,7 +265,8 @@ export function createWorkAdmissionEnvelope(input: {
     budgetReservationHash: input.budgetReservation?.reservationHash,
     capacitySnapshotId: input.capacitySnapshot?.id,
     capacitySnapshotHash: input.capacitySnapshot?.snapshotHash,
-    killSwitchIds: input.killSwitches.filter((item) => item.enabled).map((item) => item.id).sort(),
+    killSwitchSnapshotHash,
+    evaluatedKillSwitchIds: [...input.killSwitches].map((item) => item.id).sort(),
     resourceRequirements: step.resourceRequirements,
     createdAt: input.createdAt,
     expiresAt: input.expiresAt
@@ -200,14 +284,26 @@ export function assertWorkAdmissionEnvelope(
 ) {
   const { admissionHash, ...base } = envelope;
   if (sha256Hex(base) !== admissionHash) {
-    throw new ControlPlaneError("FORBIDDEN", "Work admission envelope integrity check failed");
+    throw new ControlPlaneError(
+      "FORBIDDEN",
+      "Work admission envelope integrity check failed"
+    );
   }
+
   assertTrustedExecutionScopeEqual(input.scope, envelope.scope, {
     requireSameResource: Boolean(input.scope.resourceId || envelope.scope.resourceId)
   });
+
   const now = input.now ?? Date.now();
-  if (Date.parse(envelope.createdAt) > now || Date.parse(envelope.expiresAt) <= now) {
-    throw new ControlPlaneError("POLICY_BLOCKED", "Work admission envelope is not currently valid");
+  if (
+    Date.parse(envelope.createdAt) > now
+    || Date.parse(envelope.expiresAt) <= now
+  ) {
+    throw new ControlPlaneError(
+      "POLICY_BLOCKED",
+      "Work admission envelope is not currently valid"
+    );
   }
+
   return envelope;
 }

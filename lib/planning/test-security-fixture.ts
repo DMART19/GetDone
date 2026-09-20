@@ -1,10 +1,15 @@
 import type { TrustedExecutionScope } from "@/lib/control-plane/trusted-execution-scope";
 import { issueAuthorizationGrant, type AuthorizationGrant } from "@/lib/authorization/grants";
+import { CURRENT_POLICY_VERSION } from "@/lib/domain/policy-registry";
 import { evaluateStepPolicy, type StepPolicyEvaluation } from "@/lib/planning/policy-engine";
 import { createPolicySnapshot, type PolicySnapshot } from "@/lib/planning/policy-snapshot";
 import type { PlanProposal } from "@/lib/planning/plan-schema";
 import { validPlan } from "@/lib/planning/test-fixture";
-import type { PlanValidationResult } from "@/lib/planning/plan-validator";
+import {
+  attestPlanValidation,
+  type PlanValidationPolicy,
+  type PlanValidatorAttestation
+} from "@/lib/planning/plan-validator";
 import {
   createValidationReceipt,
   createValidationSnapshot,
@@ -23,15 +28,38 @@ export function fixtureScope(plan: PlanProposal = validPlan()): TrustedExecution
   };
 }
 
-export function cleanValidation(plan: PlanProposal): PlanValidationResult {
+export function validationPolicyFor(
+  plan: PlanProposal = validPlan(),
+  overrides: Partial<PlanValidationPolicy> = {}
+): PlanValidationPolicy {
   return {
-    status: "valid",
-    errors: [],
-    warnings: [],
-    ownerDecisions: [],
-    orderedStepIds: plan.steps.map((step) => step.id),
-    totalStepCostCents: plan.steps.reduce((sum, step) => sum + step.estimatedCostCents, 0)
+    trustedScope: {
+      portfolioId: plan.scope.portfolioId,
+      companyId: plan.scope.companyId
+    },
+    allowedEnvironments: [plan.scope.environment],
+    allowedDataClasses: [plan.scope.dataClass],
+    allowedRegions: ["us-west"],
+    maxPlanCostCents: 100_000,
+    maxStepCostCents: 100_000,
+    minimumReliabilityTier: "standard",
+    fallbackRequiredForProduction: false,
+    fallbackRequiredForCustomerData: false,
+    availableCredentialBindings: true,
+    ...overrides
   };
+}
+
+export function attestationFor(
+  plan: PlanProposal = validPlan(),
+  now = fixtureNow,
+  policy: PlanValidationPolicy = validationPolicyFor(plan)
+): PlanValidatorAttestation {
+  return attestPlanValidation(
+    plan,
+    policy,
+    new Date(now.getTime() - 750).toISOString()
+  );
 }
 
 export function receiptFor(
@@ -40,9 +68,14 @@ export function receiptFor(
 ): PlanValidationReceipt {
   const snapshot = createValidationSnapshot({
     id: "validation-snapshot-1",
-    policyVersion: "policy-v2",
+    policyVersion: CURRENT_POLICY_VERSION,
     environment: plan.scope.environment,
     configurationVersion: "config-v1",
+    evidenceRequirements: {
+      health: "not-applicable",
+      capacity: "not-applicable",
+      credentials: "not-applicable"
+    },
     createdAt: new Date(now.getTime() - 1_000).toISOString(),
     expiresAt: new Date(now.getTime() + 120_000).toISOString()
   });
@@ -50,7 +83,7 @@ export function receiptFor(
   return createValidationReceipt({
     id: "validation-receipt-1",
     plan,
-    validation: cleanValidation(plan),
+    attestation: attestationFor(plan, now),
     snapshot,
     validatedAt: new Date(now.getTime() - 500).toISOString(),
     expiresAt: new Date(now.getTime() + 60_000).toISOString()
@@ -64,9 +97,10 @@ export function policySnapshotFor(
 ): PolicySnapshot {
   const step = plan.steps.find((candidate) => candidate.id === stepId)!;
   const scope = fixtureScope(plan);
+
   return createPolicySnapshot({
     id: `policy-snapshot-${stepId}`,
-    policyVersion: "policy-v2",
+    policyVersion: CURRENT_POLICY_VERSION,
     scope,
     planHash: hashPlan(plan),
     stepHash: hashPlanStep(step),
@@ -92,6 +126,7 @@ export function autoPolicyFor(
 ): StepPolicyEvaluation {
   const step = plan.steps.find((candidate) => candidate.id === stepId)!;
   const scope = fixtureScope(plan);
+
   return evaluateStepPolicy({
     authenticated: true,
     scopeResolved: true,

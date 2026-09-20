@@ -10,6 +10,9 @@ import { TaskService, type TaskRecord, type TaskStores } from "@/lib/domain/serv
 import { JobService, type JobRecord, type JobStores } from "@/lib/domain/services/job-service";
 import { OutcomeService, type OutcomeRecord, type OutcomeStores } from "@/lib/domain/services/outcome-service";
 import { createStepUpProof } from "@/lib/authorization/proofs";
+import { autoGrantFor, fixtureNow } from "@/lib/planning/test-security-fixture";
+import { validPlan } from "@/lib/planning/test-fixture";
+import { hashPlan, hashPlanStep } from "@/lib/planning/plan-hash";
 
 class MemoryStore<T extends AuthoritativeEntity> implements EntityStore<T> {
   constructor(public value: T) {}
@@ -47,10 +50,10 @@ function command(type: string) {
       userId: "user-a",
       portfolioId: "portfolio-a",
       companyId: "company-a",
-      environment: "development"
+      environment: "staging"
     },
     correlationId: `correlation-${commandCounter}`,
-    environment: "development",
+    environment: "staging",
     idempotencyKey: `idempotency-${commandCounter}`,
     provenance: "unit-test",
     requestedMutation: { type }
@@ -64,7 +67,7 @@ const stepUp = createStepUpProof({
     userId: "user-a",
     portfolioId: "portfolio-a",
     companyId: "company-a",
-    environment: "development"
+    environment: "staging"
   },
   method: "passkey",
   authenticatedAt: "2026-09-20T17:59:00Z",
@@ -97,9 +100,18 @@ describe("transactional domain services", () => {
       ...base, state: "pending", decisionId: "decision-1", requirement: "strong-approval"
     });
     const service = new ApprovalService(manager<ApprovalStores>({ approvals: store }));
-    await expect(service.grant(base.id, command("approval.grant"))).rejects.toThrow();
-    const granted = await service.grant(base.id, command("approval.grant"), stepUp);
+    const plan = validPlan();
+    const approvalInput = {
+      planHash: hashPlan(plan),
+      stepHash: hashPlanStep(plan.steps[0]),
+      proofExpiresAt: "2098-12-31T23:59:00Z",
+      stepUpProof: stepUp
+    };
+    await expect(service.grant(base.id, command("approval.grant"), { ...approvalInput, stepUpProof: undefined })).rejects.toThrow();
+    const granted = await service.grant(base.id, command("approval.grant"), approvalInput);
     expect(granted.state).toBe("granted");
+    expect(granted.approvalProof?.decisionId).toBe("decision-1");
+    expect(granted.approvalProof?.planHash).toBe(hashPlan(plan));
   });
 
   it("requires verification evidence before task success", async () => {
@@ -114,9 +126,12 @@ describe("transactional domain services", () => {
 
   it("requires a claimed worker before a job starts", async () => {
     const store = new MemoryStore<JobRecord>({
-      ...base, state: "queued", taskId: "task-1", attempt: 0, verificationEvidenceIds: []
+      ...base, state: "created", taskId: "task-1", attempt: 0, verificationEvidenceIds: []
     });
     const service = new JobService(manager<JobStores>({ jobs: store }));
+    const grant = autoGrantFor(validPlan());
+    const queued = await service.queue(base.id, command("job.queue"), grant, fixtureNow.toISOString());
+    expect(queued.authorizationConsumption?.consumerType).toBe("job");
     await service.claim(base.id, command("job.claim"), "worker-1");
     expect((await service.start(base.id, command("job.start"))).state).toBe("running");
   });

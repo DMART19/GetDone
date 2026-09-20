@@ -72,6 +72,10 @@ export interface AuthorizationConsumptionRecord {
 
 export interface AuthorizationGrantStore {
   get(id: string): Promise<AuthorizationGrant | null>;
+  /**
+   * Durable implementations MUST enforce a unique consumption id per grant
+   * so the same grant cannot authorize two different Task/Job consumers.
+   */
   consume(record: AuthorizationConsumptionRecord): Promise<void>;
   listConsumptions(grantId: string): Promise<readonly AuthorizationConsumptionRecord[]>;
   revoke(id: string, reason: string, revokedAt: string): Promise<void>;
@@ -329,6 +333,14 @@ export function createAuthorizationConsumptionRecord(input: {
   consumerId: string;
   consumedAt: string;
 }): AuthorizationConsumptionRecord {
+  const expectedId = `authorization-consumption:${input.grant.id}`;
+  if (input.id !== expectedId) {
+    throw new ControlPlaneError(
+      "VALIDATION_FAILED",
+      "Authorization consumption id must be derived from the grant id"
+    );
+  }
+
   const consumedAt = Date.parse(input.consumedAt);
   if (!Number.isFinite(consumedAt)) {
     throw new ControlPlaneError(

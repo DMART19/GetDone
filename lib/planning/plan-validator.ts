@@ -1,4 +1,6 @@
 import { getCapability, validateCapabilityInput } from "@/lib/domain/capabilities";
+import { sha256Hex } from "@/lib/control-plane/canonical-hash";
+import { hashPlan } from "@/lib/planning/plan-hash";
 import type { CapabilityDefinition } from "@/lib/domain/capabilities";
 import type { PlanEffect, PlanProposal, PlanStep } from "@/lib/planning/plan-schema";
 
@@ -441,4 +443,77 @@ export function validatePlan(
     orderedStepIds: ordering.ordered,
     totalStepCostCents
   };
+}
+
+
+export const PLAN_VALIDATOR_VERSION = "2026-09-21.1";
+export const PLAN_VALIDATOR_RULES_HASH = sha256Hex({
+  version: PLAN_VALIDATOR_VERSION,
+  rules: [
+    "trusted-scope",
+    "capability-runtime-input",
+    "dependency-graph",
+    "step-conflicts",
+    "effect-conflicts",
+    "cost-ceilings",
+    "environment-data-region",
+    "reliability-fallback",
+    "credential-availability",
+    "rollback-owner-decision"
+  ]
+});
+
+export interface PlanValidatorAttestation extends PlanValidationResult {
+  planHash: string;
+  validationPolicyHash: string;
+  validatorVersion: string;
+  validatorRulesHash: string;
+  attestedAt: string;
+  attestationHash: string;
+}
+
+export function attestPlanValidation(
+  plan: PlanProposal,
+  policy: PlanValidationPolicy,
+  attestedAt = new Date().toISOString()
+): PlanValidatorAttestation {
+  const parsed = Date.parse(attestedAt);
+  if (!Number.isFinite(parsed)) {
+    throw new Error("Plan validator attestation timestamp is invalid");
+  }
+
+  const validation = validatePlan(plan, policy);
+  const base = {
+    ...validation,
+    planHash: hashPlan(plan),
+    validationPolicyHash: sha256Hex(policy),
+    validatorVersion: PLAN_VALIDATOR_VERSION,
+    validatorRulesHash: PLAN_VALIDATOR_RULES_HASH,
+    attestedAt
+  };
+
+  return Object.freeze({
+    ...base,
+    errors: Object.freeze(validation.errors.map((item) => Object.freeze({ ...item }))),
+    warnings: Object.freeze(validation.warnings.map((item) => Object.freeze({ ...item }))),
+    ownerDecisions: Object.freeze(validation.ownerDecisions.map((item) => Object.freeze({ ...item }))),
+    orderedStepIds: Object.freeze([...validation.orderedStepIds]),
+    attestationHash: sha256Hex(base)
+  });
+}
+
+export function assertPlanValidatorAttestation(
+  attestation: PlanValidatorAttestation,
+  plan: PlanProposal
+) {
+  const { attestationHash, ...base } = attestation;
+  if (
+    sha256Hex(base) !== attestationHash
+    || attestation.validatorVersion !== PLAN_VALIDATOR_VERSION
+    || attestation.validatorRulesHash !== PLAN_VALIDATOR_RULES_HASH
+    || attestation.planHash !== hashPlan(plan)
+  ) {
+    throw new Error("Plan validator attestation is invalid or stale");
+  }
+  return attestation;
 }

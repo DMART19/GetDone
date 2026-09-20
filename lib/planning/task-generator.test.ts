@@ -6,16 +6,31 @@ import {
   receiptFor
 } from "@/lib/planning/test-security-fixture";
 import { TaskGenerator, type GeneratedTask, type TaskGenerationDedupeStore } from "@/lib/planning/task-generator";
+import type { AuthorizationConsumptionRecord } from "@/lib/authorization/grants";
 import type { PlanValidationReceipt } from "@/lib/planning/validation-receipt";
 
 class MemoryTaskDedupe implements TaskGenerationDedupeStore {
   readonly tasks = new Map<string, GeneratedTask>();
+  readonly consumptions = new Map<string, AuthorizationConsumptionRecord>();
 
-  async claim(task: GeneratedTask) {
+  async claim(task: GeneratedTask, consumption: AuthorizationConsumptionRecord) {
     const existing = this.tasks.get(task.logicalKey);
-    if (existing) return { created: false, task: existing };
+    if (existing) {
+      return {
+        created: false,
+        task: existing,
+        consumption: existing.authorizationConsumption
+      };
+    }
+
+    const priorConsumption = this.consumptions.get(consumption.grantId);
+    if (priorConsumption && priorConsumption.consumerId !== consumption.consumerId) {
+      throw new Error("authorization grant already consumed by different work");
+    }
+
     this.tasks.set(task.logicalKey, task);
-    return { created: true, task };
+    this.consumptions.set(consumption.grantId, consumption);
+    return { created: true, task, consumption };
   }
 }
 
@@ -164,6 +179,7 @@ describe("authorization-bound task generator", () => {
     expect(second.status).toBe("duplicates-only");
     expect(second.duplicateTasks[0].id).toBe(first.tasks[0].id);
     expect(store.tasks.size).toBe(1);
+    expect(store.consumptions.size).toBe(1);
   });
 
   it("deduplicates equivalent work regenerated from the same source under a new plan id", async () => {

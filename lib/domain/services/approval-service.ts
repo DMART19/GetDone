@@ -1,6 +1,12 @@
 import { ControlPlaneError } from "@/lib/control-plane/errors";
 import type { AuthoritativeCommandEnvelope } from "@/lib/control-plane/command-envelope";
-import { assertStepUpProof, type StepUpProof } from "@/lib/authorization/proofs";
+import {
+  assertApprovalProof,
+  assertStepUpProof,
+  createApprovalProof,
+  type ApprovalProof,
+  type StepUpProof
+} from "@/lib/authorization/proofs";
 import type { ControlPlaneTransactionManager } from "@/lib/domain/control-plane-transaction";
 import {
   executeTransitionCommand,
@@ -16,16 +22,28 @@ export interface ApprovalRecord extends StatefulEntity {
   requirement: "approval" | "strong-approval";
   grantedBy?: string;
   deniedBy?: string;
+  approvalProof?: ApprovalProof;
 }
 
 export interface ApprovalStores {
   approvals: EntityStore<ApprovalRecord>;
 }
 
+export interface GrantApprovalInput {
+  planHash: string;
+  stepHash: string;
+  proofExpiresAt: string;
+  stepUpProof?: StepUpProof;
+}
+
 export class ApprovalService {
   constructor(private readonly transactions: ControlPlaneTransactionManager<ApprovalStores>) {}
 
-  grant(id: string, command: AuthoritativeCommandEnvelope, stepUpProof?: StepUpProof) {
+  grant(
+    id: string,
+    command: AuthoritativeCommandEnvelope,
+    input: GrantApprovalInput
+  ) {
     return executeTransitionCommand({
       manager: this.transactions,
       selectStore: (stores) => stores.approvals,
@@ -35,20 +53,60 @@ export class ApprovalService {
       command,
       triggeringEvent: "approval-granted",
       patch: (current) => {
+        if (!input.planHash || !input.stepHash) {
+          throw new ControlPlaneError(
+            "VALIDATION_FAILED",
+            "Approval proof must bind to an exact plan and step"
+          );
+        }
+
         if (current.requirement === "strong-approval") {
-          if (!stepUpProof) {
-            throw new ControlPlaneError("FORBIDDEN", "Fresh step-up proof is required for strong approval");
+          if (!input.stepUpProof) {
+            throw new ControlPlaneError(
+              "FORBIDDEN",
+              "Fresh step-up proof is required for strong approval"
+            );
           }
-          assertStepUpProof(stepUpProof, {
+          assertStepUpProof(input.stepUpProof, {
             actorId: command.actor.id,
             scope: command.scope
           });
         }
-        return { grantedBy: command.actor.id };
+
+        const grantedAt = new Date().toISOString();
+        const proof = createApprovalProof({
+          id: `approval-proof:${current.id}:${current.version + 1}`,
+          decisionId: current.decisionId,
+          approvalId: current.id,
+          actorId: command.actor.id,
+          scope: command.scope,
+          level: current.requirement,
+          planHash: input.planHash,
+          stepHash: input.stepHash,
+          grantedAt,
+          expiresAt: input.proofExpiresAt,
+          stepUpProofId: input.stepUpProof?.id
+        });
+
+        assertApprovalProof(proof, {
+          actorId: command.actor.id,
+          scope: command.scope,
+          planHash: input.planHash,
+          stepHash: input.stepHash,
+          requiredLevel: current.requirement,
+          stepUpProof: input.stepUpProof
+        });
+
+        return {
+          grantedBy: command.actor.id,
+          approvalProof: proof
+        };
       },
       metadata: (current) => ({
         requirement: current.requirement,
-        stepUpProofId: stepUpProof?.id ?? null
+        stepUpProofId: input.stepUpProof?.id ?? null,
+        planHash: input.planHash,
+        stepHash: input.stepHash
       })
     });
   }
