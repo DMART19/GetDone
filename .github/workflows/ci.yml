@@ -26,6 +26,7 @@ jobs:
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - run: npm run verify:runtime
       - run: npm run verify:secrets
+      - run: npm run verify:architecture
       - run: npm run typecheck
       - run: npm run lint
       - run: npm test
