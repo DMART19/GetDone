@@ -14,6 +14,8 @@ interface AdapterVersion extends VersionedSource {
 }
 
 interface ReleaseRegistryShape {
+  registrySchemaVersion: string;
+  environmentManifestSchemaVersion: string;
   appVersion: string;
   policy: {
     registryVersion: string;
@@ -67,6 +69,7 @@ interface EnvironmentShape {
 }
 
 interface EnvironmentManifestShape {
+  manifestSchemaVersion: string;
   environments: Record<"development" | "staging" | "production", EnvironmentShape>;
 }
 
@@ -81,6 +84,9 @@ const packageJson = readJson<{ version: string }>("package.json");
 
 describe("Phase 41 release/version registry", () => {
   it("binds the application and policy versions to the current codebase", () => {
+    expect(registry.registrySchemaVersion).toBe("1.1.0");
+    expect(registry.environmentManifestSchemaVersion).toBe("1.1.0");
+    expect(environment.manifestSchemaVersion).toBe("1.1.0");
     expect(registry.appVersion).toBe(packageJson.version);
     expect(registry.policy.registryVersion).toBe(CURRENT_POLICY_VERSION);
     expect(registry.policy.engineVersion).toBe(POLICY_ENGINE_VERSION);
@@ -105,6 +111,7 @@ describe("Phase 41 release/version registry", () => {
   });
 
   it("binds Phase 42 voice contracts and explicit live-adapter absence", () => {
+    expect(registry.schemaVersions.releaseManifest.version).toBe("1.1.0");
     expect(registry.schemaVersions.voiceIntent.version).toBe("1.0.0");
     expect(registry.adapters.voiceIntent).toMatchObject({
       status: "contract-only",
