@@ -114,14 +114,14 @@ describe("Phase 42 voice intent and secure handoff", () => {
   it("rejects raw secret/credential material at voice ingress", () => {
     expect(() => parseVoiceAdapterCandidate({
       ...candidate("check-resources"),
-      apiKey: "sk-123456789012345678901234567890"
+      apiKey: "sk-" + "x".repeat(32)
     })).toThrow();
 
     expect(() => parseVoiceAdapterCandidate({
       ...candidate("provider-explanation", { providerId: "provider-x" }),
       slots: {
         providerId: "provider-x",
-        token: "Bearer abcdefghijklmnopqrstuvwxyz"
+        token: "Bearer " + "x".repeat(28)
       }
     })).toThrow();
   });
@@ -182,7 +182,7 @@ describe("Phase 42 voice intent and secure handoff", () => {
 
     expect(() => createVoiceSummaryResponse({
       record,
-      summary: "Bearer abcdefghijklmnopqrstuvwxyz",
+      summary: "Bearer " + "x".repeat(28),
       generatedAt: "2026-09-20T22:10:05Z"
     })).toThrow();
   });
