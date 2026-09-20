@@ -9,6 +9,8 @@ This directory contains the committed, machine-readable release anatomy for GetD
 
 These files contain declarations and references only. They must never contain raw credentials.
 
+The Phase 42-aware machine-readable formats are versioned explicitly: version registry schema `1.1.0`, environment manifest schema `1.1.0`, and generated release manifest schema `1.1.0`.
+
 ## Generated per checkout/release
 
 Run:
