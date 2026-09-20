@@ -88,7 +88,7 @@ export interface CredentialUsageAudit {
   auditHash: string;
 }
 
-function uniqueSorted(values: readonly string[]) {
+function uniqueSorted<T extends string>(values: readonly T[]): T[] {
   return [...new Set(values)].sort();
 }
 
@@ -310,7 +310,28 @@ function transitionLease(
     capability: lease.capability,
     now
   });
-  const { leaseHash: _leaseHash, ...current } = lease;
+  const current: Omit<CredentialLease, "leaseHash"> = {
+    id: lease.id,
+    requestId: lease.requestId,
+    requestHash: lease.requestHash,
+    jobId: lease.jobId,
+    placementRequestId: lease.placementRequestId,
+    portfolioId: lease.portfolioId,
+    companyId: lease.companyId,
+    environment: lease.environment,
+    resourceId: lease.resourceId,
+    providerId: lease.providerId,
+    capability: lease.capability,
+    grantedScopes: lease.grantedScopes,
+    bindingId: lease.bindingId,
+    secretReferenceId: lease.secretReferenceId,
+    deliveryRef: lease.deliveryRef,
+    issuedAt: lease.issuedAt,
+    expiresAt: lease.expiresAt,
+    status: lease.status,
+    revokedAt: lease.revokedAt,
+    releasedAt: lease.releasedAt
+  };
   const base: Omit<CredentialLease, "leaseHash"> = {
     ...current,
     status,
