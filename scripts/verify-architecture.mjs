@@ -185,6 +185,7 @@ for (const required of [
   "registrySchemaVersion",
   "registryVersion",
   "appVersion",
+  "environmentManifestSchemaVersion",
   "schemaVersions",
   "database",
   "policy",
@@ -203,6 +204,7 @@ for (const required of [
 if (
   releaseRegistry.appVersion !== packageJson.version
   || releaseRegistry.environmentManifestPath !== "release/environment-manifest.json"
+  || releaseRegistry.environmentManifestSchemaVersion !== releaseEnvironment.manifestSchemaVersion
 ) {
   fail("Phase 41 registry app/environment binding drifted");
 }
