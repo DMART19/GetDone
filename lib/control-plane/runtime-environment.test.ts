@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   developmentApiAllowed,
+  developmentSeedAllowed,
   parseAuthoritativeRuntimeEnvironment
 } from "@/lib/control-plane/runtime-environment";
 
@@ -32,8 +33,18 @@ describe("server-authoritative runtime environment", () => {
     })).toBe(false);
   });
 
+  it("allows seed reads during a development-runtime production build without exposing dev APIs", () => {
+    const input = {
+      runtimeEnvironment: "development",
+      nodeEnvironment: "production",
+      dataMode: "development-seed"
+    };
+    expect(developmentSeedAllowed(input)).toBe(true);
+    expect(developmentApiAllowed(input)).toBe(false);
+  });
+
   it("requires the explicit development seed data mode", () => {
-    expect(developmentApiAllowed({
+    expect(developmentSeedAllowed({
       runtimeEnvironment: "development",
       nodeEnvironment: "development",
       dataMode: "authoritative"

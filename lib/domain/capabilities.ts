@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { ZodTypeAny } from "zod";
 import { ZodError } from "zod";
 import { ControlPlaneError } from "@/lib/control-plane/errors";
@@ -23,6 +24,13 @@ export interface CapabilityDefinition {
   inputSchema: ZodTypeAny;
   outputSchema: ZodTypeAny;
   costModel: "none" | "metered" | "provider";
+  schemaVersion: string;
+  authorityBindings: Readonly<{
+    companyId?: boolean;
+    environment?: boolean;
+    resourceId?: boolean;
+    dataClass?: boolean;
+  }>;
 }
 
 export const capabilityRegistry: readonly CapabilityDefinition[] = [
@@ -42,6 +50,8 @@ export const capabilityRegistry: readonly CapabilityDefinition[] = [
     inputSchema: capabilitySchemaRegistry["revenue.read"].input,
     outputSchema: capabilitySchemaRegistry["revenue.read"].output,
     costModel: "none"
+    schemaVersion: "1.0.0",
+    authorityBindings: { companyId: true }
   },
   {
     name: "email.send",
@@ -59,6 +69,8 @@ export const capabilityRegistry: readonly CapabilityDefinition[] = [
     inputSchema: capabilitySchemaRegistry["email.send"].input,
     outputSchema: capabilitySchemaRegistry["email.send"].output,
     costModel: "provider"
+    schemaVersion: "1.0.0",
+    authorityBindings: { companyId: true }
   },
   {
     name: "repository.inspect",
@@ -76,6 +88,8 @@ export const capabilityRegistry: readonly CapabilityDefinition[] = [
     inputSchema: capabilitySchemaRegistry["repository.inspect"].input,
     outputSchema: capabilitySchemaRegistry["repository.inspect"].output,
     costModel: "provider"
+    schemaVersion: "1.0.0",
+    authorityBindings: { companyId: true }
   },
   {
     name: "production.deploy",
@@ -93,6 +107,8 @@ export const capabilityRegistry: readonly CapabilityDefinition[] = [
     inputSchema: capabilitySchemaRegistry["production.deploy"].input,
     outputSchema: capabilitySchemaRegistry["production.deploy"].output,
     costModel: "provider"
+    schemaVersion: "1.0.0",
+    authorityBindings: { companyId: true, environment: true }
   },
   {
     name: "compute.cpu.light",
@@ -110,6 +126,8 @@ export const capabilityRegistry: readonly CapabilityDefinition[] = [
     inputSchema: capabilitySchemaRegistry["compute.cpu.light"].input,
     outputSchema: capabilitySchemaRegistry["compute.cpu.light"].output,
     costModel: "metered"
+    schemaVersion: "1.0.0",
+    authorityBindings: { companyId: true, environment: true, dataClass: true }
   },
   {
     name: "compute.gpu.inference",
@@ -127,6 +145,8 @@ export const capabilityRegistry: readonly CapabilityDefinition[] = [
     inputSchema: capabilitySchemaRegistry["compute.gpu.inference"].input,
     outputSchema: capabilitySchemaRegistry["compute.gpu.inference"].output,
     costModel: "metered"
+    schemaVersion: "1.0.0",
+    authorityBindings: { companyId: true, environment: true, dataClass: true }
   },
   {
     name: "storage.backup",
@@ -144,6 +164,8 @@ export const capabilityRegistry: readonly CapabilityDefinition[] = [
     inputSchema: capabilitySchemaRegistry["storage.backup"].input,
     outputSchema: capabilitySchemaRegistry["storage.backup"].output,
     costModel: "metered"
+    schemaVersion: "1.0.0",
+    authorityBindings: { companyId: true, dataClass: true }
   },
   {
     name: "resource.health.read",
@@ -161,8 +183,35 @@ export const capabilityRegistry: readonly CapabilityDefinition[] = [
     inputSchema: capabilitySchemaRegistry["resource.health.read"].input,
     outputSchema: capabilitySchemaRegistry["resource.health.read"].output,
     costModel: "none"
+    schemaVersion: "1.0.0",
+    authorityBindings: { companyId: true, resourceId: true }
   }
 ];
+
+export const CAPABILITY_REGISTRY_VERSION = "2026-09-20.1";
+
+function stableRegistryManifest() {
+  return capabilityRegistry.map((capability) => ({
+    name: capability.name,
+    access: capability.access,
+    sensitivity: capability.sensitivity,
+    productionEffect: capability.productionEffect,
+    reversible: capability.reversible,
+    risk: capability.risk,
+    blastRadius: capability.blastRadius,
+    approval: capability.approval,
+    adapterBinding: capability.adapterBinding,
+    rateLimitPerMinute: capability.rateLimitPerMinute,
+    enabled: capability.enabled,
+    costModel: capability.costModel,
+    schemaVersion: capability.schemaVersion,
+    authorityBindings: capability.authorityBindings
+  }));
+}
+
+export const CAPABILITY_REGISTRY_HASH = createHash("sha256")
+  .update(JSON.stringify(stableRegistryManifest()))
+  .digest("hex");
 
 export function getCapability(name: string) {
   return capabilityRegistry.find((capability) => capability.name === name);

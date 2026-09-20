@@ -1,5 +1,5 @@
 import { ControlPlaneError } from "@/lib/control-plane/errors";
-import { developmentApiAllowed } from "@/lib/control-plane/runtime-environment";
+import { developmentSeedAllowed } from "@/lib/control-plane/runtime-environment";
 import { decisions, getDecision, getResource, resourceSummary, resources } from "@/lib/mock-data";
 import type { Decision, Resource } from "@/lib/types";
 
@@ -12,16 +12,15 @@ export interface OwnerReadRepository {
 }
 
 function assertDevelopmentSeedAllowed() {
-  const allowed = developmentApiAllowed({
+  const allowed = developmentSeedAllowed({
     runtimeEnvironment: process.env.GETDONE_RUNTIME_ENV,
-    nodeEnvironment: process.env.NODE_ENV,
     dataMode: process.env.GETDONE_DATA_MODE
   });
 
   if (!allowed) {
     throw new ControlPlaneError(
       "UNAVAILABLE",
-      "Development seed data is disabled outside the development runtime"
+      "Development seed data is disabled outside the development/staging runtime"
     );
   }
 }

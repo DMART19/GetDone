@@ -18,13 +18,14 @@ export function parseAuthoritativeRuntimeEnvironment(value: string | undefined):
   );
 }
 
-export function developmentApiAllowed(input: RuntimeEnvironmentInput) {
+export function developmentSeedAllowed(input: RuntimeEnvironmentInput) {
   const runtime = parseAuthoritativeRuntimeEnvironment(input.runtimeEnvironment);
+  return runtime !== "production" && input.dataMode === "development-seed";
+}
 
+export function developmentApiAllowed(input: RuntimeEnvironmentInput) {
+  if (!developmentSeedAllowed(input)) return false;
   if (input.nodeEnvironment === "production") return false;
-  if (runtime === "production") return false;
-  if (input.dataMode !== "development-seed") return false;
-
   return true;
 }
 
