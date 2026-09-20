@@ -654,7 +654,31 @@ export function renewReservation(input: {
     input.ledger.reservedCapacity,
     normalizedNow
   );
-  const { reservationHash: _reservationHash, ...current } = input.reservation;
+  const current: Omit<CapacityReservation, "reservationHash"> = {
+    id: input.reservation.id,
+    portfolioId: input.reservation.portfolioId,
+    companyId: input.reservation.companyId,
+    jobId: input.reservation.jobId,
+    placementRequestId: input.reservation.placementRequestId,
+    placementDecisionId: input.reservation.placementDecisionId,
+    placementDecisionHash: input.reservation.placementDecisionHash,
+    target: input.reservation.target,
+    requestedCapacity: input.reservation.requestedCapacity,
+    grantedCapacity: input.reservation.grantedCapacity,
+    partialGrantAuthorized: input.reservation.partialGrantAuthorized,
+    idempotencyKey: input.reservation.idempotencyKey,
+    logicalRequestHash: input.reservation.logicalRequestHash,
+    state: input.reservation.state,
+    capacityHeld: input.reservation.capacityHeld,
+    leaseIssuedAt: input.reservation.leaseIssuedAt,
+    expiresAt: input.reservation.expiresAt,
+    createdAt: input.reservation.createdAt,
+    updatedAt: input.reservation.updatedAt,
+    releasedAt: input.reservation.releasedAt,
+    cancelledAt: input.reservation.cancelledAt,
+    expiredAt: input.reservation.expiredAt,
+    version: input.reservation.version
+  };
   const nextReservation = createReservationBase({
     ...current,
     expiresAt: new Date(newExpiry).toISOString(),
@@ -727,7 +751,31 @@ function terminateReservation(input: {
     normalizedAt
   );
 
-  const { reservationHash: _reservationHash, ...current } = input.reservation;
+  const current: Omit<CapacityReservation, "reservationHash"> = {
+    id: input.reservation.id,
+    portfolioId: input.reservation.portfolioId,
+    companyId: input.reservation.companyId,
+    jobId: input.reservation.jobId,
+    placementRequestId: input.reservation.placementRequestId,
+    placementDecisionId: input.reservation.placementDecisionId,
+    placementDecisionHash: input.reservation.placementDecisionHash,
+    target: input.reservation.target,
+    requestedCapacity: input.reservation.requestedCapacity,
+    grantedCapacity: input.reservation.grantedCapacity,
+    partialGrantAuthorized: input.reservation.partialGrantAuthorized,
+    idempotencyKey: input.reservation.idempotencyKey,
+    logicalRequestHash: input.reservation.logicalRequestHash,
+    state: input.reservation.state,
+    capacityHeld: input.reservation.capacityHeld,
+    leaseIssuedAt: input.reservation.leaseIssuedAt,
+    expiresAt: input.reservation.expiresAt,
+    createdAt: input.reservation.createdAt,
+    updatedAt: input.reservation.updatedAt,
+    releasedAt: input.reservation.releasedAt,
+    cancelledAt: input.reservation.cancelledAt,
+    expiredAt: input.reservation.expiredAt,
+    version: input.reservation.version
+  };
   const nextReservation = createReservationBase({
     ...current,
     state: input.operation === "release"
@@ -857,4 +905,34 @@ export function createAllocationRecord(input: {
     createdAt
   };
   return Object.freeze({ ...base, allocationHash: sha256Hex(base) });
+}
+
+
+export function assertAtomicReservationCommit(commit: AtomicReservationCommit) {
+  const { commitHash, ...base } = commit;
+  if (sha256Hex(base) !== commitHash) {
+    throw new ControlPlaneError("FORBIDDEN", "Reservation commit integrity check failed");
+  }
+  if (
+    commit.nextLedger.id !== commit.ledgerId
+    || commit.nextLedger.revision !== commit.nextLedgerRevision
+    || commit.nextLedger.ledgerHash !== commit.nextLedgerHash
+    || commit.nextReservation.reservationHash !== commit.nextReservationHash
+    || commit.nextLedgerRevision !== commit.expectedLedgerRevision + 1
+  ) {
+    throw new ControlPlaneError(
+      "CONFLICT",
+      "Reservation commit lineage or revision invariant failed"
+    );
+  }
+  if (
+    commit.operation !== "reserve"
+    && !commit.expectedReservationHash
+  ) {
+    throw new ControlPlaneError(
+      "CONFLICT",
+      "Reservation mutation commit must compare the current reservation hash"
+    );
+  }
+  return commit;
 }
