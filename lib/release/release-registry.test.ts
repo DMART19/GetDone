@@ -14,6 +14,8 @@ interface AdapterVersion extends VersionedSource {
 }
 
 interface ReleaseRegistryShape {
+  registrySchemaVersion: string;
+  environmentManifestSchemaVersion: string;
   appVersion: string;
   policy: {
     registryVersion: string;
@@ -28,6 +30,17 @@ interface ReleaseRegistryShape {
     status: string;
     adapterVersion: string;
     routingPolicyVersion: string;
+  };
+  voice: {
+    contractVersion: string;
+    adapterContractVersion: string;
+    adapterStatus: string;
+    adapterVersion: string;
+    speechProvider: string;
+    requiredForProduction: boolean;
+    strongApprovalHandling: string;
+    credentialHandling: string;
+    sourcePath: string;
   };
   schemaVersions: Record<string, VersionedSource>;
   adapters: Record<string, AdapterVersion>;
@@ -46,9 +59,17 @@ interface EnvironmentShape {
     status: string;
     deploymentId: string | null;
   };
+  voice: {
+    contractStatus: string;
+    adapterStatus: string;
+    strongApprovalAllowed: boolean;
+    rawCredentialInputAllowed: boolean;
+    secureHandoff: string;
+  };
 }
 
 interface EnvironmentManifestShape {
+  manifestSchemaVersion: string;
   environments: Record<"development" | "staging" | "production", EnvironmentShape>;
 }
 
@@ -63,6 +84,9 @@ const packageJson = readJson<{ version: string }>("package.json");
 
 describe("Phase 41 release/version registry", () => {
   it("binds the application and policy versions to the current codebase", () => {
+    expect(registry.registrySchemaVersion).toBe("1.1.0");
+    expect(registry.environmentManifestSchemaVersion).toBe("1.1.0");
+    expect(environment.manifestSchemaVersion).toBe("1.1.0");
     expect(registry.appVersion).toBe(packageJson.version);
     expect(registry.policy.registryVersion).toBe(CURRENT_POLICY_VERSION);
     expect(registry.policy.engineVersion).toBe(POLICY_ENGINE_VERSION);
@@ -86,6 +110,26 @@ describe("Phase 41 release/version registry", () => {
     expect(registry.database.schemaVersion).toBe("UNIMPLEMENTED");
   });
 
+  it("binds Phase 42 voice contracts and explicit live-adapter absence", () => {
+    expect(registry.schemaVersions.releaseManifest.version).toBe("1.1.0");
+    expect(registry.schemaVersions.voiceIntent.version).toBe("1.0.0");
+    expect(registry.adapters.voiceIntent).toMatchObject({
+      status: "contract-only",
+      version: "1.0.0",
+      sourcePath: "lib/voice/voice-intents.ts"
+    });
+    expect(registry.voice).toMatchObject({
+      contractVersion: "1.0.0",
+      adapterContractVersion: "1.0.0",
+      adapterStatus: "not-connected",
+      adapterVersion: "UNIMPLEMENTED",
+      speechProvider: "UNCONFIGURED",
+      requiredForProduction: true,
+      strongApprovalHandling: "secure-phone-only",
+      credentialHandling: "secure-provider-or-phone-only"
+    });
+  });
+
   it("records the exact absence of a live AI Gateway instead of inventing a route version", () => {
     expect(registry.aiGateway.status).toBe("not-connected");
     expect(registry.aiGateway.adapterVersion).toBe("UNIMPLEMENTED");
@@ -98,6 +142,16 @@ describe("Phase 41 release/version registry", () => {
     expect(environment.environments.production.productionReady).toBe(false);
     expect(environment.environments.production.deployment.status).toBe("not-connected");
     expect(environment.environments.production.deployment.deploymentId).toBeNull();
+    for (const state of Object.values(environment.environments)) {
+      expect(state.connections.voiceAdapter).toBe(false);
+      expect(state.voice).toEqual({
+        contractStatus: "deterministic-contract",
+        adapterStatus: "not-connected",
+        strongApprovalAllowed: false,
+        rawCredentialInputAllowed: false,
+        secureHandoff: "iphone-control-surface"
+      });
+    }
     expect(
       Object.values(environment.environments.production.connections)
         .some((connected) => connected === false)

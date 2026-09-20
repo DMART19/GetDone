@@ -116,6 +116,7 @@ Remaining differences from the canonical plan are implementation/runtime gaps ra
 - Phase 35 has no live billing/usage feeds;
 - Phases 36-39 production storage/resilience/second-provider/DC work remain open;
 - Phase 40 lacks production historical stores/calibration;
-- Phase 41 deterministic release registry/manifest/manual generation is now implemented; real production deployment evidence remains unavailable until the production infrastructure exists.
+- Phase 41 deterministic release registry/manifest/manual generation is implemented; real production deployment evidence remains unavailable until the production infrastructure exists;
+- Phase 42 deterministic voice intent/secure-handoff contracts and Phase-41 registry integration are implemented; live speech/native-iPhone transport and durable runtime persistence remain open.
 
-Phase 41 now binds Git SHA, app/schema/database/policy/adapter/AI-routing state, CI evidence, environment/deployment state, evidence documents, and operating manuals into reconstructable release artifacts. Remaining drift is infrastructure/runtime incompleteness rather than release-anatomy ambiguity.
+Phase 41 now binds Git SHA, app/schema/database/policy/adapter/AI-routing/voice state, CI evidence, environment/deployment state, evidence documents, and operating manuals into reconstructable release artifacts. Phase 42 adds no new authority path: voice is constrained to typed evidence/query/initiation plus secure phone handoff. Remaining drift is infrastructure/runtime incompleteness rather than release-anatomy ambiguity.

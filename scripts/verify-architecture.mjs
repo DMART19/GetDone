@@ -134,6 +134,34 @@ for (const required of [
   }
 }
 
+const voice = read("lib/voice/voice-intents.ts");
+for (const required of [
+  'usesControlApi: true',
+  'usesCurrentPolicyRegistry: true',
+  'canApprove: false',
+  'canStepUp: false',
+  'canExecuteSideEffect: false',
+  'canAcceptRawCredentials: false',
+  'strongApprovalHandling: "secure-phone-only"',
+  'credentialHandling: "secure-provider-or-phone-only"',
+  'currentPolicyRegistryReference',
+  'buildMobileDeepLink'
+]) {
+  if (!voice.includes(required)) {
+    fail(`Phase 42 voice authority binding missing: ${required}`);
+  }
+}
+for (const prohibitedImport of [
+  "@/lib/authorization/proofs",
+  "@/lib/credentials/broker",
+  "@/lib/resources/scheduler",
+  "@/lib/resources/reservations"
+]) {
+  if (voice.includes(prohibitedImport)) {
+    fail(`Voice layer imports execution/approval authority directly: ${prohibitedImport}`);
+  }
+}
+
 const sourceTrust = read("lib/verification/source-trust.ts");
 for (const required of [
   "VerificationSourceBinding",
@@ -157,10 +185,12 @@ for (const required of [
   "registrySchemaVersion",
   "registryVersion",
   "appVersion",
+  "environmentManifestSchemaVersion",
   "schemaVersions",
   "database",
   "policy",
   "aiGateway",
+  "voice",
   "adapters",
   "environmentManifestPath",
   "acceptanceEvidencePaths",
@@ -174,6 +204,7 @@ for (const required of [
 if (
   releaseRegistry.appVersion !== packageJson.version
   || releaseRegistry.environmentManifestPath !== "release/environment-manifest.json"
+  || releaseRegistry.environmentManifestSchemaVersion !== releaseEnvironment.manifestSchemaVersion
 ) {
   fail("Phase 41 registry app/environment binding drifted");
 }
@@ -187,11 +218,30 @@ if (
   fail("Disconnected AI Gateway release state must remain explicitly UNIMPLEMENTED/UNCONFIGURED");
 }
 if (
+  releaseRegistry.voice?.strongApprovalHandling !== "secure-phone-only"
+  || releaseRegistry.voice?.credentialHandling !== "secure-provider-or-phone-only"
+  || releaseRegistry.adapters?.voiceIntent?.status !== "contract-only"
+) {
+  fail("Phase 42 voice release registry weakens authority or omits the contract-only adapter");
+}
+if (
   !releaseEnvironment.environments?.development
   || !releaseEnvironment.environments?.staging
   || !releaseEnvironment.environments?.production
 ) {
   fail("Phase 41 environment manifest must define development, staging, and production");
+}
+for (const [name, state] of Object.entries(releaseEnvironment.environments ?? {})) {
+  if (
+    state.connections?.voiceAdapter !== false
+    || state.voice?.contractStatus !== "deterministic-contract"
+    || state.voice?.adapterStatus !== "not-connected"
+    || state.voice?.strongApprovalAllowed !== false
+    || state.voice?.rawCredentialInputAllowed !== false
+    || state.voice?.secureHandoff !== "iphone-control-surface"
+  ) {
+    fail(`Phase 42 voice environment state drifted: ${name}`);
+  }
 }
 for (const requiredScript of [
   "npm run release:generate",

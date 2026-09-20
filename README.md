@@ -41,6 +41,7 @@ Current code includes:
 - Phase 35 deterministic cost/capacity governor with owned/committed/reserved/spot/on-demand economics, protected headroom, quotas, budget caps/approval thresholds, eligible-only economic ranking, and estimate-vs-actual reconciliation
 - Phase 40 full zero-side-effect resource policy simulator with historical-vs-projection labeling, policy/economic/scheduler/guardrail simulation, uncertainty, AI Gateway model-evidence recording, and explicit no-mutation/no-reservation/no-dispatch/no-secret-lookup guarantees
 - Phase 41 machine-readable version registry and environment manifest plus per-release Git-SHA-bound machine manifest, generated operating manual, CI evidence hashing/validation, and archived release artifacts
+- Phase 42 deterministic voice intent/secure-handoff contracts with typed canonical intents, transcript-hash-only evidence, current-policy/Control-API binding, no approval/step-up/execution authority, credential rejection, scoped audit records, and Phase-41 release-registry integration
 
 ## Not yet production-complete
 
@@ -58,6 +59,7 @@ The repository does **not** claim production autonomy yet. Canonical acceptance 
 - production historical placement/cost/AI-route analytics stores and simulation evidence persistence
 - production push subscription/delivery provider and notification persistence
 - cryptographic WebAuthn/passkey verification through a real auth provider
+- live speech/voice transport or native iPhone voice adapter plus production persistence for Phase 42
 - end-to-end production acceptance evidence
 
 Deterministic contracts and unit tests are intentionally built ahead of those integrations so later agents consume the existing authority model rather than replacing it.
@@ -113,6 +115,7 @@ Use these as the implementation source of truth:
 - `docs/SOL_PHASE_35_40_REPORT.md`
 - `docs/SOL_ARCHITECTURE_INTEGRITY_REPORT.md`
 - `docs/SOL_PHASE_41_REPORT.md`
+- `docs/SOL_PHASE_42_REPORT.md`
 - `release/version-registry.json`
 - `release/environment-manifest.json`
 - `docs/ASTRA_HANDOFF.md`

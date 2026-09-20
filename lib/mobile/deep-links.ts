@@ -2,6 +2,7 @@ import { ControlPlaneError } from "@/lib/control-plane/errors";
 
 export type MobileDeepLinkTarget =
   | { kind: "decision"; decisionId: string }
+  | { kind: "resource-add" }
   | { kind: "task-result"; taskId: string }
   | { kind: "resource"; resourceId: string }
   | { kind: "resource-incident"; resourceId: string; incidentId: string }
@@ -17,6 +18,8 @@ function safeId(value: string, label: string) {
 
 export function buildMobileDeepLink(target: MobileDeepLinkTarget) {
   switch (target.kind) {
+    case "resource-add":
+      return "/resources/add";
     case "decision":
       return `/decisions/${safeId(target.decisionId, "decisionId")}`;
     case "task-result":

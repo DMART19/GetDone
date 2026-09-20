@@ -589,3 +589,39 @@ See `docs/SOL_PHASE_41_REPORT.md` and `release/README.md`.
 Sol should continue deterministic contracts, validators, policy engines, simulators, tests, and repository hardening.
 
 Astra/higher-compute runtime work should consume these Phase 22/23/26/27 contracts rather than rebuild them. The expensive remaining work is primarily real infrastructure integration: durable queues/workers, live AI Gateway, action/deployment adapters, real node agents, production secret/token backends, live telemetry, production reservation persistence/live dispatch concurrency, measured billing/usage feeds, storage/failover, second-provider integration, production analytics persistence, and end-to-end acceptance.
+
+
+## September 20 Phase 42 deterministic voice integration
+
+### Phase 42 — Voice Intent and Secure Handoff
+
+**STATUS: DETERMINISTIC VOICE CONTRACTS + RELEASE-REGISTRY BINDING IMPLEMENTED; LIVE SPEECH/NATIVE-IOS RUNTIME STILL REQUIRED**
+
+Implemented:
+- versioned `VoiceIntentAdapter` and `VoiceIntentRecord` contracts;
+- canonical typed intents for important-items, resource summaries/health, Raspberry Pi enrollment, resource drain, compute usage, and provider explanation;
+- voice-adapter evidence records transcript SHA-256/confidence only, not raw transcript/audio;
+- trusted portfolio/company/environment/resource scope is server-supplied rather than accepted from voice;
+- every voice record binds the current policy-registry reference and an explicit Control API operation;
+- voice permanently records `canApprove=false`, `canStepUp=false`, `canExecuteSideEffect=false`, and `canAcceptRawCredentials=false`;
+- strong approvals are `secure-phone-only`; credentials are `secure-provider-or-phone-only`;
+- Raspberry Pi setup hands off to the allowlisted `/resources/add` phone flow;
+- resource drain may propose/initiate a workflow but cannot execute or approve it;
+- exact-field and credential-shaped ingress rejection;
+- resource-slot escalation rejection against trusted resource scope;
+- hash-bound voice-intent integrity;
+- scoped `voice.intent.accepted` audit events without raw transcript/credential data;
+- Phase 41 registry now binds voice contract/adapter versions, live-adapter/provider state, environment state, CI evidence, and manuals;
+- release generation/verification includes the voice source hash and fails closed on voice authority/version/environment drift;
+- architecture CI prevents voice from importing approval proofs, credential broker, scheduler, or reservations directly.
+
+Not yet claimed:
+- microphone capture or live speech-to-text/text-to-speech;
+- Siri/App Intent/Shortcuts/native iPhone transport;
+- a real speech/NLU provider;
+- production auth/session/database persistence for voice records;
+- live Decisions/step-up/provider credential handoff;
+- durable voice-event persistence.
+
+See `docs/SOL_PHASE_42_REPORT.md`.
+

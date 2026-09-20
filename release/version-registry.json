@@ -1,6 +1,6 @@
 {
-  "registrySchemaVersion": "1.0.0",
-  "registryVersion": "2026-09-20.1",
+  "registrySchemaVersion": "1.1.0",
+  "registryVersion": "2026-09-20.2",
   "appVersion": "0.1.0",
   "schemaVersions": {
     "controlApi": {
@@ -52,8 +52,12 @@
       "sourcePath": "lib/resources/policy-simulator.ts"
     },
     "releaseManifest": {
-      "version": "1.0.0",
+      "version": "1.1.0",
       "sourcePath": "scripts/generate-release-artifacts.mjs"
+    },
+    "voiceIntent": {
+      "version": "1.0.0",
+      "sourcePath": "lib/voice/voice-intents.ts"
     }
   },
   "policy": {
@@ -88,6 +92,11 @@
       "status": "not-connected",
       "version": "UNIMPLEMENTED",
       "sourcePath": "docs/ARCHITECTURE.md"
+    },
+    "voiceIntent": {
+      "status": "contract-only",
+      "version": "1.0.0",
+      "sourcePath": "lib/voice/voice-intents.ts"
     }
   },
   "environmentManifestPath": "release/environment-manifest.json",
@@ -98,14 +107,17 @@
     "docs/SOL_PHASE_33_REPORT.md",
     "docs/SOL_PHASE_34_REPORT.md",
     "docs/SOL_PHASE_35_40_REPORT.md",
-    "docs/SOL_PHASE_41_REPORT.md"
+    "docs/SOL_PHASE_41_REPORT.md",
+    "lib/voice/voice-intents.test.ts",
+    "docs/SOL_PHASE_42_REPORT.md"
   ],
   "manualSourcePaths": [
     "docs/ARCHITECTURE.md",
     "docs/ASTRA_HANDOFF.md",
     "docs/GetDone_UFO_v2_MASTER_BUILD_PLAN.md",
     "docs/SOL_IMPLEMENTATION_STATUS.md",
-    "release/README.md"
+    "release/README.md",
+    "docs/SOL_PHASE_42_REPORT.md"
   ],
   "generatedArtifacts": {
     "machineManifest": "release/out/release-manifest.json",
@@ -116,5 +128,17 @@
     "migrationVersion": "UNIMPLEMENTED",
     "schemaVersion": "UNIMPLEMENTED",
     "sourcePath": "docs/ARCHITECTURE.md"
-  }
+  },
+  "voice": {
+    "contractVersion": "1.0.0",
+    "adapterContractVersion": "1.0.0",
+    "adapterStatus": "not-connected",
+    "adapterVersion": "UNIMPLEMENTED",
+    "speechProvider": "UNCONFIGURED",
+    "requiredForProduction": true,
+    "strongApprovalHandling": "secure-phone-only",
+    "credentialHandling": "secure-provider-or-phone-only",
+    "sourcePath": "lib/voice/voice-intents.ts"
+  },
+  "environmentManifestSchemaVersion": "1.1.0"
 }

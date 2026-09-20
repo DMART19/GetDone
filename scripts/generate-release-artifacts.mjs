@@ -81,6 +81,23 @@ if (registry.appVersion !== packageJson.version) {
   );
 }
 
+const voiceIntentContractVersion = extractStringConst(
+  registry.voice.sourcePath,
+  "VOICE_INTENT_CONTRACT_VERSION"
+);
+const voiceAdapterContractVersion = extractStringConst(
+  registry.voice.sourcePath,
+  "VOICE_ADAPTER_CONTRACT_VERSION"
+);
+if (
+  registry.voice.contractVersion !== voiceIntentContractVersion
+  || registry.voice.adapterContractVersion !== voiceAdapterContractVersion
+  || registry.schemaVersions.voiceIntent?.version !== voiceIntentContractVersion
+  || registry.adapters.voiceIntent?.version !== voiceAdapterContractVersion
+) {
+  throw new Error("Release registry voice contract versions are stale");
+}
+
 const currentPolicyVersion = extractStringConst(
   registry.policy.registrySourcePath,
   "CURRENT_POLICY_VERSION"
@@ -145,6 +162,9 @@ const manualLines = [
   `Git SHA: ${sha}`,
   `App version: ${registry.appVersion}`,
   `Version registry: ${registry.registryVersion} (${registrySha256})`,
+  `Version registry schema: ${registry.registrySchemaVersion}`,
+  `Release manifest schema: ${registry.schemaVersions.releaseManifest.version}`,
+  `Environment manifest schema: ${registry.environmentManifestSchemaVersion}`,
   `Production ready: ${productionReady ? "YES" : "NO"}`,
   "",
   "## Authority model",
@@ -175,6 +195,20 @@ const manualLines = [
   "",
   "An UNIMPLEMENTED or UNCONFIGURED value is intentional evidence that no live AI Gateway/routing policy is active in this release. It must not be replaced with an invented provider/version.",
   "",
+  "## Voice intent and secure handoff",
+  "",
+  `- Contract version: ${registry.voice.contractVersion}`,
+  `- Adapter contract version: ${registry.voice.adapterContractVersion}`,
+  `- Live adapter status: ${registry.voice.adapterStatus}`,
+  `- Live adapter version: ${registry.voice.adapterVersion}`,
+  `- Speech provider: ${registry.voice.speechProvider}`,
+  `- Required for production: ${registry.voice.requiredForProduction ? "yes" : "no"}`,
+  `- Strong approval handling: ${registry.voice.strongApprovalHandling}`,
+  `- Credential handling: ${registry.voice.credentialHandling}`,
+  `- Source hash: ${fileHash(registry.voice.sourcePath)}`,
+  "",
+  "Voice recognition/classification is evidence only. Voice cannot approve, perform step-up, accept raw credentials, or execute side effects; sensitive/mutating work continues through the existing Control API, policy system, and secure phone handoff.",
+  "",
   "## Schema versions",
   "",
   ...Object.entries(schemaVersions).map(
@@ -197,6 +231,11 @@ const manualLines = [
     `- Deployment status: ${value.deployment.status}`,
     `- Deployment ID: ${value.deployment.deploymentId ?? "n/a"}`,
     `- Deployment region: ${value.deployment.region ?? "n/a"}`,
+    `- Voice contract status: ${value.voice.contractStatus}`,
+    `- Voice adapter status: ${value.voice.adapterStatus}`,
+    `- Voice strong approval allowed: ${value.voice.strongApprovalAllowed ? "yes" : "no"}`,
+    `- Voice raw credential input allowed: ${value.voice.rawCredentialInputAllowed ? "yes" : "no"}`,
+    `- Voice secure handoff: ${value.voice.secureHandoff}`,
     ...Object.entries(value.connections).map(
       ([connection, connected]) => `- ${connection}: ${connected ? "connected" : "not connected"}`
     ),
@@ -248,6 +287,8 @@ fs.writeFileSync(
 const generatedManualSha256 = sha256(operatingManual);
 const manifestBase = {
   manifestSchemaVersion: registry.schemaVersions.releaseManifest.version,
+  registrySchemaVersion: registry.registrySchemaVersion,
+  environmentManifestSchemaVersion: registry.environmentManifestSchemaVersion,
   registryVersion: registry.registryVersion,
   registrySha256,
   generatedAt,
@@ -267,6 +308,10 @@ const manifestBase = {
   aiGateway: {
     ...registry.aiGateway,
     sourceSha256: fileHash(registry.aiGateway.sourcePath)
+  },
+  voice: {
+    ...registry.voice,
+    sourceSha256: fileHash(registry.voice.sourcePath)
   },
   adapterVersions,
   environment: {
