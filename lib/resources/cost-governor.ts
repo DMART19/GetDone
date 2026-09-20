@@ -67,6 +67,8 @@ export interface CostGovernorReport {
   placementRequestId: string;
   portfolioId: string;
   companyId: string;
+  evaluatedAt: string;
+  expiresAt: string;
   rankedAllowedCandidateIds: readonly string[];
   approvalRequiredCandidateIds: readonly string[];
   blockedCandidateIds: readonly string[];
@@ -143,7 +145,7 @@ export function createCapacityEconomicSnapshot(
   return Object.freeze({ ...base, snapshotHash: sha256Hex(base) });
 }
 
-function assertSnapshotIntegrity(snapshot: CapacityEconomicSnapshot) {
+export function assertCapacityEconomicSnapshotIntegrity(snapshot: CapacityEconomicSnapshot) {
   const { snapshotHash, ...base } = snapshot;
   if (sha256Hex(base) !== snapshotHash) {
     throw new ControlPlaneError("FORBIDDEN", "Capacity economic snapshot integrity check failed");
@@ -204,6 +206,9 @@ export function evaluateCostCapacityGovernor(input: {
   now?: number;
 }): CostGovernorReport {
   const now = input.now ?? Date.now();
+  if (input.candidates.length === 0) {
+    throw new ControlPlaneError("VALIDATION_FAILED", "Cost governor requires at least one candidate");
+  }
   if (
     input.budget.portfolioId !== input.portfolioId
     || input.budget.companyId !== input.companyId
@@ -224,7 +229,7 @@ export function evaluateCostCapacityGovernor(input: {
       const placementEligible = Boolean(placement && eligibleIds.has(candidate.resourceId));
       const reasons: string[] = [];
       const snapshot = candidate.economicSnapshot;
-      assertSnapshotIntegrity(snapshot);
+      assertCapacityEconomicSnapshotIntegrity(snapshot);
 
       if (
         snapshot.resourceId !== candidate.resourceId
@@ -328,10 +333,15 @@ export function evaluateCostCapacityGovernor(input: {
     .filter((candidate) => candidate.disposition === "blocked")
     .map((candidate) => candidate.resourceId);
 
+  const reportExpiresAt = Math.min(
+    ...input.candidates.map((candidate) => Date.parse(candidate.economicSnapshot.expiresAt))
+  );
   const base: Omit<CostGovernorReport, "reportHash"> = {
     placementRequestId: input.placementReport.placementRequestId,
     portfolioId: input.portfolioId,
     companyId: input.companyId,
+    evaluatedAt: new Date(now).toISOString(),
+    expiresAt: new Date(reportExpiresAt).toISOString(),
     rankedAllowedCandidateIds: Object.freeze(rankedAllowedCandidateIds),
     approvalRequiredCandidateIds: Object.freeze(approvalRequiredCandidateIds),
     blockedCandidateIds: Object.freeze(blockedCandidateIds),
@@ -378,4 +388,68 @@ export function reconcileCostUsage(input: {
     withinCostTolerance
   };
   return Object.freeze({ ...base, reconciliationHash: sha256Hex(base) });
+}
+
+
+export function assertCostGovernorReportIntegrity(report: CostGovernorReport) {
+  const { reportHash, ...base } = report;
+  if (sha256Hex(base) !== reportHash) {
+    throw new ControlPlaneError("FORBIDDEN", "Cost governor report integrity check failed");
+  }
+
+  const candidateIds = new Set(report.candidates.map((candidate) => candidate.resourceId));
+  for (const resourceId of [
+    ...report.rankedAllowedCandidateIds,
+    ...report.approvalRequiredCandidateIds,
+    ...report.blockedCandidateIds
+  ]) {
+    if (!candidateIds.has(resourceId)) {
+      throw new ControlPlaneError(
+        "FORBIDDEN",
+        "Cost governor report references a candidate outside its candidate set"
+      );
+    }
+  }
+  return report;
+}
+
+export function assertGovernorAllowsAutonomousScheduling(
+  report: CostGovernorReport,
+  input: {
+    placementRequestId: string;
+    portfolioId: string;
+    companyId: string;
+    resourceId: string;
+    now?: number;
+  }
+) {
+  assertCostGovernorReportIntegrity(report);
+  const now = input.now ?? Date.now();
+  if (
+    Date.parse(report.evaluatedAt) > now
+    || Date.parse(report.expiresAt) <= now
+    || report.placementRequestId !== input.placementRequestId
+    || report.portfolioId !== input.portfolioId
+    || report.companyId !== input.companyId
+  ) {
+    throw new ControlPlaneError("FORBIDDEN", "Cost governor report is outside scheduler scope");
+  }
+
+  if (report.approvalRequiredCandidateIds.includes(input.resourceId)) {
+    throw new ControlPlaneError(
+      "FORBIDDEN",
+      "Candidate requires approval and is not eligible for autonomous scheduling"
+    );
+  }
+  if (
+    report.blockedCandidateIds.includes(input.resourceId)
+    || !report.rankedAllowedCandidateIds.includes(input.resourceId)
+  ) {
+    throw new ControlPlaneError(
+      "POLICY_BLOCKED",
+      "Candidate is not allowed by the cost/capacity governor"
+    );
+  }
+
+  return report.candidates.find((candidate) => candidate.resourceId === input.resourceId)!;
 }

@@ -15,6 +15,29 @@ import {
 } from "@/lib/resources/reservations";
 import type { ResourceReliabilityTier } from "@/lib/resources/policy";
 import {
+  assertCostGovernorReportIntegrity,
+  assertGovernorAllowsAutonomousScheduling,
+  type CostGovernorReport
+} from "@/lib/resources/cost-governor";
+import {
+  assertCredentialLease,
+  type CredentialLease
+} from "@/lib/credentials/broker";
+import {
+  blockingKillSwitches,
+  type KillSwitch
+} from "@/lib/domain/kill-switch";
+import type { ResourceState } from "@/lib/domain/resources";
+import {
+  assertPolicyRegistryReference,
+  type PolicyRegistryReference
+} from "@/lib/domain/policy-registry";
+import { hashKillSwitchSnapshot } from "@/lib/planning/policy-snapshot";
+import {
+  assertVerificationTrustAttestation,
+  type VerificationTrustAttestation
+} from "@/lib/verification/source-trust";
+import {
   assertVerificationReceipt,
   assertVerificationRequestIntegrity,
   createVerificationRequest,
@@ -69,8 +92,12 @@ export interface RankedSchedulerCandidate {
 export interface SchedulerRankingReport {
   placementRequestId: string;
   placementReportHash: string;
+  governorReportHash: string;
   evaluatedAt: string;
   rankedEligibleCandidates: readonly RankedSchedulerCandidate[];
+  governorAdmittedCandidateIds: readonly string[];
+  approvalRequiredCandidateIds: readonly string[];
+  governorBlockedCandidateIds: readonly string[];
   ignoredIneligibleCandidateIds: readonly string[];
   reportHash: string;
 }
@@ -85,6 +112,7 @@ export interface SchedulerPlacementDecision {
   placementRequestId: string;
   placementRequestHash: string;
   placementReportHash: string;
+  governorReportHash: string;
   rankingReportHash: string;
   selectedResourceId: string;
   selectedTarget: Readonly<{ type: "resource"; id: string }>;
@@ -116,10 +144,46 @@ export interface DispatchIntent {
   allocationHash: string;
   adapterId: string;
   adapterVersion: string;
+  providerId: string;
+  capability: string;
+  credentialLeaseId: string;
+  credentialLeaseHash: string;
+  dispatchAdmissionReceiptId: string;
+  dispatchAdmissionReceiptHash: string;
   idempotencyKey: string;
   issuedAt: string;
   expiresAt: string;
   dispatchHash: string;
+}
+
+export interface DispatchAdmissionReceipt {
+  id: string;
+  source: "control-plane";
+  portfolioId: string;
+  companyId: string;
+  environment: TrustedExecutionScope["environment"];
+  jobId: string;
+  placementRequestId: string;
+  placementDecisionId: string;
+  placementDecisionHash: string;
+  placementReportHash: string;
+  governorReportHash: string;
+  resourceId: string;
+  reservationId: string;
+  reservationHash: string;
+  allocationId: string;
+  allocationHash: string;
+  credentialLeaseId: string;
+  credentialLeaseHash: string;
+  providerId: string;
+  capability: string;
+  policyRegistryHash: string;
+  policyVersion: string;
+  killSwitchSnapshotHash: string;
+  resourceState: ResourceState;
+  admittedAt: string;
+  expiresAt: string;
+  receiptHash: string;
 }
 
 export interface DispatchAdapterResult {
@@ -157,6 +221,8 @@ export interface VerifiedRunningPlacement {
   startVerificationRequestId: string;
   startVerificationReceiptId: string;
   startVerificationReceiptHash: string;
+  startVerificationTrustAttestationId: string;
+  startVerificationTrustAttestationHash: string;
   startedVerifiedAt: string;
   state: "running-verified";
   jobStateMutationApplied: false;
@@ -180,6 +246,8 @@ export interface VerifiedPlacementCompletion {
   completionVerificationRequestId: string;
   completionVerificationReceiptId: string;
   completionVerificationReceiptHash: string;
+  completionVerificationTrustAttestationId: string;
+  completionVerificationTrustAttestationHash: string;
   verifiedAt: string;
   state: "completed-verified";
   jobStateMutationApplied: false;
@@ -312,11 +380,19 @@ export function createSchedulerCandidateSnapshot(
 
 export function rankEligibleCandidates(input: {
   placementReport: PlacementEvaluationReport;
+  governorReport: CostGovernorReport;
   candidates: readonly SchedulerCandidateSnapshot[];
   preferences: SchedulerPreferences;
   evaluatedAt: string;
 }): SchedulerRankingReport {
   assertPlacementReportIntegrity(input.placementReport);
+  assertCostGovernorReportIntegrity(input.governorReport);
+  if (input.governorReport.placementRequestId !== input.placementReport.placementRequestId) {
+    throw new ControlPlaneError(
+      "FORBIDDEN",
+      "Scheduler governor report does not match the placement evaluation"
+    );
+  }
   const evaluatedAt = parseTime(input.evaluatedAt, "Scheduler ranking evaluatedAt");
   const { entries: weightEntries, total: weightTotal } = normalizeWeights(
     input.preferences.weights
@@ -329,9 +405,15 @@ export function rankEligibleCandidates(input: {
     input.placementReport.candidates.map((candidate) => [candidate.resourceId, candidate])
   );
 
-  const eligibleIds = [...input.placementReport.eligibleCandidateIds].sort();
+  const placementEligibleIds = new Set(input.placementReport.eligibleCandidateIds);
+  const eligibleIds = input.governorReport.rankedAllowedCandidateIds
+    .filter((resourceId) => placementEligibleIds.has(resourceId))
+    .sort();
   if (eligibleIds.length === 0) {
-    throw new ControlPlaneError("UNAVAILABLE", "No placement-eligible candidates are available");
+    throw new ControlPlaneError(
+      "UNAVAILABLE",
+      "No placement-eligible candidates are autonomously allowed by the cost/capacity governor"
+    );
   }
 
   const eligibleSnapshots = eligibleIds.map((resourceId) => {
@@ -427,8 +509,12 @@ export function rankEligibleCandidates(input: {
   const base: Omit<SchedulerRankingReport, "reportHash"> = {
     placementRequestId: input.placementReport.placementRequestId,
     placementReportHash: input.placementReport.reportHash,
+    governorReportHash: input.governorReport.reportHash,
     evaluatedAt: new Date(evaluatedAt).toISOString(),
     rankedEligibleCandidates: Object.freeze(ranked),
+    governorAdmittedCandidateIds: Object.freeze([...eligibleIds]),
+    approvalRequiredCandidateIds: Object.freeze([...input.governorReport.approvalRequiredCandidateIds]),
+    governorBlockedCandidateIds: Object.freeze([...input.governorReport.blockedCandidateIds]),
     ignoredIneligibleCandidateIds: Object.freeze(ignoredIneligibleCandidateIds)
   };
   return Object.freeze({ ...base, reportHash: sha256Hex(base) });
@@ -438,6 +524,7 @@ export function createPlacementDecision(input: {
   id: string;
   request: PlacementRequestRecord;
   placementReport: PlacementEvaluationReport;
+  governorReport: CostGovernorReport;
   rankingReport: SchedulerRankingReport;
   selectedResourceId?: string;
   decidedAt: string;
@@ -445,11 +532,16 @@ export function createPlacementDecision(input: {
   retryReason?: string;
 }): SchedulerPlacementDecision {
   assertPlacementReportIntegrity(input.placementReport);
+  assertCostGovernorReportIntegrity(input.governorReport);
   const rankingBase = {
     placementRequestId: input.rankingReport.placementRequestId,
     placementReportHash: input.rankingReport.placementReportHash,
+    governorReportHash: input.rankingReport.governorReportHash,
     evaluatedAt: input.rankingReport.evaluatedAt,
     rankedEligibleCandidates: input.rankingReport.rankedEligibleCandidates,
+    governorAdmittedCandidateIds: input.rankingReport.governorAdmittedCandidateIds,
+    approvalRequiredCandidateIds: input.rankingReport.approvalRequiredCandidateIds,
+    governorBlockedCandidateIds: input.rankingReport.governorBlockedCandidateIds,
     ignoredIneligibleCandidateIds: input.rankingReport.ignoredIneligibleCandidateIds
   };
   if (sha256Hex(rankingBase) !== input.rankingReport.reportHash) {
@@ -463,6 +555,10 @@ export function createPlacementDecision(input: {
     input.request.id !== input.placementReport.placementRequestId
     || input.request.id !== input.rankingReport.placementRequestId
     || input.placementReport.reportHash !== input.rankingReport.placementReportHash
+    || input.governorReport.reportHash !== input.rankingReport.governorReportHash
+    || input.governorReport.placementRequestId !== input.request.id
+    || input.governorReport.portfolioId !== input.request.portfolioId
+    || input.governorReport.companyId !== input.request.companyId
   ) {
     throw new ControlPlaneError("FORBIDDEN", "Placement decision lineage is inconsistent");
   }
@@ -511,6 +607,7 @@ export function createPlacementDecision(input: {
     placementRequestId: input.request.id,
     placementRequestHash: input.request.requestHash,
     placementReportHash: input.placementReport.reportHash,
+    governorReportHash: input.rankingReport.governorReportHash,
     rankingReportHash: input.rankingReport.reportHash,
     selectedResourceId,
     selectedTarget: Object.freeze({ type: "resource" as const, id: selectedResourceId }),
@@ -547,13 +644,214 @@ export function reservationAuthorityFromDecision(
   });
 }
 
+export function assertDispatchAdmissionReceipt(
+  receipt: DispatchAdmissionReceipt,
+  input: {
+    decision: SchedulerPlacementDecision;
+    reservation: CapacityReservation;
+    allocation: AllocationRecord;
+    credentialLease: CredentialLease;
+    now?: number;
+  }
+) {
+  const { receiptHash, ...base } = receipt;
+  if (sha256Hex(base) !== receiptHash) {
+    throw new ControlPlaneError("FORBIDDEN", "Dispatch admission receipt integrity check failed");
+  }
+  const now = input.now ?? Date.now();
+  if (
+    receipt.source !== "control-plane"
+    || Date.parse(receipt.admittedAt) > now
+    || Date.parse(receipt.expiresAt) <= now
+    || receipt.portfolioId !== input.decision.portfolioId
+    || receipt.companyId !== input.decision.companyId
+    || receipt.environment !== input.decision.environment
+    || receipt.jobId !== input.decision.jobId
+    || receipt.placementRequestId !== input.decision.placementRequestId
+    || receipt.placementDecisionId !== input.decision.id
+    || receipt.placementDecisionHash !== input.decision.decisionHash
+    || receipt.placementReportHash !== input.decision.placementReportHash
+    || receipt.governorReportHash !== input.decision.governorReportHash
+    || receipt.resourceId !== input.decision.selectedResourceId
+    || receipt.reservationId !== input.reservation.id
+    || receipt.reservationHash !== input.reservation.reservationHash
+    || receipt.allocationId !== input.allocation.id
+    || receipt.allocationHash !== input.allocation.allocationHash
+    || receipt.credentialLeaseId !== input.credentialLease.id
+    || receipt.credentialLeaseHash !== input.credentialLease.leaseHash
+  ) {
+    throw new ControlPlaneError(
+      "FORBIDDEN",
+      "Dispatch admission receipt is stale or outside authoritative dispatch lineage"
+    );
+  }
+  return receipt;
+}
+
+export function createDispatchAdmissionReceipt(input: {
+  id: string;
+  decision: SchedulerPlacementDecision;
+  reservation: CapacityReservation;
+  allocation: AllocationRecord;
+  credentialLease: CredentialLease;
+  governorReport: CostGovernorReport;
+  policyRegistry: PolicyRegistryReference;
+  killSwitches: readonly KillSwitch[];
+  resourceState: ResourceState;
+  environmentPermissions: readonly TrustedExecutionScope["environment"][];
+  providerId: string;
+  capability: string;
+  admittedAt: string;
+  ttlSeconds?: number;
+}): DispatchAdmissionReceipt {
+  assertDecisionIntegrity(input.decision);
+  assertCostGovernorReportIntegrity(input.governorReport);
+  assertPolicyRegistryReference(input.policyRegistry);
+
+  const admittedAt = parseTime(input.admittedAt, "Dispatch admission time");
+  assertReservationDispatchable(input.reservation, admittedAt);
+
+  if (
+    input.resourceState !== "ready"
+    || !input.environmentPermissions.includes(input.decision.environment)
+  ) {
+    throw new ControlPlaneError(
+      "FORBIDDEN",
+      "Dispatch admission requires a READY resource authorized for the target environment"
+    );
+  }
+
+  if (
+    input.reservation.portfolioId !== input.decision.portfolioId
+    || input.reservation.companyId !== input.decision.companyId
+    || input.reservation.jobId !== input.decision.jobId
+    || input.reservation.placementRequestId !== input.decision.placementRequestId
+    || input.reservation.placementDecisionId !== input.decision.id
+    || input.reservation.placementDecisionHash !== input.decision.decisionHash
+    || input.reservation.target.type !== "resource"
+    || input.reservation.target.id !== input.decision.selectedResourceId
+    || input.allocation.reservationId !== input.reservation.id
+    || input.allocation.reservationHash !== input.reservation.reservationHash
+    || input.allocation.status !== "pending"
+  ) {
+    throw new ControlPlaneError(
+      "FORBIDDEN",
+      "Dispatch admission reservation/allocation lineage is invalid"
+    );
+  }
+
+  assertGovernorAllowsAutonomousScheduling(input.governorReport, {
+    placementRequestId: input.decision.placementRequestId,
+    portfolioId: input.decision.portfolioId,
+    companyId: input.decision.companyId,
+    resourceId: input.decision.selectedResourceId,
+    now: admittedAt
+  });
+  if (input.governorReport.reportHash !== input.decision.governorReportHash) {
+    throw new ControlPlaneError(
+      "FORBIDDEN",
+      "Dispatch admission governor report does not match the placement decision"
+    );
+  }
+
+  const scope: TrustedExecutionScope = {
+    userId: "dispatch-admission",
+    portfolioId: input.decision.portfolioId,
+    companyId: input.decision.companyId,
+    environment: input.decision.environment,
+    resourceId: input.decision.selectedResourceId
+  };
+  assertCredentialLease(input.credentialLease, {
+    scope,
+    jobId: input.decision.jobId,
+    resourceId: input.decision.selectedResourceId,
+    capability: input.capability,
+    now: admittedAt
+  });
+  if (
+    input.credentialLease.placementRequestId !== input.decision.placementRequestId
+    || input.credentialLease.providerId !== input.providerId
+  ) {
+    throw new ControlPlaneError(
+      "FORBIDDEN",
+      "Credential lease does not match placement/provider dispatch lineage"
+    );
+  }
+
+  const blockers = blockingKillSwitches(input.killSwitches, {
+    portfolioId: input.decision.portfolioId,
+    companyId: input.decision.companyId,
+    capability: input.capability,
+    resourceId: input.decision.selectedResourceId,
+    providerId: input.providerId
+  });
+  if (blockers.length > 0) {
+    throw new ControlPlaneError(
+      "POLICY_BLOCKED",
+      "Current kill switches block dispatch admission",
+      { details: { killSwitchIds: blockers.map((item) => item.id).sort() } }
+    );
+  }
+
+  const ttlSeconds = input.ttlSeconds ?? 60;
+  if (!Number.isInteger(ttlSeconds) || ttlSeconds <= 0 || ttlSeconds > 300) {
+    throw new ControlPlaneError(
+      "VALIDATION_FAILED",
+      "Dispatch admission TTL must be 1-300 seconds"
+    );
+  }
+  const expiresAtMs = Math.min(
+    admittedAt + ttlSeconds * 1000,
+    Date.parse(input.reservation.expiresAt),
+    Date.parse(input.credentialLease.expiresAt),
+    Date.parse(input.governorReport.expiresAt)
+  );
+  if (expiresAtMs <= admittedAt) {
+    throw new ControlPlaneError("FORBIDDEN", "Dispatch admission inputs expire too soon");
+  }
+
+  const base: Omit<DispatchAdmissionReceipt, "receiptHash"> = {
+    id: input.id,
+    source: "control-plane",
+    portfolioId: input.decision.portfolioId,
+    companyId: input.decision.companyId,
+    environment: input.decision.environment,
+    jobId: input.decision.jobId,
+    placementRequestId: input.decision.placementRequestId,
+    placementDecisionId: input.decision.id,
+    placementDecisionHash: input.decision.decisionHash,
+    placementReportHash: input.decision.placementReportHash,
+    governorReportHash: input.governorReport.reportHash,
+    resourceId: input.decision.selectedResourceId,
+    reservationId: input.reservation.id,
+    reservationHash: input.reservation.reservationHash,
+    allocationId: input.allocation.id,
+    allocationHash: input.allocation.allocationHash,
+    credentialLeaseId: input.credentialLease.id,
+    credentialLeaseHash: input.credentialLease.leaseHash,
+    providerId: input.providerId,
+    capability: input.capability,
+    policyRegistryHash: input.policyRegistry.registryHash,
+    policyVersion: input.policyRegistry.version,
+    killSwitchSnapshotHash: hashKillSwitchSnapshot(input.killSwitches),
+    resourceState: input.resourceState,
+    admittedAt: new Date(admittedAt).toISOString(),
+    expiresAt: new Date(expiresAtMs).toISOString()
+  };
+  return Object.freeze({ ...base, receiptHash: sha256Hex(base) });
+}
+
 export function createDispatchIntent(input: {
   id: string;
   decision: SchedulerPlacementDecision;
   reservation: CapacityReservation;
   allocation: AllocationRecord;
+  credentialLease: CredentialLease;
+  admissionReceipt: DispatchAdmissionReceipt;
   adapterId: string;
   adapterVersion: string;
+  providerId: string;
+  capability: string;
   idempotencyKey: string;
   issuedAt: string;
   now?: number;
@@ -561,6 +859,26 @@ export function createDispatchIntent(input: {
   assertDecisionIntegrity(input.decision);
   const now = input.now ?? Date.now();
   assertReservationDispatchable(input.reservation, now);
+  assertCredentialLease(input.credentialLease, {
+    scope: {
+      userId: "dispatch",
+      portfolioId: input.decision.portfolioId,
+      companyId: input.decision.companyId,
+      environment: input.decision.environment,
+      resourceId: input.decision.selectedResourceId
+    },
+    jobId: input.decision.jobId,
+    resourceId: input.decision.selectedResourceId,
+    capability: input.capability,
+    now
+  });
+  assertDispatchAdmissionReceipt(input.admissionReceipt, {
+    decision: input.decision,
+    reservation: input.reservation,
+    allocation: input.allocation,
+    credentialLease: input.credentialLease,
+    now
+  });
 
   if (
     input.reservation.portfolioId !== input.decision.portfolioId
@@ -626,6 +944,12 @@ export function createDispatchIntent(input: {
     allocationHash: input.allocation.allocationHash,
     adapterId: input.adapterId,
     adapterVersion: input.adapterVersion,
+    providerId: input.providerId,
+    capability: input.capability,
+    credentialLeaseId: input.credentialLease.id,
+    credentialLeaseHash: input.credentialLease.leaseHash,
+    dispatchAdmissionReceiptId: input.admissionReceipt.id,
+    dispatchAdmissionReceiptHash: input.admissionReceipt.receiptHash,
     idempotencyKey: input.idempotencyKey,
     issuedAt: new Date(issuedAtMs).toISOString(),
     expiresAt: input.reservation.expiresAt
@@ -738,6 +1062,7 @@ export function createVerifiedRunningPlacement(input: {
   adapterResult: DispatchAdapterResult;
   verificationRequest: VerificationRequest;
   verificationReceipt: VerificationReceipt;
+  verificationTrustAttestation: VerificationTrustAttestation;
   scope: TrustedExecutionScope;
   now?: number;
 }): VerifiedRunningPlacement {
@@ -756,6 +1081,12 @@ export function createVerifiedRunningPlacement(input: {
   assertStartVerificationLineage({
     dispatch: input.dispatch,
     adapterResult: input.adapterResult,
+    request: input.verificationRequest,
+    receipt: input.verificationReceipt,
+    scope: input.scope,
+    now
+  });
+  assertVerificationTrustAttestation(input.verificationTrustAttestation, {
     request: input.verificationRequest,
     receipt: input.verificationReceipt,
     scope: input.scope,
@@ -780,6 +1111,8 @@ export function createVerifiedRunningPlacement(input: {
     startVerificationRequestId: input.verificationRequest.id,
     startVerificationReceiptId: input.verificationReceipt.id,
     startVerificationReceiptHash: input.verificationReceipt.receiptHash,
+    startVerificationTrustAttestationId: input.verificationTrustAttestation.id,
+    startVerificationTrustAttestationHash: input.verificationTrustAttestation.attestationHash,
     startedVerifiedAt: input.verificationReceipt.verifiedAt,
     state: "running-verified",
     jobStateMutationApplied: false
@@ -843,6 +1176,7 @@ export function createVerifiedPlacementCompletion(input: {
   runningPlacement: VerifiedRunningPlacement;
   verificationRequest: VerificationRequest;
   verificationReceipt: VerificationReceipt;
+  verificationTrustAttestation: VerificationTrustAttestation;
   scope: TrustedExecutionScope;
   now?: number;
 }): VerifiedPlacementCompletion {
@@ -873,6 +1207,12 @@ export function createVerifiedPlacementCompletion(input: {
   )) {
     throw new ControlPlaneError("FORBIDDEN", "Completion requires verified execution evidence");
   }
+  assertVerificationTrustAttestation(input.verificationTrustAttestation, {
+    request: input.verificationRequest,
+    receipt: input.verificationReceipt,
+    scope: input.scope,
+    now
+  });
 
   const base: Omit<VerifiedPlacementCompletion, "recordHash"> = {
     id: input.id,
@@ -881,6 +1221,8 @@ export function createVerifiedPlacementCompletion(input: {
     completionVerificationRequestId: input.verificationRequest.id,
     completionVerificationReceiptId: input.verificationReceipt.id,
     completionVerificationReceiptHash: input.verificationReceipt.receiptHash,
+    completionVerificationTrustAttestationId: input.verificationTrustAttestation.id,
+    completionVerificationTrustAttestationHash: input.verificationTrustAttestation.attestationHash,
     verifiedAt: input.verificationReceipt.verifiedAt,
     state: "completed-verified",
     jobStateMutationApplied: false

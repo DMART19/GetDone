@@ -4,9 +4,9 @@ This report records the GPT-5.6 Sol deterministic tranche for Phase 34. It prese
 
 ## Scheduler ranking
 
-The deterministic scheduler consumes an authoritative Phase 32 `PlacementEvaluationReport`.
+The deterministic scheduler consumes an authoritative Phase 32 `PlacementEvaluationReport` plus a fresh integrity-checked Phase 35 `CostGovernorReport`.
 
-It can score only candidates already present in `eligibleCandidateIds`. An ineligible candidate cannot be selected even when manually requested.
+It can score only candidates already present in Phase 32 `eligibleCandidateIds` **and** Phase 35 `rankedAllowedCandidateIds`. Phase-35 approval-required/blocked candidates cannot enter autonomous scheduler ranking. An ineligible candidate cannot be selected even when manually requested.
 
 Scheduler snapshots are bound to the exact Phase 32 candidate snapshot hash and expire independently.
 
@@ -25,6 +25,7 @@ Weights must be non-negative and at least one must be positive. Scoring is prefe
 A `SchedulerPlacementDecision` binds:
 - Placement Request ID/hash;
 - Placement Evaluation hash;
+- Phase 35 Cost Governor hash;
 - Scheduler Ranking hash;
 - selected resource;
 - selected Phase 32 candidate snapshot hash;
@@ -52,9 +53,11 @@ Dispatch requires:
 - matching decision ID/hash;
 - exact selected resource target;
 - matching pending Allocation ID/hash;
-- reservation hash match.
+- reservation hash match;
+- an active Phase 29 credential lease matching Job, Placement Request, resource, company/environment, provider, and capability;
+- a fresh DispatchAdmissionReceipt.
 
-If the Phase 33 lease has expired, dispatch fails closed.
+The DispatchAdmissionReceipt rechecks current policy-registry identity, current kill switches, READY/environment permission, Phase 35 governor ALLOW/freshness, Phase 33 reservation/allocation lineage, and Phase 29 credential scope/freshness. Its expiry cannot outlive any of those time-bounded authorities.
 
 ## Dispatch adapter boundary
 
@@ -80,14 +83,15 @@ Start verification reuses the existing Phase 22 verification engine:
 - independent evidence is mandatory;
 - `executionIndependenceKey` equals the dispatch hash.
 
-This matters because provider/adapter self-evidence carrying the same dispatch independence key is excluded by the existing verifier. Provider ACCEPTED therefore resolves to UNCERTAIN without independent evidence.
+The receipt layer still excludes evidence with the same dispatch independence key. The hardened execution boundary additionally requires a `VerificationTrustAttestation` backed by an authoritative `VerificationSourceBinding`, so a provider cannot invent a different independence string and present itself as independent. Provider ACCEPTED therefore resolves to UNCERTAIN without independent evidence.
 
 A `VerifiedRunningPlacement` can be created only when:
 - dispatch lineage is intact;
 - provider dispatch was accepted;
 - reservation is still active/unexpired;
 - verification request is correctly bound to the dispatch/allocation;
-- a fresh VERIFIED receipt contains VERIFIED `resource-start` strategy results.
+- a fresh VERIFIED receipt contains VERIFIED `resource-start` strategy results;
+- a fresh trusted-source attestation proves the evidence source is registered for that strategy/scope and belongs to a separate independence domain.
 
 The running record explicitly carries `jobStateMutationApplied: false`. Scheduler placement truth is not Job truth.
 

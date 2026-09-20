@@ -25,7 +25,7 @@ Current code includes:
 - Plan/step hashes, validation receipts, policy snapshots, authorization grants, approval proofs, and authorization-consumption records
 - deterministic signals, sensing, investigations, research, and bounded context assembly
 - deterministic Plan validation, policy classification, Task generation, and DAG compilation
-- Phase 22 verification requests, evidence, strategy results, hash-bound receipts, freshness/expiry, independence rules, and authoritative verification transitions
+- Phase 22 verification requests, evidence, strategy results, hash-bound receipts, freshness/expiry, authoritative verifier-source bindings/trust attestations, independence rules, and authoritative verification transitions
 - Task / Job / Outcome truth transitions bound to verification receipts
 - Phase 23 advisory operational memory with Fact, Lesson, Experiment, Observation, OutcomeReference, confidence, sample size, confounders, expiry, supersession, relevance selection, and strict company isolation
 - Phase 24 attributed portfolio executive summaries plus automated adversarial security boundaries for auth, tenancy, callbacks, credentials, context contamination, external authority claims, kill switches, production promotion, and future Resource Fabric spoof/replay cases
@@ -37,7 +37,7 @@ Current code includes:
 - Phase 31 deterministic resource/data placement policy with HOME/customer-data/critical-copy defaults, encryption, region, reliability, fallback, interruption, and workload hard constraints
 - Phase 32 control-plane-only placement requests, active idempotency reuse, snapshot-bound candidate evaluation, full rejection reasons, and explainable eligibility without reservation or dispatch
 - Phase 33 deterministic resource/pool capacity ledgers, CAS-bound atomic reservation commit envelopes, scoped idempotency, leases/renewal/expiry, requested-vs-granted capacity, protected headroom, cancellation/release, pending allocation records, and exactly-once deterministic capacity restoration
-- Phase 34 deterministic scheduler/dispatch foundation with bounded eligible-only ranking, hash-bound placement decisions, retry/fallback lineage, live-reservation dispatch gating, adapter result contracts, independent resource-start verification, monitoring/completion verification, explainable audit records, and release through Phase 33
+- Phase 34 deterministic scheduler/dispatch foundation with Phase-35-governed eligible-only ranking, hash-bound placement decisions, retry/fallback lineage, live Phase-33 reservation gating, Phase-29 credential binding, short-lived final dispatch-admission receipts, trusted independent start/completion verification, explainable audit records, and release through Phase 33
 - Phase 35 deterministic cost/capacity governor with owned/committed/reserved/spot/on-demand economics, protected headroom, quotas, budget caps/approval thresholds, eligible-only economic ranking, and estimate-vs-actual reconciliation
 - Phase 40 full zero-side-effect resource policy simulator with historical-vs-projection labeling, policy/economic/scheduler/guardrail simulation, uncertainty, AI Gateway model-evidence recording, and explicit no-mutation/no-reservation/no-dispatch/no-secret-lookup guarantees
 
@@ -75,6 +75,7 @@ Then open `http://localhost:3000`.
 ```bash
 npm run verify:runtime
 npm run verify:secrets
+npm run verify:architecture
 npm run typecheck
 npm run lint
 npm test
@@ -107,6 +108,7 @@ Use these as the implementation source of truth:
 - `docs/SOL_PHASE_33_REPORT.md`
 - `docs/SOL_PHASE_34_REPORT.md`
 - `docs/SOL_PHASE_35_40_REPORT.md`
+- `docs/SOL_ARCHITECTURE_INTEGRITY_REPORT.md`
 - `docs/ASTRA_HANDOFF.md`
 
 No phase is complete merely because code exists. Canonical PASS still requires the acceptance evidence specified by the master build plan.

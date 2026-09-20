@@ -12,7 +12,8 @@ Implemented:
 - protected headroom and quota violations block economics even if a candidate is cheapest;
 - budget binding supports deterministic ALLOW, APPROVAL_REQUIRED, and BLOCKED outcomes;
 - only ALLOW candidates enter autonomous economic ranking;
-- APPROVAL_REQUIRED candidates remain separate and cannot silently become autonomous choices;
+- Phase 34 now consumes this report directly, so APPROVAL_REQUIRED/BLOCKED candidates cannot silently enter autonomous scheduling;
+- governor reports carry evaluated/expiry windows and are rechecked at final dispatch admission;
 - deterministic ranking uses effective cost, marginal cost, utilization, then resource ID as a stable tie-break;
 - job/resource reconciliation compares estimated versus actual cost and usage with an integrity hash.
 

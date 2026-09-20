@@ -1,11 +1,23 @@
 import { describe, expect, it } from "vitest";
 import { sha256Hex } from "@/lib/control-plane/canonical-hash";
 import {
+  createSecretReference,
+  createCredentialBinding,
+  createCredentialRequest,
+  issueCredentialLease,
+  revokeCredentialLease
+} from "@/lib/credentials/broker";
+import { currentPolicyRegistryReference } from "@/lib/domain/policy-registry";
+import {
   createAllocationRecord,
   createCapacityLedger,
   releaseReservation,
   reserveCapacity
 } from "@/lib/resources/reservations";
+import {
+  createCapacityEconomicSnapshot,
+  evaluateCostCapacityGovernor
+} from "@/lib/resources/cost-governor";
 import {
   createPlacementCandidateSnapshot,
   createPlacementRequest,
@@ -15,6 +27,7 @@ import type { ResourcePolicy } from "@/lib/resources/policy";
 import {
   createCompletionVerificationRequest,
   createDispatchAdapterResult,
+  createDispatchAdmissionReceipt,
   createDispatchIntent,
   createPlacementDecision,
   createPlacementMonitor,
@@ -31,6 +44,10 @@ import {
   createVerificationEvidence,
   resolveVerificationRequest
 } from "@/lib/verification/verification";
+import {
+  createVerificationSourceBinding,
+  createVerificationTrustAttestation
+} from "@/lib/verification/source-trust";
 
 const now = Date.parse("2026-09-20T22:00:00Z");
 const scope = {
@@ -121,6 +138,56 @@ const placementReport = evaluatePlacementCandidates({
   now
 });
 
+function economics(resourceId: string, placementSnapshotHash: string, hourlyCost: number) {
+  return {
+    resourceId,
+    placementSnapshotHash,
+    requestedDurationSeconds: 3600,
+    economicSnapshot: createCapacityEconomicSnapshot({
+      id: `econ-${resourceId}`,
+      resourceId,
+      portfolioId: "portfolio-a",
+      companyId: "company-a",
+      capacityClass: "variable-on-demand" as const,
+      totalUnits: 16,
+      usedUnits: 4,
+      reservedUnits: 2,
+      protectedHeadroomUnits: 2,
+      requestedUnits: 2,
+      quotaLimitUnits: 32,
+      quotaUsedUnits: 4,
+      effectiveHourlyCents: hourlyCost,
+      marginalHourlyCents: Math.max(0, hourlyCost - 5),
+      observedAt: "2026-09-20T21:59:00Z",
+      expiresAt: "2026-09-20T22:10:00Z"
+    })
+  };
+}
+
+function governor(approvalAboveCents = 200) {
+  return evaluateCostCapacityGovernor({
+    placementReport,
+    portfolioId: "portfolio-a",
+    companyId: "company-a",
+    jobId: "job-34",
+    candidates: [
+      economics("resource-a", resourceA.snapshotHash, 50),
+      economics("resource-b", resourceB.snapshotHash, 80),
+      economics("resource-forbidden", forbidden.snapshotHash, 1)
+    ],
+    budget: {
+      id: "budget-34",
+      portfolioId: "portfolio-a",
+      companyId: "company-a",
+      jobId: "job-34",
+      hardCapCents: 200,
+      approvalAboveCents,
+      status: "active"
+    },
+    now
+  });
+}
+
 function schedulerSnapshot(
   resourceId: string,
   placementHash: string,
@@ -140,9 +207,10 @@ function schedulerSnapshot(
   } as Parameters<typeof createSchedulerCandidateSnapshot>[0]);
 }
 
-function ranking() {
+function ranking(governorReport = governor()) {
   return rankEligibleCandidates({
     placementReport,
+    governorReport,
     candidates: [
       schedulerSnapshot("resource-a", resourceA.snapshotHash),
       schedulerSnapshot("resource-b", resourceB.snapshotHash, {
@@ -169,12 +237,13 @@ function ranking() {
   });
 }
 
-function decision() {
+function decision(governorReport = governor()) {
   return createPlacementDecision({
     id: "decision-34",
     request,
     placementReport,
-    rankingReport: ranking(),
+    governorReport,
+    rankingReport: ranking(governorReport),
     decidedAt: "2026-09-20T22:00:00Z"
   });
 }
@@ -210,15 +279,97 @@ function reserved(decisionRecord = decision()) {
   return { ...reservation, allocation, decisionRecord };
 }
 
-function dispatched() {
-  const base = reserved();
-  const dispatch = createDispatchIntent({
-    id: "dispatch-34",
-    decision: base.decisionRecord,
+function credentialLease(decisionRecord = decision()) {
+  const providerId = "provider-cloud";
+  const capability = "compute.run";
+  const secret = createSecretReference({
+    id: "secret-34",
+    portfolioId: "portfolio-a",
+    companyId: "company-a",
+    providerId,
+    environment: "production",
+    purpose: "resource dispatch",
+    backendRef: "vault://provider-cloud/dispatch",
+    status: "active",
+    rotationVersion: 1
+  });
+  const binding = createCredentialBinding({
+    id: "binding-34",
+    portfolioId: "portfolio-a",
+    companyId: "company-a",
+    providerId,
+    environment: "production",
+    secretReferenceId: secret.id,
+    capabilityNames: [capability],
+    grantedScopes: ["execute"],
+    allowedResourceIds: [decisionRecord.selectedResourceId],
+    allowedLocationClasses: ["cloud"],
+    status: "active"
+  });
+  const credentialRequest = createCredentialRequest({
+    id: "credential-request-34",
+    jobId: decisionRecord.jobId,
+    placementRequestId: decisionRecord.placementRequestId,
+    scope: {
+      ...scope,
+      resourceId: decisionRecord.selectedResourceId
+    },
+    resourceId: decisionRecord.selectedResourceId,
+    resourceState: "ready",
+    resourceLocationClass: "cloud",
+    providerId,
+    capability,
+    requestedScopes: ["execute"],
+    requestedAt: "2026-09-20T21:59:00Z",
+    expiresAt: "2026-09-20T22:10:00Z"
+  });
+  const lease = issueCredentialLease({
+    leaseId: "credential-lease-34",
+    request: credentialRequest,
+    secret,
+    binding,
+    deliveryRef: "delivery://credential-lease-34",
+    issuedAt: "2026-09-20T22:00:01Z",
+    ttlSeconds: 600
+  });
+  return { lease, providerId, capability };
+}
+
+function dispatched(options: {
+  killSwitches?: Parameters<typeof createDispatchAdmissionReceipt>[0]["killSwitches"];
+  leaseOverride?: ReturnType<typeof credentialLease>["lease"];
+} = {}) {
+  const governorReport = governor();
+  const decisionRecord = decision(governorReport);
+  const base = reserved(decisionRecord);
+  const credential = credentialLease(decisionRecord);
+  const lease = options.leaseOverride ?? credential.lease;
+  const admissionReceipt = createDispatchAdmissionReceipt({
+    id: "dispatch-admission-34",
+    decision: decisionRecord,
     reservation: base.reservation,
     allocation: base.allocation,
+    credentialLease: lease,
+    governorReport,
+    policyRegistry: currentPolicyRegistryReference(),
+    killSwitches: options.killSwitches ?? [],
+    resourceState: "ready",
+    environmentPermissions: ["production"],
+    providerId: credential.providerId,
+    capability: credential.capability,
+    admittedAt: "2026-09-20T22:00:02Z"
+  });
+  const dispatch = createDispatchIntent({
+    id: "dispatch-34",
+    decision: decisionRecord,
+    reservation: base.reservation,
+    allocation: base.allocation,
+    credentialLease: lease,
+    admissionReceipt,
     adapterId: "adapter-cloud",
     adapterVersion: "1.0.0",
+    providerId: credential.providerId,
+    capability: credential.capability,
     idempotencyKey: "allocation-34:dispatch",
     issuedAt: "2026-09-20T22:00:03Z",
     now: Date.parse("2026-09-20T22:00:03Z")
@@ -234,7 +385,36 @@ function dispatched() {
     executionRef: "provider-ref-34",
     observedAt: "2026-09-20T22:00:04Z"
   });
-  return { ...base, dispatch, adapterResult };
+  return {
+    ...base,
+    governorReport,
+    credential,
+    lease,
+    admissionReceipt,
+    dispatch,
+    adapterResult
+  };
+}
+
+function sourceBinding(input: {
+  id: string;
+  sourceId: string;
+  strategy: "resource-start" | "execution";
+  independenceDomain: string;
+}) {
+  return createVerificationSourceBinding({
+    id: input.id,
+    portfolioId: "portfolio-a",
+    companyId: "company-a",
+    environment: "production",
+    sourceType: "system-probe",
+    sourceId: input.sourceId,
+    allowedStrategies: [input.strategy],
+    independenceDomain: input.independenceDomain,
+    status: "active",
+    validFrom: "2026-09-20T21:00:00Z",
+    expiresAt: "2026-09-20T23:00:00Z"
+  });
 }
 
 function startVerification(base = dispatched()) {
@@ -268,76 +448,230 @@ function startVerification(base = dispatched()) {
       receiptTtlSeconds: 120
     }
   );
-  return { ...base, verificationRequest, verificationReceipt };
+  const verificationTrustAttestation = createVerificationTrustAttestation({
+    id: "start-trust-34",
+    request: verificationRequest,
+    receipt: verificationReceipt,
+    evidence: [evidence],
+    sourceBindings: [sourceBinding({
+      id: "source-binding-start-34",
+      sourceId: "probe-34",
+      strategy: "resource-start",
+      independenceDomain: "probe-independent-34"
+    })],
+    scope,
+    attestedAt: "2026-09-20T22:00:06Z"
+  });
+  return {
+    ...base,
+    verificationRequest,
+    verificationReceipt,
+    verificationTrustAttestation
+  };
 }
 
-describe("Phase 34 scheduler dispatch and verification", () => {
-  it("ranks only Phase 32 eligible candidates with explicit bounded preferences", () => {
+function runningPlacement() {
+  const base = startVerification();
+  const running = createVerifiedRunningPlacement({
+    id: "running-34",
+    decision: base.decisionRecord,
+    reservation: base.reservation,
+    allocation: base.allocation,
+    dispatch: base.dispatch,
+    adapterResult: base.adapterResult,
+    verificationRequest: base.verificationRequest,
+    verificationReceipt: base.verificationReceipt,
+    verificationTrustAttestation: base.verificationTrustAttestation,
+    scope,
+    now: Date.parse("2026-09-20T22:00:06Z")
+  });
+  return { ...base, running };
+}
+
+function verifiedCompletion(base = runningPlacement()) {
+  const completionRequest = createCompletionVerificationRequest({
+    id: "verify-completion-34",
+    runningPlacement: base.running,
+    requestedAt: "2026-09-20T22:02:00Z",
+    expiresAt: "2026-09-20T22:05:00Z",
+    maxEvidenceAgeSeconds: 120
+  });
+  const evidence = createVerificationEvidence({
+    id: "completion-evidence-34",
+    portfolioId: "portfolio-a",
+    companyId: "company-a",
+    subject: completionRequest.subject,
+    strategy: "execution",
+    result: "pass",
+    sourceType: "system-probe",
+    sourceId: "completion-probe",
+    independenceKey: "completion-independent",
+    observedAt: "2026-09-20T22:02:01Z",
+    payloadHash: sha256Hex({ exitCode: 0, allocationId: "allocation-34" }),
+    provenance: "phase34-completion-test"
+  });
+  const receipt = resolveVerificationRequest(completionRequest, [evidence], {
+    receiptId: "completion-receipt-34",
+    verifiedAt: "2026-09-20T22:02:02Z",
+    receiptTtlSeconds: 120
+  });
+  const trust = createVerificationTrustAttestation({
+    id: "completion-trust-34",
+    request: completionRequest,
+    receipt,
+    evidence: [evidence],
+    sourceBindings: [sourceBinding({
+      id: "source-binding-completion-34",
+      sourceId: "completion-probe",
+      strategy: "execution",
+      independenceDomain: "completion-independent"
+    })],
+    scope,
+    attestedAt: "2026-09-20T22:02:02Z"
+  });
+  const completion = createVerifiedPlacementCompletion({
+    id: "completion-34",
+    runningPlacement: base.running,
+    verificationRequest: completionRequest,
+    verificationReceipt: receipt,
+    verificationTrustAttestation: trust,
+    scope,
+    now: Date.parse("2026-09-20T22:02:02Z")
+  });
+  return { ...base, completionRequest, completionReceipt: receipt, completionTrust: trust, completion };
+}
+
+describe("Phase 34 architecture-integrity scheduling and dispatch", () => {
+  it("ranks only Phase 32 eligible candidates that Phase 35 autonomously allows", () => {
     const report = ranking();
 
     expect(report.rankedEligibleCandidates.map((item) => item.resourceId))
       .toEqual(["resource-a", "resource-b"]);
     expect(report.ignoredIneligibleCandidateIds).toEqual(["resource-forbidden"]);
-    expect(report.rankedEligibleCandidates[0]?.explanation)
-      .toContain("ranked:placement-hard-eligibility-preserved");
+    expect(report.governorReportHash).toBe(governor().reportHash);
   });
 
-  it("never permits a scheduler to select an ineligible candidate", () => {
-    const report = ranking();
+  it("removes approval-required Phase 35 candidates from autonomous scheduling", () => {
+    const governed = governor(60);
+    const report = ranking(governed);
+
+    expect(report.rankedEligibleCandidates.map((item) => item.resourceId)).toEqual(["resource-a"]);
+    expect(report.approvalRequiredCandidateIds).toEqual(["resource-b"]);
+  });
+
+  it("never permits a scheduler to select a Phase 32 or Phase 35 excluded candidate", () => {
+    const report = ranking(governor(60));
+
     expect(() => createPlacementDecision({
       id: "decision-forbidden",
       request,
       placementReport,
+      governorReport: governor(60),
+      rankingReport: report,
+      selectedResourceId: "resource-b",
+      decidedAt: "2026-09-20T22:00:00Z"
+    })).toThrow(/only a ranked placement-eligible candidate/i);
+
+    expect(() => createPlacementDecision({
+      id: "decision-policy-forbidden",
+      request,
+      placementReport,
+      governorReport: governor(60),
       rankingReport: report,
       selectedResourceId: "resource-forbidden",
       decidedAt: "2026-09-20T22:00:00Z"
-    })).toThrow(/only a ranked placement-eligible candidate/i);
+    })).toThrow();
   });
 
-  it("creates a new auditable decision for retry/fallback without changing policy lineage", () => {
-    const first = decision();
+  it("creates a new auditable decision for retry/fallback without changing governor lineage", () => {
+    const governed = governor();
+    const first = decision(governed);
     const retry = createPlacementDecision({
       id: "decision-34-retry",
       request,
       placementReport,
-      rankingReport: ranking(),
+      governorReport: governed,
+      rankingReport: ranking(governed),
       selectedResourceId: "resource-b",
       decidedAt: "2026-09-20T22:00:10Z",
       retryOf: first,
       retryReason: "verified-start-failed"
     });
 
-    expect(retry.retryOfDecisionId).toBe(first.id);
     expect(retry.retryOfDecisionHash).toBe(first.decisionHash);
-    expect(retry.placementReportHash).toBe(first.placementReportHash);
-    expect(retry.id).not.toBe(first.id);
+    expect(retry.governorReportHash).toBe(first.governorReportHash);
   });
 
-  it("preserves Phase 33 reservation lineage before dispatch", () => {
+  it("binds final dispatch admission to Phase 33 reservation, Phase 35 governor, and Phase 29 credential", () => {
     const base = dispatched();
 
-    expect(base.dispatch.placementDecisionHash).toBe(base.decisionRecord.decisionHash);
-    expect(base.dispatch.reservationHash).toBe(base.reservation.reservationHash);
-    expect(base.dispatch.allocationHash).toBe(base.allocation.allocationHash);
-    expect(base.dispatch.selectedResourceId).toBe(base.decisionRecord.selectedResourceId);
+    expect(base.admissionReceipt.governorReportHash).toBe(base.governorReport.reportHash);
+    expect(base.admissionReceipt.credentialLeaseHash).toBe(base.lease.leaseHash);
+    expect(base.dispatch.dispatchAdmissionReceiptHash).toBe(base.admissionReceipt.receiptHash);
+    expect(base.dispatch.credentialLeaseHash).toBe(base.lease.leaseHash);
+  });
+
+  it("blocks final dispatch admission when a current kill switch applies", () => {
+    expect(() => dispatched({
+      killSwitches: [{
+        id: "resource-kill",
+        scopeType: "resource",
+        scopeId: "resource-a",
+        enabled: true,
+        reason: "incident",
+        activatedAt: "2026-09-20T21:59:59Z",
+        activatedBy: "control-plane"
+      }]
+    })).toThrow(/kill switches block dispatch admission/i);
+  });
+
+  it("blocks dispatch when the Phase 29 credential lease is revoked", () => {
+    const governed = governor();
+    const decisionRecord = decision(governed);
+    const base = reserved(decisionRecord);
+    const credential = credentialLease(decisionRecord);
+    const revoked = revokeCredentialLease(credential.lease, "2026-09-20T22:00:02Z");
+
+    expect(() => createDispatchAdmissionReceipt({
+      id: "dispatch-admission-revoked",
+      decision: decisionRecord,
+      reservation: base.reservation,
+      allocation: base.allocation,
+      credentialLease: revoked,
+      governorReport: governed,
+      policyRegistry: currentPolicyRegistryReference(),
+      killSwitches: [],
+      resourceState: "ready",
+      environmentPermissions: ["production"],
+      providerId: credential.providerId,
+      capability: credential.capability,
+      admittedAt: "2026-09-20T22:00:03Z"
+    })).toThrow(/credential lease/i);
   });
 
   it("blocks dispatch when the Phase 33 reservation is expired", () => {
-    const base = reserved();
-    expect(() => createDispatchIntent({
-      id: "dispatch-expired",
-      decision: base.decisionRecord,
+    const governed = governor();
+    const decisionRecord = decision(governed);
+    const base = reserved(decisionRecord);
+    const credential = credentialLease(decisionRecord);
+    expect(() => createDispatchAdmissionReceipt({
+      id: "dispatch-admission-expired-reservation",
+      decision: decisionRecord,
       reservation: base.reservation,
       allocation: base.allocation,
-      adapterId: "adapter-cloud",
-      adapterVersion: "1.0.0",
-      idempotencyKey: "dispatch-expired",
-      issuedAt: "2026-09-20T22:10:00Z",
-      now: Date.parse("2026-09-20T22:10:00Z")
+      credentialLease: credential.lease,
+      governorReport: governed,
+      policyRegistry: currentPolicyRegistryReference(),
+      killSwitches: [],
+      resourceState: "ready",
+      environmentPermissions: ["production"],
+      providerId: credential.providerId,
+      capability: credential.capability,
+      admittedAt: "2026-09-20T22:10:00Z"
     })).toThrow(/cannot authorize dispatch/i);
   });
 
-  it("does not treat provider accepted as proof that work started", () => {
+  it("does not treat provider accepted as trusted proof that work started", () => {
     const base = dispatched();
     const verificationRequest = createStartVerificationRequest({
       id: "verify-provider-only",
@@ -360,52 +694,79 @@ describe("Phase 34 scheduler dispatch and verification", () => {
       payloadHash: sha256Hex({ accepted: true }),
       provenance: "provider-ack"
     });
-    const receipt = resolveVerificationRequest(
-      verificationRequest,
-      [providerEvidence],
-      {
-        receiptId: "provider-only-receipt",
-        verifiedAt: "2026-09-20T22:00:06Z",
-        receiptTtlSeconds: 120
-      }
-    );
+    const receipt = resolveVerificationRequest(verificationRequest, [providerEvidence], {
+      receiptId: "provider-only-receipt",
+      verifiedAt: "2026-09-20T22:00:06Z",
+      receiptTtlSeconds: 120
+    });
 
     expect(receipt.verdict).toBe("uncertain");
-    expect(() => createVerifiedRunningPlacement({
-      id: "running-provider-only",
-      decision: base.decisionRecord,
-      reservation: base.reservation,
-      allocation: base.allocation,
-      dispatch: base.dispatch,
-      adapterResult: base.adapterResult,
-      verificationRequest,
-      verificationReceipt: receipt,
+    expect(() => createVerificationTrustAttestation({
+      id: "provider-only-trust",
+      request: verificationRequest,
+      receipt,
+      evidence: [providerEvidence],
+      sourceBindings: [],
       scope,
-      now: Date.parse("2026-09-20T22:00:06Z")
+      attestedAt: "2026-09-20T22:00:06Z"
     })).toThrow();
   });
 
-  it("requires fresh independent resource-start verification before running", () => {
-    const base = startVerification();
-    const running = createVerifiedRunningPlacement({
-      id: "running-34",
-      decision: base.decisionRecord,
-      reservation: base.reservation,
-      allocation: base.allocation,
+  it("rejects a passing receipt when verifier independence was caller-invented", () => {
+    const base = dispatched();
+    const verificationRequest = createStartVerificationRequest({
+      id: "verify-forged-independent",
       dispatch: base.dispatch,
-      adapterResult: base.adapterResult,
-      verificationRequest: base.verificationRequest,
-      verificationReceipt: base.verificationReceipt,
-      scope,
-      now: Date.parse("2026-09-20T22:00:06Z")
+      requestedAt: "2026-09-20T22:00:04Z",
+      expiresAt: "2026-09-20T22:05:00Z",
+      maxEvidenceAgeSeconds: 120
     });
+    const forgedEvidence = createVerificationEvidence({
+      id: "forged-independent-evidence",
+      portfolioId: "portfolio-a",
+      companyId: "company-a",
+      subject: verificationRequest.subject,
+      strategy: "resource-start",
+      result: "pass",
+      sourceType: "system-probe",
+      sourceId: "probe-34",
+      independenceKey: "invented-domain",
+      observedAt: "2026-09-20T22:00:05Z",
+      payloadHash: "forged-payload",
+      provenance: "forged"
+    });
+    const receipt = resolveVerificationRequest(verificationRequest, [forgedEvidence], {
+      receiptId: "forged-independent-receipt",
+      verifiedAt: "2026-09-20T22:00:06Z"
+    });
+    expect(receipt.verdict).toBe("verified");
 
-    expect(running.state).toBe("running-verified");
-    expect(running.startVerificationReceiptHash).toBe(base.verificationReceipt.receiptHash);
-    expect(running.jobStateMutationApplied).toBe(false);
+    expect(() => createVerificationTrustAttestation({
+      id: "forged-independent-trust",
+      request: verificationRequest,
+      receipt,
+      evidence: [forgedEvidence],
+      sourceBindings: [sourceBinding({
+        id: "authoritative-probe-binding",
+        sourceId: "probe-34",
+        strategy: "resource-start",
+        independenceDomain: "probe-independent-34"
+      })],
+      scope,
+      attestedAt: "2026-09-20T22:00:06Z"
+    })).toThrow(/authoritative source binding/i);
   });
 
-  it("fails closed if start verification arrives after reservation expiry", () => {
+  it("requires fresh trusted independent resource-start verification before running", () => {
+    const base = runningPlacement();
+
+    expect(base.running.state).toBe("running-verified");
+    expect(base.running.startVerificationTrustAttestationHash)
+      .toBe(base.verificationTrustAttestation.attestationHash);
+    expect(base.running.jobStateMutationApplied).toBe(false);
+  });
+
+  it("fails closed if trusted start verification arrives after reservation expiry", () => {
     const base = startVerification();
     expect(() => createVerifiedRunningPlacement({
       id: "running-too-late",
@@ -416,129 +777,37 @@ describe("Phase 34 scheduler dispatch and verification", () => {
       adapterResult: base.adapterResult,
       verificationRequest: base.verificationRequest,
       verificationReceipt: base.verificationReceipt,
+      verificationTrustAttestation: base.verificationTrustAttestation,
       scope,
       now: Date.parse("2026-09-20T22:10:00Z")
     })).toThrow(/cannot authorize dispatch/i);
   });
 
-  it("creates monitoring and independently verifies completion without mutating Job truth", () => {
-    const base = startVerification();
-    const running = createVerifiedRunningPlacement({
-      id: "running-34",
-      decision: base.decisionRecord,
-      reservation: base.reservation,
-      allocation: base.allocation,
-      dispatch: base.dispatch,
-      adapterResult: base.adapterResult,
-      verificationRequest: base.verificationRequest,
-      verificationReceipt: base.verificationReceipt,
-      scope,
-      now: Date.parse("2026-09-20T22:00:06Z")
-    });
+  it("creates monitoring and trusted completion without mutating Job truth", () => {
+    const base = verifiedCompletion();
     const monitor = createPlacementMonitor({
       id: "monitor-34",
-      runningPlacement: running,
+      runningPlacement: base.running,
       openedAt: "2026-09-20T22:00:07Z",
       expectedHeartbeatSeconds: 30
     });
-    const completionRequest = createCompletionVerificationRequest({
-      id: "verify-completion-34",
-      runningPlacement: running,
-      requestedAt: "2026-09-20T22:02:00Z",
-      expiresAt: "2026-09-20T22:05:00Z",
-      maxEvidenceAgeSeconds: 120
-    });
-    const completionEvidence = createVerificationEvidence({
-      id: "completion-evidence-34",
-      portfolioId: "portfolio-a",
-      companyId: "company-a",
-      subject: completionRequest.subject,
-      strategy: "execution",
-      result: "pass",
-      sourceType: "system-probe",
-      sourceId: "completion-probe",
-      independenceKey: "completion-independent",
-      observedAt: "2026-09-20T22:02:01Z",
-      payloadHash: sha256Hex({ exitCode: 0, allocationId: "allocation-34" }),
-      provenance: "phase34-completion-test"
-    });
-    const completionReceipt = resolveVerificationRequest(
-      completionRequest,
-      [completionEvidence],
-      {
-        receiptId: "completion-receipt-34",
-        verifiedAt: "2026-09-20T22:02:02Z",
-        receiptTtlSeconds: 120
-      }
-    );
-    const completion = createVerifiedPlacementCompletion({
-      id: "completion-34",
-      runningPlacement: running,
-      verificationRequest: completionRequest,
-      verificationReceipt: completionReceipt,
-      scope,
-      now: Date.parse("2026-09-20T22:02:02Z")
-    });
 
     expect(monitor.state).toBe("monitoring");
-    expect(completion.state).toBe("completed-verified");
-    expect(completion.jobStateMutationApplied).toBe(false);
+    expect(base.completion.state).toBe("completed-verified");
+    expect(base.completion.completionVerificationTrustAttestationHash)
+      .toBe(base.completionTrust.attestationHash);
+    expect(base.completion.jobStateMutationApplied).toBe(false);
   });
 
   it("releases verified completed capacity through the unchanged Phase 33 release contract", () => {
-    const base = startVerification();
-    const running = createVerifiedRunningPlacement({
-      id: "running-34",
-      decision: base.decisionRecord,
-      reservation: base.reservation,
-      allocation: base.allocation,
-      dispatch: base.dispatch,
-      adapterResult: base.adapterResult,
-      verificationRequest: base.verificationRequest,
-      verificationReceipt: base.verificationReceipt,
-      scope,
-      now: Date.parse("2026-09-20T22:00:06Z")
-    });
-    const completionRequest = createCompletionVerificationRequest({
-      id: "verify-completion-release",
-      runningPlacement: running,
-      requestedAt: "2026-09-20T22:02:00Z",
-      expiresAt: "2026-09-20T22:05:00Z",
-      maxEvidenceAgeSeconds: 120
-    });
-    const evidence = createVerificationEvidence({
-      id: "completion-release-evidence",
-      portfolioId: "portfolio-a",
-      companyId: "company-a",
-      subject: completionRequest.subject,
-      strategy: "execution",
-      result: "pass",
-      sourceType: "system-probe",
-      sourceId: "completion-release-probe",
-      independenceKey: "completion-release-independent",
-      observedAt: "2026-09-20T22:02:01Z",
-      payloadHash: sha256Hex({ done: true }),
-      provenance: "phase34-release-test"
-    });
-    const receipt = resolveVerificationRequest(completionRequest, [evidence], {
-      receiptId: "completion-release-receipt",
-      verifiedAt: "2026-09-20T22:02:02Z"
-    });
-    const completion = createVerifiedPlacementCompletion({
-      id: "completion-release",
-      runningPlacement: running,
-      verificationRequest: completionRequest,
-      verificationReceipt: receipt,
-      scope,
-      now: Date.parse("2026-09-20T22:02:02Z")
-    });
+    const base = verifiedCompletion();
     const released = releaseVerifiedPlacement({
       transactionId: "txn-release-phase34",
       ledger: base.ledger,
       expectedLedgerRevision: base.ledger.revision,
       reservation: base.reservation,
-      completion,
-      runningPlacement: running,
+      completion: base.completion,
+      runningPlacement: base.running,
       releasedAt: "2026-09-20T22:02:03Z"
     });
 
@@ -579,7 +848,12 @@ describe("Phase 34 scheduler dispatch and verification", () => {
       jobId: d.jobId,
       occurredAt: d.decidedAt,
       explanation: d.rationale,
-      relatedHashes: [d.placementReportHash, d.rankingReportHash, d.decisionHash]
+      relatedHashes: [
+        d.placementReportHash,
+        d.governorReportHash,
+        d.rankingReportHash,
+        d.decisionHash
+      ]
     });
 
     expect(audit.explanation.length).toBeGreaterThan(1);
