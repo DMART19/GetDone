@@ -6,7 +6,8 @@ import {
   createVoiceIntentRecord,
   parseVoiceAdapterCandidate,
   VOICE_ADAPTER_CONTRACT_VERSION,
-  VOICE_INTENT_CONTRACT_VERSION
+  VOICE_INTENT_CONTRACT_VERSION,
+  type VoiceIntentRecord
 } from "@/lib/voice/voice-intents";
 
 const scope: TrustedExecutionScope = {
@@ -87,6 +88,8 @@ describe("Phase 42 voice intent and secure handoff", () => {
     expect(record.authority.canAcceptRawCredentials).toBe(false);
     expect(record.authority.canStepUp).toBe(false);
     expect(record.authority.canExecuteSideEffect).toBe(false);
+    expect(record.authority.strongApprovalHandling).toBe("secure-phone-only");
+    expect(record.authority.credentialHandling).toBe("secure-provider-or-phone-only");
   });
 
   it("allows voice to propose a drain workflow without granting approval or execution authority", () => {
@@ -148,7 +151,7 @@ describe("Phase 42 voice intent and secure handoff", () => {
         canApprove: true
       }
     };
-    expect(() => assertVoiceIntentRecord(weakened)).toThrow();
+    expect(() => assertVoiceIntentRecord(weakened as unknown as VoiceIntentRecord)).toThrow();
 
     const tampered = {
       ...record,
