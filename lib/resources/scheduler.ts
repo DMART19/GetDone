@@ -638,6 +638,203 @@ export function reservationAuthorityFromDecision(
   });
 }
 
+export function assertDispatchAdmissionReceipt(
+  receipt: DispatchAdmissionReceipt,
+  input: {
+    decision: SchedulerPlacementDecision;
+    reservation: CapacityReservation;
+    allocation: AllocationRecord;
+    credentialLease: CredentialLease;
+    now?: number;
+  }
+) {
+  const { receiptHash, ...base } = receipt;
+  if (sha256Hex(base) !== receiptHash) {
+    throw new ControlPlaneError("FORBIDDEN", "Dispatch admission receipt integrity check failed");
+  }
+  const now = input.now ?? Date.now();
+  if (
+    receipt.source !== "control-plane"
+    || Date.parse(receipt.admittedAt) > now
+    || Date.parse(receipt.expiresAt) <= now
+    || receipt.portfolioId !== input.decision.portfolioId
+    || receipt.companyId !== input.decision.companyId
+    || receipt.environment !== input.decision.environment
+    || receipt.jobId !== input.decision.jobId
+    || receipt.placementRequestId !== input.decision.placementRequestId
+    || receipt.placementDecisionId !== input.decision.id
+    || receipt.placementDecisionHash !== input.decision.decisionHash
+    || receipt.placementReportHash !== input.decision.placementReportHash
+    || receipt.governorReportHash !== input.decision.governorReportHash
+    || receipt.resourceId !== input.decision.selectedResourceId
+    || receipt.reservationId !== input.reservation.id
+    || receipt.reservationHash !== input.reservation.reservationHash
+    || receipt.allocationId !== input.allocation.id
+    || receipt.allocationHash !== input.allocation.allocationHash
+    || receipt.credentialLeaseId !== input.credentialLease.id
+    || receipt.credentialLeaseHash !== input.credentialLease.leaseHash
+  ) {
+    throw new ControlPlaneError(
+      "FORBIDDEN",
+      "Dispatch admission receipt is stale or outside authoritative dispatch lineage"
+    );
+  }
+  return receipt;
+}
+
+export function createDispatchAdmissionReceipt(input: {
+  id: string;
+  decision: SchedulerPlacementDecision;
+  reservation: CapacityReservation;
+  allocation: AllocationRecord;
+  credentialLease: CredentialLease;
+  governorReport: CostGovernorReport;
+  policyRegistry: PolicyRegistryReference;
+  killSwitches: readonly KillSwitch[];
+  resourceState: ResourceState;
+  environmentPermissions: readonly TrustedExecutionScope["environment"][];
+  providerId: string;
+  capability: string;
+  admittedAt: string;
+  ttlSeconds?: number;
+}): DispatchAdmissionReceipt {
+  assertDecisionIntegrity(input.decision);
+  assertCostGovernorReportIntegrity(input.governorReport);
+  assertPolicyRegistryReference(input.policyRegistry);
+
+  const admittedAt = parseTime(input.admittedAt, "Dispatch admission time");
+  assertReservationDispatchable(input.reservation, admittedAt);
+
+  if (
+    input.resourceState !== "ready"
+    || !input.environmentPermissions.includes(input.decision.environment)
+  ) {
+    throw new ControlPlaneError(
+      "FORBIDDEN",
+      "Dispatch admission requires a READY resource authorized for the target environment"
+    );
+  }
+
+  if (
+    input.reservation.portfolioId !== input.decision.portfolioId
+    || input.reservation.companyId !== input.decision.companyId
+    || input.reservation.jobId !== input.decision.jobId
+    || input.reservation.placementRequestId !== input.decision.placementRequestId
+    || input.reservation.placementDecisionId !== input.decision.id
+    || input.reservation.placementDecisionHash !== input.decision.decisionHash
+    || input.reservation.target.type !== "resource"
+    || input.reservation.target.id !== input.decision.selectedResourceId
+    || input.allocation.reservationId !== input.reservation.id
+    || input.allocation.reservationHash !== input.reservation.reservationHash
+    || input.allocation.status !== "pending"
+  ) {
+    throw new ControlPlaneError(
+      "FORBIDDEN",
+      "Dispatch admission reservation/allocation lineage is invalid"
+    );
+  }
+
+  assertGovernorAllowsAutonomousScheduling(input.governorReport, {
+    placementRequestId: input.decision.placementRequestId,
+    portfolioId: input.decision.portfolioId,
+    companyId: input.decision.companyId,
+    resourceId: input.decision.selectedResourceId,
+    now: admittedAt
+  });
+  if (input.governorReport.reportHash !== input.decision.governorReportHash) {
+    throw new ControlPlaneError(
+      "FORBIDDEN",
+      "Dispatch admission governor report does not match the placement decision"
+    );
+  }
+
+  const scope: TrustedExecutionScope = {
+    userId: "dispatch-admission",
+    portfolioId: input.decision.portfolioId,
+    companyId: input.decision.companyId,
+    environment: input.decision.environment,
+    resourceId: input.decision.selectedResourceId
+  };
+  assertCredentialLease(input.credentialLease, {
+    scope,
+    jobId: input.decision.jobId,
+    resourceId: input.decision.selectedResourceId,
+    capability: input.capability,
+    now: admittedAt
+  });
+  if (
+    input.credentialLease.placementRequestId !== input.decision.placementRequestId
+    || input.credentialLease.providerId !== input.providerId
+  ) {
+    throw new ControlPlaneError(
+      "FORBIDDEN",
+      "Credential lease does not match placement/provider dispatch lineage"
+    );
+  }
+
+  const blockers = blockingKillSwitches(input.killSwitches, {
+    portfolioId: input.decision.portfolioId,
+    companyId: input.decision.companyId,
+    capability: input.capability,
+    resourceId: input.decision.selectedResourceId,
+    providerId: input.providerId
+  });
+  if (blockers.length > 0) {
+    throw new ControlPlaneError(
+      "POLICY_BLOCKED",
+      "Current kill switches block dispatch admission",
+      { details: { killSwitchIds: blockers.map((item) => item.id).sort() } }
+    );
+  }
+
+  const ttlSeconds = input.ttlSeconds ?? 60;
+  if (!Number.isInteger(ttlSeconds) || ttlSeconds <= 0 || ttlSeconds > 300) {
+    throw new ControlPlaneError(
+      "VALIDATION_FAILED",
+      "Dispatch admission TTL must be 1-300 seconds"
+    );
+  }
+  const expiresAtMs = Math.min(
+    admittedAt + ttlSeconds * 1000,
+    Date.parse(input.reservation.expiresAt),
+    Date.parse(input.credentialLease.expiresAt),
+    Date.parse(input.governorReport.expiresAt)
+  );
+  if (expiresAtMs <= admittedAt) {
+    throw new ControlPlaneError("FORBIDDEN", "Dispatch admission inputs expire too soon");
+  }
+
+  const base: Omit<DispatchAdmissionReceipt, "receiptHash"> = {
+    id: input.id,
+    source: "control-plane",
+    portfolioId: input.decision.portfolioId,
+    companyId: input.decision.companyId,
+    environment: input.decision.environment,
+    jobId: input.decision.jobId,
+    placementRequestId: input.decision.placementRequestId,
+    placementDecisionId: input.decision.id,
+    placementDecisionHash: input.decision.decisionHash,
+    placementReportHash: input.decision.placementReportHash,
+    governorReportHash: input.governorReport.reportHash,
+    resourceId: input.decision.selectedResourceId,
+    reservationId: input.reservation.id,
+    reservationHash: input.reservation.reservationHash,
+    allocationId: input.allocation.id,
+    allocationHash: input.allocation.allocationHash,
+    credentialLeaseId: input.credentialLease.id,
+    credentialLeaseHash: input.credentialLease.leaseHash,
+    providerId: input.providerId,
+    capability: input.capability,
+    policyRegistryHash: input.policyRegistry.registryHash,
+    policyVersion: input.policyRegistry.version,
+    killSwitchSnapshotHash: hashKillSwitchSnapshot(input.killSwitches),
+    resourceState: input.resourceState,
+    admittedAt: new Date(admittedAt).toISOString(),
+    expiresAt: new Date(expiresAtMs).toISOString()
+  };
+  return Object.freeze({ ...base, receiptHash: sha256Hex(base) });
+}
+
 export function createDispatchIntent(input: {
   id: string;
   decision: SchedulerPlacementDecision;
@@ -656,6 +853,26 @@ export function createDispatchIntent(input: {
   assertDecisionIntegrity(input.decision);
   const now = input.now ?? Date.now();
   assertReservationDispatchable(input.reservation, now);
+  assertCredentialLease(input.credentialLease, {
+    scope: {
+      userId: "dispatch",
+      portfolioId: input.decision.portfolioId,
+      companyId: input.decision.companyId,
+      environment: input.decision.environment,
+      resourceId: input.decision.selectedResourceId
+    },
+    jobId: input.decision.jobId,
+    resourceId: input.decision.selectedResourceId,
+    capability: input.capability,
+    now
+  });
+  assertDispatchAdmissionReceipt(input.admissionReceipt, {
+    decision: input.decision,
+    reservation: input.reservation,
+    allocation: input.allocation,
+    credentialLease: input.credentialLease,
+    now
+  });
 
   if (
     input.reservation.portfolioId !== input.decision.portfolioId
@@ -721,6 +938,12 @@ export function createDispatchIntent(input: {
     allocationHash: input.allocation.allocationHash,
     adapterId: input.adapterId,
     adapterVersion: input.adapterVersion,
+    providerId: input.providerId,
+    capability: input.capability,
+    credentialLeaseId: input.credentialLease.id,
+    credentialLeaseHash: input.credentialLease.leaseHash,
+    dispatchAdmissionReceiptId: input.admissionReceipt.id,
+    dispatchAdmissionReceiptHash: input.admissionReceipt.receiptHash,
     idempotencyKey: input.idempotencyKey,
     issuedAt: new Date(issuedAtMs).toISOString(),
     expiresAt: input.reservation.expiresAt
@@ -833,6 +1056,7 @@ export function createVerifiedRunningPlacement(input: {
   adapterResult: DispatchAdapterResult;
   verificationRequest: VerificationRequest;
   verificationReceipt: VerificationReceipt;
+  verificationTrustAttestation: VerificationTrustAttestation;
   scope: TrustedExecutionScope;
   now?: number;
 }): VerifiedRunningPlacement {
@@ -851,6 +1075,12 @@ export function createVerifiedRunningPlacement(input: {
   assertStartVerificationLineage({
     dispatch: input.dispatch,
     adapterResult: input.adapterResult,
+    request: input.verificationRequest,
+    receipt: input.verificationReceipt,
+    scope: input.scope,
+    now
+  });
+  assertVerificationTrustAttestation(input.verificationTrustAttestation, {
     request: input.verificationRequest,
     receipt: input.verificationReceipt,
     scope: input.scope,
@@ -875,6 +1105,8 @@ export function createVerifiedRunningPlacement(input: {
     startVerificationRequestId: input.verificationRequest.id,
     startVerificationReceiptId: input.verificationReceipt.id,
     startVerificationReceiptHash: input.verificationReceipt.receiptHash,
+    startVerificationTrustAttestationId: input.verificationTrustAttestation.id,
+    startVerificationTrustAttestationHash: input.verificationTrustAttestation.attestationHash,
     startedVerifiedAt: input.verificationReceipt.verifiedAt,
     state: "running-verified",
     jobStateMutationApplied: false
@@ -938,6 +1170,7 @@ export function createVerifiedPlacementCompletion(input: {
   runningPlacement: VerifiedRunningPlacement;
   verificationRequest: VerificationRequest;
   verificationReceipt: VerificationReceipt;
+  verificationTrustAttestation: VerificationTrustAttestation;
   scope: TrustedExecutionScope;
   now?: number;
 }): VerifiedPlacementCompletion {
@@ -968,6 +1201,12 @@ export function createVerifiedPlacementCompletion(input: {
   )) {
     throw new ControlPlaneError("FORBIDDEN", "Completion requires verified execution evidence");
   }
+  assertVerificationTrustAttestation(input.verificationTrustAttestation, {
+    request: input.verificationRequest,
+    receipt: input.verificationReceipt,
+    scope: input.scope,
+    now
+  });
 
   const base: Omit<VerifiedPlacementCompletion, "recordHash"> = {
     id: input.id,
@@ -976,6 +1215,8 @@ export function createVerifiedPlacementCompletion(input: {
     completionVerificationRequestId: input.verificationRequest.id,
     completionVerificationReceiptId: input.verificationReceipt.id,
     completionVerificationReceiptHash: input.verificationReceipt.receiptHash,
+    completionVerificationTrustAttestationId: input.verificationTrustAttestation.id,
+    completionVerificationTrustAttestationHash: input.verificationTrustAttestation.attestationHash,
     verifiedAt: input.verificationReceipt.verifiedAt,
     state: "completed-verified",
     jobStateMutationApplied: false
