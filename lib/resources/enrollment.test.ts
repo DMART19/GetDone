@@ -85,6 +85,21 @@ function command(type: string) {
 }
 
 describe("resource enrollment workflow", () => {
+  it("rejects enrollment requests broader than trusted environment scope", async () => {
+    const store = new MemoryEnrollmentStore();
+    const service = new ResourceEnrollmentService(manager(store));
+
+    await expect(service.identify({
+      id: "enrollment-scope-escalation",
+      requestedType: "compute",
+      requestedEnvironments: ["development", "production"],
+      ownerActionRequired: false,
+      challengeToken: "scope-secret",
+      challengeIssuedAt: "2026-09-20T20:00:00Z",
+      challengeExpiresAt: "2026-09-20T21:00:00Z"
+    }, command("identify-scope-escalation"))).rejects.toThrow();
+  });
+
   it("runs the deterministic enrollment sequence and consumes the challenge once", async () => {
     const store = new MemoryEnrollmentStore();
     const service = new ResourceEnrollmentService(manager(store));
