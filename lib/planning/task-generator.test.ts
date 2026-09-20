@@ -52,7 +52,10 @@ describe("authorization-bound task generator", () => {
     });
     expect(task.authorizationGrantId).toBe(input.authorizationGrants["step-1"].id);
     expect(task.validationReceiptHash).toBe(input.validationReceipt.receiptHash);
-    expect(task.authorizationLineage[0].referenceId).toBe(input.authorizationGrants["step-1"].id);\n    expect(task.authorizationConsumption.consumerType).toBe("task");\n    expect(task.authorizationConsumption.consumerId).toBe(task.id);\n    expect(task.authorizationConsumption.consumptionHash).toHaveLength(64);
+    expect(task.authorizationLineage[0].referenceId).toBe(input.authorizationGrants["step-1"].id);
+    expect(task.authorizationConsumption.consumerType).toBe("task");
+    expect(task.authorizationConsumption.consumerId).toBe(task.id);
+    expect(task.authorizationConsumption.consumptionHash).toHaveLength(64);
     expect(Object.isFrozen(task)).toBe(true);
     expect(Object.isFrozen(task.operations[0].input as object)).toBe(true);
   });

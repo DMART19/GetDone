@@ -11,7 +11,10 @@ describe("plan validation receipt", () => {
   it("binds a clean validation result to the exact plan and registry snapshot", () => {
     const plan = validPlan();
     const receipt = receiptFor(plan);
-    expect(assertValidationReceipt(receipt, plan, fixtureNow.getTime()).planId).toBe(plan.id);\n    expect(receipt.validationHash).toHaveLength(64);\n    expect(receipt.snapshot.policyRulesHash).toHaveLength(64);\n    expect(receipt.snapshot.environmentConfigurationHash).toHaveLength(64);
+    expect(assertValidationReceipt(receipt, plan, fixtureNow.getTime()).planId).toBe(plan.id);
+    expect(receipt.validationHash).toHaveLength(64);
+    expect(receipt.snapshot.policyRulesHash).toHaveLength(64);
+    expect(receipt.snapshot.environmentConfigurationHash).toHaveLength(64);
   });
 
   it("rejects a mutated plan after validation", () => {
