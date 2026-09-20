@@ -5,6 +5,7 @@ export type ContextKind =
   | "decision"
   | "policy"
   | "capability"
+  | "memory"
   | "resource-summary";
 
 export interface ContextItem {
@@ -43,6 +44,7 @@ export interface AssembledContext {
     decisions: ContextSection;
     policies: ContextSection;
     capabilities: ContextSection;
+    memories: ContextSection;
     resourceSummaries: ContextSection;
   };
   items: readonly ContextItem[];
@@ -71,6 +73,7 @@ const sectionName: Record<ContextKind, keyof AssembledContext["sections"]> = {
   decision: "decisions",
   policy: "policies",
   capability: "capabilities",
+  memory: "memories",
   "resource-summary": "resourceSummaries"
 };
 
@@ -144,6 +147,7 @@ export function assembleContext(
     decisions: [],
     policies: [],
     capabilities: [],
+    memories: [],
     resourceSummaries: []
   };
 
@@ -175,6 +179,7 @@ export function assembleContext(
     decisions: { ...emptySection("decision"), items: sectionItems.decisions, characterCount: sectionItems.decisions.reduce((total, item) => total + item.content.length, 0) },
     policies: { ...emptySection("policy"), items: sectionItems.policies, characterCount: sectionItems.policies.reduce((total, item) => total + item.content.length, 0) },
     capabilities: { ...emptySection("capability"), items: sectionItems.capabilities, characterCount: sectionItems.capabilities.reduce((total, item) => total + item.content.length, 0) },
+    memories: { ...emptySection("memory"), items: sectionItems.memories, characterCount: sectionItems.memories.reduce((total, item) => total + item.content.length, 0) },
     resourceSummaries: { ...emptySection("resource-summary"), items: sectionItems.resourceSummaries, characterCount: sectionItems.resourceSummaries.reduce((total, item) => total + item.content.length, 0) }
   };
 
