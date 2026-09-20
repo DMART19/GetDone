@@ -14,6 +14,7 @@ import {
   resolveVerificationRequest,
   type VerificationEvidence,
   type VerificationReceipt,
+  type VerificationReceiptStore,
   type VerificationRequest,
   type VerificationVerdict
 } from "@/lib/verification/verification";
@@ -30,7 +31,8 @@ export interface VerificationRequestRecord extends StatefulEntity {
   receipt?: VerificationReceipt;
 }
 
-export interface VerificationStore extends EntityStore<VerificationRequestRecord> {
+export interface VerificationStore
+  extends EntityStore<VerificationRequestRecord>, VerificationReceiptStore {
   create(record: VerificationRequestRecord): Promise<void>;
 }
 
