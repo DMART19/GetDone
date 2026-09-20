@@ -14,12 +14,20 @@
         "transactionalReservationStore": false,
         "resourceDispatchAdapters": false,
         "liveTelemetry": false,
-        "billingUsageFeeds": false
+        "billingUsageFeeds": false,
+        "voiceAdapter": false
       },
       "deployment": {
         "status": "local-development",
         "deploymentId": null,
         "region": null
+      },
+      "voice": {
+        "contractStatus": "deterministic-contract",
+        "adapterStatus": "not-connected",
+        "strongApprovalAllowed": false,
+        "rawCredentialInputAllowed": false,
+        "secureHandoff": "iphone-control-surface"
       }
     },
     "staging": {
@@ -35,12 +43,20 @@
         "transactionalReservationStore": false,
         "resourceDispatchAdapters": false,
         "liveTelemetry": false,
-        "billingUsageFeeds": false
+        "billingUsageFeeds": false,
+        "voiceAdapter": false
       },
       "deployment": {
         "status": "not-connected",
         "deploymentId": null,
         "region": null
+      },
+      "voice": {
+        "contractStatus": "deterministic-contract",
+        "adapterStatus": "not-connected",
+        "strongApprovalAllowed": false,
+        "rawCredentialInputAllowed": false,
+        "secureHandoff": "iphone-control-surface"
       }
     },
     "production": {
@@ -56,18 +72,27 @@
         "transactionalReservationStore": false,
         "resourceDispatchAdapters": false,
         "liveTelemetry": false,
-        "billingUsageFeeds": false
+        "billingUsageFeeds": false,
+        "voiceAdapter": false
       },
       "deployment": {
         "status": "not-connected",
         "deploymentId": null,
         "region": null
+      },
+      "voice": {
+        "contractStatus": "deterministic-contract",
+        "adapterStatus": "not-connected",
+        "strongApprovalAllowed": false,
+        "rawCredentialInputAllowed": false,
+        "secureHandoff": "iphone-control-surface"
       }
     }
   },
   "notes": [
     "This manifest declares connection/readiness state only; it contains no credentials.",
     "A false connection must not be interpreted as a provider selection.",
-    "ProductionReady remains false until canonical infrastructure-dependent acceptance evidence exists."
+    "ProductionReady remains false until canonical infrastructure-dependent acceptance evidence exists.",
+    "Phase 42 voice contracts are present, but no live speech/voice adapter is connected in any environment."
   ]
 }
