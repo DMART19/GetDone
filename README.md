@@ -36,6 +36,8 @@ Current code includes:
 - Phase 30 deterministic resource profiling, independently validated privileged capabilities, authenticated telemetry health summarization, and a zero-side-effect resource telemetry simulator
 - Phase 31 deterministic resource/data placement policy with HOME/customer-data/critical-copy defaults, encryption, region, reliability, fallback, interruption, and workload hard constraints
 - Phase 32 control-plane-only placement requests, active idempotency reuse, snapshot-bound candidate evaluation, full rejection reasons, and explainable eligibility without reservation or dispatch
+- Phase 35 deterministic cost/capacity governor with owned/committed/reserved/spot/on-demand economics, protected headroom, quotas, budget caps/approval thresholds, eligible-only economic ranking, and estimate-vs-actual reconciliation
+- Phase 40 full zero-side-effect resource policy simulator with historical-vs-projection labeling, policy/economic/scheduler/guardrail simulation, uncertainty, AI Gateway model-evidence recording, and explicit no-mutation/no-reservation/no-dispatch/no-secret-lookup guarantees
 
 ## Not yet production-complete
 
@@ -49,7 +51,8 @@ The repository does **not** claim production autonomy yet. Canonical acceptance 
 - real Resource Fabric agent/hardware enrollment
 - production secret backend/token exchange and secure credential delivery transport
 - live authenticated hardware profiling/telemetry and Resource Fabric signal emission
-- durable placement persistence, reservations, scheduler, capacity ledger, dispatch, and failover
+- durable placement persistence, reservations, production scheduler/capacity ledger/dispatch/failover, and measured economic execution
+- production historical placement/cost/AI-route analytics stores and simulation evidence persistence
 - production push subscription/delivery provider and notification persistence
 - cryptographic WebAuthn/passkey verification through a real auth provider
 - end-to-end production acceptance evidence
@@ -99,6 +102,7 @@ Use these as the implementation source of truth:
 - `docs/SOL_PHASE_22_23_26_27_REPORT.md`
 - `docs/SOL_PHASE_24_25_REPORT.md`
 - `docs/SOL_PHASE_29_32_REPORT.md`
+- `docs/SOL_PHASE_35_40_REPORT.md`
 - `docs/ASTRA_HANDOFF.md`
 
 No phase is complete merely because code exists. Canonical PASS still requires the acceptance evidence specified by the master build plan.
