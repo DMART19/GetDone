@@ -168,6 +168,15 @@ This repository has already been advanced beyond a visual scaffold. Astra should
 - CI generates, verifies, and archives release evidence after the production build gate
 - future agents should read `release/version-registry.json` before changing versioned contracts and regenerate/verify release evidence before handoff
 
+### Phase 42 voice handoff boundary
+
+- treat `lib/voice/voice-intents.ts` as the authoritative provider-neutral voice contract
+- speech/NLU output is evidence only; it never supplies trusted scope or policy authority
+- preserve `canApprove=false`, `canStepUp=false`, `canExecuteSideEffect=false`, and `canAcceptRawCredentials=false`
+- any live native/Siri/speech integration must return typed candidates into this boundary rather than directly invoking workers or approval APIs
+- sensitive setup, strong approval, and credentials remain secure-phone/provider flows
+- update `release/version-registry.json` and `release/environment-manifest.json` when a real adapter/provider becomes connected; do not invent versions before then
+
 ### Verification pipeline
 
 CI runs install, runtime verification, secret-pattern scan, architecture drift verification, typecheck, lint, tests, build, Phase 41 release generation/validation, and evidence archival. Do not bypass those gates.
@@ -240,10 +249,10 @@ Once the owner/infrastructure blockers are resolved, Astra should focus its high
    - connect the existing Phase 40 read-only simulator to durable historical placement/cost/utilization/failure/queue/outcome and AI Gateway analytics
    - calibrate simulation projections against measured outcomes without allowing automatic policy promotion
 
-7. **Provider-connected completion after deterministic Phase 41**
-   - preserve and populate the existing release/version registry with real DB migration, deployment, AI Gateway/routing, adapter, and environment versions as integrations become real
+7. **Provider-connected completion after deterministic Phases 41–42**
+   - preserve and populate the existing release/version registry with real DB migration, deployment, AI Gateway/routing, adapter, voice, and environment versions as integrations become real
    - archive real staging/production deployment evidence through the existing Phase 41 manifest/manual path
-   - Phase 42 voice handoff
+   - connect the existing Phase 42 VoiceIntentAdapter contract to live speech/native-iPhone transport while preserving secure-phone approval/credential handoff
    - Phase 43 optional Watch
    - Phase 44 adversarial/end-to-end production acceptance
 
@@ -273,6 +282,7 @@ Before a heavy Astra pass, read:
 - `docs/SOL_PHASE_35_40_REPORT.md`
 - `docs/SOL_ARCHITECTURE_INTEGRITY_REPORT.md`
 - `docs/SOL_PHASE_41_REPORT.md`
+- `docs/SOL_PHASE_42_REPORT.md`
 - `release/version-registry.json`
 - `release/environment-manifest.json`
 - latest GitHub Actions result
@@ -300,6 +310,7 @@ Astra must treat the following as existing architecture, not greenfield work:
 - Phase 34 deterministic Phase-35-governed ranking, placement decisions, Phase-33 reservation + Phase-29 credential + final-admission-gated dispatch, trusted start/completion verification, monitoring, release, retry/fallback lineage, and scheduler audit contracts;
 - Phase 35 deterministic cost/capacity governor and estimate-vs-actual reconciliation;
 - Phase 40 read-only policy/economics/scheduler/guardrail simulator with explicit uncertainty and zero side effects;
-- Phase 41 machine-readable release/version registry, explicit environment/deployment state, Git-SHA-bound manifest/manual generator, release validator, and CI evidence archive.
+- Phase 41 machine-readable release/version registry, explicit environment/deployment state, Git-SHA-bound manifest/manual generator, release validator, and CI evidence archive;
+- Phase 42 typed voice-intent/adapter contracts, transcript-hash-only evidence, Control API/current-policy binding, secure phone handoff, no voice approval/step-up/execution/raw-credential authority, scoped audit, and Phase-41 version/environment/evidence bindings.
 
 Canonical PASS for these phases still depends on real persistence/runtime/hardware acceptance where specified by the master plan. The existence of deterministic code is not permission to mark infrastructure-dependent acceptance complete.
