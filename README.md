@@ -32,6 +32,10 @@ Current code includes:
 - Phase 25 PWA/mobile foundation with standalone manifest, offline-only service-worker shell caching, redacted push presentation, safe deep links, explicit update/reconnect signaling, deterministic notification routing, and WebAuthn origin/RP/user-verification checks
 - Phase 26 authoritative Resource Registry vocabulary, evidence records, readiness evaluation, lifecycle service, and concise read models
 - Phase 27 deterministic Resource Enrollment workflow with hashed one-time challenges, expiry/replay protection, scope preservation, restart/cancel semantics, evidence, and lifecycle audit
+- Phase 29 deterministic secret references, credential bindings, minimum-scope credential leases, expiry/revocation, secure-delivery references, and credential usage audit contracts
+- Phase 30 deterministic resource profiling, independently validated privileged capabilities, authenticated telemetry health summarization, and a zero-side-effect resource telemetry simulator
+- Phase 31 deterministic resource/data placement policy with HOME/customer-data/critical-copy defaults, encryption, region, reliability, fallback, interruption, and workload hard constraints
+- Phase 32 control-plane-only placement requests, active idempotency reuse, snapshot-bound candidate evaluation, full rejection reasons, and explainable eligibility without reservation or dispatch
 
 ## Not yet production-complete
 
@@ -43,9 +47,9 @@ The repository does **not** claim production autonomy yet. Canonical acceptance 
 - durable distributed queue, worker leases, schedules, and crash recovery
 - real business/software action adapters and deployment execution
 - real Resource Fabric agent/hardware enrollment
-- secrets/credential broker
-- live profiling/telemetry
-- placement, reservations, scheduler, capacity ledger, and failover
+- production secret backend/token exchange and secure credential delivery transport
+- live authenticated hardware profiling/telemetry and Resource Fabric signal emission
+- durable placement persistence, reservations, scheduler, capacity ledger, dispatch, and failover
 - production push subscription/delivery provider and notification persistence
 - cryptographic WebAuthn/passkey verification through a real auth provider
 - end-to-end production acceptance evidence
@@ -94,6 +98,7 @@ Use these as the implementation source of truth:
 - `docs/SOL_20_AUTHORITY_HARDENING_REPORT.md`
 - `docs/SOL_PHASE_22_23_26_27_REPORT.md`
 - `docs/SOL_PHASE_24_25_REPORT.md`
+- `docs/SOL_PHASE_29_32_REPORT.md`
 - `docs/ASTRA_HANDOFF.md`
 
 No phase is complete merely because code exists. Canonical PASS still requires the acceptance evidence specified by the master build plan.
