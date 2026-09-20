@@ -1,8 +1,8 @@
 {
-  "schemaVersion": "1.0.0",
+  "schemaVersion": "1.1.0",
   "thresholds": {
     "coveredModulePercent": 100,
-    "minimumTotalTestCases": 60,
+    "minimumTotalTestCases": 75,
     "minimumTestCasesPerCriticalModule": 1
   },
   "modules": [
@@ -119,6 +119,31 @@
     {
       "source": "lib/execution/software-worker.ts",
       "test": "lib/execution/software-worker.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/resources/storage-fabric.ts",
+      "test": "lib/resources/storage-fabric.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/resources/resilience.ts",
+      "test": "lib/resources/resilience.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/resources/adapter-sdk.ts",
+      "test": "lib/resources/adapter-sdk.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/resources/pools.ts",
+      "test": "lib/resources/pools.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/security/phase44-adversarial-harness.ts",
+      "test": "lib/security/phase44-adversarial-harness.test.ts",
       "critical": true
     }
   ]
