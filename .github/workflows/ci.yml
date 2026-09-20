@@ -35,3 +35,11 @@ jobs:
           NEXT_PUBLIC_APP_ENV: development
           GETDONE_RUNTIME_ENV: development
           GETDONE_DATA_MODE: development-seed
+      - run: npm run release:generate
+      - run: npm run verify:release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: getdone-release-evidence-${{ github.run_number }}
+          path: release/out/
+          if-no-files-found: error
+          retention-days: 30
