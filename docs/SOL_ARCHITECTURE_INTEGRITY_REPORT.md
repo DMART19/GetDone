@@ -116,6 +116,6 @@ Remaining differences from the canonical plan are implementation/runtime gaps ra
 - Phase 35 has no live billing/usage feeds;
 - Phases 36-39 production storage/resilience/second-provider/DC work remain open;
 - Phase 40 lacks production historical stores/calibration;
-- Phase 41 version registry/release manifest/manual generation remains open.
+- Phase 41 deterministic release registry/manifest/manual generation is now implemented; real production deployment evidence remains unavailable until the production infrastructure exists.
 
-The strongest next anti-drift deterministic tranche is Phase 41, because it can bind Git SHA, app/schema/policy/adapter/AI-routing versions, CI evidence, environment manifest, and operating manuals into reconstructable release artifacts.
+Phase 41 now binds Git SHA, app/schema/database/policy/adapter/AI-routing state, CI evidence, environment/deployment state, evidence documents, and operating manuals into reconstructable release artifacts. Remaining drift is infrastructure/runtime incompleteness rather than release-anatomy ambiguity.
