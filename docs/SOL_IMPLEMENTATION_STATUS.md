@@ -547,6 +547,43 @@ Remaining drift / intentional gaps:
 
 See `docs/SOL_ARCHITECTURE_INTEGRITY_REPORT.md`.
 
+
+## September 20 Phase 41 deterministic release-truth tranche
+
+### Phase 41 — Version Registry, Release Evidence, and Operating Manuals
+
+**STATUS: DETERMINISTIC RELEASE REGISTRY/GENERATION/VALIDATION IMPLEMENTED; PRODUCTION DEPLOYMENT EVIDENCE STILL DEPENDS ON REAL INFRASTRUCTURE**
+
+Implemented:
+- committed machine-readable `release/version-registry.json`;
+- committed development/staging/production `release/environment-manifest.json`;
+- app version binding to `package.json`;
+- explicit database migration/schema state;
+- schema/contract version labels bound to exact source paths;
+- policy registry and policy-engine version binding;
+- explicit AI Gateway adapter/routing-policy state;
+- adapter contract/implementation status and versions;
+- acceptance-evidence and manual source lists;
+- per-checkout Git-SHA-bound release-manifest generation;
+- exact SHA-256 source hashes for every schema/adapter/evidence/manual input;
+- package-lock hash;
+- GitHub Actions run/workflow/SHA evidence;
+- generated human-readable operating manual;
+- manifest integrity hash and generated-manual hash;
+- secret-shaped release-artifact rejection;
+- CI archive of verified `release/out/` artifacts;
+- architecture gate now requires Phase 41 release-evidence wiring.
+
+Important fail-closed declarations:
+- no real DB/migration state is invented: database migration/schema versions are `UNIMPLEMENTED`;
+- no live AI Gateway/routing version is invented: adapter is `UNIMPLEMENTED`, routing policy is `UNCONFIGURED`;
+- contract-only adapters are labeled `contract-only`;
+- production environment remains `productionReady: false`.
+
+Canonical production PASS still requires real staging/production deployments, post-deploy verification, durable evidence retention appropriate to the production platform, and the remaining infrastructure acceptance from earlier phases.
+
+See `docs/SOL_PHASE_41_REPORT.md` and `release/README.md`.
+
 ## Updated handoff boundary
 
 Sol should continue deterministic contracts, validators, policy engines, simulators, tests, and repository hardening.
