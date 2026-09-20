@@ -56,7 +56,31 @@ This repository has already been advanced beyond a visual scaffold. Astra should
 - preconditions, verification nodes, rollback/cancellation semantics
 - future resource requirement envelopes with resource selection explicitly deferred
 
-### Verification
+### Verification / operational truth
+
+- hash-bound VerificationRequest / VerificationEvidence / VerificationReceipt contracts
+- freshness, expiry, independent-verifier, failed, and uncertain semantics
+- authoritative Verification state transitions
+- Task / Job / Outcome truth transitions consume verification receipts rather than arbitrary evidence IDs
+
+### Operational memory
+
+- advisory-only Fact / Lesson / Experiment / Observation / OutcomeReference records
+- confidence, sample size, confounders, expiry, supersession, and relevance selection
+- strict company isolation
+- bounded Context Assembler integration
+- memory has no direct policy or authorization authority
+
+### Resource registry and enrollment
+
+- authoritative Resource Registry evidence vocabulary and lifecycle service
+- identity / trust / health / capability / location / cost / provider binding records
+- deterministic READY evidence gate and concise owner read model
+- generic enrollment lifecycle:
+  IDENTIFY -> CREATE_ENROLLMENT -> OWNER_ACTION -> AUTHENTICATE -> DISCOVER -> PROFILE -> VALIDATE -> TEST -> REGISTER -> READY
+- hashed one-time enrollment challenges, expiry, replay resistance, restart/cancel behavior, scope preservation, evidence, and audit
+
+### Verification pipeline
 
 CI runs install, secret-pattern scan, typecheck, lint, tests, and build. Do not bypass those gates.
 
@@ -89,22 +113,25 @@ Once the owner/infrastructure blockers are resolved, Astra should focus its high
    - persist task-deduplication and authorization lineage atomically
    - preserve the existing validator, policy engine, task generator, and DAG compiler rather than replacing them
 
-3. **Phases 19–23 — durable execution**
+3. **Phases 19–23 — durable runtime integration**
    - persistent queues
    - claims/leases/heartbeats
    - retries/dead-letter/cancellation/recovery
    - business adapters
    - software-worker/deployment pipeline
-   - verification/outcomes/memory
+   - persist and connect the existing Phase 22 verification contracts to real verifier sources
+   - persist/index the existing Phase 23 advisory memory contracts
+   - do not replace the verification receipt or memory authority rules
 
-4. **Phases 26–31 — Resource Fabric**
-   - authoritative production registry
-   - generic enrollment
+4. **Phases 26–31 — Resource Fabric integration**
+   - connect the existing Phase 26 registry/readiness contracts to production persistence
+   - connect the existing Phase 27 enrollment state machine to real provider/device flows
    - Raspberry Pi/Linux agent
-   - cryptographic resource identity
+   - real cryptographic resource identity/attestation
    - credential broker
    - profiling/authenticated telemetry
    - resource/data policy
+   - do not let an agent/provider/frontend bypass the existing READY evidence gate
 
 5. **Phases 32–40 — placement/resilience/economics**
    - candidate evaluation
@@ -146,3 +173,17 @@ Before a heavy Astra pass, read:
 - latest GitHub Actions result
 
 Then continue from the first unblocked canonical phase without silently replacing the authority model.
+
+
+## September 20 deterministic handoff update
+
+Astra must treat the following as existing architecture, not greenfield work:
+
+- authoritative Event domain and universal transition service;
+- hash-bound Authorization Grants and persisted Task authorization consumption;
+- Phase 22 verification requests/evidence/receipts and truth transitions;
+- Phase 23 advisory operational memory and Context Assembler integration;
+- Phase 26 Resource Registry evidence/readiness contracts and lifecycle service;
+- Phase 27 deterministic enrollment state machine and replay-resistant challenge model.
+
+Canonical PASS for these phases still depends on real persistence/runtime/hardware acceptance where specified by the master plan. The existence of deterministic code is not permission to mark infrastructure-dependent acceptance complete.
