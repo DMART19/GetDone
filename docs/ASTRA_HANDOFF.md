@@ -59,6 +59,7 @@ This repository has already been advanced beyond a visual scaffold. Astra should
 ### Verification / operational truth
 
 - hash-bound VerificationRequest / VerificationEvidence / VerificationReceipt contracts
+- authoritative VerificationSourceBinding + VerificationTrustAttestation contracts; verifier independence is derived from registered source bindings rather than caller-selected evidence strings
 - freshness, expiry, independent-verifier, failed, and uncertain semantics
 - authoritative Verification state transitions
 - Task / Job / Outcome truth transitions consume verification receipts rather than arbitrary evidence IDs
@@ -131,14 +132,16 @@ This repository has already been advanced beyond a visual scaffold. Astra should
 
 ### Phase 34 scheduler, dispatch, and verification foundation
 
-- bounded ranking consumes only Phase 32 eligible candidates and never promotes an ineligible resource
+- bounded ranking consumes only Phase 32 candidates that Phase 35 currently classifies as autonomous ALLOW; APPROVAL_REQUIRED/BLOCKED resources cannot enter autonomous scheduling
 - ranking explicitly scores reliability, locality, cost, startup latency, protected-capacity impact, and owner preference
 - placement decisions are hash-bound to request/evaluation/ranking/candidate lineage and remain explainable
 - retry/fallback creates a new decision with prior decision ID/hash and an explicit reason
 - dispatch requires a live Phase 33 reservation plus matching pending Allocation lineage
-- dispatch intent is bound to resource adapter/version and reservation expiry
+- dispatch requires an active Phase 29 CredentialLease for the exact Job/resource/provider/capability
+- short-lived DispatchAdmissionReceipt rechecks current policy registry, kill switches, READY/environment permission, Phase 35 governor admission/freshness, reservation, and credential lineage
+- dispatch intent is bound to resource adapter/version, credential lease, admission receipt, and reservation expiry
 - provider ACCEPTED is evidence only, never running truth
-- start verification reuses Phase 22 `resource-start` with independent evidence and dispatch-hash independence binding
+- start verification reuses Phase 22 `resource-start`; VERIFIED receipts must additionally carry a trusted verifier-source attestation whose registered independence domain is separate from dispatch
 - verified running/completion records explicitly do not mutate Job truth; JobService remains authoritative
 - completion release calls the unchanged Phase 33 release contract
 - deterministic scheduler audit entries carry explanation plus hash lineage
@@ -158,7 +161,7 @@ This repository has already been advanced beyond a visual scaffold. Astra should
 
 ### Verification pipeline
 
-CI runs install, secret-pattern scan, typecheck, lint, tests, and build. Do not bypass those gates.
+CI runs install, runtime verification, secret-pattern scan, architecture drift verification, typecheck, lint, tests, and build. Do not bypass those gates.
 
 ## Owner-action blockers before canonical Phase 2/3 PASS
 
@@ -259,6 +262,7 @@ Before a heavy Astra pass, read:
 - `docs/SOL_PHASE_33_REPORT.md`
 - `docs/SOL_PHASE_34_REPORT.md`
 - `docs/SOL_PHASE_35_40_REPORT.md`
+- `docs/SOL_ARCHITECTURE_INTEGRITY_REPORT.md`
 - latest GitHub Actions result
 
 Then continue from the first unblocked canonical phase without silently replacing the authority model.
@@ -281,7 +285,7 @@ Astra must treat the following as existing architecture, not greenfield work:
 - Phase 31 deterministic resource/data placement policy;
 - Phase 32 control-plane placement requests and explainable candidate eligibility evaluation;
 - Phase 33 deterministic atomic reservation/CAS, capacity-ledger, lease, expiry, release, and allocation-lineage contracts;
-- Phase 34 deterministic eligible-only ranking, placement decisions, reservation-gated dispatch, independent start/completion verification, monitoring, release, retry/fallback lineage, and scheduler audit contracts;
+- Phase 34 deterministic Phase-35-governed ranking, placement decisions, Phase-33 reservation + Phase-29 credential + final-admission-gated dispatch, trusted start/completion verification, monitoring, release, retry/fallback lineage, and scheduler audit contracts;
 - Phase 35 deterministic cost/capacity governor and estimate-vs-actual reconciliation;
 - Phase 40 read-only policy/economics/scheduler/guardrail simulator with explicit uncertainty and zero side effects.
 
