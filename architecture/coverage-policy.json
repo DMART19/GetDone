@@ -350,6 +350,11 @@
       "source": "lib/nodes/capability-catalog.ts",
       "test": "lib/nodes/capability-catalog.test.ts",
       "critical": true
+    },
+    {
+      "source": "lib/domain/resources.ts",
+      "test": "lib/domain/resources.test.ts",
+      "critical": true
     }
   ]
 }
