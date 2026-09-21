@@ -675,3 +675,34 @@ Still not production-connected:
 - full production Phase 44 end-to-end acceptance.
 
 See `docs/SOL_PHASE_36_39_44_REPORT.md`.
+
+
+## September 20 cross-phase golden path + Phase 34 → JobService bridge
+
+**STATUS: DETERMINISTIC COMPOSITION AND VERIFIED JOB BRIDGE IMPLEMENTED; LIVE BRIDGE STORE/PROVIDERS/CRASH RECOVERY STILL REQUIRED**
+
+Implemented:
+- `JobVerifiedStartFact` and `JobVerifiedCompletionFact` hash-bound control-plane contracts;
+- authoritative `JobExecutionBridgeStore` seam;
+- JobService claimed → running now requires a persisted fresh verified-start fact derived from an intact Phase 34 `VerifiedRunningPlacement`;
+- JobService running → verifying now requires a persisted verified-completion fact bound to the same running-placement ID/hash;
+- provider operation IDs are absent from start authority; provider ACCEPTED remains evidence only;
+- completion bridge creates Job verification evidence but cannot set Job success;
+- existing `JobService.succeed` still requires an authoritative stored Job verification receipt;
+- JobRecord persists verified start/completion and running-placement lineage;
+- deterministic clock injection is consistent across Decision/Approval/Job verification paths;
+- 19-stage `runDeterministicGoldenPath()` simulation composes Objective through Outcome/memory/resource release using existing phase contracts;
+- repeated golden-path runs must produce identical stage artifacts/result hashes;
+- architecture, coverage, semantic contract-version, Phase-41 registry/environment/release evidence and manuals bind the bridge/harness;
+- golden-path harness is explicitly `simulationOnly=true` and `productionExecutionClaimed=false`.
+
+The first harness run caught and fixed a real cross-phase defect: ApprovalService created proofs with the injected deterministic clock but validated them with wall-clock time.
+
+Still required for canonical production PASS:
+- durable production `JobExecutionBridgeStore`;
+- real Phase 33 reservation persistence;
+- live resource adapters and independent production probes;
+- atomic/crash-safe persistence/recovery across verified placement fact → Job transition;
+- durable Job Engine/workers and authoritative evidence/audit stores.
+
+See `docs/SOL_GOLDEN_PATH_JOB_BRIDGE_REPORT.md`.
