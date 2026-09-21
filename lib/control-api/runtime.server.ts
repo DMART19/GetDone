@@ -25,6 +25,8 @@ class UnavailableControlApiAdapter implements ControlApiApplicationAdapter {
       durableJobStoreConnected: false
     };
   }
+  async beginStepUp(): Promise<never> { return this.unavailable(); }
+  async verifyStepUp(): Promise<never> { return this.unavailable(); }
   async submitOwnerIntent(): Promise<never> { return this.unavailable(); }
   async listDecisions(): Promise<never> { return this.unavailable(); }
   async getDecision(): Promise<never> { return this.unavailable(); }
