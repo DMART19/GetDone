@@ -202,6 +202,52 @@ for (const required of [
   if (!jobRuntime.includes(required)) fail(`Phase 19 durable runtime contract missing: ${required}`);
 }
 
+const jobExecutionBridge = read("lib/domain/services/job-execution-bridge.ts");
+const jobService = read("lib/domain/services/job-service.ts");
+for (const required of [
+  'JOB_EXECUTION_BRIDGE_CONTRACT_VERSION = "1.0.0"',
+  "JobVerifiedStartFact",
+  "JobVerifiedCompletionFact",
+  "JobExecutionBridgeStore",
+  "createJobVerifiedStartFact",
+  "assertJobVerifiedStartFact",
+  "createJobVerifiedCompletionFact",
+  "assertJobVerifiedCompletionFact",
+  "createJobCompletionVerificationEvidence"
+]) {
+  if (!jobExecutionBridge.includes(required)) {
+    fail(`Phase 34 -> Job execution bridge contract missing: ${required}`);
+  }
+}
+for (const required of [
+  "verifiedStartFactId: string",
+  "verifiedCompletionFactId: string",
+  "transaction.stores.executionBridge",
+  "assertJobVerifiedStartFact",
+  "assertJobVerifiedCompletionFact",
+  "job-started-from-verified-resource-start",
+  "job-verification-started-from-verified-resource-completion"
+]) {
+  if (!jobService.includes(required)) {
+    fail(`JobService verified execution bridge binding missing: ${required}`);
+  }
+}
+
+const goldenPath = read("lib/composition/golden-path-harness.ts");
+for (const required of [
+  'GOLDEN_PATH_HARNESS_VERSION = "1.0.0"',
+  "simulationOnly: true",
+  "productionExecutionClaimed: false",
+  "createJobVerifiedStartFact",
+  "createJobVerifiedCompletionFact",
+  "releaseVerifiedPlacement",
+  "createOperationalMemory"
+]) {
+  if (!goldenPath.includes(required)) {
+    fail(`Cross-phase golden-path harness invariant missing: ${required}`);
+  }
+}
+
 const businessAdapter = read("lib/execution/adapters/business-action.ts");
 for (const required of [
   "authorizationConsumptionHash",
@@ -339,6 +385,7 @@ for (const required of [
   "aiGateway",
   "integrations",
   "execution",
+  "composition",
   "resourceFabric",
   "phase44",
   "voice",
@@ -378,8 +425,18 @@ if (
   || releaseRegistry.execution.businessAdaptersStatus !== "not-connected"
   || releaseRegistry.execution.softwareWorkerContractVersion !== "1.0.0"
   || releaseRegistry.execution.softwareDeploymentStatus !== "not-connected"
+  || releaseRegistry.execution.jobExecutionBridgeContractVersion !== "1.0.0"
+  || releaseRegistry.execution.jobExecutionBridgeStatus !== "deterministic-contract"
+  || releaseRegistry.execution.liveJobExecutionBridgeStoreStatus !== "not-connected"
 ) {
-  fail("Phases 19-21 release state drifted");
+  fail("Phases 19-21 / Phase 34 Job bridge release state drifted");
+}
+if (
+  releaseRegistry.composition?.goldenPathHarnessVersion !== "1.0.0"
+  || releaseRegistry.composition?.status !== "deterministic-simulation-only"
+  || releaseRegistry.composition?.productionExecutionClaimed !== false
+) {
+  fail("Cross-phase composition harness release state drifted or overclaims production");
 }
 if (
   releaseRegistry.resourceFabric?.storageFabricContractVersion !== "1.0.0"
@@ -418,6 +475,10 @@ for (const [name, state] of Object.entries(releaseEnvironment.environments ?? {}
     || state.execution?.durableJobStoreStatus !== "not-connected"
     || state.execution?.businessActionAdapterStatus !== "not-connected"
     || state.execution?.softwareDeploymentStatus !== "not-connected"
+    || state.execution?.jobExecutionBridgeStatus !== "deterministic-contract"
+    || state.execution?.liveJobExecutionBridgeStoreStatus !== "not-connected"
+    || state.composition?.goldenPathHarnessStatus !== "deterministic-simulation-only"
+    || state.composition?.productionExecutionClaimed !== false
     || state.resourceFabric?.storageFabricContractStatus !== "deterministic-contract"
     || state.resourceFabric?.storageRuntimeStatus !== "not-connected"
     || state.resourceFabric?.resilienceContractStatus !== "deterministic-contract"
