@@ -200,7 +200,7 @@ const controlApiRuntime = read("lib/control-api/runtime.server.ts");
 const controlApiHttp = read("lib/control-api/http.ts");
 const controlApiServices = read("lib/control-api/service-adapter.ts");
 for (const required of [
-  'CONTROL_API_SURFACE_VERSION = "1.0.0"',
+  'CONTROL_API_SURFACE_VERSION = "1.1.0"',
   "submitOwnerIntent",
   "mutateDecision",
   "discoverResource",
@@ -1085,12 +1085,12 @@ if (
   fail("Phase 28.4 release state drifted or overclaims live Node capability/binding connectivity");
 }
 if (
-  releaseRegistry.controlApi?.surfaceVersion !== "1.0.0"
+  releaseRegistry.controlApi?.surfaceVersion !== "1.1.0"
   || releaseRegistry.controlApi?.status !== "implemented-unconnected"
   || releaseRegistry.controlApi?.applicationAdapterStatus !== "not-connected"
   || releaseRegistry.controlApi?.authStatus !== "not-connected"
   || releaseRegistry.controlApi?.persistenceStatus !== "not-connected"
-  || releaseRegistry.schemaVersions?.controlApiSurface?.version !== "1.0.0"
+  || releaseRegistry.schemaVersions?.controlApiSurface?.version !== "1.1.0"
 ) {
   fail("Control API release state must expose the implemented surface while preserving unconnected authority adapters");
 }
