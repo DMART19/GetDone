@@ -324,6 +324,10 @@ describe("MVP authority service hardening", () => {
       "plan.authorized",
       "plan.compiled"
     ]);
+    expect(tx.audit()[3].metadata).toMatchObject({
+      authorizationGrantId: grant.id,
+      authorizationGrantHash: grant.grantHash
+    });
   });
 
   it("makes an identical command idempotent but rejects a second command that repeats the transition", async () => {
@@ -566,8 +570,17 @@ describe("MVP authority service hardening", () => {
       "task.authorized",
       "task.queued"
     ]);
+    expect(taskAudit.events[0].metadata).toMatchObject({
+      authorizationGrantId: grant.id,
+      authorizationGrantHash: grant.grantHash,
+      authorizationConsumptionHash: authorized.authorizationConsumption!.consumptionHash
+    });
     expect(jobAudit.events.map((event) => event.eventType)).toEqual([
       "job.queued"
     ]);
+    expect(jobAudit.events[0].metadata).toMatchObject({
+      authorizationGrantId: grant.id,
+      inheritedTaskConsumptionHash: authorized.authorizationConsumption!.consumptionHash
+    });
   });
 });
