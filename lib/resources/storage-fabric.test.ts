@@ -94,6 +94,32 @@ describe("Phase 36 Storage Fabric", () => {
     })).toThrow(/distinct failure domains/i);
   });
 
+  it("rejects fake replication that substitutes cache copies for authoritative replicas", () => {
+    expect(() => createStorageCopyPlan({
+      id: "plan-fake-replication",
+      object,
+      selections: [
+        { candidate: storage("cloud-a", "CLOUD", "region-a"), role: "authoritative-primary" },
+        { candidate: storage("cloud-b", "CLOUD", "region-b"), role: "cache" }
+      ],
+      requiredBytes: 1000,
+      createdAt: "2026-09-20T22:10:00Z"
+    })).toThrow(/authoritative replication factor/i);
+  });
+
+  it("requires exactly one authoritative primary", () => {
+    expect(() => createStorageCopyPlan({
+      id: "plan-two-primaries",
+      object,
+      selections: [
+        { candidate: storage("cloud-a", "CLOUD", "region-a"), role: "authoritative-primary" },
+        { candidate: storage("cloud-b", "CLOUD", "region-b"), role: "authoritative-primary" }
+      ],
+      requiredBytes: 1000,
+      createdAt: "2026-09-20T22:10:00Z"
+    })).toThrow(/exactly one authoritative primary/i);
+  });
+
   it("creates a valid explainable authoritative copy plan outside HOME", () => {
     const plan = createStorageCopyPlan({
       id: "plan-2",
