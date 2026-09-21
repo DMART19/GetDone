@@ -12,6 +12,9 @@ func (JavaDetector) Name() string { return "runtime.java" }
 func (d JavaDetector) Detect(ctx context.Context) Result {
 	out, err := runBounded(ctx, d.Runner, 5*time.Second, "java", "--version")
 	if err != nil {
+		out, err = runBounded(ctx, d.Runner, 5*time.Second, "java", "-version")
+	}
+	if err != nil {
 		return absent()
 	}
 	return detected(d.Name(), cleanVersion(out), map[string]any{"runtime": "java"})
