@@ -16,7 +16,7 @@ import {
   type JobRetryScheduleRecord,
   type JobStoreTransactionReceipt
 } from "@/lib/execution/job-runtime-contracts";
-import { PostgresDatabase } from "@/lib/persistence/postgres/client";
+import type { PostgresTransactionalDatabase } from "@/lib/persistence/postgres/client";
 
 export interface DurableJobCandidate {
   envelope: JobQueueEnvelope;
@@ -164,7 +164,7 @@ export class PostgresDurableJobStore implements DurableJobWorkStore {
   });
 
   constructor(
-    private readonly database: PostgresDatabase,
+    private readonly database: PostgresTransactionalDatabase,
     private readonly options: {
       maxAttempts?: number;
       recoveryDelayMs?: number;
