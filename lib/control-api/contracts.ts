@@ -8,7 +8,7 @@ import type { VerificationRequestRecord } from "@/lib/domain/services/verificati
 import type { Resource } from "@/lib/domain/resources";
 import type { ResourceEnrollmentRecord } from "@/lib/resources/enrollment";
 
-export const CONTROL_API_SURFACE_VERSION = "1.0.0";
+export const CONTROL_API_SURFACE_VERSION = "1.1.0";
 
 export type ControlApiRole = "owner" | "admin" | "operator" | "viewer";
 
