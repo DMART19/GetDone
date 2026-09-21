@@ -7,7 +7,7 @@ DIST_DIR="$ROOT/dist"
 
 mkdir -p "$DIST_DIR"
 
-AGENT_VERSION="${GETDONE_AGENT_VERSION:-0.1.0-development}"
+AGENT_VERSION="${GETDONE_AGENT_VERSION:-0.2.0-development}"
 GIT_COMMIT="${GETDONE_GIT_COMMIT:-$(git -C "$ROOT" rev-parse --short=12 HEAD 2>/dev/null || printf unknown)}"
 BUILD_TIME="${GETDONE_BUILD_TIME:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}"
 LDFLAGS="-s -w -X github.com/DMART19/GetDone/agent/internal/version.AgentVersion=$AGENT_VERSION -X github.com/DMART19/GetDone/agent/internal/version.GitCommit=$GIT_COMMIT -X github.com/DMART19/GetDone/agent/internal/version.BuildTime=$BUILD_TIME"
