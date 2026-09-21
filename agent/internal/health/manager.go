@@ -12,8 +12,8 @@ type Snapshot struct {
 }
 
 type Manager struct {
-	mu       sync.RWMutex
-	started  bool
+	mu        sync.RWMutex
+	started   bool
 	startedAt time.Time
 	stoppedAt time.Time
 }

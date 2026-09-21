@@ -3,10 +3,10 @@ package version
 import "runtime"
 
 var (
-	AgentVersion   = "0.1.0"
+	AgentVersion    = "0.1.0"
 	ProtocolVersion = "1.0.0"
-	GitCommit      = "development"
-	BuildTime      = "unknown"
+	GitCommit       = "development"
+	BuildTime       = "unknown"
 )
 
 func Architecture() string {
