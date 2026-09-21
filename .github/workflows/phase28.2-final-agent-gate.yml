@@ -1,0 +1,58 @@
+name: Phase 28.2 Final Agent Gate
+
+on:
+  push:
+    branches: [sol/phase28.2-secure-enrollment]
+
+permissions:
+  contents: read
+
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: agent/go.mod
+          cache: false
+
+      - name: Verify formatting
+        working-directory: agent
+        run: |
+          unformatted="$(gofmt -l .)"
+          if [ -n "$unformatted" ]; then
+            printf 'gofmt required for:\n%s\n' "$unformatted"
+            exit 1
+          fi
+
+      - name: Vet
+        working-directory: agent
+        run: go vet ./...
+
+      - name: Test
+        working-directory: agent
+        run: go test ./...
+
+      - name: Verify installer syntax
+        run: bash -n agent/packaging/install/install.sh
+
+      - name: Cross-build Linux amd64 and arm64
+        run: bash scripts/build-node-agent.sh
+
+      - name: Verify target binaries and installer metadata
+        run: |
+          test -s dist/getdone-agent-linux-amd64
+          test -s dist/getdone-agent-linux-arm64
+          test -s dist/getdone-agent-linux-amd64.sha256
+          test -s dist/getdone-agent-linux-arm64.sha256
+          test -s dist/getdone-agent.service
+          test -s dist/getdone-agent.service.sha256
+          test -s dist/manifest.json
+          (cd dist && sha256sum --check getdone-agent-linux-amd64.sha256)
+          (cd dist && sha256sum --check getdone-agent-linux-arm64.sha256)
+          (cd dist && sha256sum --check getdone-agent.service.sha256)
