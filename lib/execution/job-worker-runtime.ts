@@ -35,6 +35,7 @@ export interface DurableJobWorkerConfig {
   heartbeatSeconds?: number;
   batchSize?: number;
   retryBaseDelayMs?: number;
+  maxAttempts?: number;
 }
 
 export class DurableJobWorker {
@@ -42,6 +43,7 @@ export class DurableJobWorker {
   private readonly heartbeatSeconds: number;
   private readonly batchSize: number;
   private readonly retryBaseDelayMs: number;
+  private readonly maxAttempts: number;
 
   constructor(
     private readonly store: DurableJobWorkStore,
@@ -55,6 +57,7 @@ export class DurableJobWorker {
     this.heartbeatSeconds = config.heartbeatSeconds ?? 20;
     this.batchSize = config.batchSize ?? 10;
     this.retryBaseDelayMs = config.retryBaseDelayMs ?? 1_000;
+    this.maxAttempts = config.maxAttempts ?? 5;
     if (this.heartbeatSeconds >= this.leaseSeconds) {
       throw new ControlPlaneError(
         "VALIDATION_FAILED",
@@ -196,6 +199,18 @@ export class DurableJobWorker {
         transactionHash: latestTransaction.transactionHash
       });
       latestTransaction = await this.store.deadLetter(record);
+    } else if (lease.attempt >= this.maxAttempts) {
+      const record = createDeadLetterRecord({
+        id: crypto.randomUUID(),
+        jobId: candidate.envelope.jobId,
+        finalAttempt: lease.attempt,
+        reason: `maximum attempts reached: ${outcome.reason}`,
+        failedAt: this.now().toISOString(),
+        sourceEnvelopeHash: candidate.envelope.envelopeHash,
+        transactionHash: latestTransaction.transactionHash
+      });
+      latestTransaction = await this.store.deadLetter(record);
+      outcome = { kind: "dead-letter", reason: record.reason };
     } else {
       const delay = outcome.delayMs ?? this.retryBaseDelayMs * 2 ** Math.max(0, lease.attempt - 1);
       const record = createJobRetryScheduleRecord({
