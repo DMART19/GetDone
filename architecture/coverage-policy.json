@@ -265,6 +265,41 @@
       "source": "lib/nodes/enrollment.ts",
       "test": "lib/nodes/enrollment.test.ts",
       "critical": true
+    },
+    {
+      "source": "lib/nodes/identity.ts",
+      "test": "lib/nodes/identity.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/nodes/application.ts",
+      "test": "lib/nodes/application.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/nodes/runtime.server.ts",
+      "test": "lib/nodes/http.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/nodes/http.ts",
+      "test": "lib/nodes/http.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/persistence/postgres/node-store.ts",
+      "test": "lib/persistence/postgres/node-enrollment.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/persistence/postgres/node-enrollment-store.ts",
+      "test": "lib/persistence/postgres/node-enrollment.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/persistence/postgres/node-identity-store.ts",
+      "test": "lib/persistence/postgres/node-enrollment.test.ts",
+      "critical": true
     }
   ]
 }
