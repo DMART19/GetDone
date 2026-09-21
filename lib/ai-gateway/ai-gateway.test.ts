@@ -197,4 +197,66 @@ describe("Phase 13 deterministic AI Gateway", () => {
       now: "2026-09-20T22:00:00Z"
     })).rejects.toThrow(/concurrency/i);
   });
+  it("returns SCHEMA_INVALID when the final eligible model returns malformed output", async () => {
+    const adapter = new DevelopmentMockAIGatewayAdapter(() => ({ malformed: true }));
+    const gateway = new AIGateway([baseProfile], policy, adapter);
+    const result = await gateway.invoke({
+      request: request({ allowFallback: false }),
+      payload: { prompt: "x" },
+      outputSchema: z.object({ answer: z.string() }),
+      budget,
+      now: "2026-09-20T22:00:00Z"
+    });
+    expect(result).toMatchObject({ kind: "unavailable", reason: "SCHEMA_INVALID" });
+    expect(result.audit.failureClass).toBe("SCHEMA_INVALID");
+  });
+
+  it("returns MODEL_IDENTITY_MISMATCH when provider identity differs from the selected profile", async () => {
+    const adapter = {
+      id: "identity-mismatch",
+      version: "1.0.0",
+      async invoke() {
+        return {
+          profileId: "wrong-profile",
+          gatewayId: baseProfile.gatewayId,
+          providerId: baseProfile.providerId,
+          modelId: baseProfile.modelId,
+          output: { answer: "should not be trusted" },
+          inputTokens: 10,
+          outputTokens: 10,
+          latencyMs: 1,
+          observedAt: "2026-09-20T22:00:00Z"
+        };
+      }
+    };
+    const gateway = new AIGateway([baseProfile], policy, adapter);
+    const result = await gateway.invoke({
+      request: request({ allowFallback: false }),
+      payload: { prompt: "x" },
+      outputSchema: z.object({ answer: z.string() }),
+      budget,
+      now: "2026-09-20T22:00:00Z"
+    });
+    expect(result).toMatchObject({ kind: "unavailable", reason: "MODEL_IDENTITY_MISMATCH" });
+  });
+
+  it("returns MODEL_CALL_FAILED when the final adapter invocation throws", async () => {
+    const adapter = {
+      id: "throwing-adapter",
+      version: "1.0.0",
+      async invoke(): Promise<never> {
+        throw new Error("provider transport failed");
+      }
+    };
+    const gateway = new AIGateway([baseProfile], policy, adapter);
+    const result = await gateway.invoke({
+      request: request({ allowFallback: false }),
+      payload: { prompt: "x" },
+      outputSchema: z.object({ answer: z.string() }),
+      budget,
+      now: "2026-09-20T22:00:00Z"
+    });
+    expect(result).toMatchObject({ kind: "unavailable", reason: "MODEL_CALL_FAILED" });
+  });
+
 });
