@@ -9,9 +9,9 @@ import (
 const SchemaVersion = 1
 
 type PendingResult struct {
-	JobID       string    `json:"jobId"`
-	ResultPath  string    `json:"resultPath"`
-	RecordedAt  time.Time `json:"recordedAt"`
+	JobID      string    `json:"jobId"`
+	ResultPath string    `json:"resultPath"`
+	RecordedAt time.Time `json:"recordedAt"`
 }
 
 type State struct {
@@ -30,12 +30,12 @@ type State struct {
 
 func New(agentVersion, protocolVersion string) State {
 	return State{
-		SchemaVersion:         SchemaVersion,
-		AgentVersion:          agentVersion,
-		ProtocolVersion:       protocolVersion,
-		ActiveJobIDs:          []string{},
-		ActiveReservationIDs:  []string{},
-		PendingResults:        []PendingResult{},
+		SchemaVersion:        SchemaVersion,
+		AgentVersion:         agentVersion,
+		ProtocolVersion:      protocolVersion,
+		ActiveJobIDs:         []string{},
+		ActiveReservationIDs: []string{},
+		PendingResults:       []PendingResult{},
 	}
 }
 
