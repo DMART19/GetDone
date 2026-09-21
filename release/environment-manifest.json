@@ -1,5 +1,5 @@
 {
-  "manifestSchemaVersion": "1.5.0",
+  "manifestSchemaVersion": "1.6.0",
   "environments": {
     "development": {
       "authorityMode": "deterministic-foundation",
@@ -55,7 +55,12 @@
         "businessActionAdapterStatus": "not-connected",
         "softwareDeploymentStatus": "not-connected",
         "jobExecutionBridgeStatus": "deterministic-contract",
-        "liveJobExecutionBridgeStoreStatus": "not-connected"
+        "liveJobExecutionBridgeStoreStatus": "not-connected",
+        "durableJobStoreImplementationStatus": "implemented-unconnected",
+        "businessActionOrchestratorStatus": "implemented",
+        "softwareWorkerRuntimeStatus": "implemented",
+        "jobExecutionRouterStatus": "implemented",
+        "jobExecutionBridgeStoreImplementationStatus": "implemented-unconnected"
       },
       "resourceFabric": {
         "storageFabricContractStatus": "deterministic-contract",
@@ -66,7 +71,8 @@
         "secondProviderStatus": "not-connected",
         "resourcePoolContractStatus": "deterministic-contract",
         "partnerPoolRuntimeStatus": "not-connected",
-        "developmentMockAdapterAllowed": true
+        "developmentMockAdapterAllowed": true,
+        "reservationStoreImplementationStatus": "implemented-unconnected"
       },
       "phase44": {
         "deterministicHarnessStatus": "offline-blocking-suite",
@@ -81,6 +87,13 @@
         "applicationAdapterStatus": "not-connected",
         "authStatus": "not-connected",
         "persistenceStatus": "not-connected"
+      },
+      "database": {
+        "engine": "postgresql",
+        "minimumEngineVersion": "16",
+        "adapterStatus": "implemented-unconnected",
+        "migrationVersion": "2026-09-21.1",
+        "schemaVersion": "1.0.0"
       }
     },
     "staging": {
@@ -137,7 +150,12 @@
         "businessActionAdapterStatus": "not-connected",
         "softwareDeploymentStatus": "not-connected",
         "jobExecutionBridgeStatus": "deterministic-contract",
-        "liveJobExecutionBridgeStoreStatus": "not-connected"
+        "liveJobExecutionBridgeStoreStatus": "not-connected",
+        "durableJobStoreImplementationStatus": "implemented-unconnected",
+        "businessActionOrchestratorStatus": "implemented",
+        "softwareWorkerRuntimeStatus": "implemented",
+        "jobExecutionRouterStatus": "implemented",
+        "jobExecutionBridgeStoreImplementationStatus": "implemented-unconnected"
       },
       "resourceFabric": {
         "storageFabricContractStatus": "deterministic-contract",
@@ -148,7 +166,8 @@
         "secondProviderStatus": "not-connected",
         "resourcePoolContractStatus": "deterministic-contract",
         "partnerPoolRuntimeStatus": "not-connected",
-        "developmentMockAdapterAllowed": false
+        "developmentMockAdapterAllowed": false,
+        "reservationStoreImplementationStatus": "implemented-unconnected"
       },
       "phase44": {
         "deterministicHarnessStatus": "offline-blocking-suite",
@@ -163,6 +182,13 @@
         "applicationAdapterStatus": "not-connected",
         "authStatus": "not-connected",
         "persistenceStatus": "not-connected"
+      },
+      "database": {
+        "engine": "postgresql",
+        "minimumEngineVersion": "16",
+        "adapterStatus": "implemented-unconnected",
+        "migrationVersion": "2026-09-21.1",
+        "schemaVersion": "1.0.0"
       }
     },
     "production": {
@@ -219,7 +245,12 @@
         "businessActionAdapterStatus": "not-connected",
         "softwareDeploymentStatus": "not-connected",
         "jobExecutionBridgeStatus": "deterministic-contract",
-        "liveJobExecutionBridgeStoreStatus": "not-connected"
+        "liveJobExecutionBridgeStoreStatus": "not-connected",
+        "durableJobStoreImplementationStatus": "implemented-unconnected",
+        "businessActionOrchestratorStatus": "implemented",
+        "softwareWorkerRuntimeStatus": "implemented",
+        "jobExecutionRouterStatus": "implemented",
+        "jobExecutionBridgeStoreImplementationStatus": "implemented-unconnected"
       },
       "resourceFabric": {
         "storageFabricContractStatus": "deterministic-contract",
@@ -230,7 +261,8 @@
         "secondProviderStatus": "not-connected",
         "resourcePoolContractStatus": "deterministic-contract",
         "partnerPoolRuntimeStatus": "not-connected",
-        "developmentMockAdapterAllowed": false
+        "developmentMockAdapterAllowed": false,
+        "reservationStoreImplementationStatus": "implemented-unconnected"
       },
       "phase44": {
         "deterministicHarnessStatus": "offline-blocking-suite",
@@ -245,6 +277,13 @@
         "applicationAdapterStatus": "not-connected",
         "authStatus": "not-connected",
         "persistenceStatus": "not-connected"
+      },
+      "database": {
+        "engine": "postgresql",
+        "minimumEngineVersion": "16",
+        "adapterStatus": "implemented-unconnected",
+        "migrationVersion": "2026-09-21.1",
+        "schemaVersion": "1.0.0"
       }
     }
   },
@@ -255,11 +294,12 @@
     "Phase 42 voice contracts are present, but no live speech/voice adapter is connected in any environment.",
     "Phase 13 AI Gateway contracts/router/budget/audit plus the OpenRouter provider adapter are implemented, but no credential, active routing policy, canary model, or live AI runtime connection is configured.",
     "Phase 4 Integration Registry contracts are present; only explicit DEVELOPMENT mock adapters exist in-repo.",
-    "Phases 19-21 durable Job Store, business action adapter, and software worker/deployment contracts are present; no production queue/store/action/deployment adapter is connected.",
     "Phases 36-39 deterministic Storage Fabric, resilience, Resource Adapter SDK, and governed ResourcePool contracts are present; real NAS/cloud/colo/partner runtimes remain unconnected.",
     "Phase 44 deterministic offline adversarial harness is present, but full production end-to-end acceptance has not been run.",
     "The Phase 34 -> JobService bridge contract is deterministic and tested, but its authoritative production bridge store remains not connected.",
     "The cross-phase golden-path harness is deterministic simulation evidence only and never represents production execution.",
-    "The Control API HTTP/application-adapter surface is implemented for owner intents, Decisions, Resources, Jobs/results, Verification, and health; authoritative auth/persistence adapters remain not connected."
+    "The Control API HTTP/application-adapter surface is implemented for owner intents, Decisions, Resources, Jobs/results, Verification, and health; authoritative auth/persistence adapters remain not connected.",
+    "PostgreSQL 16+ production persistence adapters, the durable Job Store/worker, business-action orchestrator, software-worker runtime, and durable execution router are implemented; no production DATABASE_URL, business provider adapter, or software deployment executor is connected.",
+    "Authoritative PostgreSQL migrations and adapters exist for entity transactions, idempotency, audit, authorization grants/consumption, verification receipts, Job bridge facts, reservations, execution specs, and runtime state; connection flags remain false until deployed against an actual database."
   ]
 }

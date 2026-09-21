@@ -289,21 +289,20 @@ if (failures.length === 0) {
     fail("Policy version registry drift detected");
   }
 
-  if (registry.database.status === "not-connected") {
-    if (
-      registry.database.migrationVersion !== "UNIMPLEMENTED"
-      || registry.database.schemaVersion !== "UNIMPLEMENTED"
-      || manifest.database.migrationVersion !== "UNIMPLEMENTED"
-      || manifest.database.schemaVersion !== "UNIMPLEMENTED"
-      || manifest.database.sourceSha256 !== fileHash(registry.database.sourcePath)
-    ) {
-      fail("Disconnected database must declare exact UNIMPLEMENTED migration/schema versions");
-    }
-  } else if (
-    registry.database.migrationVersion === "UNIMPLEMENTED"
-    || registry.database.schemaVersion === "UNIMPLEMENTED"
+  if (
+    registry.database.status !== "implemented-unconnected"
+    || registry.database.engine !== "postgresql"
+    || registry.database.minimumEngineVersion !== "16"
+    || registry.database.migrationVersion !== "2026-09-21.1"
+    || registry.database.schemaVersion !== "1.0.0"
+    || manifest.database.status !== registry.database.status
+    || manifest.database.engine !== registry.database.engine
+    || manifest.database.migrationVersion !== registry.database.migrationVersion
+    || manifest.database.schemaVersion !== registry.database.schemaVersion
+    || manifest.database.sourceSha256 !== fileHash(registry.database.sourcePath)
+    || registry.adapters.postgresPersistence?.status !== "implemented-unconnected"
   ) {
-    fail("Connected database cannot retain UNIMPLEMENTED migration/schema versions");
+    fail("PostgreSQL persistence implementation/version release truth drifted");
   }
 
   if (registry.aiGateway.status === "not-connected") {
@@ -332,11 +331,17 @@ if (failures.length === 0) {
 
   if (
     registry.integrations.liveAdaptersStatus !== "not-connected"
-    || registry.execution.durableJobStoreStatus !== "not-connected"
+    || registry.execution.durableJobStoreStatus !== "implemented-unconnected"
+    || registry.execution.durableJobStoreVersion !== "1.0.0"
+    || registry.execution.businessActionOrchestratorStatus !== "implemented"
     || registry.execution.businessAdaptersStatus !== "not-connected"
+    || registry.execution.softwareWorkerRuntimeStatus !== "implemented"
     || registry.execution.softwareDeploymentStatus !== "not-connected"
+    || registry.execution.jobExecutionRouterStatus !== "implemented"
     || registry.execution.jobExecutionBridgeStatus !== "deterministic-contract"
+    || registry.execution.jobExecutionBridgeStoreImplementationStatus !== "implemented-unconnected"
     || registry.execution.liveJobExecutionBridgeStoreStatus !== "not-connected"
+    || registry.execution.persistenceBackend !== "postgresql"
     || registry.composition.status !== "deterministic-simulation-only"
     || registry.composition.productionExecutionClaimed !== false
     || registry.resourceFabric.storageRuntimeStatus !== "not-connected"
@@ -392,10 +397,18 @@ if (failures.length === 0) {
       || !environmentState.execution
       || environmentState.execution.jobRuntimeContractStatus !== "deterministic-contract"
       || environmentState.execution.durableJobStoreStatus !== "not-connected"
+      || environmentState.execution.durableJobStoreImplementationStatus !== "implemented-unconnected"
+      || environmentState.execution.businessActionOrchestratorStatus !== "implemented"
       || environmentState.execution.businessActionAdapterStatus !== "not-connected"
+      || environmentState.execution.softwareWorkerRuntimeStatus !== "implemented"
       || environmentState.execution.softwareDeploymentStatus !== "not-connected"
+      || environmentState.execution.jobExecutionRouterStatus !== "implemented"
       || environmentState.execution.jobExecutionBridgeStatus !== "deterministic-contract"
+      || environmentState.execution.jobExecutionBridgeStoreImplementationStatus !== "implemented-unconnected"
       || environmentState.execution.liveJobExecutionBridgeStoreStatus !== "not-connected"
+      || environmentState.connections.database !== false
+      || environmentState.database?.engine !== "postgresql"
+      || environmentState.database?.adapterStatus !== "implemented-unconnected"
       || !environmentState.composition
       || environmentState.composition.goldenPathHarnessStatus !== "deterministic-simulation-only"
       || environmentState.composition.productionExecutionClaimed !== false
