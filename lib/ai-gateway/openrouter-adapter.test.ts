@@ -60,7 +60,7 @@ describe("OpenRouterAIGatewayAdapter", () => {
   it("normalizes a successful completion and preserves actual model identity", async () => {
     let captured: RequestInit | undefined;
     const adapter = new OpenRouterAIGatewayAdapter(
-      { apiKey: "test-key-not-a-real-secret", maxRetries: 0 },
+      { apiKey: "test-key", maxRetries: 0 },
       {
         fetchImpl: async (_url, init) => {
           captured = init;
@@ -87,7 +87,7 @@ describe("OpenRouterAIGatewayAdapter", () => {
       observedAt: "2026-09-21T04:00:00.000Z"
     });
     const headers = captured?.headers as Record<string, string>;
-    expect(headers.authorization).toBe("Bearer test-key-not-a-real-secret");
+    expect(headers.authorization).toBe("Bearer test-key");
     expect(headers["x-openrouter-metadata"]).toBe("enabled");
   });
 
