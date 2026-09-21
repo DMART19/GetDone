@@ -20,9 +20,9 @@ Current code includes:
 - authentication/session/step-up contracts
 - capability registry with runtime input/output schemas
 - Phase 4 deterministic Company Integration Registry with explicit read/write scopes, environment binding, credential-reference-only records, lifecycle transitions, tenant enforcement, and DEVELOPMENT-only mock adapters
-- Phase 13 deterministic AI Gateway with provider-neutral role/requirement/profile contracts, hard eligibility filtering, configuration-driven routing/fallback, budgets/concurrency, kill switches, response-schema validation, audit records, and DEVELOPMENT-only mock adapter
+- Phase 13 deterministic AI Gateway with provider-neutral role/requirement/profile contracts, hard eligibility filtering, configuration-driven routing/fallback, budgets/concurrency, atomic budget-reservation contracts, kill switches, response-schema validation, typed terminal failure taxonomy, audit records, and DEVELOPMENT-only mock adapter
 - Phases 19–21 durable Job Store/lease/recovery contracts, business action adapter SDK/conformance boundary, and software-worker/deployment authorization/evidence contracts
-- architecture dependency-boundary matrix, Resource Fabric internal-module split behind stable public exports, control-plane module/test coverage thresholds, contract-version drift verification, and deterministic adversarial vectors
+- architecture dependency-boundary matrix, Resource Fabric internal-module split behind stable public exports, real Vitest V8 statement/branch/function/line coverage thresholds, a separate control-plane module/test-map gate, Playwright desktop/mobile E2E coverage, contract-version drift verification, and deterministic adversarial vectors
 - objectives, guardrails, budgets, kill switches, and protected capacity
 - authoritative Goal / Plan / Decision / Approval / Task / Job / Outcome / Event transitions
 - atomic control-plane transaction and idempotency contracts
@@ -97,6 +97,7 @@ npm run lint
 npm test
 npm run verify:coverage
 npm run build
+npm run test:e2e
 npm run release:generate
 npm run verify:release
 ```
@@ -131,6 +132,7 @@ Use these as the implementation source of truth:
 - `docs/SOL_PHASE_41_REPORT.md`
 - `docs/SOL_PHASE_42_REPORT.md`
 - `docs/SOL_QUALITY_PHASE_4_13_19_21_REPORT.md`
+- `docs/SOL_QUALITY_V8_PLAYWRIGHT_AI_BUDGET_REPORT.md`
 - `docs/SOL_PHASE_36_39_44_REPORT.md`
 - `docs/SOL_GOLDEN_PATH_JOB_BRIDGE_REPORT.md`
 - `release/version-registry.json`
