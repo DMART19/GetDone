@@ -82,7 +82,15 @@ export class NodeCapabilityService {
       );
     }
 
+    const capabilityNames = new Set<string>();
     for (const capability of profile.capabilities) {
+      if (capabilityNames.has(capability.name)) {
+        throw new ControlPlaneError(
+          "FORBIDDEN",
+          `Duplicate Node capability in full profile: ${capability.name}`
+        );
+      }
+      capabilityNames.add(capability.name);
       if (
         capability.nodeId !== profile.nodeId
         || capability.observedAt !== profile.observedAt
