@@ -631,7 +631,7 @@ for (const required of [
 }
 
 const agentCapabilityProfile = read("agent/internal/capabilities/profile.go");
-const agentCapabilityRunner = read("agent/internal/capabilities/runner_linux.go");
+const agentCapabilityRunner = read("agent/internal/capabilities/run.go");
 const resourceDomain = read("lib/domain/resources.ts");
 const agentDockerCapability = read("agent/internal/capabilities/docker.go");
 const agentCudaCapability = read("agent/internal/capabilities/cuda.go");
