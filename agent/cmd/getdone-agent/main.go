@@ -85,7 +85,7 @@ func main() {
 	)
 
 	profiler := capabilities.NewProfiler(
-		capabilities.DefaultDetectors(inventory.LinuxProbe{}),
+		capabilities.DefaultDetectors(capabilities.LinuxRunner{}),
 		time.Now,
 	)
 	capabilityProfile, err := profiler.Profile(ctx, state.NodeID)
