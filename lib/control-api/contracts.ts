@@ -5,6 +5,7 @@ import type { AuthoritativeDecision } from "@/lib/domain/decision-service";
 import type { JobRecord } from "@/lib/domain/services/job-service";
 import type { VerificationRequestRecord } from "@/lib/domain/services/verification-service";
 import type { Resource } from "@/lib/domain/resources";
+import type { ResourceEnrollmentRecord } from "@/lib/resources/enrollment";
 
 export const CONTROL_API_SURFACE_VERSION = "1.0.0";
 
@@ -40,7 +41,7 @@ export interface DecisionMutationInput {
   idempotencyKey: string;
 }
 
-export interface ResourceEnrollmentInput {
+export interface ResourceDiscoveryInput {
   id: string;
   type: Resource["type"];
   providerId?: string;
@@ -52,6 +53,43 @@ export interface ResourceEnrollmentInput {
   region?: string;
   architecture?: string;
   idempotencyKey: string;
+}
+
+export interface ResourceEnrollmentStartInput {
+  id: string;
+  requestedType: Resource["type"];
+  ownerActionRequired: boolean;
+  ownerActionDescription?: string;
+  challengeToken: string;
+  challengeExpiresAt: string;
+  idempotencyKey: string;
+}
+
+export type ResourceEnrollmentAction =
+  | "create"
+  | "owner-action"
+  | "authenticate"
+  | "discover"
+  | "profile"
+  | "validate"
+  | "test"
+  | "register"
+  | "ready"
+  | "fail"
+  | "cancel"
+  | "expire"
+  | "restart";
+
+export interface ResourceEnrollmentActionInput {
+  action: ResourceEnrollmentAction;
+  idempotencyKey: string;
+  evidenceId?: string;
+  challengeToken?: string;
+  authenticatedAt?: string;
+  resourceId?: string;
+  reason?: string;
+  challengeExpiresAt?: string;
+  restartedAt?: string;
 }
 
 export interface JobResultView {
@@ -95,10 +133,27 @@ export interface ControlApiApplicationAdapter {
 
   listResources(principal: ControlApiPrincipal): Promise<readonly Resource[]>;
   getResource(principal: ControlApiPrincipal, resourceId: string): Promise<Resource | null>;
-  enrollResource(
+  discoverResource(
     principal: ControlApiPrincipal,
-    input: ResourceEnrollmentInput
+    input: ResourceDiscoveryInput
   ): Promise<Resource>;
+
+  listResourceEnrollments(
+    principal: ControlApiPrincipal
+  ): Promise<readonly ResourceEnrollmentRecord[]>;
+  getResourceEnrollment(
+    principal: ControlApiPrincipal,
+    enrollmentId: string
+  ): Promise<ResourceEnrollmentRecord | null>;
+  startResourceEnrollment(
+    principal: ControlApiPrincipal,
+    input: ResourceEnrollmentStartInput
+  ): Promise<ResourceEnrollmentRecord>;
+  advanceResourceEnrollment(
+    principal: ControlApiPrincipal,
+    enrollmentId: string,
+    input: ResourceEnrollmentActionInput
+  ): Promise<ResourceEnrollmentRecord>;
 
   listJobs(principal: ControlApiPrincipal): Promise<readonly JobRecord[]>;
   getJob(principal: ControlApiPrincipal, jobId: string): Promise<JobRecord | null>;
