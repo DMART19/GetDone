@@ -1,5 +1,5 @@
 {
-  "manifestSchemaVersion": "1.6.0",
+  "manifestSchemaVersion": "1.7.0",
   "environments": {
     "development": {
       "authorityMode": "deterministic-foundation",
@@ -94,6 +94,12 @@
         "adapterStatus": "implemented-unconnected",
         "migrationVersion": "2026-09-21.1",
         "schemaVersion": "1.0.0"
+      },
+      "nodeAgent": {
+        "contractStatus": "deterministic-contract",
+        "agentRuntimeStatus": "not-connected",
+        "linuxX64": "not-connected",
+        "linuxArm64": "not-connected"
       }
     },
     "staging": {
@@ -189,6 +195,12 @@
         "adapterStatus": "implemented-unconnected",
         "migrationVersion": "2026-09-21.1",
         "schemaVersion": "1.0.0"
+      },
+      "nodeAgent": {
+        "contractStatus": "deterministic-contract",
+        "agentRuntimeStatus": "not-connected",
+        "linuxX64": "not-connected",
+        "linuxArm64": "not-connected"
       }
     },
     "production": {
@@ -284,6 +296,12 @@
         "adapterStatus": "implemented-unconnected",
         "migrationVersion": "2026-09-21.1",
         "schemaVersion": "1.0.0"
+      },
+      "nodeAgent": {
+        "contractStatus": "deterministic-contract",
+        "agentRuntimeStatus": "not-connected",
+        "linuxX64": "not-connected",
+        "linuxArm64": "not-connected"
       }
     }
   },
@@ -300,6 +318,7 @@
     "The cross-phase golden-path harness is deterministic simulation evidence only and never represents production execution.",
     "The Control API HTTP/application-adapter surface is implemented for owner intents, Decisions, Resources, Jobs/results, Verification, and health; authoritative auth/persistence adapters remain not connected.",
     "PostgreSQL 16+ production persistence adapters, the durable Job Store/worker, business-action orchestrator, software-worker runtime, and durable execution router are implemented; no production DATABASE_URL, business provider adapter, or software deployment executor is connected.",
-    "Authoritative PostgreSQL migrations and adapters exist for entity transactions, idempotency, audit, authorization grants/consumption, verification receipts, Job bridge facts, reservations, execution specs, and runtime state; connection flags remain false until deployed against an actual database."
+    "Authoritative PostgreSQL migrations and adapters exist for entity transactions, idempotency, audit, authorization grants/consumption, verification receipts, Job bridge facts, reservations, execution specs, and runtime state; connection flags remain false until deployed against an actual database.",
+    "Phase 28.0 universal compute-node contracts are implemented for Linux x86-64 and ARM64, but no Node Agent binary, enrollment endpoint, node persistence, scheduler integration, or live node runtime is connected."
   ]
 }
