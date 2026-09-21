@@ -104,6 +104,35 @@ export interface NodeScopedReadStore<T> {
   listByScope(portfolioId: string, companyId: string): Promise<readonly T[]>;
 }
 
+export interface NodeEnrollmentApplicationAdapter {
+  list(principal: ControlApiPrincipal): Promise<readonly NodeEnrollmentChallengeRecord[]>;
+  get(
+    principal: ControlApiPrincipal,
+    id: string
+  ): Promise<NodeEnrollmentChallengeRecord | null>;
+  create(
+    principal: ControlApiPrincipal,
+    input: CreateNodeEnrollmentInput
+  ): Promise<NodeEnrollmentCreateResult>;
+  ownerAction(
+    principal: ControlApiPrincipal,
+    challengeId: string,
+    evidenceId: string,
+    idempotencyKey: string
+  ): Promise<unknown>;
+  cancel(
+    principal: ControlApiPrincipal,
+    challengeId: string,
+    idempotencyKey: string
+  ): Promise<unknown>;
+  expire(
+    principal: ControlApiPrincipal,
+    challengeId: string,
+    idempotencyKey: string
+  ): Promise<unknown>;
+  enrollAgent(input: AgentNodeEnrollmentInput): Promise<AgentNodeEnrollmentResult>;
+}
+
 export interface NodeEnrollmentApplicationDependencies {
   coordinator: NodeEnrollmentCoordinator;
   challenges: NodeEnrollmentChallengeStore;
@@ -134,7 +163,7 @@ function requireFutureExpiry(expiresAt: string, now: Date) {
   }
 }
 
-export class NodeEnrollmentApplicationService {
+export class NodeEnrollmentApplicationService implements NodeEnrollmentApplicationAdapter {
   private readonly now: () => Date;
   private readonly challengeSecret: Buffer;
   private readonly nodeIdGenerator: () => string;
