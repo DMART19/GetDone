@@ -132,7 +132,7 @@ class CountingIssuer extends DevelopmentNodeIdentityIssuer {
   }
 }
 
-function service(
+function createSetup(
   coordinator = new FakeCoordinator(),
   challenges = new MemoryChallenges(),
   now = new Date("2026-09-21T12:00:00Z")
@@ -155,7 +155,7 @@ function service(
 
 describe("NodeEnrollmentApplicationService", () => {
   it("creates the same bootstrap token for an idempotent owner replay", async () => {
-    const { service } = service();
+    const { service } = createSetup();
     const input = {
       id: "enrollment-1",
       displayName: "Server",
@@ -170,7 +170,7 @@ describe("NodeEnrollmentApplicationService", () => {
   });
 
   it("bootstraps once and replays the same nonce without reissuing identity", async () => {
-    const setup = service();
+    const setup = createSetup();
     const created = await setup.service.create(principal, {
       id: "enrollment-1",
       displayName: "Server",
@@ -198,7 +198,7 @@ describe("NodeEnrollmentApplicationService", () => {
   });
 
   it("rejects architecture and protocol mismatch", async () => {
-    const setup = service();
+    const setup = createSetup();
     const created = await setup.service.create(principal, {
       id: "enrollment-1",
       displayName: "Server",
@@ -225,7 +225,7 @@ describe("NodeEnrollmentApplicationService", () => {
   });
 
   it("rejects expired bootstrap challenges and cross-scope reads", async () => {
-    const setup = service(
+    const setup = createSetup(
       new FakeCoordinator(),
       new MemoryChallenges(),
       new Date("2026-09-21T12:00:00Z")
@@ -258,7 +258,7 @@ describe("NodeEnrollmentApplicationService", () => {
   });
 
   it("delegates owner action and terminal challenge state without creating another enrollment authority", async () => {
-    const setup = service();
+    const setup = createSetup();
     const created = await setup.service.create(principal, {
       id: "enrollment-1",
       displayName: "Server",
