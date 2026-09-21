@@ -100,10 +100,10 @@
         "domainVersion": "1.0.0",
         "protocolVersion": "1.0.0",
         "dispatchContractVersion": "1.0.0",
-        "linuxX64": "inventory-capable-build",
-        "linuxArm64": "inventory-capable-build",
+        "linuxX64": "capability-profile-build",
+        "linuxArm64": "capability-profile-build",
         "productionReady": false,
-        "agentVersion": "0.3.0-development",
+        "agentVersion": "0.4.0-development",
         "enrollmentStatus": "implemented-unconnected",
         "nodePersistenceStatus": "implemented-unconnected",
         "identityIssuerStatus": "development-only",
@@ -115,7 +115,14 @@
         "inventoryApiStatus": "implemented-unconnected",
         "inventoryPersistenceStatus": "implemented-unconnected",
         "authenticatedAgentTransportStatus": "not-connected",
-        "inventoryMigrationVersion": "2026-09-21.3"
+        "inventoryMigrationVersion": "2026-09-21.3",
+        "capabilityProfilingStatus": "implemented",
+        "capabilityValidationStatus": "implemented",
+        "capabilityApiStatus": "implemented-unconnected",
+        "capabilityPersistenceStatus": "implemented-unconnected",
+        "capabilityRegistryBridgeStatus": "implemented",
+        "resourceCapabilityBindingStatus": "implemented-unconnected",
+        "capabilityMigrationVersion": "2026-09-21.4"
       }
     },
     "staging": {
@@ -217,10 +224,10 @@
         "domainVersion": "1.0.0",
         "protocolVersion": "1.0.0",
         "dispatchContractVersion": "1.0.0",
-        "linuxX64": "inventory-capable-build",
-        "linuxArm64": "inventory-capable-build",
+        "linuxX64": "capability-profile-build",
+        "linuxArm64": "capability-profile-build",
         "productionReady": false,
-        "agentVersion": "0.3.0-development",
+        "agentVersion": "0.4.0-development",
         "enrollmentStatus": "implemented-unconnected",
         "nodePersistenceStatus": "implemented-unconnected",
         "identityIssuerStatus": "development-only",
@@ -232,7 +239,14 @@
         "inventoryApiStatus": "implemented-unconnected",
         "inventoryPersistenceStatus": "implemented-unconnected",
         "authenticatedAgentTransportStatus": "not-connected",
-        "inventoryMigrationVersion": "2026-09-21.3"
+        "inventoryMigrationVersion": "2026-09-21.3",
+        "capabilityProfilingStatus": "implemented",
+        "capabilityValidationStatus": "implemented",
+        "capabilityApiStatus": "implemented-unconnected",
+        "capabilityPersistenceStatus": "implemented-unconnected",
+        "capabilityRegistryBridgeStatus": "implemented",
+        "resourceCapabilityBindingStatus": "implemented-unconnected",
+        "capabilityMigrationVersion": "2026-09-21.4"
       }
     },
     "production": {
@@ -334,10 +348,10 @@
         "domainVersion": "1.0.0",
         "protocolVersion": "1.0.0",
         "dispatchContractVersion": "1.0.0",
-        "linuxX64": "inventory-capable-build",
-        "linuxArm64": "inventory-capable-build",
+        "linuxX64": "capability-profile-build",
+        "linuxArm64": "capability-profile-build",
         "productionReady": false,
-        "agentVersion": "0.3.0-development",
+        "agentVersion": "0.4.0-development",
         "enrollmentStatus": "implemented-unconnected",
         "nodePersistenceStatus": "implemented-unconnected",
         "identityIssuerStatus": "development-only",
@@ -349,7 +363,14 @@
         "inventoryApiStatus": "implemented-unconnected",
         "inventoryPersistenceStatus": "implemented-unconnected",
         "authenticatedAgentTransportStatus": "not-connected",
-        "inventoryMigrationVersion": "2026-09-21.3"
+        "inventoryMigrationVersion": "2026-09-21.3",
+        "capabilityProfilingStatus": "implemented",
+        "capabilityValidationStatus": "implemented",
+        "capabilityApiStatus": "implemented-unconnected",
+        "capabilityPersistenceStatus": "implemented-unconnected",
+        "capabilityRegistryBridgeStatus": "implemented",
+        "resourceCapabilityBindingStatus": "implemented-unconnected",
+        "capabilityMigrationVersion": "2026-09-21.4"
       }
     }
   },
@@ -367,6 +388,6 @@
     "The Control API HTTP/application-adapter surface is implemented for owner intents, Decisions, Resources, Jobs/results, Verification, and health; authoritative auth/persistence adapters remain not connected.",
     "PostgreSQL 16+ production persistence adapters, the durable Job Store/worker, business-action orchestrator, software-worker runtime, and durable execution router are implemented; no production DATABASE_URL, business provider adapter, or software deployment executor is connected.",
     "Authoritative PostgreSQL migrations and adapters exist for entity transactions, idempotency, audit, authorization grants/consumption, verification receipts, Job bridge facts, reservations, execution specs, and runtime state; connection flags remain false until deployed against an actual database.",
-    "Phase 28.3 implements normalized Linux x86-64/ARM64 hardware discovery, local inventory persistence, immutable PostgreSQL inventory snapshots, and the inventory API surface; authenticated production Node Agent transport remains not-connected, so live inventory ingestion is implemented-unconnected."
+    "Phase 28.4 implements Linux x86-64/ARM64 capability detection and validation, full-profile capability reconciliation with removal/downgrade handling, the authenticated capability API surface, and a deterministic bridge into the existing Phase 5 Capability Registry. Production Node Agent transport and authoritative Resource Registry capability-binding persistence remain unconnected."
   ]
 }
