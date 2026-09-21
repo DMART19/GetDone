@@ -78,7 +78,7 @@ const providerImportPatterns = [
 
 for (const file of codeFiles) {
   const content = read(file);
-  if (!file.startsWith("lib/ai-gateway/")) {
+  if (!file.startsWith("lib/ai-gateway/") && file !== "scripts/verify-architecture.mjs") {
     for (const pattern of providerImportPatterns) {
       if (pattern.test(content)) fail(`Model/provider integration escaped lib/ai-gateway: ${file}`);
     }
