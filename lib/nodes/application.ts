@@ -245,7 +245,10 @@ export class NodeEnrollmentApplicationService implements NodeEnrollmentApplicati
         scope: principal.scope,
         correlationId: createCorrelationId(),
         environment: principal.scope.environment,
-        idempotencyKey: `${input.idempotencyKey}:create`,
+        idempotencyKey: `node-create:${sha256Hex({
+          enrollmentId: input.id,
+          idempotencyKey: input.idempotencyKey
+        })}`,
         provenance: "node-control-api:enrollment-create",
         requestedMutation: {
           type: "node-enrollment.create",
@@ -255,7 +258,11 @@ export class NodeEnrollmentApplicationService implements NodeEnrollmentApplicati
     );
 
     const challenge: NodeEnrollmentChallengeRecord = Object.freeze({
-      id: `node-challenge-${input.id}`,
+      id: `node-challenge-${sha256Hex({
+        enrollmentId: input.id,
+        portfolioId: principal.scope.portfolioId,
+        companyId: principal.scope.companyId
+      }).slice(0, 32)}`,
       resourceEnrollmentId: identified.id,
       portfolioId: principal.scope.portfolioId,
       companyId: principal.scope.companyId,
@@ -386,7 +393,10 @@ export class NodeEnrollmentApplicationService implements NodeEnrollmentApplicati
       },
       correlationId: createCorrelationId(),
       environment: challenge.environment,
-      idempotencyKey: `node-bootstrap:${challenge.id}:${nonceHash}`,
+      idempotencyKey: `node-bootstrap:${sha256Hex({
+        challengeId: challenge.id,
+        nonceHash
+      })}`,
       provenance: "node-agent:bootstrap",
       requestedMutation: {
         type: "node-enrollment.authenticate",
