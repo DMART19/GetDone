@@ -1,5 +1,5 @@
 {
-  "manifestSchemaVersion": "1.7.0",
+  "manifestSchemaVersion": "1.8.0",
   "environments": {
     "development": {
       "authorityMode": "deterministic-foundation",
@@ -97,9 +97,11 @@
       },
       "nodeAgent": {
         "contractStatus": "deterministic-contract",
-        "agentRuntimeStatus": "not-connected",
-        "linuxX64": "not-connected",
-        "linuxArm64": "not-connected"
+        "agentRuntimeStatus": "implemented-unconnected",
+        "agentShellStatus": "implemented",
+        "enrollmentStatus": "not-implemented",
+        "linuxX64": "build-supported-unconnected",
+        "linuxArm64": "build-supported-unconnected"
       }
     },
     "staging": {
@@ -198,9 +200,11 @@
       },
       "nodeAgent": {
         "contractStatus": "deterministic-contract",
-        "agentRuntimeStatus": "not-connected",
-        "linuxX64": "not-connected",
-        "linuxArm64": "not-connected"
+        "agentRuntimeStatus": "implemented-unconnected",
+        "agentShellStatus": "implemented",
+        "enrollmentStatus": "not-implemented",
+        "linuxX64": "build-supported-unconnected",
+        "linuxArm64": "build-supported-unconnected"
       }
     },
     "production": {
@@ -299,9 +303,11 @@
       },
       "nodeAgent": {
         "contractStatus": "deterministic-contract",
-        "agentRuntimeStatus": "not-connected",
-        "linuxX64": "not-connected",
-        "linuxArm64": "not-connected"
+        "agentRuntimeStatus": "implemented-unconnected",
+        "agentShellStatus": "implemented",
+        "enrollmentStatus": "not-implemented",
+        "linuxX64": "build-supported-unconnected",
+        "linuxArm64": "build-supported-unconnected"
       }
     }
   },
@@ -319,6 +325,6 @@
     "The Control API HTTP/application-adapter surface is implemented for owner intents, Decisions, Resources, Jobs/results, Verification, and health; authoritative auth/persistence adapters remain not connected.",
     "PostgreSQL 16+ production persistence adapters, the durable Job Store/worker, business-action orchestrator, software-worker runtime, and durable execution router are implemented; no production DATABASE_URL, business provider adapter, or software deployment executor is connected.",
     "Authoritative PostgreSQL migrations and adapters exist for entity transactions, idempotency, audit, authorization grants/consumption, verification receipts, Job bridge facts, reservations, execution specs, and runtime state; connection flags remain false until deployed against an actual database.",
-    "Phase 28.0 universal compute-node contracts are implemented for Linux x86-64 and ARM64, but no Node Agent binary, enrollment endpoint, node persistence, scheduler integration, or live node runtime is connected."
+    "Phase 28.1 adds an unconnected Go Node Agent process shell, crash-safe local state, hardened systemd packaging, and linux/amd64 + linux/arm64 builds; enrollment, identity, heartbeat, hardware discovery, scheduling, and workload execution remain unimplemented."
   ]
 }
