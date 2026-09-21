@@ -2,7 +2,7 @@ name: Node Agent CI
 
 on:
   push:
-    branches: [main, sol/phase28.4-capability-profiling]
+    branches: [main]
     paths:
       - "agent/**"
       - "scripts/build-node-agent.sh"
