@@ -139,15 +139,15 @@ describe("NodeEnrollmentCoordinator", () => {
       new ResourceEnrollmentService(manager(new MemoryEnrollmentStore()))
     );
 
-    await expect(coordinator.identify({
+    expect(() => coordinator.identify({
       ...request(),
       protocolVersion: "2.0.0"
-    }, command("bad-protocol"))).rejects.toThrow(/protocol version/i);
+    }, command("bad-protocol"))).toThrow(/protocol version/i);
 
-    await expect(coordinator.identify({
+    expect(() => coordinator.identify({
       ...request(),
       requestedEnvironments: ["production"]
-    }, command("bad-scope"))).rejects.toThrow(/trusted environment scope/i);
+    }, command("bad-scope"))).toThrow(/trusted environment scope/i);
   });
 
   it("rejects identity evidence from another company", async () => {
@@ -158,13 +158,13 @@ describe("NodeEnrollmentCoordinator", () => {
     await coordinator.identify(request(), command("identify-for-auth"));
     await coordinator.createEnrollment("node-enrollment-1", command("create-for-auth"));
 
-    await expect(coordinator.authenticate(
+    expect(() => coordinator.authenticate(
       "node-enrollment-1",
       command("authenticate-wrong-company"),
       "node-enrollment-secret",
       evidence({ companyId: "company-b" }),
       "2026-09-21T12:05:00Z"
-    )).rejects.toThrow(/trusted command scope/i);
+    )).toThrow(/trusted command scope/i);
   });
 
   it("passes validated identity and profile evidence through the existing enrollment sequence", async () => {
