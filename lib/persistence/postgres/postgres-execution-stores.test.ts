@@ -110,6 +110,22 @@ describe("PostgreSQL execution persistence stores", () => {
     const store = new PostgresJobExecutionSpecStore(db);
     await store.put(record);
     expect(await store.get("job-1")).toEqual(record);
+
+    const replayDb = new ScriptedDb([
+      { rowCount: 0 },
+      { rows: [{ payload: record }] }
+    ]);
+    await expect(new PostgresJobExecutionSpecStore(replayDb).put(record)).resolves.toBeUndefined();
+
+    const conflictDb = new ScriptedDb([
+      { rowCount: 0 },
+      { rows: [{ payload: { ...record, specHash: "different" } }] }
+    ]);
+    await expect(new PostgresJobExecutionSpecStore(conflictDb).put(record))
+      .rejects.toThrow(/already exists with different authoritative content/i);
+
+    const emptyDb = new ScriptedDb([{ rows: [] }]);
+    expect(await new PostgresJobExecutionSpecStore(emptyDb).get("missing")).toBeNull();
   });
 
   it("commits ledger and reservation mutation in one transaction", async () => {
