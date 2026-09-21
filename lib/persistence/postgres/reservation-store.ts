@@ -4,13 +4,14 @@ import type {
   AtomicReservationStore,
   CapacityReservation
 } from "@/lib/resources/reservations";
-import type { SqlQueryable } from "@/lib/persistence/postgres/client";
+import { PostgresDatabase } from "@/lib/persistence/postgres/client";
 
 export class PostgresAtomicReservationStore implements AtomicReservationStore {
-  constructor(private readonly db: SqlQueryable) {}
+  constructor(private readonly database: PostgresDatabase) {}
 
   async commit(input: AtomicReservationCommit) {
-    const replay = await this.db.query<{ commit_hash: string; reservation_id: string }>(
+    return this.database.transaction(async (db) => {
+    const replay = await db.query<{ commit_hash: string; reservation_id: string }>(
       `SELECT commit_hash,reservation_id FROM reservation_commits
        WHERE portfolio_id=$1 AND company_id=$2 AND idempotency_key=$3
        FOR UPDATE`,
@@ -27,7 +28,7 @@ export class PostgresAtomicReservationStore implements AtomicReservationStore {
           "Reservation idempotency key resolves to a different atomic commit"
         );
       }
-      const existing = await this.db.query<{ payload: CapacityReservation }>(
+      const existing = await db.query<{ payload: CapacityReservation }>(
         "SELECT payload FROM capacity_reservations WHERE id=$1",
         [replay.rows[0].reservation_id]
       );
@@ -37,7 +38,7 @@ export class PostgresAtomicReservationStore implements AtomicReservationStore {
       return { status: "idempotent-replay" as const, reservation: existing.rows[0].payload };
     }
 
-    const ledger = await this.db.query<{ revision: number; ledger_hash: string }>(
+    const ledger = await db.query<{ revision: number; ledger_hash: string }>(
       "SELECT revision,ledger_hash FROM capacity_ledgers WHERE id=$1 FOR UPDATE",
       [input.ledgerId]
     );
@@ -54,7 +55,7 @@ export class PostgresAtomicReservationStore implements AtomicReservationStore {
     }
 
     if (input.expectedReservationHash) {
-      const reservation = await this.db.query<{ reservation_hash: string }>(
+      const reservation = await db.query<{ reservation_hash: string }>(
         "SELECT reservation_hash FROM capacity_reservations WHERE id=$1 FOR UPDATE",
         [input.nextReservation.id]
       );
@@ -66,7 +67,7 @@ export class PostgresAtomicReservationStore implements AtomicReservationStore {
       }
     }
 
-    const ledgerUpdate = await this.db.query(
+    const ledgerUpdate = await db.query(
       `UPDATE capacity_ledgers
        SET revision=$2, ledger_hash=$3, payload=$4::jsonb
        WHERE id=$1 AND revision=$5 AND ledger_hash=$6`,
@@ -83,7 +84,7 @@ export class PostgresAtomicReservationStore implements AtomicReservationStore {
       return { status: "conflict" as const, currentLedgerRevision: current.revision };
     }
 
-    await this.db.query(
+    await db.query(
       `INSERT INTO capacity_reservations
         (id,portfolio_id,company_id,idempotency_key,reservation_hash,payload)
        VALUES($1,$2,$3,$4,$5,$6::jsonb)
@@ -102,7 +103,7 @@ export class PostgresAtomicReservationStore implements AtomicReservationStore {
       ]
     );
 
-    await this.db.query(
+    await db.query(
       `INSERT INTO reservation_commits
         (transaction_id,portfolio_id,company_id,idempotency_key,commit_hash,reservation_id)
        VALUES($1,$2,$3,$4,$5,$6)`,
@@ -117,10 +118,11 @@ export class PostgresAtomicReservationStore implements AtomicReservationStore {
     );
 
     return { status: "committed" as const, commitHash: input.commitHash };
+    });
   }
 
   async insertLedger(input: AtomicReservationCommit["nextLedger"]): Promise<void> {
-    await this.db.query(
+    await this.database.query(
       `INSERT INTO capacity_ledgers
         (id,portfolio_id,company_id,revision,ledger_hash,payload)
        VALUES($1,$2,$3,$4,$5,$6::jsonb)
