@@ -151,6 +151,10 @@ if (failures.length === 0) {
     "lib/nodes/dispatch-contracts.ts",
     "NODE_DISPATCH_CONTRACT_VERSION"
   );
+  const nodeIdentityContractVersion = extractStringConst(
+    "lib/nodes/identity.ts",
+    "NODE_IDENTITY_CONTRACT_VERSION"
+  );
   const openRouterAdapterVersion = extractStringConst(
     registry.adapters.openRouter.sourcePath,
     "OPENROUTER_ADAPTER_VERSION"
@@ -207,16 +211,25 @@ if (failures.length === 0) {
     || manifest.nodeAgent?.linuxX64 !== "build-only"
     || manifest.nodeAgent?.linuxArm64 !== "build-only"
     || manifest.nodeAgent?.productionReady !== false
+    || manifest.nodeAgent?.agentVersion !== "0.2.0-development"
+    || manifest.nodeAgent?.enrollmentStatus !== "implemented-unconnected"
+    || manifest.nodeAgent?.nodePersistenceStatus !== "implemented-unconnected"
+    || manifest.nodeAgent?.identityIssuerStatus !== "development-only"
+    || manifest.nodeAgent?.productionCaStatus !== "not-connected"
+    || manifest.nodeAgent?.productionMtlsStatus !== "not-connected"
+    || manifest.nodeAgent?.enrollmentMigrationVersion !== "2026-09-21.2"
+    || manifest.nodeAgent?.bootstrapAuthentication !== "one-time-token"
     || registry.nodeAgent?.status !== "implemented-development-only"
+    || registry.schemaVersions.nodeIdentity?.version !== nodeIdentityContractVersion
   ) {
-    fail("Phase 28.0 Node Agent release artifact truth drifted or overclaims connectivity");
+    fail("Phase 28.2 Node Agent release artifact truth drifted or overclaims production identity connectivity");
   }
   for (const evidence of manifest.nodeAgent?.sourceEvidence ?? []) {
     if (
       !registry.nodeAgent.sourcePaths.includes(evidence.sourcePath)
       || evidence.sourceSha256 !== fileHash(evidence.sourcePath)
     ) {
-      fail(`Phase 28.0 node source evidence drift: ${evidence.sourcePath}`);
+      fail(`Phase 28.2 node source evidence drift: ${evidence.sourcePath}`);
     }
   }
   if (
