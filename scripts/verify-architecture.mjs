@@ -664,7 +664,8 @@ for (const required of [
 }
 for (const required of [
   "sanitizeMountPath",
-  '"/mnt/[redacted]"',
+  '"/mnt/"',
+  '"/[redacted]"',
   "StatFS"
 ]) {
   if (!agentStorageInventory.includes(required)) fail(`Phase 28.3 storage privacy/discovery invariant missing: ${required}`);
