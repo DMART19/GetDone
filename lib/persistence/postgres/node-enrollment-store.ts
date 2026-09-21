@@ -54,11 +54,7 @@ export class PostgresNodeEnrollmentStore {
     );
     if (inserted.rowCount === 1) return record;
     const existing = await this.get(record.id);
-    if (
-      existing
-      && existing.tokenHash === record.tokenHash
-      && existing.resourceEnrollmentId === record.resourceEnrollmentId
-    ) return existing;
+    if (existing && JSON.stringify(existing) === JSON.stringify(record)) return existing;
     throw new ControlPlaneError(
       "IDEMPOTENCY_CONFLICT",
       "Node enrollment challenge already exists with different content"
