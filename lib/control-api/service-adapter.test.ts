@@ -354,16 +354,16 @@ describe("ServiceBackedControlApiAdapter", () => {
       scopes: { resolve: async () => ({ scope, role: "viewer" as const }) }
     });
     const principal = await instance.authenticate(new Request("http://localhost"));
-    await expect(instance.mutateDecision(principal, {
+    expect(() => instance.mutateDecision(principal, {
       decisionId: "decision-1",
       action: "approve",
       idempotencyKey: "viewer-decision"
-    })).rejects.toThrow(/elevated Control API role/i);
-    await expect(instance.discoverResource(principal, {
+    })).toThrow(/elevated Control API role/i);
+    expect(() => instance.discoverResource(principal, {
       id: "resource-viewer",
       type: "compute",
       idempotencyKey: "viewer-resource"
-    })).rejects.toThrow(/elevated Control API role/i);
+    })).toThrow(/elevated Control API role/i);
   });
 
 });
