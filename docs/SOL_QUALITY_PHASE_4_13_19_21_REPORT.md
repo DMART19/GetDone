@@ -259,3 +259,48 @@ The largest remaining gaps are live infrastructure:
 - Phase 44 production end-to-end acceptance.
 
 Deterministic contract existence must not be treated as canonical production PASS where the master plan requires real runtime evidence.
+
+
+## September 20 completion hardening pass
+
+This follow-up closes deterministic contract gaps found while auditing the first implementation. It does not change any live-runtime readiness claim.
+
+### Phase 4 completion
+
+- Added trusted-scope wrappers for single-record and company-list registry reads so a faulty persistence adapter cannot leak a different company/environment record without failing closed.
+- DEVELOPMENT mock authentication now uses an injectable clock and binds its own adapter ID/version plus the exact credential-reference ID from the registry record.
+- Added adversarial tenant-store tests, deterministic-time tests, and adapter/credential-lineage drift tests.
+- The Integration Registry contract remains `1.0.0`; no public record/interface contract changed.
+
+### Phase 19 completion — contract `1.1.0`
+
+- Added hash-bound `JobStoreTransactionReceipt` contracts for enqueue/claim/heartbeat/release/retry/dead-letter/cancel/recovery mutations.
+- Every authoritative mutation receipt carries expected version/hash, next version/hash, idempotency lineage, time, and transaction hash.
+- Added retry schedule and expired-lease recovery records bound to transaction lineage.
+- Added `DurableJobStoreDescriptor` with explicit durability, CAS, restart-safety, multi-process-safety, and production-eligibility declarations.
+- A production descriptor must be externally durable and satisfy every safety property; `ephemeral-reference` stores fail the production assertion.
+- No queue/store implementation was added. An in-memory implementation remains test/reference material only and is not production evidence.
+
+### Phase 20 completion — contract `1.1.0`
+
+- Authorized action requests now verify that `inputHash` still matches the exact payload before any adapter execution.
+- Result/status records are timestamp-validated and hash-bound.
+- Accepted provider operations must pass status conformance with exact adapter/request/provider-operation lineage.
+- Added cancellation conformance.
+- DEVELOPMENT mock results/status/cancel paths use an injectable clock.
+- Provider acceptance, completion, and cancellation remain non-authoritative for Job truth.
+
+### Phase 21 completion — contract `1.1.0`
+
+- Software change evidence is bound to exact Plan hash, repository, isolated branch, commit, diff, static-analysis evidence, tests, and security evidence.
+- Production promotion receipts are bound to the exact Plan hash and staged evidence hash in addition to approval/staging-verification lineage.
+- Production deployment now requires hash-bound executor evidence matching the Plan, staged evidence, and promotion receipt.
+- Deployment-provider acceptance still records `authoritativeSuccess: false`.
+- Final `succeeded` state requires independent post-deployment verification evidence bound to the accepted deployment evidence.
+- Pipeline timestamps cannot move backward.
+
+### Release truth after completion
+
+- `jobRuntime`, `businessAction`, and `softwareWorker/softwareDeployment` contract versions are now `1.1.0` in the release registry.
+- Integration live adapters, durable Job Store/workers, production business adapters, and software deployment executor remain `not-connected`.
+- The environment manifest continues to declare `productionReady: false`; deterministic contract completion is not canonical production PASS.

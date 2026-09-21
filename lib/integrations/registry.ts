@@ -4,7 +4,8 @@ import type { TrustedExecutionScope } from "@/lib/control-plane/trusted-executio
 import type {
   CompanyIntegration,
   IntegrationAuthenticationEvidence,
-  IntegrationKind
+  IntegrationKind,
+  IntegrationRegistryStore
 } from "@/lib/integrations/contracts";
 
 function parseTime(value: string, label: string) {
@@ -92,6 +93,40 @@ function assertScope(record: CompanyIntegration, scope: TrustedExecutionScope) {
   ) {
     throw new ControlPlaneError("FORBIDDEN", "Integration is outside trusted company/environment scope");
   }
+}
+
+export function assertCompanyIntegrationScope(
+  record: CompanyIntegration,
+  scope: TrustedExecutionScope
+) {
+  assertCompanyIntegrationIntegrity(record);
+  assertScope(record, scope);
+  return record;
+}
+
+export async function getCompanyIntegrationForScope(input: {
+  store: IntegrationRegistryStore;
+  id: string;
+  scope: TrustedExecutionScope;
+}): Promise<CompanyIntegration | null> {
+  const record = await input.store.get(input.id);
+  if (!record) return null;
+  return assertCompanyIntegrationScope(record, input.scope);
+}
+
+export async function listCompanyIntegrationsForScope(input: {
+  store: IntegrationRegistryStore;
+  scope: TrustedExecutionScope;
+}): Promise<readonly CompanyIntegration[]> {
+  const records = await input.store.listByCompany({
+    portfolioId: input.scope.portfolioId,
+    companyId: input.scope.companyId,
+    environment: input.scope.environment
+  });
+  for (const record of records) {
+    assertCompanyIntegrationScope(record, input.scope);
+  }
+  return Object.freeze([...records]);
 }
 
 function assertEvidence(

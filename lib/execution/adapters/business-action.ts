@@ -2,7 +2,7 @@ import { ControlPlaneError } from "@/lib/control-plane/errors";
 import { sha256Hex } from "@/lib/control-plane/canonical-hash";
 import type { TrustedExecutionScope } from "@/lib/control-plane/trusted-execution-scope";
 
-export const BUSINESS_ACTION_ADAPTER_CONTRACT_VERSION = "1.0.0";
+export const BUSINESS_ACTION_ADAPTER_CONTRACT_VERSION = "1.1.0";
 
 export interface AuthorizedBusinessActionRequest {
   id: string;
@@ -32,11 +32,15 @@ export interface BusinessActionAdapterResult {
 }
 
 export interface BusinessActionStatus {
+  source: "business-action-adapter";
   requestId: string;
   providerOperationId: string;
+  adapterId: string;
+  adapterVersion: string;
   state: "pending" | "running" | "completed" | "failed" | "cancelled";
   observedAt: string;
   jobStateMutationApplied: false;
+  statusHash: string;
 }
 
 export interface BusinessActionAdapter {
@@ -54,12 +58,19 @@ export interface BusinessActionAdapter {
   }): Promise<BusinessActionStatus>;
 }
 
+function assertTimestamp(value: string, label: string) {
+  if (!Number.isFinite(Date.parse(value))) {
+    throw new ControlPlaneError("VALIDATION_FAILED", `${label} must be a valid timestamp`);
+  }
+}
+
 export function assertAuthorizedBusinessActionRequest(request: AuthorizedBusinessActionRequest) {
   if (
     !request.authorizationConsumptionHash
     || !request.idempotencyKey
     || !request.capability
     || !request.inputHash
+    || !Number.isInteger(request.timeoutMs)
     || request.timeoutMs <= 0
     || !Number.isInteger(request.attempt)
     || request.attempt < 1
@@ -67,6 +78,12 @@ export function assertAuthorizedBusinessActionRequest(request: AuthorizedBusines
     throw new ControlPlaneError(
       "FORBIDDEN",
       "Business action adapter requires authorized, scoped, typed execution lineage"
+    );
+  }
+  if (sha256Hex(request.input) !== request.inputHash) {
+    throw new ControlPlaneError(
+      "FORBIDDEN",
+      "Business action input hash does not match the authorized payload"
     );
   }
   if (request.scope.environment === "production" && !request.credentialLeaseId) {
@@ -87,6 +104,7 @@ export function createBusinessActionAdapterResult(
       "Accepted adapter result requires a provider operation ID"
     );
   }
+  assertTimestamp(input.observedAt, "business action observedAt");
   const base = {
     ...input,
     jobStateMutationApplied: false as const
@@ -96,11 +114,51 @@ export function createBusinessActionAdapterResult(
 
 export function assertBusinessActionAdapterResult(result: BusinessActionAdapterResult) {
   const { resultHash, ...base } = result;
-  if (sha256Hex(base) !== resultHash || result.jobStateMutationApplied !== false) {
+  if (
+    sha256Hex(base) !== resultHash
+    || result.source !== "business-action-adapter"
+    || result.jobStateMutationApplied !== false
+    || (result.status === "accepted" && !result.providerOperationId)
+  ) {
     throw new ControlPlaneError(
       "FORBIDDEN",
       "Business adapter result cannot establish authoritative Job truth"
     );
   }
+  assertTimestamp(result.observedAt, "business action result observedAt");
   return result;
+}
+
+export function createBusinessActionStatus(
+  input: Omit<BusinessActionStatus, "jobStateMutationApplied" | "statusHash">
+): BusinessActionStatus {
+  assertTimestamp(input.observedAt, "business action status observedAt");
+  if (!input.providerOperationId) {
+    throw new ControlPlaneError(
+      "VALIDATION_FAILED",
+      "Business action status requires provider operation lineage"
+    );
+  }
+  const base = {
+    ...input,
+    jobStateMutationApplied: false as const
+  };
+  return Object.freeze({ ...base, statusHash: sha256Hex(base) });
+}
+
+export function assertBusinessActionStatus(status: BusinessActionStatus) {
+  const { statusHash, ...base } = status;
+  if (
+    sha256Hex(base) !== statusHash
+    || status.source !== "business-action-adapter"
+    || status.jobStateMutationApplied !== false
+    || !status.providerOperationId
+  ) {
+    throw new ControlPlaneError(
+      "FORBIDDEN",
+      "Business adapter status is invalid or attempts to establish authoritative Job truth"
+    );
+  }
+  assertTimestamp(status.observedAt, "business action status observedAt");
+  return status;
 }

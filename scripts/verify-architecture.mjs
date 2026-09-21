@@ -197,6 +197,12 @@ for (const required of [
   "scheduleRetry",
   "deadLetter",
   "recoverExpired",
+  "DurableJobStoreDescriptor",
+  'persistence: "durable-external" | "ephemeral-reference"',
+  "JobStoreTransactionReceipt",
+  "expectedVersion",
+  "expectedHash",
+  "transactionHash",
   "No in-memory"
 ]) {
   if (!jobRuntime.includes(required)) fail(`Phase 19 durable runtime contract missing: ${required}`);
@@ -253,6 +259,8 @@ for (const required of [
   "authorizationConsumptionHash",
   "idempotencyKey",
   "jobStateMutationApplied: false",
+  "sha256Hex(request.input) !== request.inputHash",
+  "assertBusinessActionStatus",
   "Production business actions require a scoped credential lease reference"
 ]) {
   if (!businessAdapter.includes(required)) fail(`Phase 20 adapter authority guard missing: ${required}`);
@@ -264,7 +272,11 @@ for (const required of [
   "productionApprovalRequired: true",
   "stagingVerificationReceiptId",
   "Production promotion requires approval receipt",
-  "SoftwareDeploymentExecutor"
+  "SoftwareDeploymentExecutor",
+  "SoftwareDeploymentEvidence",
+  "SoftwarePostDeploymentVerificationEvidence",
+  "authoritativeSuccess: false",
+  "independent post-deployment verification"
 ]) {
   if (!softwareWorker.includes(required)) fail(`Phase 21 software worker guard missing: ${required}`);
 }
@@ -419,11 +431,11 @@ if (
   fail("Phase 4 release state drifted");
 }
 if (
-  releaseRegistry.execution.jobRuntimeContractVersion !== "1.0.0"
+  releaseRegistry.execution.jobRuntimeContractVersion !== "1.1.0"
   || releaseRegistry.execution.durableJobStoreStatus !== "not-connected"
-  || releaseRegistry.execution.businessActionContractVersion !== "1.0.0"
+  || releaseRegistry.execution.businessActionContractVersion !== "1.1.0"
   || releaseRegistry.execution.businessAdaptersStatus !== "not-connected"
-  || releaseRegistry.execution.softwareWorkerContractVersion !== "1.0.0"
+  || releaseRegistry.execution.softwareWorkerContractVersion !== "1.1.0"
   || releaseRegistry.execution.softwareDeploymentStatus !== "not-connected"
   || releaseRegistry.execution.jobExecutionBridgeContractVersion !== "1.0.0"
   || releaseRegistry.execution.jobExecutionBridgeStatus !== "deterministic-contract"
