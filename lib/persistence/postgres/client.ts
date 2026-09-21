@@ -10,6 +10,10 @@ export interface SqlQueryable {
   ): Promise<QueryResult<R>>;
 }
 
+export interface PostgresTransactionalDatabase extends SqlQueryable {
+  transaction<T>(operation: (client: PoolClient) => Promise<T>): Promise<T>;
+}
+
 export interface PostgresConnectionConfig {
   connectionString: string;
   maxConnections?: number;
@@ -38,7 +42,7 @@ export function readPostgresConfigFromEnv(
   };
 }
 
-export class PostgresDatabase {
+export class PostgresDatabase implements PostgresTransactionalDatabase {
   readonly pool: Pool;
 
   constructor(config: PostgresConnectionConfig) {
