@@ -1,6 +1,6 @@
 {
   "registrySchemaVersion": "1.6.0",
-  "registryVersion": "2026-09-21.4",
+  "registryVersion": "2026-09-21.5",
   "appVersion": "0.1.0",
   "schemaVersions": {
     "controlApi": {
@@ -214,6 +214,14 @@
       "contractSourcePaths": [
         "lib/nodes/dispatch-contracts.ts"
       ]
+    },
+    "nodeIdentity": {
+      "version": "1.0.0",
+      "sourcePath": "lib/nodes/identity.ts",
+      "contractTracked": true,
+      "contractSourcePaths": [
+        "lib/nodes/identity.ts"
+      ]
     }
   },
   "policy": {
@@ -401,7 +409,12 @@
     "agent/internal/config/config_test.go",
     "agent/internal/localstate/store_test.go",
     "agent/internal/health/manager_test.go",
-    "agent/internal/version/version_test.go"
+    "agent/internal/version/version_test.go",
+    "lib/nodes/identity.test.ts",
+    "lib/nodes/application.test.ts",
+    "lib/nodes/http.test.ts",
+    "lib/persistence/postgres/node-enrollment.test.ts",
+    "agent/internal/enrollment/client_test.go"
   ],
   "manualSourcePaths": [
     "docs/ARCHITECTURE.md",
@@ -537,8 +550,31 @@
       "agent/internal/health/manager.go",
       "agent/packaging/systemd/getdone-agent.service",
       "scripts/build-node-agent.sh",
-      ".github/workflows/node-agent.yml"
+      ".github/workflows/node-agent.yml",
+      "lib/nodes/identity.ts",
+      "lib/nodes/application.ts",
+      "lib/nodes/runtime.server.ts",
+      "lib/nodes/http.ts",
+      "lib/persistence/postgres/node-store.ts",
+      "lib/persistence/postgres/node-enrollment-store.ts",
+      "lib/persistence/postgres/node-identity-store.ts",
+      "migrations/2026-09-21.2_phase28_nodes.sql",
+      "app/api/control/nodes/enrollments/route.ts",
+      "app/api/control/nodes/enrollments/[id]/route.ts",
+      "app/api/control/nodes/enrollments/[id]/actions/route.ts",
+      "app/api/agent/v1/enroll/route.ts",
+      "agent/internal/enrollment/client.go",
+      "agent/internal/enrollment/identity.go",
+      "agent/packaging/install/install.sh",
+      "agent/packaging/install/manifest.example.json"
     ],
-    "agentVersion": "0.1.0-development"
+    "agentVersion": "0.2.0-development",
+    "enrollmentStatus": "implemented-unconnected",
+    "nodePersistenceStatus": "implemented-unconnected",
+    "identityIssuerStatus": "development-only",
+    "productionCaStatus": "not-connected",
+    "productionMtlsStatus": "not-connected",
+    "enrollmentMigrationVersion": "2026-09-21.2",
+    "bootstrapAuthentication": "one-time-token"
   }
 }

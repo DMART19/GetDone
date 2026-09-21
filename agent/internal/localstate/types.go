@@ -18,6 +18,7 @@ type State struct {
 	SchemaVersion             int             `json:"schemaVersion"`
 	NodeID                    string          `json:"nodeId,omitempty"`
 	CertificateReference      string          `json:"certificateReference,omitempty"`
+	CertificateChainReference string          `json:"certificateChainReference,omitempty"`
 	PrivateKeyReference       string          `json:"privateKeyReference,omitempty"`
 	AgentVersion              string          `json:"agentVersion"`
 	ProtocolVersion           string          `json:"protocolVersion"`

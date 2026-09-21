@@ -267,3 +267,33 @@ export const nodeCredentialRotationSchema = z.object({
 }).strict().refine(expiresAfterCreated, {
   message: "credential rotation request must expire after creation"
 });
+
+
+export const nodeControlEnrollmentCreateSchema = z.object({
+  id: safeId,
+  displayName: z.string().trim().min(1).max(200),
+  architecture,
+  ownerActionRequired: z.boolean(),
+  ownerActionDescription: z.string().trim().min(1).max(1000).optional()
+}).strict();
+
+export const nodeControlEnrollmentActionSchema = z.object({
+  action: z.enum(["owner-action", "cancel", "expire"]),
+  evidenceId: safeId.optional()
+}).strict().superRefine((value, ctx) => {
+  if (value.action === "owner-action" && !value.evidenceId) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "owner-action requires evidenceId"
+    });
+  }
+});
+
+export const nodeAgentBootstrapSchema = z.object({
+  enrollmentToken: z.string().min(32).max(512),
+  agentVersion: z.string().trim().min(1).max(80),
+  protocolVersion: z.string().trim().min(1).max(80),
+  architecture,
+  bootstrapPublicKey: z.string().min(32).max(8192),
+  nonce: z.string().min(16).max(512)
+}).strict();

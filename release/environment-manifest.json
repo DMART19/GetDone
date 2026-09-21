@@ -103,7 +103,14 @@
         "linuxX64": "build-only",
         "linuxArm64": "build-only",
         "productionReady": false,
-        "agentVersion": "0.1.0-development"
+        "agentVersion": "0.2.0-development",
+        "enrollmentStatus": "implemented-unconnected",
+        "nodePersistenceStatus": "implemented-unconnected",
+        "identityIssuerStatus": "development-only",
+        "productionCaStatus": "not-connected",
+        "productionMtlsStatus": "not-connected",
+        "enrollmentMigrationVersion": "2026-09-21.2",
+        "bootstrapAuthentication": "one-time-token"
       }
     },
     "staging": {
@@ -208,7 +215,14 @@
         "linuxX64": "build-only",
         "linuxArm64": "build-only",
         "productionReady": false,
-        "agentVersion": "0.1.0-development"
+        "agentVersion": "0.2.0-development",
+        "enrollmentStatus": "implemented-unconnected",
+        "nodePersistenceStatus": "implemented-unconnected",
+        "identityIssuerStatus": "development-only",
+        "productionCaStatus": "not-connected",
+        "productionMtlsStatus": "not-connected",
+        "enrollmentMigrationVersion": "2026-09-21.2",
+        "bootstrapAuthentication": "one-time-token"
       }
     },
     "production": {
@@ -313,7 +327,14 @@
         "linuxX64": "build-only",
         "linuxArm64": "build-only",
         "productionReady": false,
-        "agentVersion": "0.1.0-development"
+        "agentVersion": "0.2.0-development",
+        "enrollmentStatus": "implemented-unconnected",
+        "nodePersistenceStatus": "implemented-unconnected",
+        "identityIssuerStatus": "development-only",
+        "productionCaStatus": "not-connected",
+        "productionMtlsStatus": "not-connected",
+        "enrollmentMigrationVersion": "2026-09-21.2",
+        "bootstrapAuthentication": "one-time-token"
       }
     }
   },
@@ -331,6 +352,6 @@
     "The Control API HTTP/application-adapter surface is implemented for owner intents, Decisions, Resources, Jobs/results, Verification, and health; authoritative auth/persistence adapters remain not connected.",
     "PostgreSQL 16+ production persistence adapters, the durable Job Store/worker, business-action orchestrator, software-worker runtime, and durable execution router are implemented; no production DATABASE_URL, business provider adapter, or software deployment executor is connected.",
     "Authoritative PostgreSQL migrations and adapters exist for entity transactions, idempotency, audit, authorization grants/consumption, verification receipts, Job bridge facts, reservations, execution specs, and runtime state; connection flags remain false until deployed against an actual database.",
-    "Phase 28.1 adds a development-only Go Node Agent service shell with config, crash-safe local state, lifecycle health, systemd packaging, and linux/amd64 + linux/arm64 cross-builds; enrollment, node identity, hardware discovery, reservations, scheduling, and workload execution remain unimplemented/unconnected."
+    "Phase 28.2 implements secure one-time Node enrollment, PostgreSQL node/identity persistence, development credential issuance, agent bootstrap, and Linux installer flow; production CA/mTLS, hardware discovery, scheduling, reservations, and execution remain unconnected."
   ]
 }

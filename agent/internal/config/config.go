@@ -35,12 +35,16 @@ type RedactedConfig struct {
 	ProtocolVersion string
 }
 
-func Load() (Config, error) {
+func Path() string {
 	path := strings.TrimSpace(os.Getenv("GETDONE_AGENT_CONFIG"))
 	if path == "" {
-		path = DefaultConfigPath
+		return DefaultConfigPath
 	}
-	return LoadFrom(path, os.Getenv)
+	return path
+}
+
+func Load() (Config, error) {
+	return LoadFrom(Path(), os.Getenv)
 }
 
 func LoadFrom(path string, getenv func(string) string) (Config, error) {
@@ -116,4 +120,51 @@ func override(target *string, value string) {
 	if strings.TrimSpace(value) != "" {
 		*target = strings.TrimSpace(value)
 	}
+}
+
+func EraseEnrollmentToken(path string) error {
+	clean := filepath.Clean(path)
+	data, err := os.ReadFile(clean)
+	if errors.Is(err, os.ErrNotExist) {
+		_ = os.Unsetenv("GETDONE_ENROLLMENT_TOKEN")
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("read config for token erasure: %w", err)
+	}
+	var current Config
+	if err := json.Unmarshal(data, &current); err != nil {
+		return fmt.Errorf("decode config for token erasure: %w", err)
+	}
+	current.EnrollmentToken = ""
+
+	dir := filepath.Dir(clean)
+	temp, err := os.CreateTemp(dir, ".config-*.tmp")
+	if err != nil {
+		return fmt.Errorf("create temporary config: %w", err)
+	}
+	tempPath := temp.Name()
+	defer func() {
+		_ = temp.Close()
+		_ = os.Remove(tempPath)
+	}()
+	if err := temp.Chmod(0o600); err != nil {
+		return fmt.Errorf("protect temporary config: %w", err)
+	}
+	encoder := json.NewEncoder(temp)
+	encoder.SetIndent("", "  ")
+	if err := encoder.Encode(current); err != nil {
+		return fmt.Errorf("encode token-free config: %w", err)
+	}
+	if err := temp.Sync(); err != nil {
+		return fmt.Errorf("fsync token-free config: %w", err)
+	}
+	if err := temp.Close(); err != nil {
+		return fmt.Errorf("close token-free config: %w", err)
+	}
+	if err := os.Rename(tempPath, clean); err != nil {
+		return fmt.Errorf("replace config after token erasure: %w", err)
+	}
+	_ = os.Unsetenv("GETDONE_ENROLLMENT_TOKEN")
+	return nil
 }

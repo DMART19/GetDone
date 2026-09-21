@@ -11,6 +11,7 @@ import (
 
 	"github.com/DMART19/GetDone/agent/internal/config"
 	"github.com/DMART19/GetDone/agent/internal/controlplane"
+	"github.com/DMART19/GetDone/agent/internal/enrollment"
 	"github.com/DMART19/GetDone/agent/internal/health"
 	"github.com/DMART19/GetDone/agent/internal/localstate"
 	"github.com/DMART19/GetDone/agent/internal/version"
@@ -30,6 +31,9 @@ func main() {
 		version.Architecture,
 	)
 
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
 	store := localstate.NewStore(cfg.StateDir)
 	state, err := store.Load(localstate.New(version.AgentVersion, version.ProtocolVersion))
 	if err != nil {
@@ -48,10 +52,22 @@ func main() {
 	}
 	log.Printf("control-plane endpoint initialized: %s", client.BaseURL())
 
-	manager := health.NewManager(time.Now())
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
+	if state.NodeID == "" {
+		enroller := enrollment.New(client, store, cfg.StateDir, config.Path())
+		state, err = enroller.Enroll(
+			ctx,
+			state,
+			version.AgentVersion,
+			version.ProtocolVersion,
+			cfg.EnrollmentToken,
+		)
+		if err != nil {
+			log.Fatalf("enroll Node Agent: %v", err)
+		}
+		log.Printf("Node Agent enrollment completed nodeId=%s", state.NodeID)
+	}
 
+	manager := health.NewManager(time.Now())
 	if err := manager.Run(ctx); err != nil {
 		log.Fatalf("agent runtime: %v", err)
 	}
