@@ -195,12 +195,29 @@ const registrySha256 = sha256(canonicalJson(registry));
 const environmentSha256 = sha256(canonicalJson(environment));
 const packageLockSha256 = fileHash("package-lock.json");
 const workflowSha256 = fileHash(".github/workflows/ci.yml");
-const coveragePath = "coverage/control-plane-module-coverage.json";
-const qualityEvidence = fs.existsSync(path.join(root, coveragePath))
-  ? sourceEvidence([coveragePath])
-  : [];
-if (isGitHubActions && qualityEvidence.length === 0) {
-  throw new Error("CI release generation requires control-plane coverage evidence");
+const qualityEvidencePaths = [
+  "coverage/control-plane-module-coverage.json",
+  "coverage/vitest/coverage-summary.json",
+  "test-results/playwright-results.json"
+];
+const securityEvidencePaths = [
+  "coverage/security/npm-audit-production.json",
+  "coverage/security/npm-audit-full-critical.json"
+];
+const qualityEvidence = sourceEvidence(
+  qualityEvidencePaths.filter((relativePath) => fs.existsSync(path.join(root, relativePath)))
+);
+const securityEvidence = sourceEvidence(
+  securityEvidencePaths.filter((relativePath) => fs.existsSync(path.join(root, relativePath)))
+);
+if (
+  isGitHubActions
+  && (
+    qualityEvidence.length !== qualityEvidencePaths.length
+    || securityEvidence.length !== securityEvidencePaths.length
+  )
+) {
+  throw new Error("CI release generation requires complete executable quality and security evidence");
 }
 
 const productionEnvironment = environment.environments.production;
@@ -218,15 +235,17 @@ const ciEvidence = {
   workflowSha256,
   checksCompletedBeforeGeneration: isGitHubActions
     ? [
+        "dependency-audit",
         "runtime-verification",
         "secret-scan",
         "architecture-integrity",
         "contract-version-drift",
         "typecheck",
         "lint",
-        "tests",
+        "vitest-v8-coverage",
         "control-plane-module-coverage",
-        "production-build"
+        "production-build",
+        "playwright-desktop-mobile-e2e"
       ]
     : [],
   evidenceStatus: isGitHubActions
@@ -418,6 +437,9 @@ const manualLines = [
   ...qualityEvidence.map(
     (entry) => `- generated quality evidence: ${entry.sourcePath} — ${entry.sourceSha256}`
   ),
+  ...securityEvidence.map(
+    (entry) => `- generated security evidence: ${entry.sourcePath} — ${entry.sourceSha256}`
+  ),
   ""
 ];
 
@@ -487,6 +509,7 @@ const manifestBase = {
   ciEvidence,
   acceptanceEvidence,
   qualityEvidence,
+  securityEvidence,
   manuals: {
     generatedOperatingManualPath: registry.generatedArtifacts.operatingManual,
     generatedOperatingManualSha256: generatedManualSha256,
