@@ -52,17 +52,17 @@ func (c *Collector) Collect(ctx context.Context, nodeID string) (HardwareInvento
 	}
 
 	inventory := HardwareInventory{
-		NodeID: nodeID,
-		Platform: "linux",
-		Architecture: cpu.Architecture,
-		CPU: cpu,
-		Memory: memory,
-		GPUs: gpus,
-		Storage: storage,
-		Network: network,
+		NodeID:          nodeID,
+		Platform:        "linux",
+		Architecture:    cpu.Architecture,
+		CPU:             cpu,
+		Memory:          memory,
+		GPUs:            gpus,
+		Storage:         storage,
+		Network:         network,
 		OperatingSystem: operatingSystem,
-		Cgroups: DiscoverCgroups(c.probe),
-		DiscoveredAt: c.now().UTC().Format(time.RFC3339Nano),
+		Cgroups:         DiscoverCgroups(c.probe),
+		DiscoveredAt:    c.now().UTC().Format(time.RFC3339Nano),
 	}
 	hash, err := protocol.SHA256CanonicalWithoutField(inventory, "inventoryHash")
 	if err != nil {

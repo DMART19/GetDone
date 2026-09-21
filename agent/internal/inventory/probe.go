@@ -40,7 +40,7 @@ func (LinuxProbe) StatFS(path string) (FilesystemStats, error) {
 	}
 	blockSize := uint64(stats.Bsize)
 	return FilesystemStats{
-		TotalBytes: uint64(stats.Blocks) * blockSize,
+		TotalBytes:     uint64(stats.Blocks) * blockSize,
 		AvailableBytes: uint64(stats.Bavail) * blockSize,
 	}, nil
 }

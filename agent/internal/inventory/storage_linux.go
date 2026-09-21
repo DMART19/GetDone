@@ -17,7 +17,7 @@ type lsblkDevice struct {
 	Mountpoints []string      `json:"mountpoints"`
 	FSType      string        `json:"fstype"`
 	Size        uint64        `json:"size"`
-	Rotational bool          `json:"rota"`
+	Rotational  bool          `json:"rota"`
 	Removable   bool          `json:"rm"`
 	Type        string        `json:"type"`
 	Children    []lsblkDevice `json:"children"`
@@ -71,14 +71,14 @@ func DiscoverStorage(ctx context.Context, probe Probe) ([]StorageDevice, error) 
 			}
 		}
 		result = append(result, StorageDevice{
-			ID: "storage-" + shortHash(device.Path),
-			Device: device.Path,
-			Mount: sanitizeMountPath(mount),
-			Filesystem: device.FSType,
-			TotalBytes: device.Size,
+			ID:             "storage-" + shortHash(device.Path),
+			Device:         device.Path,
+			Mount:          sanitizeMountPath(mount),
+			Filesystem:     device.FSType,
+			TotalBytes:     device.Size,
 			AvailableBytes: available,
-			Rotational: device.Rotational,
-			Removable: device.Removable,
+			Rotational:     device.Rotational,
+			Removable:      device.Removable,
 			NVMe: strings.Contains(strings.ToLower(device.Name), "nvme") ||
 				strings.Contains(strings.ToLower(device.KName), "nvme") ||
 				strings.Contains(strings.ToLower(device.Path), "nvme"),

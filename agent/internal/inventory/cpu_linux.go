@@ -90,13 +90,13 @@ func DiscoverCPU(ctx context.Context, probe Probe, goarch string) (CPUInventory,
 	}
 
 	return CPUInventory{
-		Architecture: architecture,
-		Vendor: vendor,
-		Model: model,
-		Sockets: sockets,
-		PhysicalCores: physicalCores,
-		LogicalThreads: logicalThreads,
-		FrequencyMHz: frequencyMHz,
+		Architecture:            architecture,
+		Vendor:                  vendor,
+		Model:                   model,
+		Sockets:                 sockets,
+		PhysicalCores:           physicalCores,
+		LogicalThreads:          logicalThreads,
+		FrequencyMHz:            frequencyMHz,
 		VirtualizationSupported: virtualization,
 	}, nil
 }

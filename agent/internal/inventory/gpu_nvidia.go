@@ -52,13 +52,13 @@ func (NVIDIADetector) Detect(ctx context.Context, probe Probe) ([]GPUDevice, err
 			capabilities = append(capabilities, "cuda-compute-"+value)
 		}
 		result = append(result, GPUDevice{
-			ID: "gpu-nvidia-" + fields[0],
-			Vendor: "nvidia",
-			Model: fields[1],
-			MemoryBytes: memoryMiB * 1024 * 1024,
+			ID:                  "gpu-nvidia-" + fields[0],
+			Vendor:              "nvidia",
+			Model:               fields[1],
+			MemoryBytes:         memoryMiB * 1024 * 1024,
 			ComputeCapabilities: capabilities,
-			DriverVersion: fields[3],
-			Health: "healthy",
+			DriverVersion:       fields[3],
+			Health:              "healthy",
 		})
 	}
 	return result, nil

@@ -45,8 +45,8 @@ func DiscoverOS(ctx context.Context, probe Probe) (OSInventory, error) {
 
 	return OSInventory{
 		Distribution: distribution,
-		Version: version,
-		Kernel: kernel,
+		Version:      version,
+		Kernel:       kernel,
 	}, nil
 }
 

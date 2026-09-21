@@ -64,12 +64,12 @@ func DiscoverNetwork(ctx context.Context, probe Probe) ([]NetworkInterface, erro
 			macHash = hex.EncodeToString(sum[:])
 		}
 		result = append(result, NetworkInterface{
-			ID: "net-" + shortHash(item.IfName),
-			Name: item.IfName,
-			MACHash: macHash,
-			Addresses: addresses,
-			MTU: item.MTU,
-			LinkState: state,
+			ID:            "net-" + shortHash(item.IfName),
+			Name:          item.IfName,
+			MACHash:       macHash,
+			Addresses:     addresses,
+			MTU:           item.MTU,
+			LinkState:     state,
 			LinkSpeedMbps: speed,
 		})
 	}

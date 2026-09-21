@@ -15,9 +15,14 @@ type fakeDirEntry struct {
 	dir  bool
 }
 
-func (e fakeDirEntry) Name() string               { return e.name }
-func (e fakeDirEntry) IsDir() bool                { return e.dir }
-func (e fakeDirEntry) Type() fs.FileMode          { if e.dir { return fs.ModeDir }; return 0 }
+func (e fakeDirEntry) Name() string { return e.name }
+func (e fakeDirEntry) IsDir() bool  { return e.dir }
+func (e fakeDirEntry) Type() fs.FileMode {
+	if e.dir {
+		return fs.ModeDir
+	}
+	return 0
+}
 func (e fakeDirEntry) Info() (fs.FileInfo, error) { return nil, errors.New("not implemented") }
 
 type fakeProbe struct {
@@ -59,10 +64,10 @@ func (p *fakeProbe) StatFS(path string) (FilesystemStats, error) {
 func baseProbe(cpuInfo string) *fakeProbe {
 	return &fakeProbe{
 		files: map[string][]byte{
-			"/proc/cpuinfo": []byte(cpuInfo),
-			"/sys/devices/system/cpu/online": []byte("0-3\n"),
-			"/proc/meminfo": []byte("MemTotal:       16384000 kB\n"),
-			"/etc/os-release": []byte("NAME=\"Ubuntu\"\nVERSION_ID=\"24.04\"\n"),
+			"/proc/cpuinfo":                     []byte(cpuInfo),
+			"/sys/devices/system/cpu/online":    []byte("0-3\n"),
+			"/proc/meminfo":                     []byte("MemTotal:       16384000 kB\n"),
+			"/etc/os-release":                   []byte("NAME=\"Ubuntu\"\nVERSION_ID=\"24.04\"\n"),
 			"/sys/fs/cgroup/cgroup.controllers": []byte("cpu memory pids\n"),
 		},
 		dirs: map[string][]os.DirEntry{
@@ -160,10 +165,10 @@ CPU implementer : 0x41
 
 func TestCPUDiscoveryIntelAMDAndARM64Fixtures(t *testing.T) {
 	tests := []struct {
-		name string
-		cpu string
-		arch string
-		wantArch string
+		name      string
+		cpu       string
+		arch      string
+		wantArch  string
 		wantModel string
 	}{
 		{"intel-x86", intelCPU, "amd64", "x86_64", "Intel(R) Xeon(R)"},

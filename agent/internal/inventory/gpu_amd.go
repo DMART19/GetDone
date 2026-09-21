@@ -35,13 +35,13 @@ func (AMDDetector) Detect(ctx context.Context, probe Probe) ([]GPUDevice, error)
 		memoryBytes := firstUint(values, "VRAM Total Memory (B)", "VRAM Total Used Memory (B)")
 		driver := firstString(values, "Driver version", "Driver Version")
 		result = append(result, GPUDevice{
-			ID: "gpu-amd-" + strings.TrimPrefix(card, "card"),
-			Vendor: "amd",
-			Model: model,
-			MemoryBytes: memoryBytes,
+			ID:                  "gpu-amd-" + strings.TrimPrefix(card, "card"),
+			Vendor:              "amd",
+			Model:               model,
+			MemoryBytes:         memoryBytes,
 			ComputeCapabilities: []string{"rocm"},
-			DriverVersion: driver,
-			Health: "healthy",
+			DriverVersion:       driver,
+			Health:              "healthy",
 		})
 	}
 	return result, nil

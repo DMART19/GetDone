@@ -49,6 +49,6 @@ func DiscoverMemory(probe Probe) (MemoryInventory, error) {
 
 	return MemoryInventory{
 		TotalBytes: totalBytes,
-		NUMANodes: numaNodes,
+		NUMANodes:  numaNodes,
 	}, nil
 }
