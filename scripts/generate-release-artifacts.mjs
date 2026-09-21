@@ -389,6 +389,19 @@ const manualLines = [
   "",
   "Voice recognition/classification is evidence only. Voice cannot approve, perform step-up, accept raw credentials, or execute side effects; sensitive/mutating work continues through the existing Control API, policy system, and secure phone handoff.",
   "",
+  "## Phase 28 universal compute node contracts",
+  "",
+  `- Status: ${registry.nodeAgent.status}`,
+  `- Node domain version: ${registry.nodeAgent.domainVersion}`,
+  `- Agent protocol version: ${registry.nodeAgent.protocolVersion}`,
+  `- Dispatch contract version: ${registry.nodeAgent.dispatchContractVersion}`,
+  `- Linux x86-64 agent: ${registry.nodeAgent.linuxX64}`,
+  `- Linux ARM64 agent: ${registry.nodeAgent.linuxArm64}`,
+  `- Production ready: ${registry.nodeAgent.productionReady ? "yes" : "no"}`,
+  ...registry.nodeAgent.sourcePaths.map((sourcePath) => `- Node contract source: ${sourcePath} — ${fileHash(sourcePath)}`),
+  "",
+  "Phase 28.0 is contract-only: no agent binary, node persistence, scheduler integration, reservations, or workload execution is connected.",
+  "",
   "## Schema versions",
   "",
   ...Object.entries(schemaVersions).map(
@@ -418,6 +431,7 @@ const manualLines = [
     `- Voice secure handoff: ${value.voice.secureHandoff}`,
     `- AI Gateway contract/live adapter: ${value.aiGateway.contractStatus} / ${value.aiGateway.adapterStatus}; implementation=${value.aiGateway.adapterImplementationStatus}`,
     `- Control API surface/application adapter: ${value.controlApi.surfaceStatus} / ${value.controlApi.applicationAdapterStatus}`,
+    `- Phase 28 Node Agent: ${value.nodeAgent.status}; x86-64=${value.nodeAgent.linuxX64}; ARM64=${value.nodeAgent.linuxArm64}; productionReady=${value.nodeAgent.productionReady ? "yes" : "no"}`,
     `- Integration registry/live adapter: ${value.integrations.registryStatus} / ${value.integrations.adapterStatus}`,
     `- Database implementation/live connection: ${value.database.adapterStatus} / ${value.connections.database ? "connected" : "not-connected"}`,
     `- Durable Job contract/live store: ${value.execution.jobRuntimeContractStatus} / ${value.execution.durableJobStoreStatus}; implementation=${value.execution.durableJobStoreImplementationStatus}`,
@@ -513,6 +527,10 @@ const manifestBase = {
   controlApi: {
     ...registry.controlApi,
     sourceSha256: fileHash(registry.controlApi.sourcePath)
+  },
+  nodeAgent: {
+    ...registry.nodeAgent,
+    sourceEvidence: sourceEvidence(registry.nodeAgent.sourcePaths)
   },
   integrations: {
     ...registry.integrations,
