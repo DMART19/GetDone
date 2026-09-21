@@ -147,6 +147,13 @@ export interface NodeCapability {
   capabilityHash: string;
 }
 
+export interface NodeCapabilityProfile {
+  nodeId: string;
+  observedAt: string;
+  capabilities: readonly NodeCapability[];
+  profileHash: string;
+}
+
 export interface NodeAllocatableProfile {
   nodeId: string;
   cpuMillicores: number;
