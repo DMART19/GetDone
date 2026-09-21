@@ -8,6 +8,26 @@ export default defineConfig({
     }
   },
   test: {
-    environment: "node"
+    environment: "node",
+    include: ["lib/**/*.test.ts"],
+    coverage: {
+      provider: "v8",
+      reportsDirectory: "coverage/vitest",
+      reporter: ["text", "json-summary", "html"],
+      include: ["lib/**/*.ts"],
+      exclude: [
+        "lib/**/*.test.ts",
+        "lib/**/test-fixture.ts",
+        "lib/**/test-security-fixture.ts",
+        "lib/mock-data.ts",
+        "lib/**/development-mock-*.ts"
+      ],
+      thresholds: {
+        statements: 80,
+        branches: 75,
+        functions: 75,
+        lines: 80
+      }
+    }
   }
 });

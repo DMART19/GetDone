@@ -12,7 +12,7 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
         with:
@@ -30,15 +30,32 @@ jobs:
       - run: npm run verify:contract-versions
       - run: npm run typecheck
       - run: npm run lint
-      - run: npm test
       - run: npm run verify:coverage
       - run: npm run build
         env:
           NEXT_PUBLIC_APP_ENV: development
           GETDONE_RUNTIME_ENV: development
           GETDONE_DATA_MODE: development-seed
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+        env:
+          NEXT_PUBLIC_APP_ENV: development
+          GETDONE_RUNTIME_ENV: development
+          GETDONE_DATA_MODE: development-seed
       - run: npm run release:generate
       - run: npm run verify:release
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: getdone-quality-evidence-${{ github.run_number }}
+          path: |
+            coverage/
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 30
+
       - uses: actions/upload-artifact@v4
         with:
           name: getdone-release-evidence-${{ github.run_number }}

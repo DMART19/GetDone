@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "1.2.0",
+  "schemaVersion": "1.3.0",
   "thresholds": {
     "coveredModulePercent": 100,
     "minimumTotalTestCases": 80,
@@ -159,6 +159,11 @@
     {
       "source": "lib/composition/golden-path-harness.ts",
       "test": "lib/composition/golden-path-harness.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/ai-gateway/budget-reservation.ts",
+      "test": "lib/ai-gateway/budget-reservation.test.ts",
       "critical": true
     }
   ]

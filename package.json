@@ -13,14 +13,17 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --max-warnings=0",
     "test": "vitest run",
-    "test:coverage": "npm run verify:coverage",
+    "test:coverage": "vitest run --coverage",
     "verify:runtime": "node scripts/verify-runtime.mjs",
     "verify:secrets": "node scripts/verify-no-secrets.mjs",
     "verify:architecture": "node scripts/verify-architecture.mjs",
     "release:generate": "node scripts/generate-release-artifacts.mjs",
     "verify:release": "node scripts/verify-release-artifacts.mjs",
-    "verify:coverage": "node scripts/verify-control-plane-coverage.mjs",
-    "verify:contract-versions": "node scripts/verify-contract-versions.mjs"
+    "verify:coverage": "npm run test:coverage && npm run verify:module-coverage",
+    "verify:contract-versions": "node scripts/verify-contract-versions.mjs",
+    "verify:module-coverage": "node scripts/verify-control-plane-coverage.mjs",
+    "test:e2e": "playwright test",
+    "test:e2e:mobile": "playwright test --project=mobile-chromium"
   },
   "dependencies": {
     "lucide-react": "0.468.0",
@@ -30,9 +33,11 @@
     "zod": "3.25.76"
   },
   "devDependencies": {
+    "@playwright/test": "1.55.0",
     "@types/node": "24.0.0",
     "@types/react": "19.0.3",
     "@types/react-dom": "19.0.2",
+    "@vitest/coverage-v8": "2.1.8",
     "eslint": "8.57.1",
     "eslint-config-next": "15.5.25",
     "typescript": "5.7.2",

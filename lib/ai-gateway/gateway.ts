@@ -9,6 +9,7 @@ import {
 import type {
   AIBudgetSnapshot,
   AIGatewayAdapter,
+  AIInvocationFailureReason,
   AIInvocationResult,
   AIOutputSchema,
   AIRequestEnvelope,
@@ -87,7 +88,10 @@ export class AIGateway {
 
     const byId = new Map(this.profiles.map((profile) => [profile.id, profile]));
     const attempts = [route.selectedProfileId, ...route.fallbackProfileIds];
-    let lastFailure = "MODEL_CALL_FAILED";
+    let lastFailure: Exclude<
+      AIInvocationFailureReason,
+      "NO_ELIGIBLE_MODEL" | "ADAPTER_UNAVAILABLE"
+    > = "MODEL_CALL_FAILED";
 
     for (let index = 0; index < attempts.length; index += 1) {
       const profileId = attempts[index]!;
@@ -136,8 +140,8 @@ export class AIGateway {
             validationStatus: "valid"
           })
         };
-      } catch (error) {
-        lastFailure = error instanceof Error ? error.name || "MODEL_CALL_FAILED" : "MODEL_CALL_FAILED";
+      } catch {
+        lastFailure = "MODEL_CALL_FAILED";
       }
 
       if (!input.request.requirements.allowFallback) break;
@@ -145,7 +149,7 @@ export class AIGateway {
 
     return {
       kind: "unavailable",
-      reason: "ADAPTER_UNAVAILABLE",
+      reason: lastFailure,
       route,
       audit: createAICallAuditRecord({
         request: input.request,

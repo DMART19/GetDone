@@ -3,7 +3,11 @@ import { z } from "zod";
 import type { AIRequestEnvelope, ModelProfile, ModelRoutePolicy } from "@/lib/ai-gateway/contracts";
 import { AIGateway } from "@/lib/ai-gateway/gateway";
 import { DevelopmentMockAIGatewayAdapter } from "@/lib/ai-gateway/development-mock-adapter";
-import { evaluateModelEligibility, routeAIRequest } from "@/lib/ai-gateway/router";
+import {
+  assertRouteDecisionIntegrity,
+  evaluateModelEligibility,
+  routeAIRequest
+} from "@/lib/ai-gateway/router";
 
 const scope = {
   userId: "owner",
@@ -197,4 +201,155 @@ describe("Phase 13 deterministic AI Gateway", () => {
       now: "2026-09-20T22:00:00Z"
     })).rejects.toThrow(/concurrency/i);
   });
+  it("returns SCHEMA_INVALID when the final eligible model returns malformed output", async () => {
+    const adapter = new DevelopmentMockAIGatewayAdapter(() => ({ malformed: true }));
+    const gateway = new AIGateway([baseProfile], policy, adapter);
+    const result = await gateway.invoke({
+      request: request({ allowFallback: false }),
+      payload: { prompt: "x" },
+      outputSchema: z.object({ answer: z.string() }),
+      budget,
+      now: "2026-09-20T22:00:00Z"
+    });
+    expect(result).toMatchObject({ kind: "unavailable", reason: "SCHEMA_INVALID" });
+    expect(result.audit.failureClass).toBe("SCHEMA_INVALID");
+  });
+
+  it("returns MODEL_IDENTITY_MISMATCH when provider identity differs from the selected profile", async () => {
+    const adapter = {
+      id: "identity-mismatch",
+      version: "1.0.0",
+      async invoke() {
+        return {
+          profileId: "wrong-profile",
+          gatewayId: baseProfile.gatewayId,
+          providerId: baseProfile.providerId,
+          modelId: baseProfile.modelId,
+          output: { answer: "should not be trusted" },
+          inputTokens: 10,
+          outputTokens: 10,
+          latencyMs: 1,
+          observedAt: "2026-09-20T22:00:00Z"
+        };
+      }
+    };
+    const gateway = new AIGateway([baseProfile], policy, adapter);
+    const result = await gateway.invoke({
+      request: request({ allowFallback: false }),
+      payload: { prompt: "x" },
+      outputSchema: z.object({ answer: z.string() }),
+      budget,
+      now: "2026-09-20T22:00:00Z"
+    });
+    expect(result).toMatchObject({ kind: "unavailable", reason: "MODEL_IDENTITY_MISMATCH" });
+  });
+
+  it("returns MODEL_CALL_FAILED when the final adapter invocation throws", async () => {
+    const adapter = {
+      id: "throwing-adapter",
+      version: "1.0.0",
+      async invoke(): Promise<never> {
+        throw new Error("provider transport failed");
+      }
+    };
+    const gateway = new AIGateway([baseProfile], policy, adapter);
+    const result = await gateway.invoke({
+      request: request({ allowFallback: false }),
+      payload: { prompt: "x" },
+      outputSchema: z.object({ answer: z.string() }),
+      budget,
+      now: "2026-09-20T22:00:00Z"
+    });
+    expect(result).toMatchObject({ kind: "unavailable", reason: "MODEL_CALL_FAILED" });
+  });
+
+  it("exercises the full hard-eligibility rejection surface and route integrity checks", () => {
+    const rejectedProfile: ModelProfile = {
+      ...baseProfile,
+      id: "rejected-profile",
+      enabled: false,
+      validationStatus: "failed",
+      health: "degraded",
+      roles: ["CODING"],
+      modalities: ["text"],
+      supportsTools: false,
+      supportsStructuredOutput: false,
+      maxContextTokens: 1,
+      allowedDataClasses: ["PUBLIC"],
+      allowedEnvironments: ["staging"],
+      latencyClass: "high",
+      inputCostPerMillionTokensCents: 1_000_000,
+      outputCostPerMillionTokensCents: 1_000_000
+    };
+    const hardRequest = request({
+      role: "VISION",
+      requiredModalities: ["image"],
+      requiresTools: true,
+      requiresStructuredOutput: true,
+      minimumContextTokens: 64_000,
+      dataClass: "INTERNAL",
+      environment: "development",
+      latencyClass: "low",
+      maxCostCents: 0,
+      excludedProfileIds: ["rejected-profile"],
+      pinnedProfileIds: ["another-profile"]
+    });
+    const eligibility = evaluateModelEligibility(rejectedProfile, hardRequest, [{
+      id: "provider-block",
+      scopeType: "provider",
+      scopeId: rejectedProfile.providerId,
+      enabled: true,
+      reason: "test",
+      activatedAt: "2026-09-20T21:00:00Z",
+      activatedBy: "owner"
+    }]);
+
+    expect(eligibility.eligible).toBe(false);
+    expect(eligibility.rejectionReasons).toEqual(expect.arrayContaining([
+      "profile-disabled",
+      "profile-not-validated",
+      "profile-not-healthy",
+      "role-not-supported",
+      "modality-not-supported:image",
+      "tools-not-supported",
+      "structured-output-not-supported",
+      "context-window-too-small",
+      "data-class-not-allowed",
+      "environment-not-allowed",
+      "latency-class-too-slow",
+      "profile-excluded",
+      "profile-not-pinned",
+      "estimated-cost-exceeds-ceiling",
+      "kill-switch:provider-block"
+    ]));
+
+    expect(() => evaluateModelEligibility(baseProfile, request({ maxCostCents: -1 }))).toThrow(/non-negative/);
+
+    const missing = routeAIRequest({
+      request: request(),
+      profiles: [],
+      policy: { version: "missing-profile-policy", routes: { STANDARD: ["missing"] } },
+      decidedAt: "2026-09-20T22:00:00Z"
+    });
+    expect(missing.kind).toBe("no-eligible-model");
+    expect(missing.rejected.missing).toEqual(["profile-not-found"]);
+
+    const valid = routeAIRequest({
+      request: request({ allowFallback: false }),
+      profiles: [baseProfile, secondProfile],
+      policy,
+      decidedAt: "2026-09-20T22:00:00Z"
+    });
+    expect(valid.fallbackProfileIds).toEqual([]);
+    expect(assertRouteDecisionIntegrity(valid)).toBe(valid);
+    expect(() => assertRouteDecisionIntegrity({ ...valid, decidedAt: "2026-09-20T22:00:01Z" }))
+      .toThrow(/integrity/i);
+    expect(() => routeAIRequest({
+      request: request(),
+      profiles: [baseProfile],
+      policy,
+      decidedAt: "not-a-time"
+    })).toThrow(/decision time/i);
+  });
+
 });

@@ -2,7 +2,7 @@ import type { ZodType } from "zod";
 import type { TrustedExecutionScope } from "@/lib/control-plane/trusted-execution-scope";
 import type { ResourceDataClass } from "@/lib/resources/policy";
 
-export const AI_GATEWAY_CONTRACT_VERSION = "1.0.0";
+export const AI_GATEWAY_CONTRACT_VERSION = "1.1.0";
 export const AI_ROUTING_POLICY_CONTRACT_VERSION = "1.0.0";
 
 export type AIRole =
@@ -168,9 +168,16 @@ export interface AIInvocationSuccess<T> {
   audit: AICallAuditRecord;
 }
 
+export type AIInvocationFailureReason =
+  | "NO_ELIGIBLE_MODEL"
+  | "ADAPTER_UNAVAILABLE"
+  | "MODEL_CALL_FAILED"
+  | "MODEL_IDENTITY_MISMATCH"
+  | "SCHEMA_INVALID";
+
 export interface AIInvocationUnavailable {
   kind: "unavailable";
-  reason: "NO_ELIGIBLE_MODEL" | "ADAPTER_UNAVAILABLE";
+  reason: AIInvocationFailureReason;
   route: AIRouteDecision;
   audit: AICallAuditRecord;
 }

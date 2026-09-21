@@ -155,7 +155,7 @@ const aiContracts = read("lib/ai-gateway/contracts.ts");
 const aiGateway = read("lib/ai-gateway/gateway.ts");
 const aiRouter = read("lib/ai-gateway/router.ts");
 for (const required of [
-  'AI_GATEWAY_CONTRACT_VERSION = "1.0.0"',
+  'AI_GATEWAY_CONTRACT_VERSION = "1.1.0"',
   '"DETERMINISTIC"',
   '"HIGH_REASONING"',
   '"CODING"',
@@ -176,6 +176,21 @@ for (const required of [
 }
 for (const required of ["blockingKillSwitches", "profile-not-validated", "structured-output-not-supported"]) {
   if (!aiRouter.includes(required)) fail(`Phase 13 routing guard missing: ${required}`);
+}
+
+const aiBudgetReservation = read("lib/ai-gateway/budget-reservation.ts");
+for (const required of [
+  'AI_BUDGET_RESERVATION_CONTRACT_VERSION = "1.0.0"',
+  "reserveAtomic",
+  "idempotent-replay",
+  "expectedReservationHash",
+  "actualCostCents",
+  "productionEligible: false",
+  "Production AI budget reservations require durable atomic CAS persistence"
+]) {
+  if (!aiBudgetReservation.includes(required)) {
+    fail(`Atomic AI budget reservation contract missing: ${required}`);
+  }
 }
 
 const integration = read("lib/integrations/registry.ts");
@@ -395,6 +410,8 @@ const ci = read(".github/workflows/ci.yml");
 for (const requiredScript of [
   "npm run verify:architecture",
   "npm run verify:coverage",
+  "npm run test:e2e",
+  "npx playwright install --with-deps chromium",
   "npm run verify:contract-versions",
   "npm run release:generate",
   "npm run verify:release",
@@ -438,11 +455,19 @@ if (
 if (
   releaseRegistry.aiGateway.status !== "not-connected"
   || releaseRegistry.aiGateway.adapterVersion !== "UNIMPLEMENTED"
-  || releaseRegistry.aiGateway.contractVersion !== "1.0.0"
+  || releaseRegistry.aiGateway.contractVersion !== "1.1.0"
   || releaseRegistry.aiGateway.routingPolicyContractVersion !== "1.0.0"
 ) {
   fail("Phase 13 release state must distinguish deterministic gateway contracts from an unconnected live adapter");
 }
+if (
+  releaseRegistry.schemaVersions?.aiBudgetReservation?.version !== "1.0.0"
+  || releaseRegistry.schemaVersions?.aiBudgetReservation?.contractTracked !== true
+  || releaseRegistry.adapters?.aiGateway?.version !== "1.1.0"
+) {
+  fail("Atomic AI budget reservation / AI Gateway 1.1 release binding drifted");
+}
+
 if (
   releaseRegistry.integrations.registryContractVersion !== "1.0.0"
   || releaseRegistry.integrations.liveAdaptersStatus !== "not-connected"
