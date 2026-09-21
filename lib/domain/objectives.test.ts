@@ -68,4 +68,89 @@ describe("objectives and guardrails", () => {
     expect(result.violations).toHaveLength(2);
     expect(combineConstraintDispositions("allow", result.disposition)).toBe("blocked");
   });
+  it("covers non-conflicting objectives, disabled/wrong-scope budgets, valid allow, and invalid cents", () => {
+    expect(detectObjectiveConflicts([
+      { id: "o1", scopeId: "c1", metric: "revenue", direction: "increase", target: 10, priority: 1, status: "active" },
+      { id: "o2", scopeId: "c2", metric: "revenue", direction: "decrease", target: 10, priority: 2, status: "active" },
+      { id: "o3", scopeId: "c1", metric: "cost", direction: "decrease", target: 5, priority: 3, status: "active" },
+      { id: "o4", scopeId: "c1", metric: "revenue", direction: "increase", target: 20, priority: 4, status: "active" }
+    ])).toEqual([]);
+
+    const budget = {
+      id: "budget-branches",
+      scopeId: "c1",
+      currency: "USD",
+      period: "monthly" as const,
+      hardLimitCents: 1000,
+      approvalThresholdCents: 800,
+      enabled: true
+    };
+
+    expect(evaluateBudget({ ...budget, enabled: false }, {
+      scopeId: "c1",
+      currentSpendCents: 100,
+      reservedCents: 50,
+      requestedCostCents: 25
+    })).toMatchObject({ disposition: "allow", projectedSpendCents: 175 });
+
+    expect(evaluateBudget(budget, {
+      scopeId: "other-company",
+      currentSpendCents: 100,
+      requestedCostCents: 25
+    }).disposition).toBe("allow");
+
+    expect(evaluateBudget(budget, {
+      scopeId: "c1",
+      currentSpendCents: 100,
+      reservedCents: 100,
+      requestedCostCents: 100
+    })).toMatchObject({ disposition: "allow", projectedSpendCents: 300, remainingCents: 700 });
+
+    expect(() => evaluateBudget(budget, {
+      scopeId: "c1",
+      currentSpendCents: -1,
+      requestedCostCents: 1
+    })).toThrow(/non-negative integer cents/i);
+    expect(() => evaluateBudget(budget, {
+      scopeId: "c1",
+      currentSpendCents: 0,
+      requestedCostCents: 1.5
+    })).toThrow(/non-negative integer cents/i);
+  });
+
+  it("covers every guardrail operator plus unprotected approval and no-violation allow", () => {
+    const guardrails = [
+      { id: "min", scopeId: "c1", metric: "availability", operator: "min" as const, value: 99, protected: false },
+      { id: "max", scopeId: "c1", metric: "latency", operator: "max" as const, value: 100, protected: false },
+      { id: "equals", scopeId: "c1", metric: "region", operator: "equals" as const, value: "us-west", protected: false },
+      { id: "deny-value", scopeId: "c1", metric: "blocked-provider", operator: "deny" as const, value: "bad-provider", protected: false },
+      { id: "deny-truthy", scopeId: "c1", metric: "emergency-stop", operator: "deny" as const, protected: false }
+    ];
+
+    const violations = evaluateGuardrails(guardrails, "c1", {
+      availability: 98,
+      latency: 101,
+      region: "us-east",
+      "blocked-provider": "bad-provider",
+      "emergency-stop": true
+    });
+    expect(violations.disposition).toBe("approval-required");
+    expect(violations.violations).toHaveLength(5);
+
+    expect(evaluateGuardrails(guardrails, "c1", {
+      availability: 99.9,
+      latency: 90,
+      region: "us-west",
+      "blocked-provider": "good-provider",
+      "emergency-stop": false
+    })).toEqual({ disposition: "allow", violations: [] });
+
+    expect(evaluateGuardrails([
+      { id: "missing", scopeId: "c1", metric: "required", operator: "equals", value: "present", protected: true }
+    ], "c1", {})).toMatchObject({ disposition: "blocked" });
+
+    expect(combineConstraintDispositions("allow", "approval-required")).toBe("approval-required");
+    expect(combineConstraintDispositions("allow", "allow")).toBe("allow");
+  });
+
 });
