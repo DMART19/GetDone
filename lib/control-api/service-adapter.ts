@@ -150,6 +150,27 @@ export class ServiceBackedControlApiAdapter implements ControlApiApplicationAdap
     return this.deps.health();
   }
 
+  async beginStepUp(request: Request) {
+    const { session } = await authorizeRequest(this.deps.auth, request, "session");
+    return this.deps.auth.beginStepUp(session);
+  }
+
+  async verifyStepUp(request: Request, challengeId: string, response: unknown) {
+    const { session: current } = await authorizeRequest(this.deps.auth, request, "session");
+    const elevated = await this.deps.auth.verifyStepUp(challengeId, response);
+    if (elevated.sessionId !== current.sessionId || elevated.userId !== current.userId) {
+      throw new ControlPlaneError("FORBIDDEN", "Step-up challenge belongs to a different session");
+    }
+    if (!elevated.stepUpAuthenticatedAt) {
+      throw new ControlPlaneError("FORBIDDEN", "Step-up verification did not establish fresh authentication");
+    }
+    return Object.freeze({
+      sessionId: elevated.sessionId,
+      userId: elevated.userId,
+      stepUpAuthenticatedAt: elevated.stepUpAuthenticatedAt
+    });
+  }
+
   async submitOwnerIntent(
     principal: ControlApiPrincipal,
     input: OwnerIntentInput,
