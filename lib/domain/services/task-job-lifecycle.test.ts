@@ -148,7 +148,7 @@ describe("Task and Job authoritative lifecycle hardening", () => {
     }, createCommand);
 
     expect(replay).toEqual(first);
-    expect(store.values).toHaveLength(1);
+    expect(store.values.size).toBe(1);
     expect(audit.events.map((event) => event.eventType)).toEqual(["task.proposed"]);
   });
 
