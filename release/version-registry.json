@@ -1,6 +1,6 @@
 {
   "registrySchemaVersion": "1.4.0",
-  "registryVersion": "2026-09-20.7",
+  "registryVersion": "2026-09-20.8",
   "appVersion": "0.1.0",
   "schemaVersions": {
     "controlApi": {
@@ -72,7 +72,7 @@
       ]
     },
     "aiGatewayContract": {
-      "version": "1.0.0",
+      "version": "1.1.0",
       "sourcePath": "lib/ai-gateway/contracts.ts",
       "contractTracked": true,
       "contractSourcePaths": [
@@ -158,6 +158,14 @@
       "contractSourcePaths": [
         "lib/composition/golden-path-harness.ts"
       ]
+    },
+    "aiBudgetReservation": {
+      "version": "1.0.0",
+      "sourcePath": "lib/ai-gateway/budget-reservation.ts",
+      "contractTracked": true,
+      "contractSourcePaths": [
+        "lib/ai-gateway/budget-reservation.ts"
+      ]
     }
   },
   "policy": {
@@ -167,7 +175,7 @@
     "engineSourcePath": "lib/planning/policy-engine.ts"
   },
   "aiGateway": {
-    "contractVersion": "1.0.0",
+    "contractVersion": "1.1.0",
     "routingPolicyContractVersion": "1.0.0",
     "status": "not-connected",
     "adapterVersion": "UNIMPLEMENTED",
@@ -204,7 +212,7 @@
     },
     "aiGateway": {
       "status": "contract-only",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "sourcePath": "lib/ai-gateway/contracts.ts",
       "contractTracked": true,
       "contractSourcePaths": [
@@ -276,7 +284,13 @@
     "docs/SOL_PHASE_36_39_44_REPORT.md",
     "lib/domain/services/job-execution-bridge.test.ts",
     "lib/composition/golden-path-harness.test.ts",
-    "docs/SOL_GOLDEN_PATH_JOB_BRIDGE_REPORT.md"
+    "docs/SOL_GOLDEN_PATH_JOB_BRIDGE_REPORT.md",
+    "vitest.config.ts",
+    "playwright.config.ts",
+    "e2e/owner-surface.spec.ts",
+    "e2e/pwa-offline.spec.ts",
+    "lib/ai-gateway/budget-reservation.test.ts",
+    "docs/SOL_QUALITY_V8_PLAYWRIGHT_AI_BUDGET_REPORT.md"
   ],
   "manualSourcePaths": [
     "docs/ARCHITECTURE.md",
@@ -287,7 +301,8 @@
     "docs/SOL_PHASE_42_REPORT.md",
     "docs/SOL_QUALITY_PHASE_4_13_19_21_REPORT.md",
     "docs/SOL_PHASE_36_39_44_REPORT.md",
-    "docs/SOL_GOLDEN_PATH_JOB_BRIDGE_REPORT.md"
+    "docs/SOL_GOLDEN_PATH_JOB_BRIDGE_REPORT.md",
+    "docs/SOL_QUALITY_V8_PLAYWRIGHT_AI_BUDGET_REPORT.md"
   ],
   "generatedArtifacts": {
     "machineManifest": "release/out/release-manifest.json",
