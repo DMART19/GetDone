@@ -1,0 +1,179 @@
+import { z } from "zod";
+import { ControlPlaneError, toControlPlaneError } from "@/lib/control-plane/errors";
+import { createCorrelationId, readIdempotencyKey } from "@/lib/control-plane/request-context";
+import { readServerRuntimeEnvironment } from "@/lib/control-plane/runtime-environment.server";
+import { apiFailure, apiSuccess } from "@/lib/control-plane/schemas";
+import { getControlApiAdapter } from "@/lib/control-api/runtime.server";
+
+const ownerIntentSchema = z.object({
+  message: z.string().trim().min(1).max(20_000),
+  channel: z.enum(["chat", "api"]).optional()
+});
+
+const decisionMutationSchema = z.object({
+  action: z.enum(["approve", "modify", "reject"]),
+  note: z.string().max(2_000).optional()
+});
+
+const resourceEnrollmentSchema = z.object({
+  id: z.string().min(1).max(160).regex(/^[A-Za-z0-9._:-]+$/),
+  type: z.enum(["compute", "gpu", "storage", "network", "cloud", "partner", "other"]),
+  providerId: z.string().min(1).max(160).optional(),
+  poolId: z.string().min(1).max(160).optional(),
+  capabilityNames: z.array(z.string().min(1).max(160)).max(100).optional(),
+  failureDomainIds: z.array(z.string().min(1).max(160)).max(100).optional(),
+  credentialBindingIds: z.array(z.string().min(1).max(160)).max(100).optional(),
+  policyBindingIds: z.array(z.string().min(1).max(160)).max(100).optional(),
+  region: z.string().min(1).max(160).optional(),
+  architecture: z.string().min(1).max(160).optional()
+});
+
+function safeId(value: string, label: string) {
+  if (!/^[A-Za-z0-9._:-]{1,160}$/.test(value)) {
+    throw new ControlPlaneError("VALIDATION_FAILED", `${label} is invalid`);
+  }
+  return value;
+}
+
+function requireIdempotencyKey(request: Request) {
+  const value = readIdempotencyKey(request.headers);
+  if (!value) {
+    throw new ControlPlaneError("VALIDATION_FAILED", "Idempotency-Key header is required");
+  }
+  return value;
+}
+
+async function jsonBody(request: Request) {
+  try {
+    return await request.json();
+  } catch {
+    throw new ControlPlaneError("VALIDATION_FAILED", "Request body must be valid JSON");
+  }
+}
+
+async function execute<T>(
+  operation: (adapter: ReturnType<typeof getControlApiAdapter>) => Promise<T>,
+  options: { status?: number; request?: Request; authenticate?: boolean } = {}
+) {
+  const correlationId = createCorrelationId();
+  const environment = readServerRuntimeEnvironment();
+  try {
+    const adapter = getControlApiAdapter();
+    if (options.authenticate && options.request) {
+      await adapter.authenticate(options.request);
+    }
+    const data = await operation(adapter);
+    return Response.json(apiSuccess(data, { correlationId, environment }), {
+      status: options.status ?? 200,
+      headers: { "cache-control": "no-store" }
+    });
+  } catch (error) {
+    const normalized = toControlPlaneError(error, correlationId);
+    return Response.json(
+      apiFailure(normalized.code, normalized.message, { correlationId, environment }),
+      {
+        status: normalized.status,
+        headers: { "cache-control": "no-store" }
+      }
+    );
+  }
+}
+
+async function principal(request: Request) {
+  return getControlApiAdapter().authenticate(request);
+}
+
+export function handleControlHealth() {
+  return execute((adapter) => adapter.health());
+}
+
+export function handleOwnerIntent(request: Request) {
+  return execute(async (adapter) => {
+    const actor = await principal(request);
+    const input = ownerIntentSchema.parse(await jsonBody(request));
+    return adapter.submitOwnerIntent(actor, input, requireIdempotencyKey(request));
+  }, { status: 202 });
+}
+
+export function handleListDecisions(request: Request) {
+  return execute(async (adapter) => adapter.listDecisions(await principal(request)));
+}
+
+export function handleGetDecision(request: Request, decisionId: string) {
+  return execute(async (adapter) => {
+    const value = await adapter.getDecision(await principal(request), safeId(decisionId, "decisionId"));
+    if (!value) throw new ControlPlaneError("NOT_FOUND", "Decision was not found");
+    return value;
+  });
+}
+
+export function handleMutateDecision(request: Request, decisionId: string) {
+  return execute(async (adapter) => {
+    const actor = await principal(request);
+    const body = decisionMutationSchema.parse(await jsonBody(request));
+    return adapter.mutateDecision(actor, {
+      decisionId: safeId(decisionId, "decisionId"),
+      action: body.action,
+      note: body.note,
+      idempotencyKey: requireIdempotencyKey(request)
+    });
+  });
+}
+
+export function handleListResources(request: Request) {
+  return execute(async (adapter) => adapter.listResources(await principal(request)));
+}
+
+export function handleGetResource(request: Request, resourceId: string) {
+  return execute(async (adapter) => {
+    const value = await adapter.getResource(await principal(request), safeId(resourceId, "resourceId"));
+    if (!value) throw new ControlPlaneError("NOT_FOUND", "Resource was not found");
+    return value;
+  });
+}
+
+export function handleEnrollResource(request: Request) {
+  return execute(async (adapter) => {
+    const actor = await principal(request);
+    const body = resourceEnrollmentSchema.parse(await jsonBody(request));
+    return adapter.enrollResource(actor, {
+      ...body,
+      idempotencyKey: requireIdempotencyKey(request)
+    });
+  }, { status: 201 });
+}
+
+export function handleListJobs(request: Request) {
+  return execute(async (adapter) => adapter.listJobs(await principal(request)));
+}
+
+export function handleGetJob(request: Request, jobId: string) {
+  return execute(async (adapter) => {
+    const value = await adapter.getJob(await principal(request), safeId(jobId, "jobId"));
+    if (!value) throw new ControlPlaneError("NOT_FOUND", "Job was not found");
+    return value;
+  });
+}
+
+export function handleGetJobResult(request: Request, jobId: string) {
+  return execute(async (adapter) => {
+    const value = await adapter.getJobResult(await principal(request), safeId(jobId, "jobId"));
+    if (!value) throw new ControlPlaneError("NOT_FOUND", "Job result was not found");
+    return value;
+  });
+}
+
+export function handleListVerifications(request: Request) {
+  return execute(async (adapter) => adapter.listVerifications(await principal(request)));
+}
+
+export function handleGetVerification(request: Request, verificationId: string) {
+  return execute(async (adapter) => {
+    const value = await adapter.getVerification(
+      await principal(request),
+      safeId(verificationId, "verificationId")
+    );
+    if (!value) throw new ControlPlaneError("NOT_FOUND", "Verification was not found");
+    return value;
+  });
+}
