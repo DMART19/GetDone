@@ -148,6 +148,14 @@ if (failures.length === 0) {
     "lib/execution/software-worker.ts",
     "SOFTWARE_WORKER_CONTRACT_VERSION"
   );
+  const jobExecutionBridgeContractVersion = extractStringConst(
+    "lib/domain/services/job-execution-bridge.ts",
+    "JOB_EXECUTION_BRIDGE_CONTRACT_VERSION"
+  );
+  const goldenPathHarnessVersion = extractStringConst(
+    registry.composition.sourcePath,
+    "GOLDEN_PATH_HARNESS_VERSION"
+  );
   const storageFabricContractVersion = extractStringConst(
     "lib/resources/storage-fabric.ts",
     "STORAGE_FABRIC_CONTRACT_VERSION"
@@ -179,6 +187,11 @@ if (failures.length === 0) {
     || registry.execution.jobRuntimeContractVersion !== jobRuntimeContractVersion
     || registry.execution.businessActionContractVersion !== businessActionContractVersion
     || registry.execution.softwareWorkerContractVersion !== softwareWorkerContractVersion
+    || registry.execution.jobExecutionBridgeContractVersion !== jobExecutionBridgeContractVersion
+    || manifest.execution.jobExecutionBridgeContractVersion !== jobExecutionBridgeContractVersion
+    || registry.composition.goldenPathHarnessVersion !== goldenPathHarnessVersion
+    || manifest.composition.goldenPathHarnessVersion !== goldenPathHarnessVersion
+    || manifest.composition.sourceSha256 !== fileHash(registry.composition.sourcePath)
     || registry.resourceFabric.storageFabricContractVersion !== storageFabricContractVersion
     || registry.resourceFabric.resilienceContractVersion !== resilienceContractVersion
     || registry.resourceFabric.resourceAdapterSdkContractVersion !== resourceAdapterSdkContractVersion
@@ -191,7 +204,7 @@ if (failures.length === 0) {
     || manifest.phase44.deterministicHarnessVersion !== phase44HarnessVersion
     || manifest.phase44.sourceSha256 !== fileHash(registry.phase44.sourcePath)
   ) {
-    fail("Deterministic Phase 4/13/19-21/36-39/44 contract/version registry drift detected");
+    fail("Deterministic Phase 4/13/19-21/34-bridge/36-39/44/composition contract/version registry drift detected");
   }
   for (const evidence of manifest.execution.sourceEvidence ?? []) {
     if (evidence.sourceSha256 !== fileHash(evidence.sourcePath)) {
@@ -294,6 +307,10 @@ if (failures.length === 0) {
     || registry.execution.durableJobStoreStatus !== "not-connected"
     || registry.execution.businessAdaptersStatus !== "not-connected"
     || registry.execution.softwareDeploymentStatus !== "not-connected"
+    || registry.execution.jobExecutionBridgeStatus !== "deterministic-contract"
+    || registry.execution.liveJobExecutionBridgeStoreStatus !== "not-connected"
+    || registry.composition.status !== "deterministic-simulation-only"
+    || registry.composition.productionExecutionClaimed !== false
     || registry.resourceFabric.storageRuntimeStatus !== "not-connected"
     || registry.resourceFabric.failoverRuntimeStatus !== "not-connected"
     || registry.resourceFabric.secondProviderStatus !== "not-connected"
@@ -301,7 +318,7 @@ if (failures.length === 0) {
     || registry.adapters.resourceAdapterSdk?.status !== "contract-only"
     || registry.phase44.productionAcceptanceStatus !== "not-run"
   ) {
-    fail("Release registry must not claim unconnected Phase 4/19-21/36-39/44 runtime acceptance");
+    fail("Release registry must not claim live Job bridge/composition or unconnected Phase 4/19-21/36-39/44 runtime acceptance");
   }
 
   for (const evidence of manifest.acceptanceEvidence) {
@@ -332,6 +349,11 @@ if (failures.length === 0) {
       || environmentState.execution.durableJobStoreStatus !== "not-connected"
       || environmentState.execution.businessActionAdapterStatus !== "not-connected"
       || environmentState.execution.softwareDeploymentStatus !== "not-connected"
+      || environmentState.execution.jobExecutionBridgeStatus !== "deterministic-contract"
+      || environmentState.execution.liveJobExecutionBridgeStoreStatus !== "not-connected"
+      || !environmentState.composition
+      || environmentState.composition.goldenPathHarnessStatus !== "deterministic-simulation-only"
+      || environmentState.composition.productionExecutionClaimed !== false
       || !environmentState.resourceFabric
       || environmentState.resourceFabric.storageFabricContractStatus !== "deterministic-contract"
       || environmentState.resourceFabric.storageRuntimeStatus !== "not-connected"
@@ -345,7 +367,7 @@ if (failures.length === 0) {
       || environmentState.phase44.deterministicHarnessStatus !== "offline-blocking-suite"
       || environmentState.phase44.productionAcceptanceStatus !== "not-run"
     ) {
-      fail(`Phase 4/13/19-21/36-39/44 environment contract/live-state drift: ${name}`);
+      fail(`Phase 4/13/19-21/34-bridge/36-39/44/composition environment contract/live-state drift: ${name}`);
     }
     if (
       !environmentState.voice

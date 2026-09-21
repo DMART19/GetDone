@@ -105,6 +105,14 @@ const softwareWorkerContractVersion = extractStringConst(
   "lib/execution/software-worker.ts",
   "SOFTWARE_WORKER_CONTRACT_VERSION"
 );
+const jobExecutionBridgeContractVersion = extractStringConst(
+  "lib/domain/services/job-execution-bridge.ts",
+  "JOB_EXECUTION_BRIDGE_CONTRACT_VERSION"
+);
+const goldenPathHarnessVersion = extractStringConst(
+  registry.composition.sourcePath,
+  "GOLDEN_PATH_HARNESS_VERSION"
+);
 const storageFabricContractVersion = extractStringConst(
   "lib/resources/storage-fabric.ts",
   "STORAGE_FABRIC_CONTRACT_VERSION"
@@ -132,6 +140,8 @@ if (
   || registry.execution.jobRuntimeContractVersion !== jobRuntimeContractVersion
   || registry.execution.businessActionContractVersion !== businessActionContractVersion
   || registry.execution.softwareWorkerContractVersion !== softwareWorkerContractVersion
+  || registry.execution.jobExecutionBridgeContractVersion !== jobExecutionBridgeContractVersion
+  || registry.composition.goldenPathHarnessVersion !== goldenPathHarnessVersion
   || registry.resourceFabric.storageFabricContractVersion !== storageFabricContractVersion
   || registry.resourceFabric.resilienceContractVersion !== resilienceContractVersion
   || registry.resourceFabric.resourceAdapterSdkContractVersion !== resourceAdapterSdkContractVersion
@@ -280,7 +290,19 @@ const manualLines = [
   `- Business action adapters: ${registry.execution.businessAdaptersStatus}`,
   `- Software worker contract: ${registry.execution.softwareWorkerContractVersion}`,
   `- Software deployment executor: ${registry.execution.softwareDeploymentStatus}`,
+  `- Phase 34 -> Job bridge contract: ${registry.execution.jobExecutionBridgeContractVersion}`,
+  `- Phase 34 -> Job bridge status: ${registry.execution.jobExecutionBridgeStatus}`,
+  `- Live authoritative bridge store: ${registry.execution.liveJobExecutionBridgeStoreStatus}`,
   ...registry.execution.sourcePaths.map((sourcePath) => `- Contract source: ${sourcePath} — ${fileHash(sourcePath)}`),
+  "",
+  "## Cross-phase composition harness",
+  "",
+  `- Golden-path harness version: ${registry.composition.goldenPathHarnessVersion}`,
+  `- Status: ${registry.composition.status}`,
+  `- Production execution claimed: ${registry.composition.productionExecutionClaimed ? "YES" : "NO"}`,
+  `- Source hash: ${fileHash(registry.composition.sourcePath)}`,
+  "",
+  "The golden-path harness is deterministic composition evidence only. It does not connect providers, persist production state, or establish production execution acceptance.",
   "",
   "## Resource Fabric Phases 36-39",
   "",
@@ -349,6 +371,8 @@ const manualLines = [
     `- Durable Job contract/store: ${value.execution.jobRuntimeContractStatus} / ${value.execution.durableJobStoreStatus}`,
     `- Business action adapter: ${value.execution.businessActionAdapterStatus}`,
     `- Software deployment executor: ${value.execution.softwareDeploymentStatus}`,
+    `- Job execution bridge contract/live store: ${value.execution.jobExecutionBridgeStatus} / ${value.execution.liveJobExecutionBridgeStoreStatus}`,
+    `- Golden-path composition: ${value.composition.goldenPathHarnessStatus}; production claimed=${value.composition.productionExecutionClaimed ? "yes" : "no"}`,
     `- Storage Fabric contract/runtime: ${value.resourceFabric.storageFabricContractStatus} / ${value.resourceFabric.storageRuntimeStatus}`,
     `- Resilience contract/failover runtime: ${value.resourceFabric.resilienceContractStatus} / ${value.resourceFabric.failoverRuntimeStatus}`,
     `- Resource Adapter SDK/second provider: ${value.resourceFabric.resourceAdapterSdkStatus} / ${value.resourceFabric.secondProviderStatus}`,
@@ -437,6 +461,10 @@ const manifestBase = {
   execution: {
     ...registry.execution,
     sourceEvidence: sourceEvidence(registry.execution.sourcePaths)
+  },
+  composition: {
+    ...registry.composition,
+    sourceSha256: fileHash(registry.composition.sourcePath)
   },
   resourceFabric: {
     ...registry.resourceFabric,

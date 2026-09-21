@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { sha256Hex } from "@/lib/control-plane/canonical-hash";
 import type { AuditEvent, AuditLedger } from "@/lib/domain/audit";
 import { createCommandEnvelope } from "@/lib/control-plane/command-envelope";
 import type { ControlPlaneTransactionManager } from "@/lib/domain/control-plane-transaction";
@@ -8,6 +9,17 @@ import { GoalService, type GoalRecord, type GoalStores } from "@/lib/domain/serv
 import { ApprovalService, type ApprovalRecord, type ApprovalStores } from "@/lib/domain/services/approval-service";
 import { TaskService, type TaskRecord, type TaskStores } from "@/lib/domain/services/task-service";
 import { JobService, type JobRecord, type JobStores } from "@/lib/domain/services/job-service";
+import {
+  createJobVerifiedCompletionFact,
+  createJobVerifiedStartFact,
+  type JobExecutionBridgeStore,
+  type JobVerifiedCompletionFact,
+  type JobVerifiedStartFact
+} from "@/lib/domain/services/job-execution-bridge";
+import type {
+  VerifiedPlacementCompletion,
+  VerifiedRunningPlacement
+} from "@/lib/resources/scheduler";
 import { OutcomeService, type OutcomeRecord, type OutcomeStores } from "@/lib/domain/services/outcome-service";
 import { createStepUpProof } from "@/lib/authorization/proofs";
 import { autoGrantFor, fixtureNow } from "@/lib/planning/test-security-fixture";
@@ -75,6 +87,91 @@ class MemoryVerificationReceiptStore implements VerificationReceiptStore {
   async getReceipt(id: string) {
     return this.receipts.find((receipt) => receipt.id === id) ?? null;
   }
+}
+
+class MemoryExecutionBridgeStore implements JobExecutionBridgeStore {
+  constructor(
+    private readonly starts: readonly JobVerifiedStartFact[],
+    private readonly completions: readonly JobVerifiedCompletionFact[]
+  ) {}
+
+  async getStartFact(id: string) {
+    return this.starts.find((fact) => fact.id === id) ?? null;
+  }
+
+  async getCompletionFact(id: string) {
+    return this.completions.find((fact) => fact.id === id) ?? null;
+  }
+}
+
+function verifiedBridgeFacts(jobId: string) {
+  const runningBase = {
+    id: "running-service-1",
+    portfolioId: "portfolio-a",
+    companyId: "company-a",
+    environment: "staging" as const,
+    jobId,
+    placementDecisionId: "placement-service-1",
+    placementDecisionHash: "placement-service-hash",
+    reservationId: "reservation-service-1",
+    reservationHash: "reservation-service-hash",
+    allocationId: "allocation-service-1",
+    allocationHash: "allocation-service-hash",
+    dispatchIntentId: "dispatch-service-1",
+    dispatchHash: "dispatch-service-hash",
+    startVerificationRequestId: "start-request-service-1",
+    startVerificationReceiptId: "start-receipt-service-1",
+    startVerificationReceiptHash: "start-receipt-service-hash",
+    startVerificationTrustAttestationId: "start-trust-service-1",
+    startVerificationTrustAttestationHash: "start-trust-service-hash",
+    startedVerifiedAt: "2026-09-20T22:00:06Z",
+    state: "running-verified" as const,
+    jobStateMutationApplied: false as const
+  };
+  const running: VerifiedRunningPlacement = Object.freeze({
+    ...runningBase,
+    recordHash: sha256Hex(runningBase)
+  });
+
+  const completionBase = {
+    id: "completion-service-1",
+    runningPlacementId: running.id,
+    runningPlacementHash: running.recordHash,
+    completionVerificationRequestId: "completion-request-service-1",
+    completionVerificationReceiptId: "completion-receipt-service-1",
+    completionVerificationReceiptHash: "completion-receipt-service-hash",
+    completionVerificationTrustAttestationId: "completion-trust-service-1",
+    completionVerificationTrustAttestationHash: "completion-trust-service-hash",
+    verifiedAt: "2026-09-20T22:02:02Z",
+    state: "completed-verified" as const,
+    jobStateMutationApplied: false as const
+  };
+  const completion: VerifiedPlacementCompletion = Object.freeze({
+    ...completionBase,
+    recordHash: sha256Hex(completionBase)
+  });
+
+  const scope = {
+    userId: "user-a",
+    portfolioId: "portfolio-a",
+    companyId: "company-a",
+    environment: "staging" as const
+  };
+  const startFact = createJobVerifiedStartFact({
+    id: "job-start-fact-service",
+    runningPlacement: running,
+    scope,
+    issuedAt: "2026-09-20T22:00:07Z",
+    expiresAt: "2026-09-20T22:05:00Z"
+  });
+  const completionFact = createJobVerifiedCompletionFact({
+    id: "job-completion-fact-service",
+    runningPlacement: running,
+    completion,
+    scope,
+    bridgedAt: "2026-09-20T22:02:03Z"
+  });
+  return { startFact, completionFact };
 }
 
 class MemoryAudit implements AuditLedger {
@@ -272,11 +369,16 @@ describe("transactional domain services", () => {
       verificationEvidenceIds: []
     });
     const verifiedJobReceipt = verificationReceipt("job", base.id, "verified");
+    const bridgeFacts = verifiedBridgeFacts(base.id);
     const jobService = new JobService(manager<JobStores>({
       jobs: jobStore,
       authorizationGrants: grants,
-      verificationReceipts: new MemoryVerificationReceiptStore([verifiedJobReceipt])
-    }));
+      verificationReceipts: new MemoryVerificationReceiptStore([verifiedJobReceipt]),
+      executionBridge: new MemoryExecutionBridgeStore(
+        [bridgeFacts.startFact],
+        [bridgeFacts.completionFact]
+      )
+    }), () => new Date("2026-09-20T22:03:00Z"));
     const queued = await jobService.queue(
       base.id,
       command("job.queue"),
@@ -288,8 +390,21 @@ describe("transactional domain services", () => {
     expect(queued.authorizationConsumption?.consumerId).toBe("task-1");
 
     await jobService.claim(base.id, command("job.claim"), "worker-1");
-    expect((await jobService.start(base.id, command("job.start"))).state).toBe("running");
-    await jobService.beginVerification(base.id, command("job.verify.begin"));
+    await expect(
+      jobService.start(base.id, command("job.start.missing"), "missing-start-fact")
+    ).rejects.toThrow(/verified-start fact/i);
+    expect((
+      await jobService.start(
+        base.id,
+        command("job.start"),
+        bridgeFacts.startFact.id
+      )
+    ).state).toBe("running");
+    await jobService.beginVerification(
+      base.id,
+      command("job.verify.begin"),
+      bridgeFacts.completionFact.id
+    );
     const succeeded = await jobService.succeed(
       base.id,
       command("job.succeed"),

@@ -34,6 +34,7 @@ export interface ResolveDecisionInput {
   decisionId: string;
   action: DecisionAction;
   stepUpProof?: StepUpProof;
+  now?: () => Date;
 }
 
 function targetState(action: DecisionAction): AuthoritativeDecisionStatus {
@@ -80,6 +81,7 @@ export async function resolveDecision(input: ResolveDecisionInput): Promise<Auth
     },
     metadata: () => ({
       stepUpProofId: input.stepUpProof?.id ?? null
-    })
+    }),
+    now: input.now
   });
 }

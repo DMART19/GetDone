@@ -9,7 +9,7 @@ This directory contains the committed, machine-readable release anatomy for GetD
 
 These files contain declarations and references only. They must never contain raw credentials.
 
-The machine-readable formats are versioned explicitly: version registry schema `1.3.0`, environment manifest schema `1.3.0`, and generated release manifest schema `1.3.0`.
+The machine-readable formats are versioned explicitly: version registry schema `1.4.0`, environment manifest schema `1.4.0`, and generated release manifest schema `1.4.0`.
 
 ## Generated per checkout/release
 
@@ -22,7 +22,7 @@ npm run verify:release
 
 The generator writes ignored artifacts under `release/out/`:
 
-- `release-manifest.json` — binds the current checked-out Git SHA to app version, package lock, schema source hashes, policy versions/source hashes, database migration/schema state, AI Gateway deterministic/live state, Integration Registry state, durable Job/business-action/software-deployment contract/live state, Phase 42 voice state, deterministic Phase 36–39 Resource Fabric contract/live state, Phase 44 offline-harness/production-acceptance state, adapter versions/source hashes, environment manifest, CI evidence, generated control-plane coverage evidence, acceptance evidence, and manual hashes.
+- `release-manifest.json` — binds the current checked-out Git SHA to app version, package lock, schema source hashes, policy versions/source hashes, database migration/schema state, AI Gateway deterministic/live state, Integration Registry state, durable Job/business-action/software-deployment contract/live state, Phase 42 voice state, deterministic Phase 36–39 Resource Fabric contract/live state, Phase 44 offline-harness/production-acceptance state, verified Job-bridge deterministic/live-store state, golden-path simulation/non-production state, adapter versions/source hashes, environment manifest, CI evidence, generated control-plane coverage evidence, acceptance evidence, and manual hashes.
 - `OPERATING_MANUAL.md` — human-readable reconstruction of the same release anatomy and release flow.
 
 GitHub Actions generates and verifies these artifacts after the normal build gate, then archives them with `actions/upload-artifact`. Pull-request evidence binds the checked-out merge/test commit used by Actions; main-branch evidence binds the pushed main commit.
@@ -39,3 +39,8 @@ A generated artifact may accurately describe a non-production-ready release. Pha
 Tracked contract source paths are marked in `version-registry.json`. `npm run verify:contract-versions` fails when an established tracked contract changes without a semantic-version bump.
 
 `npm run verify:coverage` generates a dependency-free module/test-contract coverage report for critical control-plane boundaries. CI archives that report with the release manifest/manual and release verification binds its SHA-256.
+
+
+## Cross-phase composition evidence
+
+The release registry tracks the Phase 34 → JobService bridge and the deterministic golden-path harness independently from live runtime connectivity. The harness is valid release evidence only when it remains simulation-only and explicitly declares that it does not represent production execution.

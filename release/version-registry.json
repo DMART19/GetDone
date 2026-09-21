@@ -1,6 +1,6 @@
 {
-  "registrySchemaVersion": "1.3.0",
-  "registryVersion": "2026-09-20.4",
+  "registrySchemaVersion": "1.4.0",
+  "registryVersion": "2026-09-20.5",
   "appVersion": "0.1.0",
   "schemaVersions": {
     "controlApi": {
@@ -60,7 +60,7 @@
       "sourcePath": "lib/resources/policy-simulator.ts"
     },
     "releaseManifest": {
-      "version": "1.3.0",
+      "version": "1.4.0",
       "sourcePath": "scripts/generate-release-artifacts.mjs"
     },
     "voiceIntent": {
@@ -141,6 +141,22 @@
       "contractTracked": true,
       "contractSourcePaths": [
         "lib/security/phase44-adversarial-harness.ts"
+      ]
+    },
+    "jobExecutionBridge": {
+      "version": "1.0.0",
+      "sourcePath": "lib/domain/services/job-execution-bridge.ts",
+      "contractTracked": true,
+      "contractSourcePaths": [
+        "lib/domain/services/job-execution-bridge.ts"
+      ]
+    },
+    "goldenPathHarness": {
+      "version": "1.0.0",
+      "sourcePath": "lib/composition/golden-path-harness.ts",
+      "contractTracked": true,
+      "contractSourcePaths": [
+        "lib/composition/golden-path-harness.ts"
       ]
     }
   },
@@ -257,7 +273,10 @@
     "lib/resources/adapter-sdk.test.ts",
     "lib/resources/pools.test.ts",
     "lib/security/phase44-adversarial-harness.test.ts",
-    "docs/SOL_PHASE_36_39_44_REPORT.md"
+    "docs/SOL_PHASE_36_39_44_REPORT.md",
+    "lib/domain/services/job-execution-bridge.test.ts",
+    "lib/composition/golden-path-harness.test.ts",
+    "docs/SOL_GOLDEN_PATH_JOB_BRIDGE_REPORT.md"
   ],
   "manualSourcePaths": [
     "docs/ARCHITECTURE.md",
@@ -267,7 +286,8 @@
     "release/README.md",
     "docs/SOL_PHASE_42_REPORT.md",
     "docs/SOL_QUALITY_PHASE_4_13_19_21_REPORT.md",
-    "docs/SOL_PHASE_36_39_44_REPORT.md"
+    "docs/SOL_PHASE_36_39_44_REPORT.md",
+    "docs/SOL_GOLDEN_PATH_JOB_BRIDGE_REPORT.md"
   ],
   "generatedArtifacts": {
     "machineManifest": "release/out/release-manifest.json",
@@ -290,7 +310,7 @@
     "credentialHandling": "secure-provider-or-phone-only",
     "sourcePath": "lib/voice/voice-intents.ts"
   },
-  "environmentManifestSchemaVersion": "1.3.0",
+  "environmentManifestSchemaVersion": "1.4.0",
   "integrations": {
     "registryContractVersion": "1.0.0",
     "liveAdaptersStatus": "not-connected",
@@ -306,8 +326,12 @@
     "sourcePaths": [
       "lib/execution/job-runtime-contracts.ts",
       "lib/execution/adapters/business-action.ts",
-      "lib/execution/software-worker.ts"
-    ]
+      "lib/execution/software-worker.ts",
+      "lib/domain/services/job-execution-bridge.ts"
+    ],
+    "jobExecutionBridgeContractVersion": "1.0.0",
+    "jobExecutionBridgeStatus": "deterministic-contract",
+    "liveJobExecutionBridgeStoreStatus": "not-connected"
   },
   "resourceFabric": {
     "storageFabricContractVersion": "1.0.0",
@@ -330,5 +354,11 @@
     "deterministicHarnessStatus": "contract-and-offline-tests",
     "productionAcceptanceStatus": "not-run",
     "sourcePath": "lib/security/phase44-adversarial-harness.ts"
+  },
+  "composition": {
+    "goldenPathHarnessVersion": "1.0.0",
+    "status": "deterministic-simulation-only",
+    "productionExecutionClaimed": false,
+    "sourcePath": "lib/composition/golden-path-harness.ts"
   }
 }

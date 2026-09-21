@@ -119,7 +119,7 @@ Remaining differences from the canonical plan are implementation/runtime gaps:
 - Phase 29 production secret backend/token exchange remains absent;
 - Phase 30 live authenticated telemetry remains absent;
 - Phase 33 transactional persistence and multi-process concurrency proof remain absent;
-- Phase 34 live resource adapters/probes/recovery/JobService integration remain absent;
+- Phase 34 live resource adapters/probes/recovery and durable production Job-bridge persistence remain absent;
 - Phase 35 live billing/usage feeds remain absent;
 - Phases 36-39 production storage/resilience/second-provider/partner-DC work remain open;
 - Phase 40 production historical stores/calibration remain absent;
@@ -133,7 +133,7 @@ Phase 41 now makes those absences machine-visible rather than leaving them impli
 
 Phase 42 extends this release-truth layer rather than creating a parallel version system.
 
-The release schemas are now versioned as registry `1.3.0`, environment manifest `1.3.0`, and generated release manifest `1.3.0` after adding deterministic Phase 36–39 Resource Fabric contract/live-state separation and the Phase 44 offline harness.
+The release schemas are now versioned as registry `1.4.0`, environment manifest `1.4.0`, and generated release manifest `1.4.0` after adding the verified Job-execution bridge and cross-phase golden-path composition evidence.
 
 The registry/manifest/manual now also bind:
 - voice intent contract version;
@@ -164,3 +164,14 @@ The version registry now binds contract versions/source hashes for Storage Fabri
 The environment manifest separately records that storage runtime, failover runtime, second provider, partner-pool runtime, and full production Phase 44 acceptance are still unconnected/not-run.
 
 Release generation and verification now include those contract sources and fail closed if a release claims live Phase 36–39 infrastructure or production Phase 44 acceptance before corresponding state is explicitly connected.
+
+
+## Verified Job bridge + golden-path composition extension
+
+The registry now tracks:
+- `JOB_EXECUTION_BRIDGE_CONTRACT_VERSION = 1.0.0`;
+- `GOLDEN_PATH_HARNESS_VERSION = 1.0.0`;
+- deterministic Job bridge presence separately from the unconnected live authoritative bridge store;
+- deterministic simulation-only golden-path status with `productionExecutionClaimed=false`.
+
+The generated manual/manifest bind exact source hashes, tests, the composition report, and per-environment bridge/composition declarations. Release verification fails closed if the harness overclaims production or the bridge is reported live without a connected authoritative store.

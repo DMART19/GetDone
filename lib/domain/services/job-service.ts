@@ -18,6 +18,13 @@ import {
   type VerificationReceipt,
   type VerificationReceiptStore
 } from "@/lib/verification/verification";
+import {
+  assertJobVerifiedCompletionFact,
+  assertJobVerifiedStartFact,
+  type JobExecutionBridgeStore,
+  type JobVerifiedCompletionFact,
+  type JobVerifiedStartFact
+} from "@/lib/domain/services/job-execution-bridge";
 
 export type JobState =
   | "created"
@@ -41,6 +48,12 @@ export interface JobRecord extends StatefulEntity {
   verificationEvidenceIds: readonly string[];
   verificationReceiptId?: string;
   verificationReceiptHash?: string;
+  verifiedStartFactId?: string;
+  verifiedStartFactHash?: string;
+  verifiedRunningPlacementId?: string;
+  verifiedRunningPlacementHash?: string;
+  verifiedCompletionFactId?: string;
+  verifiedCompletionFactHash?: string;
   failureReason?: string;
 }
 
@@ -48,10 +61,14 @@ export interface JobStores {
   jobs: EntityStore<JobRecord>;
   authorizationGrants?: AuthorizationGrantStore;
   verificationReceipts?: VerificationReceiptStore;
+  executionBridge?: JobExecutionBridgeStore;
 }
 
 export class JobService {
-  constructor(private readonly transactions: ControlPlaneTransactionManager<JobStores>) {}
+  constructor(
+    private readonly transactions: ControlPlaneTransactionManager<JobStores>,
+    private readonly now: () => Date = () => new Date()
+  ) {}
 
   queue(
     id: string,
@@ -172,7 +189,13 @@ export class JobService {
     });
   }
 
-  start(id: string, command: AuthoritativeCommandEnvelope) {
+  start(
+    id: string,
+    command: AuthoritativeCommandEnvelope,
+    verifiedStartFactId: string
+  ) {
+    let startFact: JobVerifiedStartFact | undefined;
+
     return executeTransitionCommand({
       manager: this.transactions,
       selectStore: (stores) => stores.jobs,
@@ -180,8 +203,8 @@ export class JobService {
       entityId: id,
       to: "running",
       command,
-      triggeringEvent: "job-started",
-      patch: (current) => {
+      triggeringEvent: "job-started-from-verified-resource-start",
+      beforeTransition: async (current, transaction) => {
         if (!current.workerId) {
           throw new ControlPlaneError(
             "CONFLICT",
@@ -194,12 +217,55 @@ export class JobService {
             "Job authorization lineage is missing"
           );
         }
-        return {};
-      }
+
+        const bridge = transaction.stores.executionBridge;
+        if (!bridge) {
+          throw new ControlPlaneError(
+            "UNAVAILABLE",
+            "Authoritative verified-start bridge storage is required before Job start"
+          );
+        }
+        const persisted = await bridge.getStartFact(verifiedStartFactId);
+        if (!persisted) {
+          throw new ControlPlaneError(
+            "NOT_FOUND",
+            "Authoritative verified-start fact was not found"
+          );
+        }
+        startFact = assertJobVerifiedStartFact(persisted, {
+          jobId: id,
+          scope: command.scope,
+          now: this.now().getTime()
+        });
+      },
+      patch: () => {
+        if (!startFact) {
+          throw new ControlPlaneError(
+            "FORBIDDEN",
+            "Verified resource-start authority is unavailable"
+          );
+        }
+        return {
+          verifiedStartFactId: startFact.id,
+          verifiedStartFactHash: startFact.factHash,
+          verifiedRunningPlacementId: startFact.runningPlacementId,
+          verifiedRunningPlacementHash: startFact.runningPlacementHash
+        };
+      },
+      metadata: () => ({
+        verifiedStartFactId,
+        verifiedStartFactHash: startFact?.factHash ?? null
+      })
     });
   }
 
-  beginVerification(id: string, command: AuthoritativeCommandEnvelope) {
+  beginVerification(
+    id: string,
+    command: AuthoritativeCommandEnvelope,
+    verifiedCompletionFactId: string
+  ) {
+    let completionFact: JobVerifiedCompletionFact | undefined;
+
     return executeTransitionCommand({
       manager: this.transactions,
       selectStore: (stores) => stores.jobs,
@@ -207,7 +273,53 @@ export class JobService {
       entityId: id,
       to: "verifying",
       command,
-      triggeringEvent: "job-verification-started"
+      triggeringEvent: "job-verification-started-from-verified-resource-completion",
+      beforeTransition: async (current, transaction) => {
+        if (!current.verifiedRunningPlacementId || !current.verifiedRunningPlacementHash) {
+          throw new ControlPlaneError(
+            "FORBIDDEN",
+            "Job verification cannot begin without verified running-placement lineage"
+          );
+        }
+
+        const bridge = transaction.stores.executionBridge;
+        if (!bridge) {
+          throw new ControlPlaneError(
+            "UNAVAILABLE",
+            "Authoritative verified-completion bridge storage is required before Job verification"
+          );
+        }
+        const persisted = await bridge.getCompletionFact(verifiedCompletionFactId);
+        if (!persisted) {
+          throw new ControlPlaneError(
+            "NOT_FOUND",
+            "Authoritative verified-completion fact was not found"
+          );
+        }
+        completionFact = assertJobVerifiedCompletionFact(persisted, {
+          jobId: id,
+          scope: command.scope,
+          runningPlacementId: current.verifiedRunningPlacementId,
+          runningPlacementHash: current.verifiedRunningPlacementHash,
+          now: this.now().getTime()
+        });
+      },
+      patch: () => {
+        if (!completionFact) {
+          throw new ControlPlaneError(
+            "FORBIDDEN",
+            "Verified resource-completion authority is unavailable"
+          );
+        }
+        return {
+          verifiedCompletionFactId: completionFact.id,
+          verifiedCompletionFactHash: completionFact.factHash
+        };
+      },
+      metadata: () => ({
+        verifiedCompletionFactId,
+        verifiedCompletionFactHash: completionFact?.factHash ?? null
+      })
     });
   }
 
@@ -237,6 +349,7 @@ export class JobService {
         receipt = await requireAuthoritativeVerificationReceipt(store, receiptId, {
           scope: command.scope,
           subject: { type: "job", id },
+          now: this.now().getTime(),
           allowedVerdicts: ["verified"]
         });
       },
@@ -283,6 +396,7 @@ export class JobService {
         receipt = await requireAuthoritativeVerificationReceipt(store, receiptId, {
           scope: command.scope,
           subject: { type: "job", id },
+          now: this.now().getTime(),
           allowedVerdicts: ["uncertain"]
         });
       },

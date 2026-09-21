@@ -42,6 +42,8 @@ Current code includes:
 - Phase 32 control-plane-only placement requests, active idempotency reuse, snapshot-bound candidate evaluation, full rejection reasons, and explainable eligibility without reservation or dispatch
 - Phase 33 deterministic resource/pool capacity ledgers, CAS-bound atomic reservation commit envelopes, scoped idempotency, leases/renewal/expiry, requested-vs-granted capacity, protected headroom, cancellation/release, pending allocation records, and exactly-once deterministic capacity restoration
 - Phase 34 deterministic scheduler/dispatch foundation with Phase-35-governed eligible-only ranking, hash-bound placement decisions, retry/fallback lineage, live Phase-33 reservation gating, Phase-29 credential binding, short-lived final dispatch-admission receipts, trusted independent start/completion verification, explainable audit records, and release through Phase 33
+- authoritative Phase 34 → JobService execution bridge: claimed Jobs can enter running only from persisted hash-bound verified-start facts; completion can enter Job verification only from the matching verified-completion lineage; provider acceptance never establishes Job truth
+- deterministic 19-stage cross-phase golden-path harness spanning Objective → Plan → Validation → Policy → Decision → Approval → Task → Job → Placement → Governor → Reservation → Credential → Dispatch → verified start → Job running → verified completion → Outcome → advisory memory → release, explicitly simulation-only
 - Phase 35 deterministic cost/capacity governor with owned/committed/reserved/spot/on-demand economics, protected headroom, quotas, budget caps/approval thresholds, eligible-only economic ranking, and estimate-vs-actual reconciliation
 - Phase 36 deterministic Storage Fabric with authoritative/non-authoritative copy roles, HOME authority guardrails, replication/failure-domain constraints, residency/encryption/RPO/RTO checks, and explainable storage placement
 - Phase 37 deterministic failure-domain/circuit-breaker admission, drain state machine, correlated-domain failover planning, temporary-cost recording, and evidence-gated verified recovery
@@ -64,7 +66,7 @@ The repository does **not** claim production autonomy yet. Canonical acceptance 
 - real Resource Fabric agent/hardware enrollment
 - production secret backend/token exchange and secure credential delivery transport
 - live authenticated hardware profiling/telemetry and Resource Fabric signal emission
-- durable transactional persistence for Phase 33 reservation/CAS commits plus live resource-adapter dispatch, production start/completion probes, scheduler persistence/recovery, failover, and measured economic execution
+- durable transactional persistence for Phase 33 reservation/CAS commits plus live resource-adapter dispatch, production start/completion probes, authoritative production Job-execution-bridge persistence/recovery, scheduler persistence/recovery, failover, and measured economic execution
 - real Home NAS/storage runtime, live failure-domain orchestration, a real second resource provider, and partner/data-center pool execution
 - production historical placement/cost/AI-route analytics stores and simulation evidence persistence
 - production push subscription/delivery provider and notification persistence
@@ -130,6 +132,7 @@ Use these as the implementation source of truth:
 - `docs/SOL_PHASE_42_REPORT.md`
 - `docs/SOL_QUALITY_PHASE_4_13_19_21_REPORT.md`
 - `docs/SOL_PHASE_36_39_44_REPORT.md`
+- `docs/SOL_GOLDEN_PATH_JOB_BRIDGE_REPORT.md`
 - `release/version-registry.json`
 - `release/environment-manifest.json`
 - `docs/ASTRA_HANDOFF.md`

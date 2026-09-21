@@ -37,7 +37,10 @@ export interface GrantApprovalInput {
 }
 
 export class ApprovalService {
-  constructor(private readonly transactions: ControlPlaneTransactionManager<ApprovalStores>) {}
+  constructor(
+    private readonly transactions: ControlPlaneTransactionManager<ApprovalStores>,
+    private readonly now: () => Date = () => new Date()
+  ) {}
 
   grant(
     id: string,
@@ -69,11 +72,12 @@ export class ApprovalService {
           }
           assertStepUpProof(input.stepUpProof, {
             actorId: command.actor.id,
-            scope: command.scope
+            scope: command.scope,
+            now: this.now().getTime()
           });
         }
 
-        const grantedAt = new Date().toISOString();
+        const grantedAt = this.now().toISOString();
         const proof = createApprovalProof({
           id: `approval-proof:${current.id}:${current.version + 1}`,
           decisionId: current.decisionId,
@@ -94,7 +98,8 @@ export class ApprovalService {
           planHash: input.planHash,
           stepHash: input.stepHash,
           requiredLevel: current.requirement,
-          stepUpProof: input.stepUpProof
+          stepUpProof: input.stepUpProof,
+          now: this.now().getTime()
         });
 
         return {
@@ -107,7 +112,8 @@ export class ApprovalService {
         stepUpProofId: input.stepUpProof?.id ?? null,
         planHash: input.planHash,
         stepHash: input.stepHash
-      })
+      }),
+      now: this.now
     });
   }
 
@@ -120,7 +126,8 @@ export class ApprovalService {
       to: "denied",
       command,
       triggeringEvent: "approval-denied",
-      patch: () => ({ deniedBy: command.actor.id })
+      patch: () => ({ deniedBy: command.actor.id }),
+      now: this.now
     });
   }
 
@@ -132,7 +139,8 @@ export class ApprovalService {
       entityId: id,
       to: "expired",
       command,
-      triggeringEvent: "approval-expired"
+      triggeringEvent: "approval-expired",
+      now: this.now
     });
   }
 }
