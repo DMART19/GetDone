@@ -213,7 +213,7 @@
     },
     {
       "source": "lib/persistence/postgres/job-store.ts",
-      "test": "lib/persistence/postgres/postgres-adapters.test.ts",
+      "test": "lib/persistence/postgres/postgres-job-store.test.ts",
       "critical": true
     },
     {
