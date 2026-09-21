@@ -1,5 +1,5 @@
 {
-  "manifestSchemaVersion": "1.4.0",
+  "manifestSchemaVersion": "1.5.0",
   "environments": {
     "development": {
       "authorityMode": "deterministic-foundation",
@@ -22,7 +22,8 @@
         "storageFabricRuntime": false,
         "resilienceFailoverRuntime": false,
         "secondResourceProvider": false,
-        "partnerPoolRuntime": false
+        "partnerPoolRuntime": false,
+        "controlApiPersistence": false
       },
       "deployment": {
         "status": "local-development",
@@ -40,7 +41,8 @@
         "contractStatus": "deterministic-contract",
         "adapterStatus": "not-connected",
         "routingPolicyStatus": "unconfigured",
-        "provider": "UNCONFIGURED"
+        "provider": "OPENROUTER_UNCONFIGURED",
+        "adapterImplementationStatus": "implemented-unconfigured"
       },
       "integrations": {
         "registryStatus": "deterministic-contract",
@@ -73,6 +75,12 @@
       "composition": {
         "goldenPathHarnessStatus": "deterministic-simulation-only",
         "productionExecutionClaimed": false
+      },
+      "controlApi": {
+        "surfaceStatus": "implemented",
+        "applicationAdapterStatus": "not-connected",
+        "authStatus": "not-connected",
+        "persistenceStatus": "not-connected"
       }
     },
     "staging": {
@@ -96,7 +104,8 @@
         "storageFabricRuntime": false,
         "resilienceFailoverRuntime": false,
         "secondResourceProvider": false,
-        "partnerPoolRuntime": false
+        "partnerPoolRuntime": false,
+        "controlApiPersistence": false
       },
       "deployment": {
         "status": "not-connected",
@@ -114,7 +123,8 @@
         "contractStatus": "deterministic-contract",
         "adapterStatus": "not-connected",
         "routingPolicyStatus": "unconfigured",
-        "provider": "UNCONFIGURED"
+        "provider": "OPENROUTER_UNCONFIGURED",
+        "adapterImplementationStatus": "implemented-unconfigured"
       },
       "integrations": {
         "registryStatus": "deterministic-contract",
@@ -147,6 +157,12 @@
       "composition": {
         "goldenPathHarnessStatus": "deterministic-simulation-only",
         "productionExecutionClaimed": false
+      },
+      "controlApi": {
+        "surfaceStatus": "implemented",
+        "applicationAdapterStatus": "not-connected",
+        "authStatus": "not-connected",
+        "persistenceStatus": "not-connected"
       }
     },
     "production": {
@@ -170,7 +186,8 @@
         "storageFabricRuntime": false,
         "resilienceFailoverRuntime": false,
         "secondResourceProvider": false,
-        "partnerPoolRuntime": false
+        "partnerPoolRuntime": false,
+        "controlApiPersistence": false
       },
       "deployment": {
         "status": "not-connected",
@@ -188,7 +205,8 @@
         "contractStatus": "deterministic-contract",
         "adapterStatus": "not-connected",
         "routingPolicyStatus": "unconfigured",
-        "provider": "UNCONFIGURED"
+        "provider": "OPENROUTER_UNCONFIGURED",
+        "adapterImplementationStatus": "implemented-unconfigured"
       },
       "integrations": {
         "registryStatus": "deterministic-contract",
@@ -221,6 +239,12 @@
       "composition": {
         "goldenPathHarnessStatus": "deterministic-simulation-only",
         "productionExecutionClaimed": false
+      },
+      "controlApi": {
+        "surfaceStatus": "implemented",
+        "applicationAdapterStatus": "not-connected",
+        "authStatus": "not-connected",
+        "persistenceStatus": "not-connected"
       }
     }
   },
@@ -229,12 +253,13 @@
     "A false connection must not be interpreted as a provider selection.",
     "ProductionReady remains false until canonical infrastructure-dependent acceptance evidence exists.",
     "Phase 42 voice contracts are present, but no live speech/voice adapter is connected in any environment.",
-    "Phase 13 AI Gateway contracts/router/budget/audit are present, but no live OpenRouter/provider adapter or routing configuration is connected.",
+    "Phase 13 AI Gateway contracts/router/budget/audit plus the OpenRouter provider adapter are implemented, but no credential, active routing policy, canary model, or live AI runtime connection is configured.",
     "Phase 4 Integration Registry contracts are present; only explicit DEVELOPMENT mock adapters exist in-repo.",
     "Phases 19-21 durable Job Store, business action adapter, and software worker/deployment contracts are present; no production queue/store/action/deployment adapter is connected.",
     "Phases 36-39 deterministic Storage Fabric, resilience, Resource Adapter SDK, and governed ResourcePool contracts are present; real NAS/cloud/colo/partner runtimes remain unconnected.",
     "Phase 44 deterministic offline adversarial harness is present, but full production end-to-end acceptance has not been run.",
     "The Phase 34 -> JobService bridge contract is deterministic and tested, but its authoritative production bridge store remains not connected.",
-    "The cross-phase golden-path harness is deterministic simulation evidence only and never represents production execution."
+    "The cross-phase golden-path harness is deterministic simulation evidence only and never represents production execution.",
+    "The Control API HTTP/application-adapter surface is implemented for owner intents, Decisions, Resources, Jobs/results, Verification, and health; authoritative auth/persistence adapters remain not connected."
   ]
 }
