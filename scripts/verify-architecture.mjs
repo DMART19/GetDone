@@ -178,6 +178,61 @@ for (const required of ["blockingKillSwitches", "profile-not-validated", "struct
   if (!aiRouter.includes(required)) fail(`Phase 13 routing guard missing: ${required}`);
 }
 
+const openRouterAdapter = read("lib/ai-gateway/openrouter-adapter.ts");
+for (const required of [
+  'OPENROUTER_ADAPTER_VERSION = "1.0.0"',
+  'OPENROUTER_DEFAULT_BASE_URL = "https://openrouter.ai/api/v1"',
+  "AbortSignal.timeout",
+  "retryableStatus",
+  "x-openrouter-metadata",
+  "response.model",
+  "runCanary",
+  "OPENROUTER_CANARY_MODEL",
+  "OpenRouter canary model identity mismatch"
+]) {
+  if (!openRouterAdapter.includes(required)) {
+    fail(`OpenRouter adapter invariant missing: ${required}`);
+  }
+}
+
+const controlApiContracts = read("lib/control-api/contracts.ts");
+const controlApiRuntime = read("lib/control-api/runtime.server.ts");
+const controlApiHttp = read("lib/control-api/http.ts");
+const controlApiServices = read("lib/control-api/service-adapter.ts");
+for (const required of [
+  'CONTROL_API_SURFACE_VERSION = "1.0.0"',
+  "submitOwnerIntent",
+  "mutateDecision",
+  "enrollResource",
+  "getJobResult",
+  "getVerification"
+]) {
+  if (!controlApiContracts.includes(required)) fail(`Control API surface invariant missing: ${required}`);
+}
+for (const required of [
+  "Control API adapter is not connected to authoritative auth/persistence",
+  "installedAdapter ?? unavailableAdapter"
+]) {
+  if (!controlApiRuntime.includes(required)) fail(`Control API fail-closed runtime invariant missing: ${required}`);
+}
+for (const required of [
+  "Idempotency-Key header is required",
+  "cache-control",
+  "VALIDATION_FAILED",
+  "adapter.authenticate(request)"
+]) {
+  if (!controlApiHttp.includes(required)) fail(`Control API HTTP invariant missing: ${required}`);
+}
+for (const required of [
+  "authorizeRequest",
+  "resolveStepUpProof",
+  "resolveDecision",
+  "ResourceRegistryService",
+  "dataClassesAllowed: [\"public\"]"
+]) {
+  if (!controlApiServices.includes(required)) fail(`Control API service authority binding missing: ${required}`);
+}
+
 const aiBudgetReservation = read("lib/ai-gateway/budget-reservation.ts");
 for (const required of [
   'AI_BUDGET_RESERVATION_CONTRACT_VERSION = "1.0.0"',
@@ -408,6 +463,7 @@ for (const required of [
 
 const ci = read(".github/workflows/ci.yml");
 for (const requiredScript of [
+  "npm run verify:dependencies",
   "npm run verify:architecture",
   "npm run verify:coverage",
   "npm run test:e2e",
@@ -415,7 +471,11 @@ for (const requiredScript of [
   "npm run verify:contract-versions",
   "npm run release:generate",
   "npm run verify:release",
-  "actions/upload-artifact@v4"
+  "actions/checkout@v7",
+  "actions/setup-node@v7",
+  "actions/upload-artifact@v7",
+  "persist-credentials: false",
+  "FORCE_JAVASCRIPT_ACTIONS_TO_NODE24"
 ]) {
   if (!ci.includes(requiredScript)) fail(`CI does not preserve required architecture/release gate: ${requiredScript}`);
 }
@@ -431,6 +491,7 @@ for (const required of [
   "database",
   "policy",
   "aiGateway",
+  "controlApi",
   "integrations",
   "execution",
   "composition",
@@ -454,11 +515,24 @@ if (
 }
 if (
   releaseRegistry.aiGateway.status !== "not-connected"
-  || releaseRegistry.aiGateway.adapterVersion !== "UNIMPLEMENTED"
+  || releaseRegistry.aiGateway.adapterVersion !== "1.0.0"
   || releaseRegistry.aiGateway.contractVersion !== "1.1.0"
   || releaseRegistry.aiGateway.routingPolicyContractVersion !== "1.0.0"
+  || releaseRegistry.aiGateway.routingPolicyVersion !== "UNCONFIGURED"
+  || releaseRegistry.adapters?.openRouter?.status !== "implemented-unconfigured"
+  || releaseRegistry.adapters?.openRouter?.version !== "1.0.0"
 ) {
-  fail("Phase 13 release state must distinguish deterministic gateway contracts from an unconnected live adapter");
+  fail("Phase 13 release state must expose the implemented OpenRouter adapter without claiming live routing/connectivity");
+}
+if (
+  releaseRegistry.controlApi?.surfaceVersion !== "1.0.0"
+  || releaseRegistry.controlApi?.status !== "implemented-unconnected"
+  || releaseRegistry.controlApi?.applicationAdapterStatus !== "not-connected"
+  || releaseRegistry.controlApi?.authStatus !== "not-connected"
+  || releaseRegistry.controlApi?.persistenceStatus !== "not-connected"
+  || releaseRegistry.schemaVersions?.controlApiSurface?.version !== "1.0.0"
+) {
+  fail("Control API release state must expose the implemented surface while preserving unconnected authority adapters");
 }
 if (
   releaseRegistry.schemaVersions?.aiBudgetReservation?.version !== "1.0.0"
@@ -526,6 +600,13 @@ for (const [name, state] of Object.entries(releaseEnvironment.environments ?? {}
     state.connections?.aiGateway !== false
     || state.aiGateway?.contractStatus !== "deterministic-contract"
     || state.aiGateway?.adapterStatus !== "not-connected"
+    || state.aiGateway?.adapterImplementationStatus !== "implemented-unconfigured"
+    || state.aiGateway?.provider !== "OPENROUTER_UNCONFIGURED"
+    || state.connections?.controlApiPersistence !== false
+    || state.controlApi?.surfaceStatus !== "implemented"
+    || state.controlApi?.applicationAdapterStatus !== "not-connected"
+    || state.controlApi?.authStatus !== "not-connected"
+    || state.controlApi?.persistenceStatus !== "not-connected"
     || state.integrations?.registryStatus !== "deterministic-contract"
     || state.execution?.jobRuntimeContractStatus !== "deterministic-contract"
     || state.execution?.durableJobStoreStatus !== "not-connected"
