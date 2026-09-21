@@ -53,6 +53,7 @@ export function executeTransitionCommand<T extends StatefulEntity, TStores>(inpu
     transaction: ControlPlaneTransaction<TStores>
   ) => Partial<T> | Record<string, unknown> | Promise<Partial<T> | Record<string, unknown>>;
   metadata?: (current: T) => Readonly<Record<string, string | number | boolean | null>>;
+  now?: () => Date;
 }): Promise<T> {
   return authoritativeTransitionService.transition({
     ...input,
