@@ -239,7 +239,8 @@ describe("authorization grants", () => {
   it("rejects a cryptographically valid but revoked grant", () => {
     const plan = validPlan();
     const grant = autoGrantFor(plan);
-    const { grantHash: _grantHash, ...base } = grant;
+    const { grantHash, ...base } = grant;
+    void grantHash;
     const revokedBase = { ...base, status: "revoked" as const };
     const revoked = Object.freeze({
       ...revokedBase,
