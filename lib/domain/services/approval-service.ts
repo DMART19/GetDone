@@ -72,7 +72,8 @@ export class ApprovalService {
           }
           assertStepUpProof(input.stepUpProof, {
             actorId: command.actor.id,
-            scope: command.scope
+            scope: command.scope,
+            now: this.now().getTime()
           });
         }
 
@@ -97,7 +98,8 @@ export class ApprovalService {
           planHash: input.planHash,
           stepHash: input.stepHash,
           requiredLevel: current.requirement,
-          stepUpProof: input.stepUpProof
+          stepUpProof: input.stepUpProof,
+          now: this.now().getTime()
         });
 
         return {
