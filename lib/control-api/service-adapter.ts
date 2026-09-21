@@ -22,6 +22,7 @@ import type {
   ControlApiApplicationAdapter,
   ControlApiHealth,
   ControlApiPrincipal,
+  ControlApiRole,
   DecisionMutationInput,
   JobResultView,
   OwnerIntentInput,
@@ -32,7 +33,10 @@ import type {
 } from "@/lib/control-api/contracts";
 
 export interface ControlApiScopeResolver {
-  resolve(session: AuthSession, request: Request): Promise<TrustedExecutionScope>;
+  resolve(
+    session: AuthSession,
+    request: Request
+  ): Promise<{ scope: TrustedExecutionScope; role: ControlApiRole }>;
 }
 
 export interface ControlApiAuthorizationEvidenceResolver {
@@ -100,6 +104,16 @@ export function toJobResultView(job: JobRecord): JobResultView {
   });
 }
 
+function requireRole(
+  principal: ControlApiPrincipal,
+  allowed: readonly ControlApiRole[],
+  action: string
+) {
+  if (!allowed.includes(principal.role)) {
+    throw new ControlPlaneError("FORBIDDEN", `${action} requires elevated Control API role`);
+  }
+}
+
 export class ServiceBackedControlApiAdapter implements ControlApiApplicationAdapter {
   private readonly now: () => Date;
 
@@ -109,7 +123,8 @@ export class ServiceBackedControlApiAdapter implements ControlApiApplicationAdap
 
   async authenticate(request: Request): Promise<ControlApiPrincipal> {
     const { session } = await authorizeRequest(this.deps.auth, request, "session");
-    const scope = await this.deps.scopes.resolve(session, request);
+    const resolved = await this.deps.scopes.resolve(session, request);
+    const scope = resolved.scope;
     if (
       scope.userId !== session.userId
       || !scope.portfolioId
@@ -126,6 +141,7 @@ export class ServiceBackedControlApiAdapter implements ControlApiApplicationAdap
       actor: { type: "user", id: session.userId },
       scope,
       sessionId: session.sessionId,
+      role: resolved.role,
       stepUpProof
     };
   }
@@ -139,6 +155,7 @@ export class ServiceBackedControlApiAdapter implements ControlApiApplicationAdap
     input: OwnerIntentInput,
     idempotencyKey: string
   ) {
+    requireRole(principal, ["owner"], "Owner intent submission");
     const record: OwnerIntentRecord = Object.freeze({
       id: crypto.randomUUID(),
       portfolioId: principal.scope.portfolioId,
@@ -165,6 +182,7 @@ export class ServiceBackedControlApiAdapter implements ControlApiApplicationAdap
   }
 
   mutateDecision(principal: ControlApiPrincipal, input: DecisionMutationInput) {
+    requireRole(principal, ["owner", "admin"], "Decision mutation");
     const correlationId = createCorrelationId();
     const command = createCommandEnvelope({
       commandId: crypto.randomUUID(),
@@ -203,6 +221,7 @@ export class ServiceBackedControlApiAdapter implements ControlApiApplicationAdap
   }
 
   discoverResource(principal: ControlApiPrincipal, input: ResourceDiscoveryInput) {
+    requireRole(principal, ["owner", "admin"], "Resource discovery");
     const correlationId = createCorrelationId();
     const command = createCommandEnvelope({
       commandId: crypto.randomUUID(),
@@ -253,6 +272,7 @@ export class ServiceBackedControlApiAdapter implements ControlApiApplicationAdap
     principal: ControlApiPrincipal,
     input: ResourceEnrollmentStartInput
   ) {
+    requireRole(principal, ["owner", "admin"], "Resource enrollment");
     const command = this.enrollmentCommand(
       principal,
       input.idempotencyKey,
@@ -276,6 +296,7 @@ export class ServiceBackedControlApiAdapter implements ControlApiApplicationAdap
     enrollmentId: string,
     input: ResourceEnrollmentActionInput
   ) {
+    requireRole(principal, ["owner", "admin"], "Resource enrollment mutation");
     const command = this.enrollmentCommand(
       principal,
       input.idempotencyKey,
