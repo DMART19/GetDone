@@ -45,7 +45,7 @@ describe("Phase 24 adversarial security regression", () => {
   });
 
   it("rejects a forged provider callback", () => {
-    const secret = "server-side-test-secret";
+    const secret = "unit-test-secret";
     const timestamp = "1790006400";
     const body = JSON.stringify({ state: "running" });
     const signature = computeHmacSha256(body, secret, timestamp);
