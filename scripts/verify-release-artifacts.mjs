@@ -208,10 +208,10 @@ if (failures.length === 0) {
     || manifest.nodeAgent?.domainVersion !== nodeDomainVersion
     || manifest.nodeAgent?.protocolVersion !== nodeAgentProtocolVersion
     || manifest.nodeAgent?.dispatchContractVersion !== nodeDispatchContractVersion
-    || manifest.nodeAgent?.linuxX64 !== "build-only"
-    || manifest.nodeAgent?.linuxArm64 !== "build-only"
+    || manifest.nodeAgent?.linuxX64 !== "inventory-capable-build"
+    || manifest.nodeAgent?.linuxArm64 !== "inventory-capable-build"
     || manifest.nodeAgent?.productionReady !== false
-    || manifest.nodeAgent?.agentVersion !== "0.2.0-development"
+    || manifest.nodeAgent?.agentVersion !== "0.3.0-development"
     || manifest.nodeAgent?.enrollmentStatus !== "implemented-unconnected"
     || manifest.nodeAgent?.nodePersistenceStatus !== "implemented-unconnected"
     || manifest.nodeAgent?.identityIssuerStatus !== "development-only"
@@ -219,17 +219,23 @@ if (failures.length === 0) {
     || manifest.nodeAgent?.productionMtlsStatus !== "not-connected"
     || manifest.nodeAgent?.enrollmentMigrationVersion !== "2026-09-21.2"
     || manifest.nodeAgent?.bootstrapAuthentication !== "one-time-token"
+    || manifest.nodeAgent?.inventoryDiscoveryStatus !== "implemented"
+    || manifest.nodeAgent?.inventoryApiStatus !== "implemented-unconnected"
+    || manifest.nodeAgent?.inventoryPersistenceStatus !== "implemented-unconnected"
+    || manifest.nodeAgent?.authenticatedAgentTransportStatus !== "not-connected"
+    || manifest.nodeAgent?.inventoryMigrationVersion !== "2026-09-21.3"
     || registry.nodeAgent?.status !== "implemented-development-only"
+    || registry.schemaVersions.nodeInventory?.version !== "1.0.0"
     || registry.schemaVersions.nodeIdentity?.version !== nodeIdentityContractVersion
   ) {
-    fail("Phase 28.2 Node Agent release artifact truth drifted or overclaims production identity connectivity");
+    fail("Phase 28.3 Node Agent release artifact truth drifted or overclaims live inventory connectivity");
   }
   for (const evidence of manifest.nodeAgent?.sourceEvidence ?? []) {
     if (
       !registry.nodeAgent.sourcePaths.includes(evidence.sourcePath)
       || evidence.sourceSha256 !== fileHash(evidence.sourcePath)
     ) {
-      fail(`Phase 28.2 node source evidence drift: ${evidence.sourcePath}`);
+      fail(`Phase 28.3 node source evidence drift: ${evidence.sourcePath}`);
     }
   }
   if (

@@ -13,6 +13,7 @@ import (
 	"github.com/DMART19/GetDone/agent/internal/controlplane"
 	"github.com/DMART19/GetDone/agent/internal/enrollment"
 	"github.com/DMART19/GetDone/agent/internal/health"
+	"github.com/DMART19/GetDone/agent/internal/inventory"
 	"github.com/DMART19/GetDone/agent/internal/localstate"
 	"github.com/DMART19/GetDone/agent/internal/version"
 )
@@ -66,6 +67,21 @@ func main() {
 		}
 		log.Printf("Node Agent enrollment completed nodeId=%s", state.NodeID)
 	}
+
+	collector := inventory.NewCollector(inventory.LinuxProbe{}, version.Architecture, time.Now)
+	hardware, err := collector.Collect(ctx, state.NodeID)
+	if err != nil {
+		log.Fatalf("discover Node hardware inventory: %v", err)
+	}
+	if err := inventory.SaveSnapshot(cfg.StateDir, hardware); err != nil {
+		log.Fatalf("persist Node hardware inventory: %v", err)
+	}
+	log.Printf(
+		"Node hardware inventory collected nodeId=%s architecture=%s inventoryHash=%s",
+		state.NodeID,
+		hardware.Architecture,
+		hardware.InventoryHash,
+	)
 
 	manager := health.NewManager(time.Now())
 	if err := manager.Run(ctx); err != nil {

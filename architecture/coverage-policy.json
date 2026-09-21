@@ -300,6 +300,26 @@
       "source": "lib/persistence/postgres/node-identity-store.ts",
       "test": "lib/persistence/postgres/node-enrollment.test.ts",
       "critical": true
+    },
+    {
+      "source": "lib/nodes/inventory-service.ts",
+      "test": "lib/nodes/inventory-service.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/nodes/agent-runtime.server.ts",
+      "test": "lib/nodes/agent-http.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/nodes/agent-http.ts",
+      "test": "lib/nodes/agent-http.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/persistence/postgres/node-inventory-store.ts",
+      "test": "lib/persistence/postgres/node-inventory-store.test.ts",
+      "critical": true
     }
   ]
 }

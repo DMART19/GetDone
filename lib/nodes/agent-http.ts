@@ -1,0 +1,53 @@
+import { z } from "zod";
+import { ControlPlaneError, toControlPlaneError } from "@/lib/control-plane/errors";
+import { createCorrelationId, readIdempotencyKey } from "@/lib/control-plane/request-context";
+import { readServerRuntimeEnvironment } from "@/lib/control-plane/runtime-environment.server";
+import { apiFailure, apiSuccess } from "@/lib/control-plane/schemas";
+import { hardwareInventorySchema } from "@/lib/nodes/schemas";
+import {
+  getNodeAgentAuthenticator,
+  getNodeInventoryAdapter
+} from "@/lib/nodes/agent-runtime.server";
+
+async function parseJson<T>(request: Request, schema: z.ZodType<T>): Promise<T> {
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    throw new ControlPlaneError("VALIDATION_FAILED", "Request body must be valid JSON");
+  }
+  const parsed = schema.safeParse(body);
+  if (!parsed.success) {
+    throw new ControlPlaneError("VALIDATION_FAILED", "Invalid Node inventory payload");
+  }
+  return parsed.data;
+}
+
+export async function handleNodeInventory(request: Request) {
+  const correlationId = createCorrelationId();
+  const environment = readServerRuntimeEnvironment();
+  try {
+    if (!readIdempotencyKey(request.headers)) {
+      throw new ControlPlaneError(
+        "VALIDATION_FAILED",
+        "Idempotency-Key header is required"
+      );
+    }
+    const principal = await getNodeAgentAuthenticator().authenticate(request);
+    const inventory = await parseJson(request, hardwareInventorySchema);
+    const data = await getNodeInventoryAdapter().submit(principal, inventory);
+    return Response.json(apiSuccess(data, { correlationId, environment }), {
+      status: 201,
+      headers: { "cache-control": "no-store" }
+    });
+  } catch (error) {
+    const normalized = toControlPlaneError(error, correlationId);
+    return Response.json(
+      apiFailure(normalized.code, normalized.message, { correlationId, environment }),
+      {
+        status: normalized.status,
+        headers: { "cache-control": "no-store" }
+      }
+    );
+  }
+}

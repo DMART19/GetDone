@@ -78,6 +78,11 @@ interface ReleaseRegistryShape {
     productionMtlsStatus: string;
     enrollmentMigrationVersion: string;
     bootstrapAuthentication: string;
+    inventoryDiscoveryStatus: string;
+    inventoryApiStatus: string;
+    inventoryPersistenceStatus: string;
+    authenticatedAgentTransportStatus: string;
+    inventoryMigrationVersion: string;
     sourcePaths: string[];
   };
   integrations: {
@@ -183,6 +188,11 @@ interface EnvironmentShape {
     productionMtlsStatus: string;
     enrollmentMigrationVersion: string;
     bootstrapAuthentication: string;
+    inventoryDiscoveryStatus: string;
+    inventoryApiStatus: string;
+    inventoryPersistenceStatus: string;
+    authenticatedAgentTransportStatus: string;
+    inventoryMigrationVersion: string;
   };
   integrations: {
     registryStatus: string;
@@ -284,23 +294,28 @@ describe("Phase 41 release/version registry", () => {
     });
   });
 
-  it("records Phase 28.2 secure enrollment without claiming production Node identity connectivity", () => {
+  it("records Phase 28.3 hardware discovery without claiming live authenticated inventory transport", () => {
     expect(registry.nodeAgent).toMatchObject({
       status: "implemented-development-only",
       domainVersion: NODE_DOMAIN_VERSION,
       protocolVersion: NODE_AGENT_PROTOCOL_VERSION,
       dispatchContractVersion: NODE_DISPATCH_CONTRACT_VERSION,
-      linuxX64: "build-only",
-      linuxArm64: "build-only",
+      linuxX64: "inventory-capable-build",
+      linuxArm64: "inventory-capable-build",
       productionReady: false,
-      agentVersion: "0.2.0-development",
+      agentVersion: "0.3.0-development",
       enrollmentStatus: "implemented-unconnected",
       nodePersistenceStatus: "implemented-unconnected",
       identityIssuerStatus: "development-only",
       productionCaStatus: "not-connected",
       productionMtlsStatus: "not-connected",
       enrollmentMigrationVersion: "2026-09-21.2",
-      bootstrapAuthentication: "one-time-token"
+      bootstrapAuthentication: "one-time-token",
+      inventoryDiscoveryStatus: "implemented",
+      inventoryApiStatus: "implemented-unconnected",
+      inventoryPersistenceStatus: "implemented-unconnected",
+      authenticatedAgentTransportStatus: "not-connected",
+      inventoryMigrationVersion: "2026-09-21.3"
     });
     expect(registry.schemaVersions.nodeDomain).toMatchObject({
       version: NODE_DOMAIN_VERSION,
@@ -314,6 +329,9 @@ describe("Phase 41 release/version registry", () => {
       version: NODE_IDENTITY_CONTRACT_VERSION,
       contractTracked: true
     });
+    expect(registry.schemaVersions.nodeInventory).toMatchObject({
+      version: "1.0.0"
+    });
     for (const state of Object.values(environment.environments)) {
       expect(state.connections.resourceAgent).toBe(false);
       expect(state.nodeAgent).toMatchObject({
@@ -321,9 +339,15 @@ describe("Phase 41 release/version registry", () => {
         domainVersion: NODE_DOMAIN_VERSION,
         protocolVersion: NODE_AGENT_PROTOCOL_VERSION,
         dispatchContractVersion: NODE_DISPATCH_CONTRACT_VERSION,
-        linuxX64: "build-only",
-        linuxArm64: "build-only",
-        productionReady: false
+        linuxX64: "inventory-capable-build",
+        linuxArm64: "inventory-capable-build",
+        productionReady: false,
+        agentVersion: "0.3.0-development",
+        inventoryDiscoveryStatus: "implemented",
+        inventoryApiStatus: "implemented-unconnected",
+        inventoryPersistenceStatus: "implemented-unconnected",
+        authenticatedAgentTransportStatus: "not-connected",
+        inventoryMigrationVersion: "2026-09-21.3"
       });
     }
   });
