@@ -203,7 +203,9 @@ for (const required of [
   'CONTROL_API_SURFACE_VERSION = "1.0.0"',
   "submitOwnerIntent",
   "mutateDecision",
-  "enrollResource",
+  "discoverResource",
+  "startResourceEnrollment",
+  "advanceResourceEnrollment",
   "getJobResult",
   "getVerification"
 ]) {
@@ -228,6 +230,7 @@ for (const required of [
   "resolveStepUpProof",
   "resolveDecision",
   "ResourceRegistryService",
+  "ResourceEnrollmentService",
   "dataClassesAllowed: [\"public\"]"
 ]) {
   if (!controlApiServices.includes(required)) fail(`Control API service authority binding missing: ${required}`);
