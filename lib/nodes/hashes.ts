@@ -4,6 +4,7 @@ import type {
   HardwareInventory,
   NodeAllocatableProfile,
   NodeCapability,
+  NodeCapabilityProfile,
   NodeHeartbeat
 } from "@/lib/nodes/contracts";
 import type {
@@ -30,6 +31,15 @@ export function hashNodeCapability(
   capability: Omit<NodeCapability, "capabilityHash"> | NodeCapability
 ) {
   return sha256Hex(withoutHash(capability as NodeCapability & Record<string, unknown>, "capabilityHash"));
+}
+
+export function hashNodeCapabilityProfile(
+  profile: Omit<NodeCapabilityProfile, "profileHash"> | NodeCapabilityProfile
+) {
+  return sha256Hex(withoutHash(
+    profile as NodeCapabilityProfile & Record<string, unknown>,
+    "profileHash"
+  ));
 }
 
 export function hashAllocatableProfile(
