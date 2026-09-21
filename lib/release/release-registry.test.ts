@@ -78,15 +78,7 @@ interface ReleaseRegistryShape {
     jobExecutionBridgeStatus: string;
     liveJobExecutionBridgeStoreStatus: string;
     jobExecutionBridgeStoreImplementationStatus: string;
-    jobExecutionBridgeStoreImplementationStatus: string;
     persistenceBackend: string;
-  };
-  database: {
-    engine: string;
-    minimumEngineVersion: string;
-    adapterStatus: string;
-    migrationVersion: string;
-    schemaVersion: string;
   };
   composition: {
     goldenPathHarnessVersion: string;
@@ -131,6 +123,13 @@ interface EnvironmentShape {
   productionReady: boolean;
   connections: Record<string, boolean>;
   deployment: { status: string; deploymentId: string | null };
+  database: {
+    engine: string;
+    minimumEngineVersion: string;
+    adapterStatus: string;
+    migrationVersion: string;
+    schemaVersion: string;
+  };
   aiGateway: {
     contractStatus: string;
     adapterStatus: string;
@@ -159,6 +158,7 @@ interface EnvironmentShape {
     softwareDeploymentStatus: string;
     jobExecutionRouterStatus: string;
     jobExecutionBridgeStatus: string;
+    jobExecutionBridgeStoreImplementationStatus: string;
     liveJobExecutionBridgeStoreStatus: string;
   };
   composition: {
