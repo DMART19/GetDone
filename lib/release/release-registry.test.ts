@@ -329,6 +329,9 @@ describe("Phase 41 release/version registry", () => {
       version: NODE_IDENTITY_CONTRACT_VERSION,
       contractTracked: true
     });
+    expect(registry.schemaVersions.nodeInventory).toMatchObject({
+      version: "1.0.0"
+    });
     for (const state of Object.values(environment.environments)) {
       expect(state.connections.resourceAgent).toBe(false);
       expect(state.nodeAgent).toMatchObject({
@@ -338,7 +341,13 @@ describe("Phase 41 release/version registry", () => {
         dispatchContractVersion: NODE_DISPATCH_CONTRACT_VERSION,
         linuxX64: "inventory-capable-build",
         linuxArm64: "inventory-capable-build",
-        productionReady: false
+        productionReady: false,
+        agentVersion: "0.3.0-development",
+        inventoryDiscoveryStatus: "implemented",
+        inventoryApiStatus: "implemented-unconnected",
+        inventoryPersistenceStatus: "implemented-unconnected",
+        authenticatedAgentTransportStatus: "not-connected",
+        inventoryMigrationVersion: "2026-09-21.3"
       });
     }
   });
