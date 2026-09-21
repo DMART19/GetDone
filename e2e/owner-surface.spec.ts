@@ -84,7 +84,7 @@ test.describe("existing owner surface", () => {
       environment: "development",
       data: {
         service: "getdone-control-api",
-        surfaceVersion: "1.0.0",
+        surfaceVersion: "1.1.0",
         status: "unavailable",
         authConnected: false,
         persistenceConnected: false
