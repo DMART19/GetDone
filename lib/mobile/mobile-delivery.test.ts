@@ -114,4 +114,68 @@ describe("Phase 25 mobile delivery contracts", () => {
       userVerified: true
     }, now)).toThrow();
   });
+  it("covers all supported deep-link target shapes and WebAuthn fail-closed branches", () => {
+    expect(buildMobileDeepLink({ kind: "decision", decisionId: "decision-1" })).toBe("/decisions/decision-1");
+    expect(buildMobileDeepLink({ kind: "task-result", taskId: "task-1" })).toBe("/?focus=task-result&id=task-1");
+    expect(buildMobileDeepLink({ kind: "resource", resourceId: "resource-1" })).toBe("/resources/resource-1");
+    expect(buildMobileDeepLink({
+      kind: "resource-decision",
+      resourceId: "resource-1",
+      decisionId: "decision-1"
+    })).toBe("/decisions/decision-1?resource=resource-1");
+    expect(assertSafeInternalDeepLink("/resources/resource-1")).toBe("/resources/resource-1");
+    expect(() => assertSafeInternalDeepLink("/../admin")).toThrow();
+
+    const ceremony = {
+      id: "ceremony-branches",
+      type: "authentication" as const,
+      rpId: "getdone.example",
+      allowedOrigins: ["https://getdone.example"],
+      challengeHash: "challenge",
+      issuedAt: "2026-09-20T20:55:00Z",
+      expiresAt: "2026-09-20T21:05:00Z",
+      requireUserVerification: true
+    };
+    const valid = {
+      ceremonyId: ceremony.id,
+      rpId: ceremony.rpId,
+      origin: "https://getdone.example",
+      credentialId: "credential-1",
+      userVerified: true
+    };
+    const now = Date.parse("2026-09-20T21:00:00Z");
+
+    expect(() => assertWebAuthnCeremony(
+      { ...ceremony, issuedAt: "bad-time" },
+      valid,
+      now
+    )).toThrow(/valid timestamp/i);
+    expect(() => assertWebAuthnCeremony(
+      { ...ceremony, expiresAt: "2026-09-20T20:59:59Z" },
+      valid,
+      now
+    )).toThrow(/expired or not active/i);
+    expect(() => assertWebAuthnCeremony(
+      ceremony,
+      { ...valid, ceremonyId: "other" },
+      now
+    )).toThrow(/origin\/RP scope/i);
+    expect(() => assertWebAuthnCeremony(
+      ceremony,
+      { ...valid, credentialId: "" },
+      now
+    )).toThrow(/credential identity/i);
+    expect(() => assertWebAuthnCeremony(
+      ceremony,
+      { ...valid, userVerified: false },
+      now
+    )).toThrow(/user verification/i);
+
+    expect(assertWebAuthnCeremony(
+      { ...ceremony, requireUserVerification: false },
+      { ...valid, userVerified: false },
+      now
+    ).userVerified).toBe(false);
+  });
+
 });
