@@ -19,6 +19,11 @@ import { RESOURCE_POOL_CONTRACT_VERSION } from "@/lib/resources/pools";
 import { PHASE44_DETERMINISTIC_HARNESS_VERSION } from "@/lib/security/phase44-adversarial-harness";
 import { CONTROL_API_SURFACE_VERSION } from "@/lib/control-api/contracts";
 import { OPENROUTER_ADAPTER_VERSION } from "@/lib/ai-gateway/openrouter-adapter";
+import {
+  NODE_AGENT_PROTOCOL_VERSION,
+  NODE_DOMAIN_VERSION
+} from "@/lib/nodes/contracts";
+import { NODE_DISPATCH_CONTRACT_VERSION } from "@/lib/nodes/dispatch-contracts";
 
 interface VersionedSource {
   version: string;
@@ -55,6 +60,15 @@ interface ReleaseRegistryShape {
     authStatus: string;
     persistenceStatus: string;
     sourcePath: string;
+  };
+  nodeAgent: {
+    status: string;
+    domainVersion: string;
+    protocolVersion: string;
+    dispatchContractVersion: string;
+    linuxX64: string;
+    linuxArm64: string;
+    sourcePaths: string[];
   };
   integrations: {
     registryContractVersion: string;
@@ -143,6 +157,12 @@ interface EnvironmentShape {
     authStatus: string;
     persistenceStatus: string;
   };
+  nodeAgent: {
+    contractStatus: string;
+    agentRuntimeStatus: string;
+    linuxX64: string;
+    linuxArm64: string;
+  };
   integrations: {
     registryStatus: string;
     adapterStatus: string;
@@ -204,10 +224,10 @@ const packageJson = readJson<{ version: string }>("package.json");
 
 describe("Phase 41 release/version registry", () => {
   it("binds application policy and machine-readable schema versions", () => {
-    expect(registry.registrySchemaVersion).toBe("1.6.0");
-    expect(registry.environmentManifestSchemaVersion).toBe("1.6.0");
-    expect(environment.manifestSchemaVersion).toBe("1.6.0");
-    expect(registry.schemaVersions.releaseManifest.version).toBe("1.6.0");
+    expect(registry.registrySchemaVersion).toBe("1.7.0");
+    expect(registry.environmentManifestSchemaVersion).toBe("1.7.0");
+    expect(environment.manifestSchemaVersion).toBe("1.7.0");
+    expect(registry.schemaVersions.releaseManifest.version).toBe("1.7.0");
     expect(registry.appVersion).toBe(packageJson.version);
     expect(registry.policy.registryVersion).toBe(CURRENT_POLICY_VERSION);
     expect(registry.policy.engineVersion).toBe(POLICY_ENGINE_VERSION);
@@ -262,6 +282,33 @@ describe("Phase 41 release/version registry", () => {
         adapterStatus: "not-connected",
         adapterImplementationStatus: "implemented-unconfigured",
         provider: "OPENROUTER_UNCONFIGURED"
+      });
+    }
+  });
+
+  it("records Phase 28.0 as contract-only for Linux x86-64 and ARM64", () => {
+    expect(registry.nodeAgent).toMatchObject({
+      status: "contract-only",
+      domainVersion: NODE_DOMAIN_VERSION,
+      protocolVersion: NODE_AGENT_PROTOCOL_VERSION,
+      dispatchContractVersion: NODE_DISPATCH_CONTRACT_VERSION,
+      linuxX64: "not-connected",
+      linuxArm64: "not-connected"
+    });
+    expect(registry.adapters.nodeAgent).toMatchObject({
+      status: "contract-only",
+      version: NODE_AGENT_PROTOCOL_VERSION
+    });
+    expect(registry.schemaVersions.nodeDomain.version).toBe(NODE_DOMAIN_VERSION);
+    expect(registry.schemaVersions.nodeDispatch.version).toBe(NODE_DISPATCH_CONTRACT_VERSION);
+
+    for (const state of Object.values(environment.environments)) {
+      expect(state.connections.resourceAgent).toBe(false);
+      expect(state.nodeAgent).toEqual({
+        contractStatus: "deterministic-contract",
+        agentRuntimeStatus: "not-connected",
+        linuxX64: "not-connected",
+        linuxArm64: "not-connected"
       });
     }
   });
