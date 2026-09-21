@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   handleAgentNodeEnrollment,
   handleCreateNodeEnrollment,
@@ -53,7 +53,12 @@ function jsonRequest(
   });
 }
 
+beforeEach(() => {
+  process.env.GETDONE_RUNTIME_ENV = "development";
+});
+
 afterEach(() => {
+  delete process.env.GETDONE_RUNTIME_ENV;
   resetNodeEnrollmentAdapter();
   resetControlApiAdapter();
 });
