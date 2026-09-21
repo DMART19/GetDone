@@ -1,8 +1,8 @@
 {
-  "schemaVersion": "1.1.0",
+  "schemaVersion": "1.2.0",
   "thresholds": {
     "coveredModulePercent": 100,
-    "minimumTotalTestCases": 75,
+    "minimumTotalTestCases": 80,
     "minimumTestCasesPerCriticalModule": 1
   },
   "modules": [
@@ -144,6 +144,21 @@
     {
       "source": "lib/security/phase44-adversarial-harness.ts",
       "test": "lib/security/phase44-adversarial-harness.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/domain/services/job-service.ts",
+      "test": "lib/domain/services/services.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/domain/services/job-execution-bridge.ts",
+      "test": "lib/domain/services/job-execution-bridge.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/composition/golden-path-harness.ts",
+      "test": "lib/composition/golden-path-harness.test.ts",
       "critical": true
     }
   ]
