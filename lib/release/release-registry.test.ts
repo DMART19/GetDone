@@ -12,7 +12,6 @@ import { JOB_RUNTIME_CONTRACT_VERSION } from "@/lib/execution/job-runtime-contra
 import { BUSINESS_ACTION_ADAPTER_CONTRACT_VERSION } from "@/lib/execution/adapters/business-action";
 import { SOFTWARE_WORKER_CONTRACT_VERSION } from "@/lib/execution/software-worker";
 import { JOB_EXECUTION_BRIDGE_CONTRACT_VERSION } from "@/lib/domain/services/job-execution-bridge";
-import { GOLDEN_PATH_HARNESS_VERSION } from "@/lib/composition/golden-path-harness";
 import { STORAGE_FABRIC_CONTRACT_VERSION } from "@/lib/resources/storage-fabric";
 import { RESILIENCE_CONTRACT_VERSION } from "@/lib/resources/resilience";
 import { RESOURCE_ADAPTER_SDK_CONTRACT_VERSION } from "@/lib/resources/adapter-sdk";
@@ -213,7 +212,7 @@ describe("Phase 41 release/version registry", () => {
       liveJobExecutionBridgeStoreStatus: "not-connected"
     });
     expect(registry.composition).toMatchObject({
-      goldenPathHarnessVersion: GOLDEN_PATH_HARNESS_VERSION,
+      goldenPathHarnessVersion: "1.0.0",
       status: "deterministic-simulation-only",
       productionExecutionClaimed: false,
       sourcePath: "lib/composition/golden-path-harness.ts"
