@@ -1,6 +1,6 @@
 {
   "registrySchemaVersion": "1.4.0",
-  "registryVersion": "2026-09-20.5",
+  "registryVersion": "2026-09-20.6",
   "appVersion": "0.1.0",
   "schemaVersions": {
     "controlApi": {
@@ -88,7 +88,7 @@
       ]
     },
     "jobRuntime": {
-      "version": "1.0.0",
+      "version": "1.1.0",
       "sourcePath": "lib/execution/job-runtime-contracts.ts",
       "contractTracked": true,
       "contractSourcePaths": [
@@ -96,7 +96,7 @@
       ]
     },
     "softwareWorker": {
-      "version": "1.0.0",
+      "version": "1.1.0",
       "sourcePath": "lib/execution/software-worker.ts",
       "contractTracked": true,
       "contractSourcePaths": [
@@ -195,7 +195,7 @@
     },
     "businessAction": {
       "status": "contract-only",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "sourcePath": "lib/execution/adapters/business-action.ts",
       "contractTracked": true,
       "contractSourcePaths": [
@@ -231,7 +231,7 @@
     },
     "softwareDeployment": {
       "status": "contract-only",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "sourcePath": "lib/execution/software-worker.ts",
       "contractTracked": true,
       "contractSourcePaths": [
@@ -317,11 +317,11 @@
     "sourcePath": "lib/integrations/contracts.ts"
   },
   "execution": {
-    "jobRuntimeContractVersion": "1.0.0",
+    "jobRuntimeContractVersion": "1.1.0",
     "durableJobStoreStatus": "not-connected",
-    "businessActionContractVersion": "1.0.0",
+    "businessActionContractVersion": "1.1.0",
     "businessAdaptersStatus": "not-connected",
-    "softwareWorkerContractVersion": "1.0.0",
+    "softwareWorkerContractVersion": "1.1.0",
     "softwareDeploymentStatus": "not-connected",
     "sourcePaths": [
       "lib/execution/job-runtime-contracts.ts",
