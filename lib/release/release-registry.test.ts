@@ -62,7 +62,11 @@ interface ReleaseRegistryShape {
     sourcePath: string;
   };
   nodeAgent: {
+    milestone: string;
     status: string;
+    agentVersion: string;
+    agentShellStatus: string;
+    enrollmentStatus: string;
     domainVersion: string;
     protocolVersion: string;
     dispatchContractVersion: string;
@@ -160,6 +164,8 @@ interface EnvironmentShape {
   nodeAgent: {
     contractStatus: string;
     agentRuntimeStatus: string;
+    agentShellStatus: string;
+    enrollmentStatus: string;
     linuxX64: string;
     linuxArm64: string;
   };
@@ -224,10 +230,10 @@ const packageJson = readJson<{ version: string }>("package.json");
 
 describe("Phase 41 release/version registry", () => {
   it("binds application policy and machine-readable schema versions", () => {
-    expect(registry.registrySchemaVersion).toBe("1.7.0");
-    expect(registry.environmentManifestSchemaVersion).toBe("1.7.0");
-    expect(environment.manifestSchemaVersion).toBe("1.7.0");
-    expect(registry.schemaVersions.releaseManifest.version).toBe("1.7.0");
+    expect(registry.registrySchemaVersion).toBe("1.8.0");
+    expect(registry.environmentManifestSchemaVersion).toBe("1.8.0");
+    expect(environment.manifestSchemaVersion).toBe("1.8.0");
+    expect(registry.schemaVersions.releaseManifest.version).toBe("1.8.0");
     expect(registry.appVersion).toBe(packageJson.version);
     expect(registry.policy.registryVersion).toBe(CURRENT_POLICY_VERSION);
     expect(registry.policy.engineVersion).toBe(POLICY_ENGINE_VERSION);
@@ -286,14 +292,18 @@ describe("Phase 41 release/version registry", () => {
     }
   });
 
-  it("records Phase 28.0 as contract-only for Linux x86-64 and ARM64", () => {
+  it("records Phase 28.1 Agent shell builds without claiming enrollment connectivity", () => {
     expect(registry.nodeAgent).toMatchObject({
-      status: "contract-only",
+      milestone: "28.1",
+      status: "implemented-unconnected",
+      agentVersion: "0.1.0",
+      agentShellStatus: "implemented",
+      enrollmentStatus: "not-implemented",
       domainVersion: NODE_DOMAIN_VERSION,
       protocolVersion: NODE_AGENT_PROTOCOL_VERSION,
       dispatchContractVersion: NODE_DISPATCH_CONTRACT_VERSION,
-      linuxX64: "not-connected",
-      linuxArm64: "not-connected"
+      linuxX64: "build-supported-unconnected",
+      linuxArm64: "build-supported-unconnected"
     });
     expect(registry.adapters.nodeAgent).toMatchObject({
       status: "contract-only",
@@ -306,9 +316,11 @@ describe("Phase 41 release/version registry", () => {
       expect(state.connections.resourceAgent).toBe(false);
       expect(state.nodeAgent).toEqual({
         contractStatus: "deterministic-contract",
-        agentRuntimeStatus: "not-connected",
-        linuxX64: "not-connected",
-        linuxArm64: "not-connected"
+        agentRuntimeStatus: "implemented-unconnected",
+        agentShellStatus: "implemented",
+        enrollmentStatus: "not-implemented",
+        linuxX64: "build-supported-unconnected",
+        linuxArm64: "build-supported-unconnected"
       });
     }
   });
