@@ -51,6 +51,9 @@ jobs:
         working-directory: agent
         run: go test ./...
 
+      - name: Verify installer syntax
+        run: bash -n agent/packaging/install/install.sh
+
       - name: Cross-build Linux amd64 and arm64
         run: bash scripts/build-node-agent.sh
 
