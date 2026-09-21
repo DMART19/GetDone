@@ -630,6 +630,92 @@ for (const required of [
   if (!agentWorkflow.includes(required)) fail(`Phase 28.1 Go CI gate missing: ${required}`);
 }
 
+const agentInventory = read("agent/internal/inventory/inventory.go");
+const agentCPUInventory = read("agent/internal/inventory/cpu_linux.go");
+const agentStorageInventory = read("agent/internal/inventory/storage_linux.go");
+const agentNetworkInventory = read("agent/internal/inventory/network_linux.go");
+const agentGPUInventory = read("agent/internal/inventory/gpu.go");
+const agentNVIDIAInventory = read("agent/internal/inventory/gpu_nvidia.go");
+const nodeInventoryService = read("lib/nodes/inventory-service.ts");
+const nodeAgentRuntime = read("lib/nodes/agent-runtime.server.ts");
+const nodeAgentHttp = read("lib/nodes/agent-http.ts");
+const nodeInventoryStore = read("lib/persistence/postgres/node-inventory-store.ts");
+const nodeInventoryMigration = read("migrations/2026-09-21.3_phase28_inventory.sql");
+
+for (const required of [
+  "NewCollector",
+  "DiscoverCPU",
+  "DiscoverMemory",
+  "DiscoverStorage",
+  "DiscoverNetwork",
+  "DiscoverOS",
+  "DiscoverGPUs",
+  "SHA256CanonicalWithoutField"
+]) {
+  if (!agentInventory.includes(required)) fail(`Phase 28.3 inventory aggregator missing: ${required}`);
+}
+for (const required of [
+  'case "amd64"',
+  'return "x86_64"',
+  'case "arm64"',
+  'return "arm64"'
+]) {
+  if (!agentCPUInventory.includes(required)) fail(`Phase 28.3 equal architecture discovery missing: ${required}`);
+}
+for (const required of [
+  "sanitizeMountPath",
+  '"/mnt/[redacted]"',
+  "StatFS"
+]) {
+  if (!agentStorageInventory.includes(required)) fail(`Phase 28.3 storage privacy/discovery invariant missing: ${required}`);
+}
+if (agentNetworkInventory.includes("log.") || agentNetworkInventory.includes("fmt.Printf")) {
+  fail("Phase 28.3 network discovery must not log interface addresses");
+}
+for (const required of [
+  "NVIDIADetector",
+  "AMDDetector"
+]) {
+  if (!agentGPUInventory.includes(required)) fail(`Phase 28.3 GPU aggregator missing: ${required}`);
+}
+if (!agentNVIDIAInventory.includes("nvidia-smi")) fail("Phase 28.3 NVIDIA detector is missing");
+for (const required of [
+  'NODE_INVENTORY_SERVICE_VERSION = "1.0.0"',
+  "hashHardwareInventory",
+  "inventory.nodeId !== principal.nodeId",
+  "node.architecture !== inventory.architecture"
+]) {
+  if (!nodeInventoryService.includes(required)) fail(`Phase 28.3 inventory authority check missing: ${required}`);
+}
+for (const required of [
+  "Authenticated Node Agent transport is not connected",
+  "installNodeAgentAuthenticator",
+  "installNodeInventoryAdapter"
+]) {
+  if (!nodeAgentRuntime.includes(required)) fail(`Phase 28.3 fail-closed agent runtime missing: ${required}`);
+}
+for (const required of [
+  "Idempotency-Key header is required",
+  "getNodeAgentAuthenticator().authenticate",
+  "hardwareInventorySchema"
+]) {
+  if (!nodeAgentHttp.includes(required)) fail(`Phase 28.3 inventory HTTP boundary missing: ${required}`);
+}
+for (const required of [
+  "ON CONFLICT (node_id,inventory_hash) DO NOTHING",
+  "IDEMPOTENCY_CONFLICT",
+  "ORDER BY discovered_at DESC,received_at DESC"
+]) {
+  if (!nodeInventoryStore.includes(required)) fail(`Phase 28.3 inventory persistence invariant missing: ${required}`);
+}
+for (const required of [
+  "node_inventory_snapshots",
+  "UNIQUE(node_id, inventory_hash)",
+  "node_inventory_latest_idx"
+]) {
+  if (!nodeInventoryMigration.includes(required)) fail(`Phase 28.3 inventory migration invariant missing: ${required}`);
+}
+
 const nodeIdentity = read("lib/nodes/identity.ts");
 const nodeApplication = read("lib/nodes/application.ts");
 const nodeRuntime = read("lib/nodes/runtime.server.ts");
@@ -843,10 +929,10 @@ if (
   || releaseRegistry.nodeAgent?.domainVersion !== "1.0.0"
   || releaseRegistry.nodeAgent?.protocolVersion !== "1.0.0"
   || releaseRegistry.nodeAgent?.dispatchContractVersion !== "1.0.0"
-  || releaseRegistry.nodeAgent?.linuxX64 !== "build-only"
-  || releaseRegistry.nodeAgent?.linuxArm64 !== "build-only"
+  || releaseRegistry.nodeAgent?.linuxX64 !== "inventory-capable-build"
+  || releaseRegistry.nodeAgent?.linuxArm64 !== "inventory-capable-build"
   || releaseRegistry.nodeAgent?.productionReady !== false
-  || releaseRegistry.nodeAgent?.agentVersion !== "0.2.0-development"
+  || releaseRegistry.nodeAgent?.agentVersion !== "0.3.0-development"
   || releaseRegistry.nodeAgent?.enrollmentStatus !== "implemented-unconnected"
   || releaseRegistry.nodeAgent?.nodePersistenceStatus !== "implemented-unconnected"
   || releaseRegistry.nodeAgent?.identityIssuerStatus !== "development-only"
@@ -854,11 +940,17 @@ if (
   || releaseRegistry.nodeAgent?.productionMtlsStatus !== "not-connected"
   || releaseRegistry.nodeAgent?.enrollmentMigrationVersion !== "2026-09-21.2"
   || releaseRegistry.nodeAgent?.bootstrapAuthentication !== "one-time-token"
+  || releaseRegistry.nodeAgent?.inventoryDiscoveryStatus !== "implemented"
+  || releaseRegistry.nodeAgent?.inventoryApiStatus !== "implemented-unconnected"
+  || releaseRegistry.nodeAgent?.inventoryPersistenceStatus !== "implemented-unconnected"
+  || releaseRegistry.nodeAgent?.authenticatedAgentTransportStatus !== "not-connected"
+  || releaseRegistry.nodeAgent?.inventoryMigrationVersion !== "2026-09-21.3"
+  || releaseRegistry.schemaVersions?.nodeInventory?.version !== "1.0.0"
   || releaseRegistry.schemaVersions?.nodeIdentity?.version !== "1.0.0"
   || releaseRegistry.schemaVersions?.nodeDomain?.version !== "1.0.0"
   || releaseRegistry.schemaVersions?.nodeDispatch?.version !== "1.0.0"
 ) {
-  fail("Phase 28.2 release state drifted or overclaims Node Agent production identity connectivity");
+  fail("Phase 28.3 release state drifted or overclaims live Node Agent inventory connectivity");
 }
 if (
   releaseRegistry.controlApi?.surfaceVersion !== "1.0.0"
@@ -955,10 +1047,10 @@ for (const [name, state] of Object.entries(releaseEnvironment.environments ?? {}
     || state.nodeAgent?.domainVersion !== "1.0.0"
     || state.nodeAgent?.protocolVersion !== "1.0.0"
     || state.nodeAgent?.dispatchContractVersion !== "1.0.0"
-    || state.nodeAgent?.linuxX64 !== "build-only"
-    || state.nodeAgent?.linuxArm64 !== "build-only"
+    || state.nodeAgent?.linuxX64 !== "inventory-capable-build"
+    || state.nodeAgent?.linuxArm64 !== "inventory-capable-build"
     || state.nodeAgent?.productionReady !== false
-    || state.nodeAgent?.agentVersion !== "0.2.0-development"
+    || state.nodeAgent?.agentVersion !== "0.3.0-development"
     || state.nodeAgent?.enrollmentStatus !== "implemented-unconnected"
     || state.nodeAgent?.nodePersistenceStatus !== "implemented-unconnected"
     || state.nodeAgent?.identityIssuerStatus !== "development-only"
@@ -966,6 +1058,11 @@ for (const [name, state] of Object.entries(releaseEnvironment.environments ?? {}
     || state.nodeAgent?.productionMtlsStatus !== "not-connected"
     || state.nodeAgent?.enrollmentMigrationVersion !== "2026-09-21.2"
     || state.nodeAgent?.bootstrapAuthentication !== "one-time-token"
+    || state.nodeAgent?.inventoryDiscoveryStatus !== "implemented"
+    || state.nodeAgent?.inventoryApiStatus !== "implemented-unconnected"
+    || state.nodeAgent?.inventoryPersistenceStatus !== "implemented-unconnected"
+    || state.nodeAgent?.authenticatedAgentTransportStatus !== "not-connected"
+    || state.nodeAgent?.inventoryMigrationVersion !== "2026-09-21.3"
     || state.connections?.resourceAgent !== false
     ||     state.connections?.aiGateway !== false
     || state.aiGateway?.contractStatus !== "deterministic-contract"
