@@ -26,6 +26,7 @@ import { validateResourceProfile } from "@/lib/resources/profiling";
 import {
   assertResourcePoolEligible,
   createGovernedResourcePool,
+  createResourcePoolReadinessEvidence,
   evaluateResourcePoolReadiness
 } from "@/lib/resources/pools";
 import {
@@ -38,6 +39,7 @@ import type { AIRequestEnvelope, ModelProfile, ModelRoutePolicy } from "@/lib/ai
 import {
   assertPhase44VectorCompleteness,
   assertReleaseRegistryIntegrity,
+  createPhase44HarnessReport,
   createReleaseRegistryIntegritySeal,
   expectAttackRejected,
   recordIdempotentNoEscalation,
@@ -453,18 +455,27 @@ describe("Phase 44 deterministic adversarial harness", () => {
       updatedAt: now,
       version: 1
     });
+    const readinessEvidence = createResourcePoolReadinessEvidence({
+      poolId: pool.id,
+      poolHash: pool.poolHash,
+      providerId: pool.providerId,
+      adapterId: pool.adapterId,
+      adapterVersion: pool.adapterVersion,
+      adapterAuthenticated: true,
+      identityVerified: true,
+      capabilitiesValidated: true,
+      healthVerified: true,
+      aggregateCapacityVerified: true,
+      failureDomainsVerified: true,
+      costModelVerified: true,
+      credentialBindingsScoped: true,
+      observedAt: "2026-09-20T21:59:00Z",
+      expiresAt: "2026-09-20T22:10:00Z"
+    });
     const readiness = evaluateResourcePoolReadiness({
       pool,
-      evidence: {
-        adapterAuthenticated: true,
-        identityVerified: true,
-        capabilitiesValidated: true,
-        healthVerified: true,
-        aggregateCapacityVerified: true,
-        failureDomainsVerified: true,
-        costModelVerified: true,
-        credentialBindingsScoped: true
-      }
+      evidence: readinessEvidence,
+      evaluatedAt: now
     });
     const result = await expectAttackRejected("cross-company-contamination", () =>
       assertResourcePoolEligible({
@@ -489,6 +500,49 @@ describe("Phase 44 deterministic adversarial harness", () => {
       assertReleaseRegistryIntegrity(tampered, seal)
     );
     expect(result.detail).toMatch(/tampering/i);
+  });
+
+  it("builds one hash-bound blocking report with every vector exactly once", async () => {
+    const rejectedIds = [
+      "voice-approval-bypass",
+      "staging-production-scope-misuse",
+      "forged-resource-capability",
+      "scheduler-bypass",
+      "credential-scope-escalation",
+      "cross-company-contamination",
+      "release-registry-tampering",
+      "model-provider-authority-attempt"
+    ] as const;
+    const rejected = [];
+    for (const attackId of rejectedIds) {
+      rejected.push(await expectAttackRejected(attackId, () => {
+        throw new Error(`offline contract blocked ${attackId}`);
+      }));
+    }
+    const report = createPhase44HarnessReport({
+      results: [
+        rejected[0],
+        rejected[1],
+        rejected[2],
+        recordIdempotentNoEscalation(
+          "reservation-replay",
+          "replay preserved the original reservation without extra capacity"
+        ),
+        rejected[3],
+        recordNonAuthoritativeEvidence(
+          "provider-success-spoofing",
+          "provider success remained evidence only"
+        ),
+        rejected[4],
+        rejected[5],
+        rejected[6],
+        rejected[7]
+      ],
+      executedAt: now
+    });
+    expect(report.passed).toBe(true);
+    expect(report.resultHashes).toHaveLength(10);
+    expect(report.reportHash).toHaveLength(64);
   });
 
   it("rejects model/provider attempts to smuggle authority through structured output", async () => {
