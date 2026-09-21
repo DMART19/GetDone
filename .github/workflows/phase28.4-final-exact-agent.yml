@@ -14,7 +14,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: d91de791f3a05a17f0c14c91e193887f62b777fc
+          ref: 70c64fd6c2b8d2cb9bd01dee5a2748106b08485a
           persist-credentials: false
 
       - uses: actions/setup-go@v6
