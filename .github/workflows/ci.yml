@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, sol/phase28.4-capability-profiling]
   pull_request:
     branches: [main]
 
