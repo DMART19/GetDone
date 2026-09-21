@@ -207,13 +207,17 @@ for (const required of [
   "startResourceEnrollment",
   "advanceResourceEnrollment",
   "getJobResult",
-  "getVerification"
+  "getVerification",
+  "beginStepUp",
+  "verifyStepUp",
+  "ControlApiRole"
 ]) {
   if (!controlApiContracts.includes(required)) fail(`Control API surface invariant missing: ${required}`);
 }
 for (const required of [
   "Control API adapter is not connected to authoritative auth/persistence",
-  "installedAdapter ?? unavailableAdapter"
+  "createPostgresControlApiAdapter",
+  "return unavailableAdapter"
 ]) {
   if (!controlApiRuntime.includes(required)) fail(`Control API fail-closed runtime invariant missing: ${required}`);
 }
