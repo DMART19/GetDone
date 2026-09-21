@@ -631,8 +631,7 @@
       "lib/nodes/capability-http.ts",
       "lib/persistence/postgres/node-capability-store.ts",
       "app/api/agent/v1/capabilities/route.ts",
-      "migrations/2026-09-21.4_phase28_capabilities.sql",
-      "agent/internal/capabilities/runner_linux.go"
+      "migrations/2026-09-21.4_phase28_capabilities.sql"
     ],
     "agentVersion": "0.4.0-development",
     "enrollmentStatus": "implemented-unconnected",
