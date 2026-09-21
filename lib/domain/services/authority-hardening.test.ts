@@ -94,7 +94,9 @@ class MutableGrantStore implements AuthorizationGrantStore {
     return this.consumptions.filter((record) => record.grantId === grantId);
   }
 
-  async revoke(id: string, _reason: string, _revokedAt: string) {
+  async revoke(id: string, reason: string, revokedAt: string) {
+    void reason;
+    void revokedAt;
     if (this.grant?.id === id) {
       this.grant = { ...this.grant, status: "revoked" };
     }
