@@ -561,6 +561,75 @@ for (const required of [
   if (!sourceTrust.includes(required)) fail(`Verification source trust contract missing: ${required}`);
 }
 
+const agentMain = read("agent/cmd/getdone-agent/main.go");
+const agentConfig = read("agent/internal/config/config.go");
+const agentStateStore = read("agent/internal/localstate/store.go");
+const agentVersion = read("agent/internal/version/version.go");
+const agentHealth = read("agent/internal/health/manager.go");
+const agentSystemd = read("agent/packaging/systemd/getdone-agent.service");
+const agentBuild = read("scripts/build-node-agent.sh");
+const agentWorkflow = read(".github/workflows/node-agent.yml");
+
+for (const required of [
+  "config.Load()",
+  "localstate.NewStore",
+  "controlplane.New",
+  "health.NewManager",
+  "signal.NotifyContext"
+]) {
+  if (!agentMain.includes(required)) fail(`Phase 28.1 agent entrypoint missing: ${required}`);
+}
+for (const required of [
+  'ProtocolVersion   = "1.0.0"',
+  "[REDACTED]",
+  "GETDONE_ENROLLMENT_TOKEN",
+  "GETDONE_CONTROL_PLANE_URL"
+]) {
+  if (!agentConfig.includes(required)) fail(`Phase 28.1 config boundary missing: ${required}`);
+}
+for (const required of [
+  "os.CreateTemp",
+  "temp.Sync()",
+  "os.Rename",
+  "dir.Sync()"
+]) {
+  if (!agentStateStore.includes(required)) fail(`Phase 28.1 atomic local-state invariant missing: ${required}`);
+}
+for (const required of [
+  'ProtocolVersion = "1.0.0"',
+  "runtime.GOARCH"
+]) {
+  if (!agentVersion.includes(required)) fail(`Phase 28.1 build metadata invariant missing: ${required}`);
+}
+if (!agentHealth.includes("<-ctx.Done()")) fail("Phase 28.1 health lifecycle is not cancellation-bound");
+for (const required of [
+  "User=getdone-agent",
+  "Group=getdone-agent",
+  "NoNewPrivileges=true",
+  "ProtectSystem=strict",
+  "ReadWritePaths=/var/lib/getdone-agent /var/log/getdone-agent"
+]) {
+  if (!agentSystemd.includes(required)) fail(`Phase 28.1 systemd hardening missing: ${required}`);
+}
+for (const required of [
+  "GOARCH=amd64",
+  "GOARCH=arm64",
+  "getdone-agent-linux-amd64",
+  "getdone-agent-linux-arm64"
+]) {
+  if (!agentBuild.includes(required)) fail(`Phase 28.1 cross-build invariant missing: ${required}`);
+}
+for (const required of [
+  "actions/checkout@v7",
+  "actions/setup-go@v6",
+  "gofmt -l",
+  "go vet ./...",
+  "go test ./...",
+  "bash scripts/build-node-agent.sh"
+]) {
+  if (!agentWorkflow.includes(required)) fail(`Phase 28.1 Go CI gate missing: ${required}`);
+}
+
 const nodeContracts = read("lib/nodes/contracts.ts");
 const nodeDispatchContracts = read("lib/nodes/dispatch-contracts.ts");
 const nodeSchemas = read("lib/nodes/schemas.ts");
@@ -680,12 +749,12 @@ if (
   fail("Phase 13 release state must expose the implemented OpenRouter adapter without claiming live routing/connectivity");
 }
 if (
-  releaseRegistry.nodeAgent?.status !== "contract-only"
+  releaseRegistry.nodeAgent?.status !== "implemented-development-only"
   || releaseRegistry.nodeAgent?.domainVersion !== "1.0.0"
   || releaseRegistry.nodeAgent?.protocolVersion !== "1.0.0"
   || releaseRegistry.nodeAgent?.dispatchContractVersion !== "1.0.0"
-  || releaseRegistry.nodeAgent?.linuxX64 !== "not-connected"
-  || releaseRegistry.nodeAgent?.linuxArm64 !== "not-connected"
+  || releaseRegistry.nodeAgent?.linuxX64 !== "build-only"
+  || releaseRegistry.nodeAgent?.linuxArm64 !== "build-only"
   || releaseRegistry.nodeAgent?.productionReady !== false
   || releaseRegistry.schemaVersions?.nodeDomain?.version !== "1.0.0"
   || releaseRegistry.schemaVersions?.nodeDispatch?.version !== "1.0.0"
@@ -783,12 +852,12 @@ if (
 
 for (const [name, state] of Object.entries(releaseEnvironment.environments ?? {})) {
   if (
-    state.nodeAgent?.status !== "contract-only"
+    state.nodeAgent?.status !== "implemented-development-only"
     || state.nodeAgent?.domainVersion !== "1.0.0"
     || state.nodeAgent?.protocolVersion !== "1.0.0"
     || state.nodeAgent?.dispatchContractVersion !== "1.0.0"
-    || state.nodeAgent?.linuxX64 !== "not-connected"
-    || state.nodeAgent?.linuxArm64 !== "not-connected"
+    || state.nodeAgent?.linuxX64 !== "build-only"
+    || state.nodeAgent?.linuxArm64 !== "build-only"
     || state.nodeAgent?.productionReady !== false
     || state.connections?.resourceAgent !== false
     ||     state.connections?.aiGateway !== false
