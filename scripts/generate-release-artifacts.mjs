@@ -345,6 +345,18 @@ const manualLines = [
   `- Persistence backend: ${registry.execution.persistenceBackend}`,
   ...registry.execution.sourcePaths.map((sourcePath) => `- Contract source: ${sourcePath} — ${fileHash(sourcePath)}`),
   "",
+  "## Phase 28 universal compute-node contracts",
+  "",
+  `- Node domain version: ${registry.nodeAgent.domainVersion}`,
+  `- Node Agent protocol version: ${registry.nodeAgent.protocolVersion}`,
+  `- Node dispatch contract version: ${registry.nodeAgent.dispatchContractVersion}`,
+  `- Runtime status: ${registry.nodeAgent.status}`,
+  `- Linux x86-64 runtime: ${registry.nodeAgent.linuxX64}`,
+  `- Linux ARM64 runtime: ${registry.nodeAgent.linuxArm64}`,
+  ...registry.nodeAgent.sourcePaths.map((sourcePath) => `- Node contract source: ${sourcePath} — ${fileHash(sourcePath)}`),
+  "",
+  "Phase 28.0 defines contracts only. No Node Agent binary, node persistence, scheduler placement, reservation acknowledgement, or workload execution is claimed by this release state.",
+  "",
   "## Cross-phase composition harness",
   "",
   `- Golden-path harness version: ${registry.composition.goldenPathHarnessVersion}`,
@@ -418,6 +430,7 @@ const manualLines = [
     `- Voice secure handoff: ${value.voice.secureHandoff}`,
     `- AI Gateway contract/live adapter: ${value.aiGateway.contractStatus} / ${value.aiGateway.adapterStatus}; implementation=${value.aiGateway.adapterImplementationStatus}`,
     `- Control API surface/application adapter: ${value.controlApi.surfaceStatus} / ${value.controlApi.applicationAdapterStatus}`,
+    `- Node Agent contract/runtime: ${value.nodeAgent.contractStatus} / ${value.nodeAgent.agentRuntimeStatus}; x86-64=${value.nodeAgent.linuxX64}; arm64=${value.nodeAgent.linuxArm64}`,
     `- Integration registry/live adapter: ${value.integrations.registryStatus} / ${value.integrations.adapterStatus}`,
     `- Database implementation/live connection: ${value.database.adapterStatus} / ${value.connections.database ? "connected" : "not-connected"}`,
     `- Durable Job contract/live store: ${value.execution.jobRuntimeContractStatus} / ${value.execution.durableJobStoreStatus}; implementation=${value.execution.durableJobStoreImplementationStatus}`,
@@ -513,6 +526,10 @@ const manifestBase = {
   controlApi: {
     ...registry.controlApi,
     sourceSha256: fileHash(registry.controlApi.sourcePath)
+  },
+  nodeAgent: {
+    ...registry.nodeAgent,
+    sourceEvidence: sourceEvidence(registry.nodeAgent.sourcePaths)
   },
   integrations: {
     ...registry.integrations,
