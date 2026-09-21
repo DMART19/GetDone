@@ -14,15 +14,15 @@ class UnavailableNodeEnrollmentAdapter implements NodeEnrollmentApplicationAdapt
     );
   }
 
-  list(_principal: ControlApiPrincipal) {
+  list() {
     return Promise.reject(this.unavailable());
   }
 
-  get(_principal: ControlApiPrincipal, _id: string) {
+  get() {
     return Promise.reject(this.unavailable());
   }
 
-  create(_principal: ControlApiPrincipal, _input: CreateNodeEnrollmentInput) {
+  create() {
     return Promise.reject(this.unavailable());
   }
 
@@ -35,23 +35,15 @@ class UnavailableNodeEnrollmentAdapter implements NodeEnrollmentApplicationAdapt
     return Promise.reject(this.unavailable());
   }
 
-  cancel(
-    _principal: ControlApiPrincipal,
-    _challengeId: string,
-    _idempotencyKey: string
-  ) {
+  cancel() {
     return Promise.reject(this.unavailable());
   }
 
-  expire(
-    _principal: ControlApiPrincipal,
-    _challengeId: string,
-    _idempotencyKey: string
-  ) {
+  expire() {
     return Promise.reject(this.unavailable());
   }
 
-  enrollAgent(_input: AgentNodeEnrollmentInput) {
+  enrollAgent() {
     return Promise.reject(this.unavailable());
   }
 }
