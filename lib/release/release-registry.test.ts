@@ -269,12 +269,12 @@ describe("Phase 41 release/version registry", () => {
 
   it("records Phase 28.0 contracts without claiming a connected Node Agent", () => {
     expect(registry.nodeAgent).toMatchObject({
-      status: "contract-only",
+      status: "implemented-development-only",
       domainVersion: NODE_DOMAIN_VERSION,
       protocolVersion: NODE_AGENT_PROTOCOL_VERSION,
       dispatchContractVersion: NODE_DISPATCH_CONTRACT_VERSION,
-      linuxX64: "not-connected",
-      linuxArm64: "not-connected",
+      linuxX64: "build-only",
+      linuxArm64: "build-only",
       productionReady: false
     });
     expect(registry.schemaVersions.nodeDomain).toMatchObject({
@@ -288,12 +288,12 @@ describe("Phase 41 release/version registry", () => {
     for (const state of Object.values(environment.environments)) {
       expect(state.connections.resourceAgent).toBe(false);
       expect(state.nodeAgent).toMatchObject({
-        status: "contract-only",
+        status: "implemented-development-only",
         domainVersion: NODE_DOMAIN_VERSION,
         protocolVersion: NODE_AGENT_PROTOCOL_VERSION,
         dispatchContractVersion: NODE_DISPATCH_CONTRACT_VERSION,
-        linuxX64: "not-connected",
-        linuxArm64: "not-connected",
+        linuxX64: "build-only",
+        linuxArm64: "build-only",
         productionReady: false
       });
     }

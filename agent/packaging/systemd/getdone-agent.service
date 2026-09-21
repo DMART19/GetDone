@@ -1,0 +1,28 @@
+[Unit]
+Description=GetDone Universal Compute Node Agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=getdone-agent
+Group=getdone-agent
+EnvironmentFile=-/etc/getdone-agent/agent.env
+ExecStart=/usr/local/bin/getdone-agent
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=30s
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+ReadWritePaths=/var/lib/getdone-agent /var/log/getdone-agent
+
+[Install]
+WantedBy=multi-user.target

@@ -400,7 +400,7 @@ const manualLines = [
   `- Production ready: ${registry.nodeAgent.productionReady ? "yes" : "no"}`,
   ...registry.nodeAgent.sourcePaths.map((sourcePath) => `- Node contract source: ${sourcePath} — ${fileHash(sourcePath)}`),
   "",
-  "Phase 28.0 is contract-only: no agent binary, node persistence, scheduler integration, reservations, or workload execution is connected.",
+  "Phase 28.1 includes a development-only agent service shell and cross-architecture binaries; enrollment, identity, node persistence, scheduler integration, reservations, and workload execution remain unconnected.",
   "",
   "## Schema versions",
   "",
