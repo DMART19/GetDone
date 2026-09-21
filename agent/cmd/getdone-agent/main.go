@@ -9,6 +9,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/DMART19/GetDone/agent/internal/capabilities"
 	"github.com/DMART19/GetDone/agent/internal/config"
 	"github.com/DMART19/GetDone/agent/internal/controlplane"
 	"github.com/DMART19/GetDone/agent/internal/enrollment"
@@ -81,6 +82,24 @@ func main() {
 		state.NodeID,
 		hardware.Architecture,
 		hardware.InventoryHash,
+	)
+
+	profiler := capabilities.NewProfiler(
+		capabilities.DefaultDetectors(inventory.LinuxProbe{}),
+		time.Now,
+	)
+	capabilityProfile, err := profiler.Profile(ctx, state.NodeID)
+	if err != nil {
+		log.Fatalf("profile Node capabilities: %v", err)
+	}
+	if err := capabilities.SaveProfile(cfg.StateDir, capabilityProfile); err != nil {
+		log.Fatalf("persist Node capability profile: %v", err)
+	}
+	log.Printf(
+		"Node capability profile collected nodeId=%s capabilityCount=%d profileHash=%s",
+		state.NodeID,
+		len(capabilityProfile.Capabilities),
+		capabilityProfile.ProfileHash,
 	)
 
 	manager := health.NewManager(time.Now())
