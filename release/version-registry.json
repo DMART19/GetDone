@@ -436,7 +436,10 @@
     "lib/nodes/capability-service.test.ts",
     "lib/nodes/capability-bridge.test.ts",
     "lib/nodes/capability-http.test.ts",
-    "lib/persistence/postgres/node-capability-store.test.ts"
+    "lib/persistence/postgres/node-capability-store.test.ts",
+    "agent/internal/capabilities/detectors_test.go",
+    "lib/nodes/capability-catalog.test.ts",
+    "lib/domain/resources.test.ts"
   ],
   "manualSourcePaths": [
     "docs/ARCHITECTURE.md",
@@ -628,7 +631,8 @@
       "lib/nodes/capability-http.ts",
       "lib/persistence/postgres/node-capability-store.ts",
       "app/api/agent/v1/capabilities/route.ts",
-      "migrations/2026-09-21.4_phase28_capabilities.sql"
+      "migrations/2026-09-21.4_phase28_capabilities.sql",
+      "agent/internal/capabilities/runner_linux.go"
     ],
     "agentVersion": "0.4.0-development",
     "enrollmentStatus": "implemented-unconnected",
