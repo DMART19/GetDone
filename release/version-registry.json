@@ -1,6 +1,6 @@
 {
-  "registrySchemaVersion": "1.5.0",
-  "registryVersion": "2026-09-21.1",
+  "registrySchemaVersion": "1.6.0",
+  "registryVersion": "2026-09-21.2",
   "appVersion": "0.1.0",
   "schemaVersions": {
     "controlApi": {
@@ -60,7 +60,7 @@
       "sourcePath": "lib/resources/policy-simulator.ts"
     },
     "releaseManifest": {
-      "version": "1.5.0",
+      "version": "1.6.0",
       "sourcePath": "scripts/generate-release-artifacts.mjs"
     },
     "voiceIntent": {
@@ -174,6 +174,26 @@
       "contractSourcePaths": [
         "lib/control-api/contracts.ts"
       ]
+    },
+    "postgresPersistence": {
+      "version": "1.0.0",
+      "sourcePath": "lib/persistence/postgres/client.ts"
+    },
+    "jobWorkerRuntime": {
+      "version": "1.0.0",
+      "sourcePath": "lib/execution/job-worker-runtime.ts"
+    },
+    "businessActionOrchestrator": {
+      "version": "1.0.0",
+      "sourcePath": "lib/execution/business-action-orchestrator.ts"
+    },
+    "softwareWorkerRuntime": {
+      "version": "1.0.0",
+      "sourcePath": "lib/execution/software-worker-runtime.ts"
+    },
+    "jobExecutionRouter": {
+      "version": "1.0.0",
+      "sourcePath": "lib/execution/job-execution-router.ts"
     }
   },
   "policy": {
@@ -271,6 +291,31 @@
       "contractSourcePaths": [
         "lib/ai-gateway/openrouter-adapter.ts"
       ]
+    },
+    "postgresPersistence": {
+      "status": "implemented-unconnected",
+      "version": "1.0.0",
+      "sourcePath": "lib/persistence/postgres/client.ts"
+    },
+    "durableJobStore": {
+      "status": "implemented-unconnected",
+      "version": "1.0.0",
+      "sourcePath": "lib/persistence/postgres/job-store.ts"
+    },
+    "businessActionOrchestrator": {
+      "status": "implemented",
+      "version": "1.0.0",
+      "sourcePath": "lib/execution/business-action-orchestrator.ts"
+    },
+    "softwareWorkerRuntime": {
+      "status": "implemented",
+      "version": "1.0.0",
+      "sourcePath": "lib/execution/software-worker-runtime.ts"
+    },
+    "jobExecutionRouter": {
+      "status": "implemented",
+      "version": "1.0.0",
+      "sourcePath": "lib/execution/job-execution-router.ts"
     }
   },
   "environmentManifestPath": "release/environment-manifest.json",
@@ -314,7 +359,21 @@
     "lib/control-api/http.test.ts",
     "lib/control-api/service-adapter.test.ts",
     "lib/ai-gateway/openrouter-adapter.test.ts",
-    "docs/SOL_CONTROL_API_OPENROUTER_SECURITY_REPORT.md"
+    "docs/SOL_CONTROL_API_OPENROUTER_SECURITY_REPORT.md",
+    "lib/persistence/postgres/client.ts",
+    "lib/persistence/postgres/authority-stores.ts",
+    "lib/persistence/postgres/transaction-manager.ts",
+    "lib/persistence/postgres/reservation-store.ts",
+    "lib/persistence/postgres/job-store.ts",
+    "lib/persistence/postgres/execution-stores.ts",
+    "lib/persistence/postgres/job-execution-spec-store.ts",
+    "migrations/2026-09-21.1_authority_runtime.sql",
+    "lib/execution/job-worker-runtime.test.ts",
+    "lib/execution/business-action-orchestrator.test.ts",
+    "lib/execution/software-worker-runtime.test.ts",
+    "lib/execution/job-execution-router.test.ts",
+    "lib/persistence/postgres/postgres-adapters.test.ts",
+    "docs/SOL_POSTGRES_JOB_EXECUTION_RUNTIME_REPORT.md"
   ],
   "manualSourcePaths": [
     "docs/ARCHITECTURE.md",
@@ -327,17 +386,21 @@
     "docs/SOL_PHASE_36_39_44_REPORT.md",
     "docs/SOL_GOLDEN_PATH_JOB_BRIDGE_REPORT.md",
     "docs/SOL_QUALITY_V8_PLAYWRIGHT_AI_BUDGET_REPORT.md",
-    "docs/SOL_CONTROL_API_OPENROUTER_SECURITY_REPORT.md"
+    "docs/SOL_CONTROL_API_OPENROUTER_SECURITY_REPORT.md",
+    "docs/SOL_POSTGRES_JOB_EXECUTION_RUNTIME_REPORT.md"
   ],
   "generatedArtifacts": {
     "machineManifest": "release/out/release-manifest.json",
     "operatingManual": "release/out/OPERATING_MANUAL.md"
   },
   "database": {
-    "status": "not-connected",
-    "migrationVersion": "UNIMPLEMENTED",
-    "schemaVersion": "UNIMPLEMENTED",
-    "sourcePath": "docs/ARCHITECTURE.md"
+    "status": "implemented-unconnected",
+    "engine": "postgresql",
+    "minimumEngineVersion": "16",
+    "migrationVersion": "2026-09-21.1",
+    "schemaVersion": "1.0.0",
+    "sourcePath": "migrations/2026-09-21.1_authority_runtime.sql",
+    "adapterSourcePath": "lib/persistence/postgres/client.ts"
   },
   "voice": {
     "contractVersion": "1.0.0",
@@ -350,7 +413,7 @@
     "credentialHandling": "secure-provider-or-phone-only",
     "sourcePath": "lib/voice/voice-intents.ts"
   },
-  "environmentManifestSchemaVersion": "1.5.0",
+  "environmentManifestSchemaVersion": "1.6.0",
   "integrations": {
     "registryContractVersion": "1.0.0",
     "liveAdaptersStatus": "not-connected",
@@ -358,7 +421,7 @@
   },
   "execution": {
     "jobRuntimeContractVersion": "1.1.0",
-    "durableJobStoreStatus": "not-connected",
+    "durableJobStoreStatus": "implemented-unconnected",
     "businessActionContractVersion": "1.1.0",
     "businessAdaptersStatus": "not-connected",
     "softwareWorkerContractVersion": "1.1.0",
@@ -367,11 +430,25 @@
       "lib/execution/job-runtime-contracts.ts",
       "lib/execution/adapters/business-action.ts",
       "lib/execution/software-worker.ts",
-      "lib/domain/services/job-execution-bridge.ts"
+      "lib/domain/services/job-execution-bridge.ts",
+      "lib/execution/job-worker-runtime.ts",
+      "lib/execution/business-action-orchestrator.ts",
+      "lib/execution/software-worker-runtime.ts",
+      "lib/execution/job-execution-router.ts",
+      "lib/persistence/postgres/job-store.ts"
     ],
     "jobExecutionBridgeContractVersion": "1.0.0",
     "jobExecutionBridgeStatus": "deterministic-contract",
-    "liveJobExecutionBridgeStoreStatus": "not-connected"
+    "liveJobExecutionBridgeStoreStatus": "not-connected",
+    "durableJobStoreVersion": "1.0.0",
+    "businessActionOrchestratorStatus": "implemented",
+    "businessActionOrchestratorVersion": "1.0.0",
+    "softwareWorkerRuntimeStatus": "implemented",
+    "softwareWorkerRuntimeVersion": "1.0.0",
+    "jobExecutionRouterStatus": "implemented",
+    "jobExecutionRouterVersion": "1.0.0",
+    "jobExecutionBridgeStoreImplementationStatus": "implemented-unconnected",
+    "persistenceBackend": "postgresql"
   },
   "resourceFabric": {
     "storageFabricContractVersion": "1.1.0",
