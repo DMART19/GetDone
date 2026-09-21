@@ -68,9 +68,15 @@ class TenantAdversarialStore implements IntegrationRegistryStore {
     return this.records.find((record) => record.id === id) ?? null;
   }
 
-  async put(_record: CompanyIntegration) {}
+  async put(record: CompanyIntegration) {
+    void record;
+  }
 
-  async listByCompany() {
+  async listByCompany(_input: {
+    portfolioId: string;
+    companyId: string;
+    environment?: CompanyIntegration["environment"];
+  }) {
     return this.records;
   }
 }
