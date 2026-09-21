@@ -1,10 +1,5 @@
 import { ControlPlaneError } from "@/lib/control-plane/errors";
-import type {
-  AgentNodeEnrollmentInput,
-  CreateNodeEnrollmentInput,
-  NodeEnrollmentApplicationAdapter
-} from "@/lib/nodes/application";
-import type { ControlApiPrincipal } from "@/lib/control-api/contracts";
+import type { NodeEnrollmentApplicationAdapter } from "@/lib/nodes/application";
 
 class UnavailableNodeEnrollmentAdapter implements NodeEnrollmentApplicationAdapter {
   private unavailable(): never {
@@ -26,12 +21,7 @@ class UnavailableNodeEnrollmentAdapter implements NodeEnrollmentApplicationAdapt
     return Promise.reject(this.unavailable());
   }
 
-  ownerAction(
-    _principal: ControlApiPrincipal,
-    _challengeId: string,
-    _evidenceId: string,
-    _idempotencyKey: string
-  ) {
+  ownerAction() {
     return Promise.reject(this.unavailable());
   }
 
