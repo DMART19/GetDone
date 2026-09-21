@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "1.4.0",
+  "schemaVersion": "1.5.0",
   "thresholds": {
     "coveredModulePercent": 100,
     "minimumTotalTestCases": 80,
@@ -189,6 +189,56 @@
     {
       "source": "lib/ai-gateway/openrouter-adapter.ts",
       "test": "lib/ai-gateway/openrouter-adapter.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/persistence/postgres/client.ts",
+      "test": "lib/persistence/postgres/postgres-adapters.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/persistence/postgres/authority-stores.ts",
+      "test": "lib/persistence/postgres/postgres-adapters.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/persistence/postgres/transaction-manager.ts",
+      "test": "lib/persistence/postgres/postgres-adapters.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/persistence/postgres/reservation-store.ts",
+      "test": "lib/persistence/postgres/postgres-adapters.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/persistence/postgres/job-store.ts",
+      "test": "lib/persistence/postgres/postgres-adapters.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/execution/job-worker-runtime.ts",
+      "test": "lib/execution/job-worker-runtime.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/execution/business-action-orchestrator.ts",
+      "test": "lib/execution/business-action-orchestrator.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/execution/adapters/business-action-registry.ts",
+      "test": "lib/execution/business-action-orchestrator.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/execution/software-worker-runtime.ts",
+      "test": "lib/execution/software-worker-runtime.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/execution/job-execution-router.ts",
+      "test": "lib/execution/job-execution-router.test.ts",
       "critical": true
     }
   ]
