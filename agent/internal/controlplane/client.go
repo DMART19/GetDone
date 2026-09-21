@@ -20,7 +20,7 @@ func New(rawURL string) (*Client, error) {
 	}
 	return &Client{
 		baseURL: parsed,
-		http: &http.Client{Timeout: 30 * time.Second},
+		http:    &http.Client{Timeout: 30 * time.Second},
 	}, nil
 }
 
