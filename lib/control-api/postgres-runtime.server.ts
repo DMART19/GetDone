@@ -111,7 +111,7 @@ export function createPostgresControlApiAdapter(
       const persistenceReady = health.connected && health.schemaCurrent;
       return {
         service: "getdone-control-api",
-        surfaceVersion: "1.0.0",
+        surfaceVersion: "1.1.0",
         status: !persistenceReady
           ? "unavailable"
           : health.backupFresh
