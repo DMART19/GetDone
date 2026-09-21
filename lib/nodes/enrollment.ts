@@ -236,4 +236,32 @@ export class NodeEnrollmentCoordinator {
   markReady(id: string, command: AuthoritativeCommandEnvelope) {
     return this.resourceEnrollment.markReady(id, command);
   }
+
+  fail(id: string, command: AuthoritativeCommandEnvelope, reason: string) {
+    return this.resourceEnrollment.fail(id, command, reason);
+  }
+
+  cancel(id: string, command: AuthoritativeCommandEnvelope) {
+    return this.resourceEnrollment.cancel(id, command);
+  }
+
+  expire(id: string, command: AuthoritativeCommandEnvelope) {
+    return this.resourceEnrollment.expire(id, command);
+  }
+
+  restart(
+    id: string,
+    command: AuthoritativeCommandEnvelope,
+    challengeToken: string,
+    challengeExpiresAt: string,
+    restartedAt?: string
+  ) {
+    return this.resourceEnrollment.restart(
+      id,
+      command,
+      challengeToken,
+      challengeExpiresAt,
+      restartedAt
+    );
+  }
 }
