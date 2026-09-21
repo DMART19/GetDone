@@ -18,7 +18,11 @@ const object = createStorageDataObject({
   recoveryTimeObjectiveSeconds: 300
 });
 
-function storage(id: string, locationClass: "HOME" | "CLOUD", failureDomainId: string) {
+function storage(
+  id: string,
+  locationClass: "HOME" | "CLOUD",
+  failureDomainId: string | readonly string[]
+) {
   return createStorageResourceSnapshot({
     id,
     portfolioId: "p1",
@@ -26,7 +30,7 @@ function storage(id: string, locationClass: "HOME" | "CLOUD", failureDomainId: s
     environmentPermissions: ["production"],
     locationClass,
     region: "us-west",
-    failureDomainIds: [failureDomainId],
+    failureDomainIds: typeof failureDomainId === "string" ? [failureDomainId] : failureDomainId,
     reliabilityTier: locationClass === "HOME" ? "STANDARD" : "HIGH",
     capacityBytes: 1_000_000,
     availableBytes: 900_000,
@@ -92,6 +96,25 @@ describe("Phase 36 Storage Fabric", () => {
       requiredBytes: 1000,
       createdAt: "2026-09-20T22:10:00Z"
     })).toThrow(/distinct failure domains/i);
+  });
+
+  it("rejects replicas that share any correlated failure domain", () => {
+    expect(() => createStorageCopyPlan({
+      id: "plan-correlated",
+      object,
+      selections: [
+        {
+          candidate: storage("cloud-a", "CLOUD", ["provider-a", "region-a"]),
+          role: "authoritative-primary"
+        },
+        {
+          candidate: storage("cloud-b", "CLOUD", ["provider-a", "region-b"]),
+          role: "authoritative-secondary"
+        }
+      ],
+      requiredBytes: 1000,
+      createdAt: "2026-09-20T22:10:00Z"
+    })).toThrow(/correlated failure domain/i);
   });
 
   it("rejects fake replication that substitutes cache copies for authoritative replicas", () => {
