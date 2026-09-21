@@ -18,12 +18,7 @@ import type {
   ResourceEnrollmentStores
 } from "@/lib/resources/enrollment";
 import { ResourceEnrollmentService } from "@/lib/resources/enrollment";
-import {
-  PostgresAuthorizationGrantStore,
-  PostgresEntityStore,
-  PostgresJobExecutionBridgeStore,
-  PostgresVerificationReceiptStore
-} from "@/lib/persistence/postgres/authority-stores";
+import { PostgresEntityStore } from "@/lib/persistence/postgres/authority-stores";
 import {
   PostgresOwnerIntentStore,
   PostgresResourceEnrollmentReadinessStore,
@@ -132,10 +127,3 @@ export function createPostgresControlApiAdapter(
   });
 }
 
-export function createPostgresAuthorityStores(db: Parameters<typeof PostgresAuthorizationGrantStore>[0]) {
-  return {
-    authorizationGrants: new PostgresAuthorizationGrantStore(db),
-    verificationReceipts: new PostgresVerificationReceiptStore(db),
-    executionBridge: new PostgresJobExecutionBridgeStore(db)
-  };
-}
