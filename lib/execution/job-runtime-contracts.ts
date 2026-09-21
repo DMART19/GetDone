@@ -103,7 +103,7 @@ export interface DurableJobStoreDescriptor {
  * declare "ephemeral-reference" and productionEligible=false.
  *
  * This interface is a contract only. The repository intentionally provides no
- * production queue implementation and no in-memory implementation is production evidence.
+ * production queue implementation. No in-memory implementation is production evidence.
  */
 export interface DurableJobStore {
   readonly descriptor: DurableJobStoreDescriptor;
