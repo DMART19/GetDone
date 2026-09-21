@@ -2,7 +2,7 @@ import { ControlPlaneError } from "@/lib/control-plane/errors";
 import { sha256Hex } from "@/lib/control-plane/canonical-hash";
 import type { TrustedExecutionScope } from "@/lib/control-plane/trusted-execution-scope";
 
-export const RESILIENCE_CONTRACT_VERSION = "1.0.0";
+export const RESILIENCE_CONTRACT_VERSION = "1.1.0";
 
 export type FailureDomainKind =
   | "host"
@@ -94,9 +94,21 @@ export interface FailoverRecord {
   dispatchEvidenceId?: string;
   verificationReceiptId?: string;
   verificationReceiptHash?: string;
+  verificationEvidenceHash?: string;
   postFailoverHealth?: "healthy" | "degraded" | "failed";
   authoritativeRecoveryClaimed: boolean;
   recordHash: string;
+}
+
+export interface FailoverVerificationEvidence {
+  planId: string;
+  planHash: string;
+  dispatchEvidenceId: string;
+  verificationReceiptId: string;
+  verificationReceiptHash: string;
+  postFailoverHealth: "healthy" | "degraded" | "failed";
+  observedAt: string;
+  evidenceHash: string;
 }
 
 function parseTime(value: string, label: string) {
@@ -212,6 +224,13 @@ export function updateDrain(input: {
   if (!Number.isInteger(input.remainingWork) || input.remainingWork < 0) {
     throw new ControlPlaneError("VALIDATION_FAILED", "remainingWork must be non-negative");
   }
+  const updatedAtMs = parseTime(input.updatedAt, "drain updatedAt");
+  if (updatedAtMs < Date.parse(input.current.updatedAt)) {
+    throw new ControlPlaneError("CONFLICT", "Drain time cannot move backwards");
+  }
+  if (input.remainingWork > input.current.remainingWork) {
+    throw new ControlPlaneError("CONFLICT", "Drain remaining work cannot increase");
+  }
   const state = input.cancel
     ? "cancelled" as const
     : input.remainingWork === 0
@@ -220,7 +239,7 @@ export function updateDrain(input: {
   const base = {
     ...currentBase,
     state,
-    updatedAt: new Date(parseTime(input.updatedAt, "drain updatedAt")).toISOString(),
+    updatedAt: new Date(updatedAtMs).toISOString(),
     remainingWork: input.remainingWork
   };
   return Object.freeze({ ...base, recordHash: sha256Hex(base) });
@@ -266,10 +285,63 @@ export function createInitialFailoverRecord(plan: FailoverPlan): FailoverRecord 
     dispatchEvidenceId: undefined,
     verificationReceiptId: undefined,
     verificationReceiptHash: undefined,
+    verificationEvidenceHash: undefined,
     postFailoverHealth: undefined,
     authoritativeRecoveryClaimed: false
   };
   return Object.freeze({ ...base, recordHash: sha256Hex(base) });
+}
+
+
+export function createFailoverVerificationEvidence(
+  input: Omit<FailoverVerificationEvidence, "evidenceHash">
+): FailoverVerificationEvidence {
+  if (
+    !input.planId
+    || !input.planHash
+    || !input.dispatchEvidenceId
+    || !input.verificationReceiptId
+    || !input.verificationReceiptHash
+  ) {
+    throw new ControlPlaneError(
+      "VALIDATION_FAILED",
+      "Failover verification evidence requires complete plan/dispatch/receipt lineage"
+    );
+  }
+  const observedAt = new Date(parseTime(
+    input.observedAt,
+    "failover verification observedAt"
+  )).toISOString();
+  const base = { ...input, observedAt };
+  return Object.freeze({ ...base, evidenceHash: sha256Hex(base) });
+}
+
+export function assertFailoverVerificationEvidence(input: {
+  evidence: FailoverVerificationEvidence;
+  record: FailoverRecord;
+  now?: number;
+}) {
+  const { evidenceHash, ...base } = input.evidence;
+  if (
+    sha256Hex(base) !== evidenceHash
+    || input.evidence.planId !== input.record.planId
+    || input.evidence.planHash !== input.record.planHash
+    || input.evidence.dispatchEvidenceId !== input.record.dispatchEvidenceId
+    || input.evidence.postFailoverHealth !== "healthy"
+  ) {
+    throw new ControlPlaneError(
+      "FORBIDDEN",
+      "Failover verification evidence is forged, unhealthy, or outside failover lineage"
+    );
+  }
+  const observedAt = parseTime(input.evidence.observedAt, "failover verification observedAt");
+  if (input.now !== undefined && observedAt > input.now) {
+    throw new ControlPlaneError(
+      "FORBIDDEN",
+      "Failover verification evidence cannot come from the future"
+    );
+  }
+  return input.evidence;
 }
 
 const allowed: Record<FailoverState, readonly FailoverState[]> = {
@@ -290,10 +362,15 @@ export function transitionFailover(input: {
   verificationReceiptId?: string;
   verificationReceiptHash?: string;
   postFailoverHealth?: "healthy" | "degraded" | "failed";
+  verificationEvidence?: FailoverVerificationEvidence;
 }): FailoverRecord {
   const { recordHash, ...currentBase } = input.current;
   if (sha256Hex(currentBase) !== recordHash) {
     throw new ControlPlaneError("FORBIDDEN", "Failover record integrity check failed");
+  }
+  const updatedAtMs = parseTime(input.updatedAt, "failover updatedAt");
+  if (updatedAtMs < Date.parse(input.current.updatedAt)) {
+    throw new ControlPlaneError("CONFLICT", "Failover time cannot move backwards");
   }
   if (!allowed[input.current.state].includes(input.to)) {
     throw new ControlPlaneError(
@@ -304,27 +381,39 @@ export function transitionFailover(input: {
   if (input.to === "verifying" && !(input.dispatchEvidenceId ?? input.current.dispatchEvidenceId)) {
     throw new ControlPlaneError("FORBIDDEN", "Failover verification requires dispatch evidence");
   }
-  if (
-    input.to === "verified"
-    && (
-      !input.verificationReceiptId
-      || !input.verificationReceiptHash
-      || input.postFailoverHealth !== "healthy"
-    )
-  ) {
-    throw new ControlPlaneError(
-      "FORBIDDEN",
-      "Failover cannot claim recovery without verified receipt and healthy post-failover state"
-    );
+  if (input.to === "verified") {
+    if (!input.verificationEvidence) {
+      throw new ControlPlaneError(
+        "FORBIDDEN",
+        "Failover cannot claim recovery without hash-bound independent verification evidence"
+      );
+    }
+    assertFailoverVerificationEvidence({
+      evidence: input.verificationEvidence,
+      record: input.current,
+      now: updatedAtMs
+    });
   }
   const base = {
     ...currentBase,
     state: input.to,
-    updatedAt: new Date(parseTime(input.updatedAt, "failover updatedAt")).toISOString(),
+    updatedAt: new Date(updatedAtMs).toISOString(),
     dispatchEvidenceId: input.dispatchEvidenceId ?? input.current.dispatchEvidenceId,
-    verificationReceiptId: input.verificationReceiptId ?? input.current.verificationReceiptId,
-    verificationReceiptHash: input.verificationReceiptHash ?? input.current.verificationReceiptHash,
-    postFailoverHealth: input.postFailoverHealth ?? input.current.postFailoverHealth,
+    verificationReceiptId:
+      input.verificationEvidence?.verificationReceiptId
+      ?? input.verificationReceiptId
+      ?? input.current.verificationReceiptId,
+    verificationReceiptHash:
+      input.verificationEvidence?.verificationReceiptHash
+      ?? input.verificationReceiptHash
+      ?? input.current.verificationReceiptHash,
+    verificationEvidenceHash:
+      input.verificationEvidence?.evidenceHash
+      ?? input.current.verificationEvidenceHash,
+    postFailoverHealth:
+      input.verificationEvidence?.postFailoverHealth
+      ?? input.postFailoverHealth
+      ?? input.current.postFailoverHealth,
     authoritativeRecoveryClaimed: input.to === "verified"
   };
   return Object.freeze({ ...base, recordHash: sha256Hex(base) });
