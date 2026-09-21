@@ -7,7 +7,7 @@ import type {
   ResourceReliabilityTier
 } from "@/lib/resources/policy";
 
-export const STORAGE_FABRIC_CONTRACT_VERSION = "1.0.0";
+export const STORAGE_FABRIC_CONTRACT_VERSION = "1.1.0";
 
 export type StorageCopyRole =
   | "authoritative-primary"
@@ -249,7 +249,7 @@ export function createStorageCopyPlan(input: {
   createdAt: string;
 }): StorageCopyPlan {
   if (input.selections.length < input.object.replicationFactor) {
-    throw new ControlPlaneError("POLICY_BLOCKED", "Storage plan does not meet replication factor");
+    throw new ControlPlaneError("POLICY_BLOCKED", "Storage plan does not meet minimum copy count");
   }
   const createdAtMs = parseTime(input.createdAt, "Storage copy plan createdAt");
   const seen = new Set<string>();
@@ -284,8 +284,27 @@ export function createStorageCopyPlan(input: {
   const authoritativeCopies = copies.filter(
     (copy) => copy.role === "authoritative-primary" || copy.role === "authoritative-secondary"
   );
-  if (input.object.authoritative && authoritativeCopies.length === 0) {
-    throw new ControlPlaneError("POLICY_BLOCKED", "Authoritative object requires authoritative durable copy");
+  if (input.object.authoritative) {
+    if (authoritativeCopies.length < input.object.replicationFactor) {
+      throw new ControlPlaneError(
+        "POLICY_BLOCKED",
+        "Authoritative replication factor must be satisfied by authoritative copies"
+      );
+    }
+    const primaryCount = authoritativeCopies.filter(
+      (copy) => copy.role === "authoritative-primary"
+    ).length;
+    if (primaryCount !== 1) {
+      throw new ControlPlaneError(
+        "POLICY_BLOCKED",
+        "Authoritative storage plan requires exactly one authoritative primary"
+      );
+    }
+  } else if (authoritativeCopies.length > 0) {
+    throw new ControlPlaneError(
+      "POLICY_BLOCKED",
+      "Non-authoritative objects cannot receive authoritative copy roles"
+    );
   }
   if (
     input.object.scope.environment === "production"
@@ -296,6 +315,26 @@ export function createStorageCopyPlan(input: {
       "POLICY_BLOCKED",
       "Production authoritative state cannot depend only on HOME storage"
     );
+  }
+  for (const copy of authoritativeCopies) {
+    if (copy.failureDomainIds.length === 0) {
+      throw new ControlPlaneError(
+        "POLICY_BLOCKED",
+        "Authoritative copies require explicit failure-domain membership"
+      );
+    }
+  }
+  for (let left = 0; left < authoritativeCopies.length; left += 1) {
+    const leftDomains = new Set(authoritativeCopies[left].failureDomainIds);
+    for (let right = left + 1; right < authoritativeCopies.length; right += 1) {
+      const shared = authoritativeCopies[right].failureDomainIds.filter((id) => leftDomains.has(id));
+      if (shared.length > 0) {
+        throw new ControlPlaneError(
+          "POLICY_BLOCKED",
+          `Authoritative replicas share a correlated failure domain: ${shared.join(",")}`
+        );
+      }
+    }
   }
   const domains = new Set(authoritativeCopies.flatMap((copy) => copy.failureDomainIds));
   if (input.object.authoritative && input.object.replicationFactor > 1 && domains.size < 2) {

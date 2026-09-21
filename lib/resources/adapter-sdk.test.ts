@@ -13,26 +13,32 @@ const context = {
 };
 
 describe("Phase 38 Resource Adapter SDK", () => {
-  it("runs one provider through the provider-neutral conformance surface", async () => {
+  it("runs the complete provider-neutral lifecycle through conformance", async () => {
     const result = await assertResourceAdapterConformance({
-      adapter: new DevelopmentMockResourceAdapter(),
+      adapter: new DevelopmentMockResourceAdapter(
+        () => new Date("2026-09-20T22:00:00Z")
+      ),
       context,
       fixtureTargetId: "mock-resource-1"
     });
     expect(result.conformancePassed).toBe(true);
+    expect(result.lifecycleExercised).toBe(true);
     expect(result.authoritative).toBe(false);
+    expect(result.evidenceHashes).toHaveLength(13);
   });
 
-  it("keeps all provider evidence non-authoritative", () => {
+  it("keeps all provider evidence non-authoritative and scope-bound", () => {
     const adapter = new DevelopmentMockResourceAdapter();
     const evidence = createResourceAdapterEvidence({
       adapterId: adapter.id,
       adapterVersion: adapter.version,
-      providerId: adapter.providerId,
+      context,
       observedAt: "2026-09-20T22:00:00Z",
       payload: { accepted: true }
     });
-    expect(assertResourceAdapterEvidence(evidence, adapter).authoritative).toBe(false);
+    expect(assertResourceAdapterEvidence(evidence, adapter, context).authoritative).toBe(false);
+    expect(evidence.scope.companyId).toBe("c1");
+    expect(evidence.correlationId).toBe("correlation-1");
   });
 
   it("rejects forged provider evidence that claims authority", () => {
@@ -40,14 +46,34 @@ describe("Phase 38 Resource Adapter SDK", () => {
     const evidence = createResourceAdapterEvidence({
       adapterId: adapter.id,
       adapterVersion: adapter.version,
-      providerId: adapter.providerId,
+      context,
       observedAt: "2026-09-20T22:00:00Z",
       payload: { accepted: true }
     });
     expect(() => assertResourceAdapterEvidence(
       { ...evidence, authoritative: true } as never,
-      adapter
+      adapter,
+      context
     )).toThrow(/forged|authority/i);
+  });
+
+  it("rejects evidence replayed into another company or correlation", () => {
+    const adapter = new DevelopmentMockResourceAdapter();
+    const evidence = createResourceAdapterEvidence({
+      adapterId: adapter.id,
+      adapterVersion: adapter.version,
+      context,
+      observedAt: "2026-09-20T22:00:00Z",
+      payload: { accepted: true }
+    });
+    expect(() => assertResourceAdapterEvidence(evidence, adapter, {
+      ...context,
+      scope: { ...context.scope, companyId: "c2" }
+    })).toThrow(/tenant|scope/i);
+    expect(() => assertResourceAdapterEvidence(evidence, adapter, {
+      ...context,
+      correlationId: "correlation-other"
+    })).toThrow(/correlation|scope/i);
   });
 
   it("rejects provider/context mismatch", async () => {

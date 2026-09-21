@@ -283,10 +283,12 @@ for (const required of [
 
 const storageFabric = read("lib/resources/storage-fabric.ts");
 for (const required of [
-  'STORAGE_FABRIC_CONTRACT_VERSION = "1.0.0"',
+  'STORAGE_FABRIC_CONTRACT_VERSION = "1.1.0"',
   "authoritative-primary",
   "home-cannot-hold-sole-authoritative-copy",
   "Production authoritative state cannot depend only on HOME storage",
+  "Authoritative replication factor must be satisfied by authoritative copies",
+  "exactly one authoritative primary",
   "distinct failure domains"
 ]) {
   if (!storageFabric.includes(required)) fail(`Phase 36 storage authority guard missing: ${required}`);
@@ -294,25 +296,35 @@ for (const required of [
 
 const resilience = read("lib/resources/resilience.ts");
 for (const required of [
-  'RESILIENCE_CONTRACT_VERSION = "1.0.0"',
+  'RESILIENCE_CONTRACT_VERSION = "1.1.0"',
   "circuitBreaker",
   "beginDrain",
   "createFailoverPlan",
   "requiresIndependentVerification: true",
-  "Failover cannot claim recovery without verified receipt"
+  "FailoverVerificationEvidence",
+  "createFailoverVerificationEvidence",
+  "Failover time cannot move backwards",
+  "Drain remaining work cannot increase",
+  "hash-bound independent verification evidence"
 ]) {
   if (!resilience.includes(required)) fail(`Phase 37 resilience guard missing: ${required}`);
 }
 
 const resourceAdapterSdk = read("lib/resources/adapter-sdk.ts");
 for (const required of [
-  'RESOURCE_ADAPTER_SDK_CONTRACT_VERSION = "1.0.0"',
+  'RESOURCE_ADAPTER_SDK_CONTRACT_VERSION = "1.1.0"',
   "discover(context",
   "authenticate(context",
   "capabilities(context",
   "reserve(context",
+  "allocate(context",
   "dispatch(context",
+  "status(context",
+  "cancel(context",
+  "release(context",
+  "correlationId",
   "authoritative: false",
+  "lifecycleExercised: true",
   "assertResourceAdapterConformance"
 ]) {
   if (!resourceAdapterSdk.includes(required)) fail(`Phase 38 Resource Adapter SDK guard missing: ${required}`);
@@ -320,10 +332,14 @@ for (const required of [
 
 const pools = read("lib/resources/pools.ts");
 for (const required of [
-  'RESOURCE_POOL_CONTRACT_VERSION = "1.0.0"',
+  'RESOURCE_POOL_CONTRACT_VERSION = "1.1.0"',
   "credentialBindingIds",
   "failureDomainIds",
   "autoSchedulingEnabled",
+  "createResourcePoolReadinessEvidence",
+  "evidenceHash",
+  "poolHash",
+  "readinessHash",
   "evaluateResourcePoolReadiness",
   "assertResourcePoolEligible",
   "buildResourcePoolReadModel"
@@ -333,7 +349,7 @@ for (const required of [
 
 const phase44 = read("lib/security/phase44-adversarial-harness.ts");
 for (const required of [
-  'PHASE44_DETERMINISTIC_HARNESS_VERSION = "1.0.0"',
+  'PHASE44_DETERMINISTIC_HARNESS_VERSION = "1.1.0"',
   "voice-approval-bypass",
   "staging-production-scope-misuse",
   "forged-resource-capability",
@@ -343,7 +359,10 @@ for (const required of [
   "credential-scope-escalation",
   "cross-company-contamination",
   "release-registry-tampering",
-  "model-provider-authority-attempt"
+  "model-provider-authority-attempt",
+  "createPhase44HarnessReport",
+  "assertPhase44ProbeResult",
+  "PHASE44_VECTOR_MATRIX_HASH"
 ]) {
   if (!phase44.includes(required)) fail(`Phase 44 deterministic adversarial vector missing: ${required}`);
 }
@@ -451,20 +470,20 @@ if (
   fail("Cross-phase composition harness release state drifted or overclaims production");
 }
 if (
-  releaseRegistry.resourceFabric?.storageFabricContractVersion !== "1.0.0"
+  releaseRegistry.resourceFabric?.storageFabricContractVersion !== "1.1.0"
   || releaseRegistry.resourceFabric?.storageRuntimeStatus !== "not-connected"
-  || releaseRegistry.resourceFabric?.resilienceContractVersion !== "1.0.0"
+  || releaseRegistry.resourceFabric?.resilienceContractVersion !== "1.1.0"
   || releaseRegistry.resourceFabric?.failoverRuntimeStatus !== "not-connected"
-  || releaseRegistry.resourceFabric?.resourceAdapterSdkContractVersion !== "1.0.0"
+  || releaseRegistry.resourceFabric?.resourceAdapterSdkContractVersion !== "1.1.0"
   || releaseRegistry.resourceFabric?.secondProviderStatus !== "not-connected"
-  || releaseRegistry.resourceFabric?.resourcePoolContractVersion !== "1.0.0"
+  || releaseRegistry.resourceFabric?.resourcePoolContractVersion !== "1.1.0"
   || releaseRegistry.resourceFabric?.partnerPoolRuntimeStatus !== "not-connected"
   || releaseRegistry.adapters?.resourceAdapterSdk?.status !== "contract-only"
 ) {
   fail("Phases 36-39 release state drifted");
 }
 if (
-  releaseRegistry.phase44?.deterministicHarnessVersion !== "1.0.0"
+  releaseRegistry.phase44?.deterministicHarnessVersion !== "1.1.0"
   || releaseRegistry.phase44?.deterministicHarnessStatus !== "contract-and-offline-tests"
   || releaseRegistry.phase44?.productionAcceptanceStatus !== "not-run"
 ) {

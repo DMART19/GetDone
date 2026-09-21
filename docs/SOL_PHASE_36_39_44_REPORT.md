@@ -27,7 +27,7 @@ Added `lib/resources/storage-fabric.ts`.
 
 Version:
 
-`STORAGE_FABRIC_CONTRACT_VERSION = 1.0.0`
+`STORAGE_FABRIC_CONTRACT_VERSION = 1.1.0`
 
 Implemented:
 
@@ -91,7 +91,7 @@ Added `lib/resources/resilience.ts`.
 
 Version:
 
-`RESILIENCE_CONTRACT_VERSION = 1.0.0`
+`RESILIENCE_CONTRACT_VERSION = 1.1.0`
 
 Implemented:
 
@@ -159,7 +159,7 @@ Added:
 
 Version:
 
-`RESOURCE_ADAPTER_SDK_CONTRACT_VERSION = 1.0.0`
+`RESOURCE_ADAPTER_SDK_CONTRACT_VERSION = 1.1.0`
 
 Provider-neutral operations:
 
@@ -216,7 +216,7 @@ Added `lib/resources/pools.ts`.
 
 Version:
 
-`RESOURCE_POOL_CONTRACT_VERSION = 1.0.0`
+`RESOURCE_POOL_CONTRACT_VERSION = 1.1.0`
 
 Implemented:
 
@@ -291,7 +291,7 @@ Added `lib/security/phase44-adversarial-harness.ts`.
 
 Version:
 
-`PHASE44_DETERMINISTIC_HARNESS_VERSION = 1.0.0`
+`PHASE44_DETERMINISTIC_HARNESS_VERSION = 1.1.0`
 
 The offline blocking matrix includes:
 
@@ -410,3 +410,60 @@ The remaining gaps are live/provider/hardware acceptance gaps:
 - Phase 44 full production end-to-end acceptance.
 
 Deterministic implementation is not canonical production PASS where the master plan requires live evidence.
+
+
+## September 20 completion hardening pass
+
+This pass closes deterministic gaps found during the completion audit. It does not connect any real NAS, Pi, cloud provider, colo/partner DC, or production failover runtime.
+
+### Phase 36 completion — contract 1.1.0
+
+- authoritative replication factor must now be satisfied by authoritative copies, not by caches/artifacts/backups;
+- authoritative plans require exactly one authoritative primary;
+- non-authoritative objects cannot be assigned authoritative copy roles;
+- existing HOME, encryption, RPO/RTO, residency, freshness, capacity and failure-domain rules remain intact.
+
+### Phase 37 completion — contract 1.1.0
+
+- drain progress is monotonic: remaining work cannot increase and timestamps cannot move backward;
+- failover state timestamps cannot move backward;
+- recovery now requires hash-bound `FailoverVerificationEvidence` tied to exact failover plan hash and dispatch evidence;
+- verification evidence must establish healthy post-failover state before authoritative recovery can be recorded;
+- provider/dispatch success alone remains insufficient.
+
+### Phase 38 completion — contract 1.1.0
+
+- every Resource Adapter evidence record is now bound to portfolio/company/environment, provider and correlation ID;
+- conformance now exercises the complete provider-neutral lifecycle:
+  metadata → discover → authenticate → capabilities → health → capacity → cost → reserve → allocate → dispatch → status → cancel → release;
+- reserve/allocate/dispatch provider references are required for accepted fixture operations;
+- mock adapters remain DEVELOPMENT-only;
+- adapter output remains `authoritative: false` throughout.
+
+### Phase 39 completion — contract 1.1.0
+
+- readiness evidence is hash-bound to exact pool hash, provider, adapter version and freshness window;
+- readiness results are hash-bound back to the exact pool/evidence that earned them;
+- stale or cross-pool readiness replay fails closed;
+- pool timestamps are monotonic;
+- existing tenant/environment/data/capability/capacity/headroom/quota governance remains intact.
+
+### Phase 44 completion — deterministic harness 1.1.0
+
+- the ten requested offline vectors remain the blocking matrix;
+- every probe result is integrity-checked against the vector's expected disposition;
+- duplicate/missing vectors fail closed;
+- a complete run now produces one hash-bound `Phase44HarnessReport` containing exactly ten result hashes and the attack-matrix hash;
+- the report contract is suitable for later live-adapter evidence without changing the offline attack taxonomy.
+
+### Explicit runtime boundary
+
+Still not claimed:
+- real NAS replication/read/write/restore;
+- Pi/Linux hardware execution;
+- live cloud/provider/colo/partner adapters;
+- real failure-domain telemetry, drain or failover;
+- production ResourcePool feeds;
+- live Phase 44 infrastructure acceptance.
+
+Phase 43 Watch/native companion work is intentionally not part of this tranche.

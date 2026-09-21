@@ -6,7 +6,7 @@ import type {
   ResourceReliabilityTier
 } from "@/lib/resources/policy";
 
-export const RESOURCE_POOL_CONTRACT_VERSION = "1.0.0";
+export const RESOURCE_POOL_CONTRACT_VERSION = "1.1.0";
 
 export type GovernedResourcePoolState =
   | "discovered"
@@ -60,6 +60,11 @@ export interface ResourcePoolCapacitySnapshot {
 }
 
 export interface ResourcePoolReadinessEvidence {
+  poolId: string;
+  poolHash: string;
+  providerId: string;
+  adapterId: string;
+  adapterVersion: string;
   adapterAuthenticated: boolean;
   identityVerified: boolean;
   capabilitiesValidated: boolean;
@@ -68,9 +73,16 @@ export interface ResourcePoolReadinessEvidence {
   failureDomainsVerified: boolean;
   costModelVerified: boolean;
   credentialBindingsScoped: boolean;
+  observedAt: string;
+  expiresAt: string;
+  evidenceHash: string;
 }
 
 export interface ResourcePoolReadiness {
+  poolId: string;
+  poolHash: string;
+  evidenceHash: string;
+  evaluatedAt: string;
   ready: boolean;
   reasons: readonly string[];
   readinessHash: string;
@@ -120,6 +132,26 @@ function value(vector: Readonly<Record<string, number>>, key: string) {
   return vector[key] ?? 0;
 }
 
+function assertPoolIntegrity(pool: GovernedResourcePool) {
+  const { poolHash, ...base } = pool;
+  if (sha256Hex(base) !== poolHash) {
+    throw new ControlPlaneError("FORBIDDEN", "Resource pool integrity check failed");
+  }
+  return pool;
+}
+
+function assertReadinessIntegrity(readiness: ResourcePoolReadiness, pool: GovernedResourcePool) {
+  const { readinessHash, ...base } = readiness;
+  if (
+    sha256Hex(base) !== readinessHash
+    || readiness.poolId !== pool.id
+    || readiness.poolHash !== pool.poolHash
+  ) {
+    throw new ControlPlaneError("FORBIDDEN", "Resource pool readiness is forged or belongs to another pool");
+  }
+  return readiness;
+}
+
 export function createGovernedResourcePool(
   input: Omit<GovernedResourcePool, "poolHash">
 ): GovernedResourcePool {
@@ -143,6 +175,11 @@ export function createGovernedResourcePool(
       "Resource pool requires environment permissions and capability classes"
     );
   }
+  const createdAt = parseTime(input.createdAt, "pool createdAt");
+  const updatedAt = parseTime(input.updatedAt, "pool updatedAt");
+  if (updatedAt < createdAt) {
+    throw new ControlPlaneError("CONFLICT", "Resource pool updatedAt cannot precede createdAt");
+  }
   const base = {
     ...input,
     environmentPermissions: Object.freeze([...new Set(input.environmentPermissions)].sort()),
@@ -151,8 +188,8 @@ export function createGovernedResourcePool(
     failureDomainIds: Object.freeze([...new Set(input.failureDomainIds)].sort()),
     credentialBindingIds: Object.freeze([...new Set(input.credentialBindingIds)].sort()),
     policyBindingIds: Object.freeze([...new Set(input.policyBindingIds)].sort()),
-    createdAt: new Date(parseTime(input.createdAt, "pool createdAt")).toISOString(),
-    updatedAt: new Date(parseTime(input.updatedAt, "pool updatedAt")).toISOString()
+    createdAt: new Date(createdAt).toISOString(),
+    updatedAt: new Date(updatedAt).toISOString()
   };
   return Object.freeze({ ...base, poolHash: sha256Hex(base) });
 }
@@ -201,14 +238,59 @@ export function createResourcePoolCapacitySnapshot(
   return Object.freeze({ ...base, snapshotHash: sha256Hex(base) });
 }
 
+export function createResourcePoolReadinessEvidence(
+  input: Omit<ResourcePoolReadinessEvidence, "evidenceHash">
+): ResourcePoolReadinessEvidence {
+  if (
+    !input.poolId
+    || !input.poolHash
+    || !input.providerId
+    || !input.adapterId
+    || !input.adapterVersion
+  ) {
+    throw new ControlPlaneError("VALIDATION_FAILED", "Resource pool readiness evidence lineage is required");
+  }
+  const observedAt = parseTime(input.observedAt, "pool readiness observedAt");
+  const expiresAt = parseTime(input.expiresAt, "pool readiness expiresAt");
+  if (expiresAt <= observedAt) {
+    throw new ControlPlaneError("VALIDATION_FAILED", "Pool readiness evidence expiry must follow observation");
+  }
+  const base = {
+    ...input,
+    observedAt: new Date(observedAt).toISOString(),
+    expiresAt: new Date(expiresAt).toISOString()
+  };
+  return Object.freeze({ ...base, evidenceHash: sha256Hex(base) });
+}
+
 export function evaluateResourcePoolReadiness(input: {
   pool: GovernedResourcePool;
   evidence: ResourcePoolReadinessEvidence;
+  evaluatedAt: string;
 }): ResourcePoolReadiness {
-  const { poolHash, ...base } = input.pool;
-  if (sha256Hex(base) !== poolHash) {
-    throw new ControlPlaneError("FORBIDDEN", "Resource pool integrity check failed");
+  assertPoolIntegrity(input.pool);
+  const { evidenceHash, ...evidenceBase } = input.evidence;
+  const evaluatedAt = parseTime(input.evaluatedAt, "pool readiness evaluatedAt");
+  if (
+    sha256Hex(evidenceBase) !== evidenceHash
+    || input.evidence.poolId !== input.pool.id
+    || input.evidence.poolHash !== input.pool.poolHash
+    || input.evidence.providerId !== input.pool.providerId
+    || input.evidence.adapterId !== input.pool.adapterId
+    || input.evidence.adapterVersion !== input.pool.adapterVersion
+  ) {
+    throw new ControlPlaneError(
+      "FORBIDDEN",
+      "Resource pool readiness evidence is forged or outside pool/provider/adapter lineage"
+    );
   }
+  if (
+    Date.parse(input.evidence.observedAt) > evaluatedAt
+    || Date.parse(input.evidence.expiresAt) <= evaluatedAt
+  ) {
+    throw new ControlPlaneError("UNAVAILABLE", "Resource pool readiness evidence is stale or from the future");
+  }
+
   const reasons: string[] = [];
   const e = input.evidence;
   if (!e.identityVerified) reasons.push("pool-identity-not-verified");
@@ -224,6 +306,10 @@ export function evaluateResourcePoolReadiness(input: {
   if (input.pool.failureDomainIds.length === 0) reasons.push("pool-failure-domain-required");
 
   const readinessBase = {
+    poolId: input.pool.id,
+    poolHash: input.pool.poolHash,
+    evidenceHash,
+    evaluatedAt: new Date(evaluatedAt).toISOString(),
     ready: reasons.length === 0,
     reasons: Object.freeze(reasons)
   };
@@ -238,6 +324,8 @@ export function assertResourcePoolEligible(input: {
   readiness: ResourcePoolReadiness;
 }) {
   const { pool, scope } = input;
+  assertPoolIntegrity(pool);
+  assertReadinessIntegrity(input.readiness, pool);
   if (
     pool.portfolioId !== scope.portfolioId
     || pool.companyId !== scope.companyId
@@ -264,6 +352,8 @@ export function buildResourcePoolReadModel(input: {
   estimatedHourlyCents?: number;
   evaluatedAt: string;
 }): ResourcePoolReadModel {
+  assertPoolIntegrity(input.pool);
+  assertReadinessIntegrity(input.readiness, input.pool);
   const evaluatedAt = parseTime(input.evaluatedAt, "pool read model evaluatedAt");
   const { snapshotHash, ...capacityBase } = input.capacity;
   if (sha256Hex(capacityBase) !== snapshotHash || input.capacity.poolId !== input.pool.id) {
@@ -271,6 +361,9 @@ export function buildResourcePoolReadModel(input: {
   }
   if (Date.parse(input.capacity.observedAt) > evaluatedAt || Date.parse(input.capacity.expiresAt) <= evaluatedAt) {
     throw new ControlPlaneError("UNAVAILABLE", "Pool capacity snapshot is stale or from the future");
+  }
+  if (Date.parse(input.readiness.evaluatedAt) > evaluatedAt) {
+    throw new ControlPlaneError("UNAVAILABLE", "Pool readiness is from the future");
   }
   const utilization: Record<string, number> = {};
   for (const [dimension, total] of Object.entries(input.capacity.totalCapacity)) {

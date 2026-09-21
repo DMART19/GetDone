@@ -6,8 +6,13 @@ import {
 
 export class DevelopmentMockResourceAdapter implements ResourceAdapter {
   readonly id = "development-mock-resource-adapter";
-  readonly version = "1.0.0";
+  readonly version = "1.1.0";
   readonly providerId = "mock-provider";
+  private readonly now: () => Date;
+
+  constructor(now: () => Date = () => new Date("2026-09-20T22:00:00Z")) {
+    this.now = now;
+  }
 
   private assertContext(context: ResourceAdapterContext) {
     if (
@@ -20,19 +25,19 @@ export class DevelopmentMockResourceAdapter implements ResourceAdapter {
     }
   }
 
-  private evidence<T>(payload: T) {
+  private evidence<T>(context: ResourceAdapterContext, payload: T) {
     return createResourceAdapterEvidence({
       adapterId: this.id,
       adapterVersion: this.version,
-      providerId: this.providerId,
-      observedAt: "2026-09-20T22:00:00Z",
+      context,
+      observedAt: this.now().toISOString(),
       payload
     });
   }
 
   async metadata(context: ResourceAdapterContext) {
     this.assertContext(context);
-    return this.evidence({
+    return this.evidence(context, {
       providerDisplayName: "Development Mock",
       providerType: "custom" as const,
       supportedEnvironments: ["development"] as const,
@@ -42,12 +47,12 @@ export class DevelopmentMockResourceAdapter implements ResourceAdapter {
 
   async discover(context: ResourceAdapterContext) {
     this.assertContext(context);
-    return this.evidence(["mock-resource-1"] as const);
+    return this.evidence(context, ["mock-resource-1"] as const);
   }
 
   async authenticate(context: ResourceAdapterContext) {
     this.assertContext(context);
-    return this.evidence({
+    return this.evidence(context, {
       authenticated: true,
       bindingRef: "credential-binding:mock"
     });
@@ -55,26 +60,26 @@ export class DevelopmentMockResourceAdapter implements ResourceAdapter {
 
   async capabilities(context: ResourceAdapterContext, targetId: string) {
     this.assertContext(context);
-    void targetId;
-    return this.evidence(["compute.cpu.light", "storage.backup"] as const);
+    if (!targetId) throw new Error("targetId is required");
+    return this.evidence(context, ["compute.cpu.light", "storage.backup"] as const);
   }
 
   async health(context: ResourceAdapterContext, targetId: string) {
     this.assertContext(context);
-    void targetId;
-    return this.evidence({ status: "healthy" });
+    if (!targetId) throw new Error("targetId is required");
+    return this.evidence(context, { status: "healthy" });
   }
 
   async capacity(context: ResourceAdapterContext, targetId: string) {
     this.assertContext(context);
-    void targetId;
-    return this.evidence({ cpu: 8, memoryMb: 16384 });
+    if (!targetId) throw new Error("targetId is required");
+    return this.evidence(context, { cpu: 8, memoryMb: 16384 });
   }
 
   async cost(context: ResourceAdapterContext, targetId: string) {
     this.assertContext(context);
-    void targetId;
-    return this.evidence({
+    if (!targetId) throw new Error("targetId is required");
+    return this.evidence(context, {
       estimatedHourlyCents: 10,
       marginalHourlyCents: 10
     });
@@ -89,9 +94,8 @@ export class DevelopmentMockResourceAdapter implements ResourceAdapter {
     }
   ) {
     this.assertContext(context);
-    void input.targetId;
-    void input.capacity;
-    return this.evidence({
+    if (!input.targetId || !input.reservationId) throw new Error("reserve identity is required");
+    return this.evidence(context, {
       accepted: true,
       providerReservationRef: `provider-reservation:${input.reservationId}`
     });
@@ -106,9 +110,10 @@ export class DevelopmentMockResourceAdapter implements ResourceAdapter {
     }
   ) {
     this.assertContext(context);
-    void input.targetId;
-    void input.reservationId;
-    return this.evidence({
+    if (!input.targetId || !input.allocationId || !input.reservationId) {
+      throw new Error("allocate lineage is required");
+    }
+    return this.evidence(context, {
       accepted: true,
       providerAllocationRef: `provider-allocation:${input.allocationId}`
     });
@@ -123,9 +128,10 @@ export class DevelopmentMockResourceAdapter implements ResourceAdapter {
     }
   ) {
     this.assertContext(context);
-    void input.targetId;
-    void input.allocationId;
-    return this.evidence({
+    if (!input.targetId || !input.dispatchId || !input.allocationId) {
+      throw new Error("dispatch lineage is required");
+    }
+    return this.evidence(context, {
       accepted: true,
       providerOperationId: `provider-operation:${input.dispatchId}`
     });
@@ -136,8 +142,8 @@ export class DevelopmentMockResourceAdapter implements ResourceAdapter {
     input: { targetId: string; providerOperationId: string }
   ) {
     this.assertContext(context);
-    void input;
-    return this.evidence({ state: "completed" as const });
+    if (!input.targetId || !input.providerOperationId) throw new Error("status lineage is required");
+    return this.evidence(context, { state: "completed" as const });
   }
 
   async cancel(
@@ -145,8 +151,10 @@ export class DevelopmentMockResourceAdapter implements ResourceAdapter {
     input: { targetId: string; providerOperationId: string; reason: string }
   ) {
     this.assertContext(context);
-    void input;
-    return this.evidence({ accepted: true });
+    if (!input.targetId || !input.providerOperationId || !input.reason.trim()) {
+      throw new Error("cancel lineage and reason are required");
+    }
+    return this.evidence(context, { accepted: true });
   }
 
   async release(
@@ -158,7 +166,9 @@ export class DevelopmentMockResourceAdapter implements ResourceAdapter {
     }
   ) {
     this.assertContext(context);
-    void input;
-    return this.evidence({ accepted: true });
+    if (!input.targetId || (!input.reservationId && !input.allocationId)) {
+      throw new Error("release target and reservation/allocation lineage are required");
+    }
+    return this.evidence(context, { accepted: true });
   }
 }

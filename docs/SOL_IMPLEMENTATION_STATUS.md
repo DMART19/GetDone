@@ -726,3 +726,24 @@ Still intentionally unimplemented:
 - real GitHub/build/staging/production deployment and rollback executors.
 
 No in-memory/reference Job Store is represented as the production queue.
+
+
+## September 20 Phases 36–39 + 44 completion hardening
+
+**STATUS: DETERMINISTIC CONTRACT TRANCHE COMPLETE; LIVE RESOURCE/HARDWARE/PROVIDER ACCEPTANCE REMAINS OPEN**
+
+Completed:
+- Phase 36 Storage Fabric 1.1.0 now enforces authoritative-replica semantics and exactly one authoritative primary.
+- Phase 37 Resilience 1.1.0 now enforces monotonic drain/failover state and hash-bound verification lineage before recovery.
+- Phase 38 Resource Adapter SDK 1.1.0 now scope-binds evidence and runs full lifecycle conformance through release.
+- Phase 39 ResourcePool 1.1.0 now hash/freshness-binds readiness evidence and prevents cross-pool readiness replay.
+- Phase 44 deterministic harness 1.1.0 now validates every probe disposition and produces one complete hash-bound blocking report for all ten offline attacks.
+- Release/architecture truth was advanced to these versions while every live Resource Fabric runtime remains fail-closed/not-connected.
+
+Still intentionally runtime/platform work:
+- real NAS/Pi/cloud/colo/partner execution;
+- live replication, telemetry, failover and provider dispatch;
+- production ResourcePool feeds and credentials;
+- full live Phase 44 acceptance.
+
+Phase 43 is intentionally excluded.

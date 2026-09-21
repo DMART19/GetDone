@@ -4,6 +4,7 @@ import {
   buildResourcePoolReadModel,
   createGovernedResourcePool,
   createResourcePoolCapacitySnapshot,
+  createResourcePoolReadinessEvidence,
   evaluateResourcePoolReadiness
 } from "@/lib/resources/pools";
 
@@ -15,7 +16,7 @@ function pool(overrides: Partial<Parameters<typeof createGovernedResourcePool>[0
     displayName: "DC West",
     providerId: "partner-west",
     adapterId: "partner-adapter",
-    adapterVersion: "1.0.0",
+    adapterVersion: "1.1.0",
     state: "ready",
     environmentPermissions: ["staging", "production"],
     capabilityClasses: ["compute.cpu.light", "storage.backup"],
@@ -33,25 +34,71 @@ function pool(overrides: Partial<Parameters<typeof createGovernedResourcePool>[0
   });
 }
 
-const evidence = {
-  adapterAuthenticated: true,
-  identityVerified: true,
-  capabilitiesValidated: true,
-  healthVerified: true,
-  aggregateCapacityVerified: true,
-  failureDomainsVerified: true,
-  costModelVerified: true,
-  credentialBindingsScoped: true
-};
+function readinessEvidence(
+  p: ReturnType<typeof pool>,
+  overrides: Partial<Parameters<typeof createResourcePoolReadinessEvidence>[0]> = {}
+) {
+  return createResourcePoolReadinessEvidence({
+    poolId: p.id,
+    poolHash: p.poolHash,
+    providerId: p.providerId,
+    adapterId: p.adapterId,
+    adapterVersion: p.adapterVersion,
+    adapterAuthenticated: true,
+    identityVerified: true,
+    capabilitiesValidated: true,
+    healthVerified: true,
+    aggregateCapacityVerified: true,
+    failureDomainsVerified: true,
+    costModelVerified: true,
+    credentialBindingsScoped: true,
+    observedAt: "2026-09-20T22:00:00Z",
+    expiresAt: "2026-09-20T23:00:00Z",
+    ...overrides
+  });
+}
+
+function ready(p: ReturnType<typeof pool>) {
+  return evaluateResourcePoolReadiness({
+    pool: p,
+    evidence: readinessEvidence(p),
+    evaluatedAt: "2026-09-20T22:10:00Z"
+  });
+}
 
 describe("Phase 39 governed aggregate ResourcePool", () => {
   it("requires full governance evidence before a pool is ready", () => {
+    const p = pool();
     const readiness = evaluateResourcePoolReadiness({
-      pool: pool(),
-      evidence: { ...evidence, credentialBindingsScoped: false }
+      pool: p,
+      evidence: readinessEvidence(p, { credentialBindingsScoped: false }),
+      evaluatedAt: "2026-09-20T22:10:00Z"
     });
     expect(readiness.ready).toBe(false);
     expect(readiness.reasons).toContain("pool-credentials-not-scoped");
+  });
+
+  it("binds readiness evidence to exact pool/provider/adapter lineage", () => {
+    const p = pool();
+    const evidence = readinessEvidence(p);
+    const other = pool({ id: "dc-other" });
+    expect(() => evaluateResourcePoolReadiness({
+      pool: other,
+      evidence,
+      evaluatedAt: "2026-09-20T22:10:00Z"
+    })).toThrow(/lineage/i);
+  });
+
+  it("fails closed on stale readiness evidence", () => {
+    const p = pool();
+    const evidence = readinessEvidence(p, {
+      expiresAt: "2026-09-20T22:05:00Z"
+    });
+    expect(() => evaluateResourcePoolReadiness({
+      pool: p,
+      evidence,
+      evaluatedAt: "2026-09-20T22:10:00Z"
+    })).toThrow(/stale/i);
   });
 
   it("keeps pool usage within total/quota/protected capacity", () => {
@@ -71,7 +118,7 @@ describe("Phase 39 governed aggregate ResourcePool", () => {
 
   it("rejects cross-company and disallowed data-class scheduling", () => {
     const p = pool();
-    const readiness = evaluateResourcePoolReadiness({ pool: p, evidence });
+    const readiness = ready(p);
     expect(() => assertResourcePoolEligible({
       pool: p,
       scope: { portfolioId: "p1", companyId: "c2", environment: "production" },
@@ -88,9 +135,22 @@ describe("Phase 39 governed aggregate ResourcePool", () => {
     })).toThrow(/data policy/i);
   });
 
+  it("rejects a readiness result replayed onto a different pool", () => {
+    const source = pool();
+    const readiness = ready(source);
+    const target = pool({ id: "dc-target" });
+    expect(() => assertResourcePoolEligible({
+      pool: target,
+      scope: { portfolioId: "p1", companyId: "c1", environment: "production" },
+      dataClass: "CUSTOMER",
+      capability: "compute.cpu.light",
+      readiness
+    })).toThrow(/another pool|forged/i);
+  });
+
   it("exposes one concise aggregate read model instead of forcing node inventory", () => {
     const p = pool();
-    const readiness = evaluateResourcePoolReadiness({ pool: p, evidence });
+    const readiness = ready(p);
     const capacity = createResourcePoolCapacitySnapshot({
       poolId: p.id,
       totalCapacity: { cpu: 100, memoryGb: 512 },
@@ -116,7 +176,7 @@ describe("Phase 39 governed aggregate ResourcePool", () => {
 
   it("fails closed when aggregate capacity snapshots go stale", () => {
     const p = pool();
-    const readiness = evaluateResourcePoolReadiness({ pool: p, evidence });
+    const readiness = ready(p);
     const capacity = createResourcePoolCapacitySnapshot({
       poolId: p.id,
       totalCapacity: { cpu: 100 },
@@ -133,5 +193,12 @@ describe("Phase 39 governed aggregate ResourcePool", () => {
       readiness,
       evaluatedAt: "2026-09-20T22:10:00Z"
     })).toThrow(/stale/i);
+  });
+
+  it("rejects resource-pool timestamps that move backwards", () => {
+    expect(() => pool({
+      createdAt: "2026-09-20T22:00:00Z",
+      updatedAt: "2026-09-20T21:59:00Z"
+    })).toThrow(/cannot precede/i);
   });
 });
