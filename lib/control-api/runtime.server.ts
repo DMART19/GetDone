@@ -3,6 +3,7 @@ import type {
   ControlApiApplicationAdapter,
   ControlApiHealth
 } from "@/lib/control-api/contracts";
+import { createPostgresControlApiAdapter } from "@/lib/control-api/postgres-runtime.server";
 
 class UnavailableControlApiAdapter implements ControlApiApplicationAdapter {
   private unavailable(): never {
@@ -54,5 +55,16 @@ export function resetControlApiAdapter() {
 }
 
 export function getControlApiAdapter() {
-  return installedAdapter ?? unavailableAdapter;
+  if (installedAdapter) return installedAdapter;
+
+  const runtime = process.env.GETDONE_RUNTIME_ENV;
+  if (
+    (runtime === "staging" || runtime === "production")
+    && process.env.DATABASE_URL?.trim()
+  ) {
+    installedAdapter = createPostgresControlApiAdapter(process.env);
+    return installedAdapter;
+  }
+
+  return unavailableAdapter;
 }
