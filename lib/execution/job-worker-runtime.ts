@@ -58,6 +58,23 @@ export class DurableJobWorker {
     this.batchSize = config.batchSize ?? 10;
     this.retryBaseDelayMs = config.retryBaseDelayMs ?? 1_000;
     this.maxAttempts = config.maxAttempts ?? 5;
+    if (
+      !Number.isInteger(this.leaseSeconds)
+      || this.leaseSeconds < 2
+      || !Number.isInteger(this.heartbeatSeconds)
+      || this.heartbeatSeconds < 1
+      || !Number.isInteger(this.batchSize)
+      || this.batchSize < 1
+      || !Number.isInteger(this.maxAttempts)
+      || this.maxAttempts < 1
+      || !Number.isFinite(this.retryBaseDelayMs)
+      || this.retryBaseDelayMs < 0
+    ) {
+      throw new ControlPlaneError(
+        "VALIDATION_FAILED",
+        "Durable Job worker timing, batch size, and retry limits are invalid"
+      );
+    }
     if (this.heartbeatSeconds >= this.leaseSeconds) {
       throw new ControlPlaneError(
         "VALIDATION_FAILED",
