@@ -135,6 +135,14 @@ if (failures.length === 0) {
     registry.aiGateway.sourcePath,
     "AI_ROUTING_POLICY_CONTRACT_VERSION"
   );
+  const controlApiSurfaceVersion = extractStringConst(
+    registry.controlApi.sourcePath,
+    "CONTROL_API_SURFACE_VERSION"
+  );
+  const openRouterAdapterVersion = extractStringConst(
+    registry.adapters.openRouter.sourcePath,
+    "OPENROUTER_ADAPTER_VERSION"
+  );
   const integrationRegistryContractVersion = extractStringConst(
     registry.integrations.sourcePath,
     "INTEGRATION_REGISTRY_CONTRACT_VERSION"
@@ -184,6 +192,14 @@ if (failures.length === 0) {
     || registry.aiGateway.routingPolicyContractVersion !== aiRoutingPolicyContractVersion
     || manifest.aiGateway.contractVersion !== aiGatewayContractVersion
     || manifest.aiGateway.routingPolicyContractVersion !== aiRoutingPolicyContractVersion
+    || registry.controlApi.surfaceVersion !== controlApiSurfaceVersion
+    || registry.schemaVersions.controlApiSurface?.version !== controlApiSurfaceVersion
+    || manifest.controlApi?.surfaceVersion !== controlApiSurfaceVersion
+    || manifest.controlApi?.sourceSha256 !== fileHash(registry.controlApi.sourcePath)
+    || registry.adapters.openRouter?.version !== openRouterAdapterVersion
+    || manifest.adapterVersions.openRouter?.version !== openRouterAdapterVersion
+    || registry.aiGateway.adapterVersion !== openRouterAdapterVersion
+    || manifest.aiGateway.adapterVersion !== openRouterAdapterVersion
     || registry.integrations.registryContractVersion !== integrationRegistryContractVersion
     || manifest.integrations.registryContractVersion !== integrationRegistryContractVersion
     || manifest.integrations.sourceSha256 !== fileHash(registry.integrations.sourcePath)
@@ -292,17 +308,26 @@ if (failures.length === 0) {
 
   if (registry.aiGateway.status === "not-connected") {
     if (
-      registry.aiGateway.adapterVersion !== "UNIMPLEMENTED"
-      || registry.aiGateway.routingPolicyVersion !== "UNCONFIGURED"
+      registry.aiGateway.routingPolicyVersion !== "UNCONFIGURED"
       || registry.adapters.aiGateway?.status !== "contract-only"
+      || registry.adapters.openRouter?.status !== "implemented-unconfigured"
+      || registry.aiGateway.adapterVersion !== registry.adapters.openRouter.version
     ) {
-      fail("Disconnected AI Gateway must retain contract-only adapter state plus UNIMPLEMENTED/UNCONFIGURED live state");
+      fail("Disconnected AI Gateway must expose the implemented OpenRouter adapter while keeping credentials/routing unconfigured");
     }
   } else if (
-    registry.aiGateway.adapterVersion === "UNIMPLEMENTED"
-    || registry.aiGateway.routingPolicyVersion === "UNCONFIGURED"
+    registry.aiGateway.routingPolicyVersion === "UNCONFIGURED"
   ) {
-    fail("Connected AI Gateway cannot retain unimplemented routing/adapter versions");
+    fail("Connected AI Gateway cannot retain an unconfigured routing policy");
+  }
+
+  if (
+    registry.controlApi.status !== "implemented-unconnected"
+    || registry.controlApi.applicationAdapterStatus !== "not-connected"
+    || registry.controlApi.authStatus !== "not-connected"
+    || registry.controlApi.persistenceStatus !== "not-connected"
+  ) {
+    fail("Control API release truth must distinguish implemented surface from unconnected authority adapters");
   }
 
   if (
@@ -353,7 +378,14 @@ if (failures.length === 0) {
       !environmentState.aiGateway
       || environmentState.aiGateway.contractStatus !== "deterministic-contract"
       || environmentState.aiGateway.adapterStatus !== "not-connected"
+      || environmentState.aiGateway.adapterImplementationStatus !== "implemented-unconfigured"
       || environmentState.connections.aiGateway !== false
+      || !environmentState.controlApi
+      || environmentState.controlApi.surfaceStatus !== "implemented"
+      || environmentState.controlApi.applicationAdapterStatus !== "not-connected"
+      || environmentState.controlApi.authStatus !== "not-connected"
+      || environmentState.controlApi.persistenceStatus !== "not-connected"
+      || environmentState.connections.controlApiPersistence !== false
       || !environmentState.integrations
       || environmentState.integrations.registryStatus !== "deterministic-contract"
       || environmentState.integrations.adapterStatus !== "not-connected"
