@@ -153,7 +153,7 @@ function retryAfterMs(response: Response) {
 }
 
 export function readOpenRouterConfigFromEnv(
-  env: NodeJS.ProcessEnv = process.env
+  env: Readonly<Record<string, string | undefined>> = process.env
 ): OpenRouterAdapterConfig {
   const enabled = env.OPENROUTER_CANARY_ENABLED === "true";
   const timeout = env.OPENROUTER_TIMEOUT_MS ? Number(env.OPENROUTER_TIMEOUT_MS) : undefined;
