@@ -1,4 +1,5 @@
 import { authorizeRequest } from "@/lib/auth/guard";
+import type { StepUpProof } from "@/lib/authorization/proofs";
 import type { AuthAdapter, AuthSession } from "@/lib/auth/contracts";
 import { createCommandEnvelope } from "@/lib/control-plane/command-envelope";
 import { ControlPlaneError } from "@/lib/control-plane/errors";
@@ -28,6 +29,18 @@ export interface ControlApiScopeResolver {
   resolve(session: AuthSession, request: Request): Promise<TrustedExecutionScope>;
 }
 
+export interface ControlApiAuthorizationEvidenceResolver {
+  /**
+   * Resolve proof from an authoritative server-side auth/session provider.
+   * Implementations MUST NOT trust proof objects supplied in request JSON.
+   */
+  resolveStepUpProof(
+    session: AuthSession,
+    request: Request,
+    scope: TrustedExecutionScope
+  ): Promise<StepUpProof | undefined>;
+}
+
 export interface ScopedReadStore<T extends { id: string; portfolioId: string; companyId: string }> {
   listByScope(portfolioId: string, companyId: string): Promise<readonly T[]>;
   get(id: string): Promise<T | null>;
@@ -40,6 +53,7 @@ export interface OwnerIntentStore {
 export interface ServiceBackedControlApiDependencies {
   auth: AuthAdapter;
   scopes: ControlApiScopeResolver;
+  authorizationEvidence?: ControlApiAuthorizationEvidenceResolver;
   intents: OwnerIntentStore;
   decisions: ScopedReadStore<AuthoritativeDecision>;
   decisionTransactions: DecisionTransactionManager;
@@ -82,10 +96,16 @@ export class ServiceBackedControlApiAdapter implements ControlApiApplicationAdap
     ) {
       throw new ControlPlaneError("FORBIDDEN", "Trusted Control API scope is incomplete");
     }
+    const stepUpProof = await this.deps.authorizationEvidence?.resolveStepUpProof(
+      session,
+      request,
+      scope
+    );
     return {
       actor: { type: "user", id: session.userId },
       scope,
-      sessionId: session.sessionId
+      sessionId: session.sessionId,
+      stepUpProof
     };
   }
 
@@ -145,6 +165,7 @@ export class ServiceBackedControlApiAdapter implements ControlApiApplicationAdap
       transactionManager: this.deps.decisionTransactions,
       decisionId: input.decisionId,
       action: input.action,
+      stepUpProof: principal.stepUpProof,
       now: this.now
     });
   }
