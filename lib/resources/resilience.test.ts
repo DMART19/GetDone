@@ -23,46 +23,7 @@ function domain(overrides: Partial<Parameters<typeof createFailureDomainSnapshot
     observedAt: "2026-09-20T22:00:00Z",
     expiresAt: "2026-09-20T23:00:00Z",
     ...overrides
-    it("rejects verification evidence from the wrong failover lineage", () => {
-    const plan = createFailoverPlan({
-      id: "failover-lineage",
-      scope: { portfolioId: "p1", companyId: "c1", environment: "production" },
-      source: { type: "pool", id: "pool-a" },
-      target: { type: "pool", id: "pool-b" },
-      sourceFailureDomainIds: ["provider-a"],
-      targetFailureDomainIds: ["provider-b"],
-      reason: "provider degradation",
-      retryable: true,
-      checkpointAware: false,
-      estimatedTemporaryCostImpactCents: 50,
-      createdAt: "2026-09-20T22:00:00Z"
-    });
-    let record = createInitialFailoverRecord(plan);
-    record = transitionFailover({ current: record, to: "authorized", updatedAt: "2026-09-20T22:01:00Z" });
-    record = transitionFailover({ current: record, to: "dispatching", updatedAt: "2026-09-20T22:02:00Z" });
-    record = transitionFailover({
-      current: record,
-      to: "verifying",
-      dispatchEvidenceId: "dispatch-good",
-      updatedAt: "2026-09-20T22:03:00Z"
-    });
-    const forged = createFailoverVerificationEvidence({
-      planId: plan.id,
-      planHash: plan.planHash,
-      dispatchEvidenceId: "dispatch-other",
-      verificationReceiptId: "verify-2",
-      verificationReceiptHash: "verified-hash-2",
-      postFailoverHealth: "healthy",
-      observedAt: "2026-09-20T22:03:30Z"
-    });
-    expect(() => transitionFailover({
-      current: record,
-      to: "verified",
-      verificationEvidence: forged,
-      updatedAt: "2026-09-20T22:04:00Z"
-    })).toThrow(/lineage/i);
   });
-});
 }
 
 describe("Phase 37 resilience orchestrator contracts", () => {
@@ -220,5 +181,45 @@ describe("Phase 37 resilience orchestrator contracts", () => {
     expect(record.state).toBe("verified");
     expect(record.authoritativeRecoveryClaimed).toBe(true);
     expect(record.verificationEvidenceHash).toBe(verificationEvidence.evidenceHash);
+  });
+
+  it("rejects verification evidence from the wrong failover lineage", () => {
+    const plan = createFailoverPlan({
+      id: "failover-lineage",
+      scope: { portfolioId: "p1", companyId: "c1", environment: "production" },
+      source: { type: "pool", id: "pool-a" },
+      target: { type: "pool", id: "pool-b" },
+      sourceFailureDomainIds: ["provider-a"],
+      targetFailureDomainIds: ["provider-b"],
+      reason: "provider degradation",
+      retryable: true,
+      checkpointAware: false,
+      estimatedTemporaryCostImpactCents: 50,
+      createdAt: "2026-09-20T22:00:00Z"
+    });
+    let record = createInitialFailoverRecord(plan);
+    record = transitionFailover({ current: record, to: "authorized", updatedAt: "2026-09-20T22:01:00Z" });
+    record = transitionFailover({ current: record, to: "dispatching", updatedAt: "2026-09-20T22:02:00Z" });
+    record = transitionFailover({
+      current: record,
+      to: "verifying",
+      dispatchEvidenceId: "dispatch-good",
+      updatedAt: "2026-09-20T22:03:00Z"
+    });
+    const forged = createFailoverVerificationEvidence({
+      planId: plan.id,
+      planHash: plan.planHash,
+      dispatchEvidenceId: "dispatch-other",
+      verificationReceiptId: "verify-2",
+      verificationReceiptHash: "verified-hash-2",
+      postFailoverHealth: "healthy",
+      observedAt: "2026-09-20T22:03:30Z"
+    });
+    expect(() => transitionFailover({
+      current: record,
+      to: "verified",
+      verificationEvidence: forged,
+      updatedAt: "2026-09-20T22:04:00Z"
+    })).toThrow(/lineage/i);
   });
 });
