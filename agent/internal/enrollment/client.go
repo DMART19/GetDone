@@ -39,10 +39,10 @@ type EnrollRequest struct {
 }
 
 type bootstrapData struct {
-	NodeID              string `json:"nodeId"`
-	CredentialID        string `json:"credentialId"`
-	IdentityCertificate string `json:"identityCertificate"`
-	CertificateChain    string `json:"certificateChain"`
+	NodeID               string `json:"nodeId"`
+	CredentialID         string `json:"credentialId"`
+	IdentityCertificate  string `json:"identityCertificate"`
+	CertificateChain     string `json:"certificateChain"`
 	ControlPlaneIdentity struct {
 		NodeID      string `json:"nodeId"`
 		PortfolioID string `json:"portfolioId"`
@@ -71,9 +71,9 @@ func New(
 ) *Client {
 	return &Client{
 		controlPlane: controlPlane,
-		stateStore: stateStore,
-		stateDir: filepath.Clean(stateDir),
-		configPath: filepath.Clean(configPath),
+		stateStore:   stateStore,
+		stateDir:     filepath.Clean(stateDir),
+		configPath:   filepath.Clean(configPath),
 	}
 }
 
@@ -116,12 +116,12 @@ func (c *Client) Enroll(
 	}
 
 	request := EnrollRequest{
-		EnrollmentToken: enrollmentToken,
-		AgentVersion: agentVersion,
-		ProtocolVersion: protocolVersion,
-		Architecture: architecture,
+		EnrollmentToken:    enrollmentToken,
+		AgentVersion:       agentVersion,
+		ProtocolVersion:    protocolVersion,
+		Architecture:       architecture,
 		BootstrapPublicKey: string(publicPEM),
-		Nonce: base64.RawURLEncoding.EncodeToString(nonceBytes),
+		Nonce:              base64.RawURLEncoding.EncodeToString(nonceBytes),
 	}
 	var response apiEnvelope
 	if err := c.controlPlane.PostJSON(ctx, "/api/agent/v1/enroll", request, &response); err != nil {

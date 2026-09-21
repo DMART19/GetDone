@@ -122,7 +122,6 @@ func override(target *string, value string) {
 	}
 }
 
-
 func EraseEnrollmentToken(path string) error {
 	clean := filepath.Clean(path)
 	data, err := os.ReadFile(clean)

@@ -33,7 +33,6 @@ func (c *Client) BaseURL() string {
 	return c.baseURL.String()
 }
 
-
 func (c *Client) PostJSON(
 	ctx context.Context,
 	path string,

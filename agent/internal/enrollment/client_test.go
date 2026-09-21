@@ -52,8 +52,8 @@ func writeConfig(t *testing.T, dir string, token string) string {
 	path := filepath.Join(dir, "config.json")
 	data, err := json.Marshal(config.Config{
 		ControlPlaneURL: "https://control.example.test",
-		StateDir: dir,
-		LogLevel: "info",
+		StateDir:        dir,
+		LogLevel:        "info",
 		EnrollmentToken: token,
 		ProtocolVersion: "1.0.0",
 	})
