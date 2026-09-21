@@ -103,6 +103,58 @@ describe("PostgreSQL production persistence adapters", () => {
     await expect(store.save({ ...entity, version: 4 }, 1)).rejects.toThrow(/exactly once/i);
   });
 
+  it("covers entity scope reads, missing entities, and CAS conflicts", async () => {
+    const entity = {
+      id: "task-2",
+      portfolioId: "portfolio",
+      companyId: "company",
+      version: 1,
+      updatedAt: "2026-09-21T04:00:00Z"
+    };
+    const sql = new QueueSql([
+      { rows: [] },
+      { rows: [{ payload: entity }] },
+      { rows: [], rowCount: 0 }
+    ]);
+    const store = new PostgresEntityStore<typeof entity>(sql, "task");
+    expect(await store.get("missing")).toBeNull();
+    expect(await store.listByScope("portfolio", "company")).toEqual([entity]);
+    await expect(store.save({ ...entity, version: 2 }, 1))
+      .rejects.toThrow(/changed before compare-and-swap/i);
+  });
+
+  it("covers idempotency conflict, failure, and missing read branches", async () => {
+    const base = {
+      key: "idem-conflict",
+      fingerprint: "other-fingerprint",
+      status: "IN_PROGRESS",
+      created_at: "2026-09-21T04:00:00Z",
+      completed_at: null,
+      failed_at: null,
+      result: null,
+      error_code: null
+    };
+    const failed = {
+      ...base,
+      fingerprint: "fingerprint",
+      status: "FAILED",
+      failed_at: "2026-09-21T04:00:02Z",
+      error_code: "TRANSIENT"
+    };
+    const sql = new QueueSql([
+      { rows: [], rowCount: 0 },
+      { rows: [base], rowCount: 1 },
+      { rows: [failed], rowCount: 1 },
+      { rows: [] }
+    ]);
+    const store = new PostgresIdempotencyStore(sql);
+    expect((await store.claim("idem-conflict", "fingerprint", base.created_at)).state)
+      .toBe("CONFLICT");
+    expect((await store.fail("idem-conflict", "fingerprint", "TRANSIENT", "2026-09-21T04:00:02Z")).status)
+      .toBe("FAILED");
+    expect(await store.get("missing")).toBeNull();
+  });
+
   it("claims idempotency atomically and replays completed state", async () => {
     const row = {
       key: "idem-1",
