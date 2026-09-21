@@ -4,10 +4,10 @@ import type {
   AtomicReservationStore,
   CapacityReservation
 } from "@/lib/resources/reservations";
-import { PostgresDatabase } from "@/lib/persistence/postgres/client";
+import type { PostgresTransactionalDatabase } from "@/lib/persistence/postgres/client";
 
 export class PostgresAtomicReservationStore implements AtomicReservationStore {
-  constructor(private readonly database: PostgresDatabase) {}
+  constructor(private readonly database: PostgresTransactionalDatabase) {}
 
   async commit(input: AtomicReservationCommit) {
     return this.database.transaction(async (db) => {
