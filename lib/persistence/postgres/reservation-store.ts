@@ -54,17 +54,22 @@ export class PostgresAtomicReservationStore implements AtomicReservationStore {
       };
     }
 
+    const reservation = await db.query<{ reservation_hash: string }>(
+      "SELECT reservation_hash FROM capacity_reservations WHERE id=$1 FOR UPDATE",
+      [input.nextReservation.id]
+    );
     if (input.expectedReservationHash) {
-      const reservation = await db.query<{ reservation_hash: string }>(
-        "SELECT reservation_hash FROM capacity_reservations WHERE id=$1 FOR UPDATE",
-        [input.nextReservation.id]
-      );
       if (reservation.rows[0]?.reservation_hash !== input.expectedReservationHash) {
         return {
           status: "conflict" as const,
           currentLedgerRevision: current.revision
         };
       }
+    } else if (reservation.rows[0]) {
+      return {
+        status: "conflict" as const,
+        currentLedgerRevision: current.revision
+      };
     }
 
     const ledgerUpdate = await db.query(
