@@ -150,8 +150,12 @@ class FakeWorkStore implements DurableJobWorkStore {
       version: input.lease.version + 1
     };
     const { sha256Hex } = await import("@/lib/control-plane/canonical-hash");
-    const { leaseHash: _old, ...base } = renewed;
-    this.lease = { ...base, leaseHash: sha256Hex(base) };
+    const base = { ...renewed } as Partial<DurableJobLease>;
+    delete base.leaseHash;
+    this.lease = {
+      ...(base as Omit<DurableJobLease, "leaseHash">),
+      leaseHash: sha256Hex(base)
+    };
     return {
       lease: this.lease,
       transaction: this.receipt("heartbeat", input.idempotencyKey, input.now)
