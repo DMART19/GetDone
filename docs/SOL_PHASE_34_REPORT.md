@@ -95,6 +95,8 @@ A `VerifiedRunningPlacement` can be created only when:
 
 The running record explicitly carries `jobStateMutationApplied: false`. Scheduler placement truth is not Job truth.
 
+A later deterministic bridge now converts only this independently verified running record into a hash-bound `JobVerifiedStartFact`. JobService loads that fact from its authoritative `JobExecutionBridgeStore` before allowing claimed → running. Provider ACCEPTED cannot satisfy this bridge.
+
 ## Monitor, completion, and release
 
 A verified running placement can create a hash-bound monitoring record.
@@ -103,7 +105,9 @@ Completion verification:
 - uses the allocation subject;
 - requires independent `execution` verification;
 - remains separate from JobService success truth;
-- emits `jobStateMutationApplied: false`.
+- emits `jobStateMutationApplied: false`;
+- can create a hash-bound `JobVerifiedCompletionFact` only when it matches the exact verified running-placement lineage;
+- may move JobService into verification through the authoritative bridge, but final Job success still requires the existing authoritative Job verification receipt.
 
 After verified completion, `releaseVerifiedPlacement` calls the unchanged Phase 33 `releaseReservation` function. Capacity therefore returns through the existing revision/hash/CAS commit model and exact-once replay behavior.
 
@@ -137,7 +141,7 @@ Tests cover:
 
 ## Canonical production boundary
 
-The deterministic Phase 34 contract is implemented and CI-testable.
+The deterministic Phase 34 contract and its verified JobService bridge are implemented and CI-testable.
 
 Canonical production PASS still requires:
 - a real Phase 33 transactional reservation store;
@@ -145,7 +149,7 @@ Canonical production PASS still requires:
 - live ResourceDispatchAdapter implementations;
 - independent production resource-start probes;
 - production completion monitoring and verification;
-- JobService integration driven only by verified start/completion facts;
+- durable production persistence/recovery for the now-implemented JobService verified-start/completion bridge;
 - crash/restart recovery at every reserve/dispatch/verify/release boundary;
 - live retry/fallback across actual resources/providers;
 - durable audit persistence and end-to-end acceptance evidence.
