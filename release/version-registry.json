@@ -570,6 +570,7 @@
     ],
     "agentVersion": "0.1.0",
     "agentShellStatus": "implemented",
-    "enrollmentStatus": "not-implemented"
+    "enrollmentStatus": "not-implemented",
+    "milestone": "28.1"
   }
 }
