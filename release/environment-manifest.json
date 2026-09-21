@@ -1,5 +1,5 @@
 {
-  "manifestSchemaVersion": "1.3.0",
+  "manifestSchemaVersion": "1.4.0",
   "environments": {
     "development": {
       "authorityMode": "deterministic-foundation",
@@ -51,7 +51,9 @@
         "jobRuntimeContractStatus": "deterministic-contract",
         "durableJobStoreStatus": "not-connected",
         "businessActionAdapterStatus": "not-connected",
-        "softwareDeploymentStatus": "not-connected"
+        "softwareDeploymentStatus": "not-connected",
+        "jobExecutionBridgeStatus": "deterministic-contract",
+        "liveJobExecutionBridgeStoreStatus": "not-connected"
       },
       "resourceFabric": {
         "storageFabricContractStatus": "deterministic-contract",
@@ -67,6 +69,10 @@
       "phase44": {
         "deterministicHarnessStatus": "offline-blocking-suite",
         "productionAcceptanceStatus": "not-run"
+      },
+      "composition": {
+        "goldenPathHarnessStatus": "deterministic-simulation-only",
+        "productionExecutionClaimed": false
       }
     },
     "staging": {
@@ -119,7 +125,9 @@
         "jobRuntimeContractStatus": "deterministic-contract",
         "durableJobStoreStatus": "not-connected",
         "businessActionAdapterStatus": "not-connected",
-        "softwareDeploymentStatus": "not-connected"
+        "softwareDeploymentStatus": "not-connected",
+        "jobExecutionBridgeStatus": "deterministic-contract",
+        "liveJobExecutionBridgeStoreStatus": "not-connected"
       },
       "resourceFabric": {
         "storageFabricContractStatus": "deterministic-contract",
@@ -135,6 +143,10 @@
       "phase44": {
         "deterministicHarnessStatus": "offline-blocking-suite",
         "productionAcceptanceStatus": "not-run"
+      },
+      "composition": {
+        "goldenPathHarnessStatus": "deterministic-simulation-only",
+        "productionExecutionClaimed": false
       }
     },
     "production": {
@@ -187,7 +199,9 @@
         "jobRuntimeContractStatus": "deterministic-contract",
         "durableJobStoreStatus": "not-connected",
         "businessActionAdapterStatus": "not-connected",
-        "softwareDeploymentStatus": "not-connected"
+        "softwareDeploymentStatus": "not-connected",
+        "jobExecutionBridgeStatus": "deterministic-contract",
+        "liveJobExecutionBridgeStoreStatus": "not-connected"
       },
       "resourceFabric": {
         "storageFabricContractStatus": "deterministic-contract",
@@ -203,6 +217,10 @@
       "phase44": {
         "deterministicHarnessStatus": "offline-blocking-suite",
         "productionAcceptanceStatus": "not-run"
+      },
+      "composition": {
+        "goldenPathHarnessStatus": "deterministic-simulation-only",
+        "productionExecutionClaimed": false
       }
     }
   },
@@ -215,6 +233,8 @@
     "Phase 4 Integration Registry contracts are present; only explicit DEVELOPMENT mock adapters exist in-repo.",
     "Phases 19-21 durable Job Store, business action adapter, and software worker/deployment contracts are present; no production queue/store/action/deployment adapter is connected.",
     "Phases 36-39 deterministic Storage Fabric, resilience, Resource Adapter SDK, and governed ResourcePool contracts are present; real NAS/cloud/colo/partner runtimes remain unconnected.",
-    "Phase 44 deterministic offline adversarial harness is present, but full production end-to-end acceptance has not been run."
+    "Phase 44 deterministic offline adversarial harness is present, but full production end-to-end acceptance has not been run.",
+    "The Phase 34 -> JobService bridge contract is deterministic and tested, but its authoritative production bridge store remains not connected.",
+    "The cross-phase golden-path harness is deterministic simulation evidence only and never represents production execution."
   ]
 }
