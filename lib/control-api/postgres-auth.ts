@@ -87,7 +87,7 @@ export class SessionStepUpEvidenceResolver
       id: `session-step-up:${session.sessionId}:${authenticatedAt}`,
       actorId: session.userId,
       scope,
-      method: "provider",
+      method: "reauthentication",
       authenticatedAt,
       expiresAt: new Date(Date.parse(authenticatedAt) + this.maxAgeMs).toISOString()
     });
