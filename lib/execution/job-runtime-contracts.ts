@@ -2,7 +2,7 @@ import { ControlPlaneError } from "@/lib/control-plane/errors";
 import { sha256Hex } from "@/lib/control-plane/canonical-hash";
 import type { TrustedExecutionScope } from "@/lib/control-plane/trusted-execution-scope";
 
-export const JOB_RUNTIME_CONTRACT_VERSION = "1.0.0";
+export const JOB_RUNTIME_CONTRACT_VERSION = "1.1.0";
 
 export interface JobQueueEnvelope {
   id: string;
@@ -31,6 +31,40 @@ export interface DurableJobLease {
   leaseHash: string;
 }
 
+export type JobStoreTransactionOperation =
+  | "enqueue"
+  | "claim"
+  | "heartbeat"
+  | "release"
+  | "retry"
+  | "dead-letter"
+  | "cancel"
+  | "recover-expired";
+
+export interface JobStoreTransactionReceipt {
+  id: string;
+  operation: JobStoreTransactionOperation;
+  jobId: string;
+  idempotencyKey: string;
+  expectedVersion: number;
+  expectedHash: string;
+  nextVersion: number;
+  nextHash: string;
+  occurredAt: string;
+  transactionHash: string;
+}
+
+export interface JobRetryScheduleRecord {
+  id: string;
+  jobId: string;
+  nextAttempt: number;
+  runAt: string;
+  reason: string;
+  sourceEnvelopeHash: string;
+  transactionHash: string;
+  recordHash: string;
+}
+
 export interface DeadLetterRecord {
   id: string;
   jobId: string;
@@ -38,58 +72,89 @@ export interface DeadLetterRecord {
   reason: string;
   failedAt: string;
   sourceEnvelopeHash: string;
+  transactionHash: string;
   recordHash: string;
 }
 
-export interface JobRuntimeMutation {
-  operation:
-    | "enqueue"
-    | "claim"
-    | "heartbeat"
-    | "release"
-    | "retry"
-    | "dead-letter"
-    | "cancel"
-    | "recover-expired";
+export interface JobRecoveryRecord {
+  id: string;
   jobId: string;
-  expectedVersion?: number;
-  expectedHash?: string;
-  nextVersion: number;
-  nextHash: string;
-  idempotencyKey: string;
-  mutationHash: string;
+  expiredLeaseHash: string;
+  outcome: "retry-scheduled" | "dead-lettered" | "cancelled";
+  recoveredAt: string;
+  transactionHash: string;
+  recordHash: string;
+}
+
+export interface DurableJobStoreDescriptor {
+  persistence: "durable-external" | "ephemeral-reference";
+  atomicClaims: boolean;
+  compareAndSwap: boolean;
+  restartSafe: boolean;
+  multiProcessSafe: boolean;
+  productionEligible: boolean;
 }
 
 /**
  * Production implementation requirement.
  *
- * The store must be durable and atomic across process restarts. No in-memory
- * implementation is provided or accepted as production evidence.
+ * A production store must be externally durable, transactional, compare-and-swap
+ * capable, restart-safe, and multi-process safe. In-memory/reference stores must
+ * declare "ephemeral-reference" and productionEligible=false.
+ *
+ * This interface is a contract only. The repository intentionally provides no
+ * production queue implementation and no in-memory implementation is production evidence.
  */
 export interface DurableJobStore {
-  enqueue(input: JobQueueEnvelope): Promise<"enqueued" | "idempotent-replay">;
+  readonly descriptor: DurableJobStoreDescriptor;
+  enqueue(input: JobQueueEnvelope): Promise<{
+    status: "enqueued" | "idempotent-replay";
+    transaction: JobStoreTransactionReceipt;
+  }>;
   claimAtomic(input: {
     jobId: string;
     workerId: string;
     now: string;
     leaseSeconds: number;
     expectedJobVersion: number;
-  }): Promise<DurableJobLease | null>;
+    expectedJobHash: string;
+    idempotencyKey: string;
+  }): Promise<{
+    lease: DurableJobLease;
+    transaction: JobStoreTransactionReceipt;
+  } | null>;
   heartbeat(input: {
     lease: DurableJobLease;
     now: string;
     extendSeconds: number;
-  }): Promise<DurableJobLease>;
-  release(input: { lease: DurableJobLease; now: string }): Promise<void>;
-  scheduleRetry(input: {
-    envelope: JobQueueEnvelope;
-    nextAttempt: number;
-    runAt: string;
+    expectedJobVersion: number;
+    expectedJobHash: string;
+    idempotencyKey: string;
+  }): Promise<{
+    lease: DurableJobLease;
+    transaction: JobStoreTransactionReceipt;
+  }>;
+  release(input: {
+    lease: DurableJobLease;
+    now: string;
+    expectedJobVersion: number;
+    expectedJobHash: string;
+    idempotencyKey: string;
+  }): Promise<JobStoreTransactionReceipt>;
+  scheduleRetry(record: JobRetryScheduleRecord): Promise<JobStoreTransactionReceipt>;
+  deadLetter(record: DeadLetterRecord): Promise<JobStoreTransactionReceipt>;
+  cancel(input: {
+    jobId: string;
     reason: string;
-  }): Promise<void>;
-  deadLetter(record: DeadLetterRecord): Promise<void>;
-  cancel(input: { jobId: string; reason: string; cancelledAt: string }): Promise<void>;
-  recoverExpired(input: { now: string; limit: number }): Promise<readonly string[]>;
+    cancelledAt: string;
+    expectedJobVersion: number;
+    expectedJobHash: string;
+    idempotencyKey: string;
+  }): Promise<JobStoreTransactionReceipt>;
+  recoverExpired(input: {
+    now: string;
+    limit: number;
+  }): Promise<readonly JobRecoveryRecord[]>;
 }
 
 function parse(value: string, label: string) {
@@ -98,6 +163,78 @@ function parse(value: string, label: string) {
     throw new ControlPlaneError("VALIDATION_FAILED", `${label} must be a timestamp`);
   }
   return parsed;
+}
+
+function requireNonEmpty(value: string, label: string) {
+  if (!value.trim()) {
+    throw new ControlPlaneError("VALIDATION_FAILED", `${label} is required`);
+  }
+  return value;
+}
+
+export function assertProductionDurableJobStoreDescriptor(
+  descriptor: DurableJobStoreDescriptor
+) {
+  if (
+    descriptor.persistence !== "durable-external"
+    || !descriptor.atomicClaims
+    || !descriptor.compareAndSwap
+    || !descriptor.restartSafe
+    || !descriptor.multiProcessSafe
+    || !descriptor.productionEligible
+  ) {
+    throw new ControlPlaneError(
+      "FORBIDDEN",
+      "Production Job Store requires external durability, atomic claims, CAS, restart safety, and multi-process safety"
+    );
+  }
+  return descriptor;
+}
+
+export function createJobStoreTransactionReceipt(
+  input: Omit<JobStoreTransactionReceipt, "transactionHash">
+): JobStoreTransactionReceipt {
+  requireNonEmpty(input.id, "transaction id");
+  requireNonEmpty(input.jobId, "transaction jobId");
+  requireNonEmpty(input.idempotencyKey, "transaction idempotencyKey");
+  requireNonEmpty(input.expectedHash, "transaction expectedHash");
+  requireNonEmpty(input.nextHash, "transaction nextHash");
+  const occurredAt = parse(input.occurredAt, "transaction occurredAt");
+  if (
+    !Number.isInteger(input.expectedVersion)
+    || input.expectedVersion < 0
+    || !Number.isInteger(input.nextVersion)
+    || input.nextVersion !== input.expectedVersion + 1
+  ) {
+    throw new ControlPlaneError(
+      "CONFLICT",
+      "Job Store transaction must advance the authoritative version exactly once"
+    );
+  }
+  if (input.expectedHash === input.nextHash) {
+    throw new ControlPlaneError(
+      "CONFLICT",
+      "Job Store transaction must change authoritative state hash"
+    );
+  }
+  const base = {
+    ...input,
+    occurredAt: new Date(occurredAt).toISOString()
+  };
+  return Object.freeze({ ...base, transactionHash: sha256Hex(base) });
+}
+
+export function assertJobStoreTransactionReceipt(receipt: JobStoreTransactionReceipt) {
+  const { transactionHash, ...base } = receipt;
+  if (
+    sha256Hex(base) !== transactionHash
+    || receipt.nextVersion !== receipt.expectedVersion + 1
+    || receipt.expectedHash === receipt.nextHash
+  ) {
+    throw new ControlPlaneError("FORBIDDEN", "Job Store transaction receipt integrity check failed");
+  }
+  parse(receipt.occurredAt, "transaction occurredAt");
+  return receipt;
 }
 
 export function createJobQueueEnvelope(
@@ -190,10 +327,56 @@ export function renewDurableJobLease(
   return Object.freeze({ ...base, leaseHash: sha256Hex(base) }) as DurableJobLease;
 }
 
-export function createDeadLetterRecord(input: Omit<DeadLetterRecord, "recordHash">) {
-  if (!input.reason.trim() || !Number.isInteger(input.finalAttempt) || input.finalAttempt < 1) {
-    throw new ControlPlaneError("VALIDATION_FAILED", "Dead letter requires reason and final attempt");
+export function createJobRetryScheduleRecord(
+  input: Omit<JobRetryScheduleRecord, "recordHash">
+): JobRetryScheduleRecord {
+  if (
+    !Number.isInteger(input.nextAttempt)
+    || input.nextAttempt < 1
+    || !input.reason.trim()
+    || !input.sourceEnvelopeHash
+    || !input.transactionHash
+  ) {
+    throw new ControlPlaneError(
+      "VALIDATION_FAILED",
+      "Retry scheduling requires attempt, reason, source envelope, and transaction lineage"
+    );
   }
-  parse(input.failedAt, "failedAt");
-  return Object.freeze({ ...input, recordHash: sha256Hex(input) });
+  const runAt = parse(input.runAt, "retry runAt");
+  const base = { ...input, runAt: new Date(runAt).toISOString() };
+  return Object.freeze({ ...base, recordHash: sha256Hex(base) });
+}
+
+export function createDeadLetterRecord(
+  input: Omit<DeadLetterRecord, "recordHash">
+): DeadLetterRecord {
+  if (
+    !input.reason.trim()
+    || !Number.isInteger(input.finalAttempt)
+    || input.finalAttempt < 1
+    || !input.sourceEnvelopeHash
+    || !input.transactionHash
+  ) {
+    throw new ControlPlaneError(
+      "VALIDATION_FAILED",
+      "Dead letter requires reason, final attempt, source envelope, and transaction lineage"
+    );
+  }
+  const failedAt = parse(input.failedAt, "failedAt");
+  const base = { ...input, failedAt: new Date(failedAt).toISOString() };
+  return Object.freeze({ ...base, recordHash: sha256Hex(base) });
+}
+
+export function createJobRecoveryRecord(
+  input: Omit<JobRecoveryRecord, "recordHash">
+): JobRecoveryRecord {
+  if (!input.expiredLeaseHash || !input.transactionHash) {
+    throw new ControlPlaneError(
+      "VALIDATION_FAILED",
+      "Recovery requires expired lease and transaction lineage"
+    );
+  }
+  const recoveredAt = parse(input.recoveredAt, "recoveredAt");
+  const base = { ...input, recoveredAt: new Date(recoveredAt).toISOString() };
+  return Object.freeze({ ...base, recordHash: sha256Hex(base) });
 }
