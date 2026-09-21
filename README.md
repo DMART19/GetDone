@@ -62,7 +62,7 @@ The repository does **not** claim production autonomy yet. Canonical acceptance 
 - authoritative database transactions, migrations, and RLS
 - a real OpenRouter credential plus active AI Gateway routing configuration and a passing live canary
 - durable distributed queue, worker leases, schedules, and crash recovery
-- real business/software action adapters and deployment execution
+- real provider-specific business adapters and a production software deployment executor; business-action orchestration, durable execution routing, and the resumable software-worker runtime are implemented
 - real Resource Fabric agent/hardware enrollment
 - production secret backend/token exchange and secure credential delivery transport
 - live authenticated hardware profiling/telemetry and Resource Fabric signal emission
@@ -142,6 +142,7 @@ Use these as the implementation source of truth:
 - `docs/SOL_QUALITY_PHASE_4_13_19_21_REPORT.md`
 - `docs/SOL_QUALITY_V8_PLAYWRIGHT_AI_BUDGET_REPORT.md`
 - `docs/SOL_CONTROL_API_OPENROUTER_SECURITY_REPORT.md`
+- `docs/SOL_POSTGRES_JOB_EXECUTION_RUNTIME_REPORT.md`
 - `docs/SOL_PHASE_36_39_44_REPORT.md`
 - `docs/SOL_GOLDEN_PATH_JOB_BRIDGE_REPORT.md`
 - `release/version-registry.json`
