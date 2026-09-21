@@ -160,6 +160,7 @@ func (c *Client) Enroll(
 	next := state
 	next.NodeID = response.Data.NodeID
 	next.CertificateReference = certPath
+	next.CertificateChainReference = chainPath
 	next.PrivateKeyReference = keyPath
 	next.ProtocolVersion = response.Data.Configuration.ProtocolVersion
 	if err := c.stateStore.Save(next); err != nil {
