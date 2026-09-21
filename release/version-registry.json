@@ -1,6 +1,6 @@
 {
-  "registrySchemaVersion": "1.7.0",
-  "registryVersion": "2026-09-21.3",
+  "registrySchemaVersion": "1.8.0",
+  "registryVersion": "2026-09-21.4",
   "appVersion": "0.1.0",
   "schemaVersions": {
     "controlApi": {
@@ -60,7 +60,7 @@
       "sourcePath": "lib/resources/policy-simulator.ts"
     },
     "releaseManifest": {
-      "version": "1.7.0",
+      "version": "1.8.0",
       "sourcePath": "scripts/generate-release-artifacts.mjs"
     },
     "voiceIntent": {
@@ -411,7 +411,26 @@
     "lib/nodes/contracts.test.ts",
     "lib/nodes/schemas.test.ts",
     "lib/nodes/hashes.test.ts",
-    "lib/nodes/enrollment.test.ts"
+    "lib/nodes/enrollment.test.ts",
+    "agent/go.mod",
+    "agent/go.sum",
+    "agent/cmd/getdone-agent/main.go",
+    "agent/internal/config/config.go",
+    "agent/internal/config/config_test.go",
+    "agent/internal/localstate/types.go",
+    "agent/internal/localstate/store.go",
+    "agent/internal/localstate/store_test.go",
+    "agent/internal/version/version.go",
+    "agent/internal/version/version_test.go",
+    "agent/internal/controlplane/client.go",
+    "agent/internal/controlplane/client_test.go",
+    "agent/internal/health/manager.go",
+    "agent/internal/health/manager_test.go",
+    "agent/internal/agentruntime/runtime.go",
+    "agent/internal/agentruntime/runtime_test.go",
+    "agent/packaging/systemd/getdone-agent.service",
+    "scripts/build-node-agent.sh",
+    ".github/workflows/node-agent.yml"
   ],
   "manualSourcePaths": [
     "docs/ARCHITECTURE.md",
@@ -451,7 +470,7 @@
     "credentialHandling": "secure-provider-or-phone-only",
     "sourcePath": "lib/voice/voice-intents.ts"
   },
-  "environmentManifestSchemaVersion": "1.7.0",
+  "environmentManifestSchemaVersion": "1.8.0",
   "integrations": {
     "registryContractVersion": "1.0.0",
     "liveAdaptersStatus": "not-connected",
@@ -525,18 +544,32 @@
     "sourcePath": "lib/control-api/contracts.ts"
   },
   "nodeAgent": {
-    "status": "contract-only",
+    "status": "implemented-unconnected",
     "domainVersion": "1.0.0",
     "protocolVersion": "1.0.0",
     "dispatchContractVersion": "1.0.0",
-    "linuxX64": "not-connected",
-    "linuxArm64": "not-connected",
+    "linuxX64": "build-supported-unconnected",
+    "linuxArm64": "build-supported-unconnected",
     "sourcePaths": [
       "lib/nodes/contracts.ts",
       "lib/nodes/dispatch-contracts.ts",
       "lib/nodes/enrollment.ts",
       "lib/nodes/schemas.ts",
-      "lib/nodes/hashes.ts"
-    ]
+      "lib/nodes/hashes.ts",
+      "agent/cmd/getdone-agent/main.go",
+      "agent/internal/config/config.go",
+      "agent/internal/localstate/types.go",
+      "agent/internal/localstate/store.go",
+      "agent/internal/version/version.go",
+      "agent/internal/controlplane/client.go",
+      "agent/internal/health/manager.go",
+      "agent/internal/agentruntime/runtime.go",
+      "agent/packaging/systemd/getdone-agent.service",
+      "scripts/build-node-agent.sh",
+      ".github/workflows/node-agent.yml"
+    ],
+    "agentVersion": "0.1.0",
+    "agentShellStatus": "implemented",
+    "enrollmentStatus": "not-implemented"
   }
 }
