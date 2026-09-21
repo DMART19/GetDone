@@ -84,12 +84,15 @@ describe("Phase 28 NodeEnrollmentCoordinator", () => {
       await coordinator.identify(request(architecture), command());
 
       expect(service.identify).toHaveBeenCalledTimes(1);
-      expect(service.identify.mock.calls[0][0]).toMatchObject({
-        id: "enrollment-1",
-        requestedType: "compute",
-        requestedEnvironments: ["development"],
-        challengeToken: "0123456789abcdef"
-      });
+      expect(service.identify).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: "enrollment-1",
+          requestedType: "compute",
+          requestedEnvironments: ["development"],
+          challengeToken: "0123456789abcdef"
+        }),
+        expect.any(Object)
+      );
     }
   });
 
