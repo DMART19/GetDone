@@ -25,8 +25,17 @@ function runAudit(name, args, outputFile) {
 
   const parsed = JSON.parse(raw);
   const vulnerabilities = parsed.metadata?.vulnerabilities ?? {};
+  const affectedPackages = Object.entries(parsed.vulnerabilities ?? {})
+    .map(([packageName, detail]) => ({
+      packageName,
+      severity: detail.severity ?? "unknown",
+      direct: Boolean(detail.isDirect),
+      fixAvailable: Boolean(detail.fixAvailable)
+    }))
+    .sort((a, b) => a.packageName.localeCompare(b.packageName));
+
   const evidence = {
-    schemaVersion: "1.0.0",
+    schemaVersion: "1.1.0",
     audit: name,
     generatedAt: new Date().toISOString(),
     npmVersion: execFileSync("npm", ["--version"], { cwd: root, encoding: "utf8" }).trim(),
@@ -39,14 +48,18 @@ function runAudit(name, args, outputFile) {
       total: vulnerabilities.total ?? 0
     },
     dependencyCounts: parsed.metadata?.dependencies ?? {},
+    affectedPackages,
     policyExitCode: exitCode
   };
 
   fs.writeFileSync(path.join(outDir, outputFile), JSON.stringify(evidence, null, 2) + "\n");
 
   if (exitCode !== 0) {
+    const affected = affectedPackages
+      .map((item) => `${item.packageName}[${item.severity}${item.direct ? ",direct" : ""}${item.fixAvailable ? ",fix-available" : ""}]`)
+      .join(", ");
     throw new Error(
-      `${name} dependency audit failed policy: high=${evidence.vulnerabilityCounts.high}, critical=${evidence.vulnerabilityCounts.critical}`
+      `${name} dependency audit failed policy: high=${evidence.vulnerabilityCounts.high}, critical=${evidence.vulnerabilityCounts.critical}; packages=${affected}`
     );
   }
 }
