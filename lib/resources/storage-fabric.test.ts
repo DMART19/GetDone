@@ -95,7 +95,7 @@ describe("Phase 36 Storage Fabric", () => {
       ],
       requiredBytes: 1000,
       createdAt: "2026-09-20T22:10:00Z"
-    })).toThrow(/distinct failure domains/i);
+    })).toThrow(/correlated failure domain|distinct failure domains/i);
   });
 
   it("rejects replicas that share any correlated failure domain", () => {
