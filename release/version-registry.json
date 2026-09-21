@@ -1,6 +1,6 @@
 {
   "registrySchemaVersion": "1.6.0",
-  "registryVersion": "2026-09-21.3",
+  "registryVersion": "2026-09-21.4",
   "appVersion": "0.1.0",
   "schemaVersions": {
     "controlApi": {
@@ -397,7 +397,11 @@
     "lib/nodes/contracts.test.ts",
     "lib/nodes/schemas.test.ts",
     "lib/nodes/hashes.test.ts",
-    "lib/nodes/enrollment.test.ts"
+    "lib/nodes/enrollment.test.ts",
+    "agent/internal/config/config_test.go",
+    "agent/internal/localstate/store_test.go",
+    "agent/internal/health/manager_test.go",
+    "agent/internal/version/version_test.go"
   ],
   "manualSourcePaths": [
     "docs/ARCHITECTURE.md",
@@ -511,19 +515,30 @@
     "sourcePath": "lib/control-api/contracts.ts"
   },
   "nodeAgent": {
-    "status": "contract-only",
+    "status": "implemented-development-only",
     "domainVersion": "1.0.0",
     "protocolVersion": "1.0.0",
     "dispatchContractVersion": "1.0.0",
-    "linuxX64": "not-connected",
-    "linuxArm64": "not-connected",
+    "linuxX64": "build-only",
+    "linuxArm64": "build-only",
     "productionReady": false,
     "sourcePaths": [
       "lib/nodes/contracts.ts",
       "lib/nodes/dispatch-contracts.ts",
       "lib/nodes/schemas.ts",
       "lib/nodes/hashes.ts",
-      "lib/nodes/enrollment.ts"
-    ]
+      "lib/nodes/enrollment.ts",
+      "agent/cmd/getdone-agent/main.go",
+      "agent/internal/config/config.go",
+      "agent/internal/localstate/types.go",
+      "agent/internal/localstate/store.go",
+      "agent/internal/version/version.go",
+      "agent/internal/controlplane/client.go",
+      "agent/internal/health/manager.go",
+      "agent/packaging/systemd/getdone-agent.service",
+      "scripts/build-node-agent.sh",
+      ".github/workflows/node-agent.yml"
+    ],
+    "agentVersion": "0.1.0-development"
   }
 }
