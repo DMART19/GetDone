@@ -1,5 +1,5 @@
 {
-  "registrySchemaVersion": "1.4.0",
+  "registrySchemaVersion": "1.5.0",
   "registryVersion": "2026-09-21.1",
   "appVersion": "0.1.0",
   "schemaVersions": {
@@ -60,7 +60,7 @@
       "sourcePath": "lib/resources/policy-simulator.ts"
     },
     "releaseManifest": {
-      "version": "1.4.0",
+      "version": "1.5.0",
       "sourcePath": "scripts/generate-release-artifacts.mjs"
     },
     "voiceIntent": {
@@ -350,7 +350,7 @@
     "credentialHandling": "secure-provider-or-phone-only",
     "sourcePath": "lib/voice/voice-intents.ts"
   },
-  "environmentManifestSchemaVersion": "1.4.0",
+  "environmentManifestSchemaVersion": "1.5.0",
   "integrations": {
     "registryContractVersion": "1.0.0",
     "liveAdaptersStatus": "not-connected",
