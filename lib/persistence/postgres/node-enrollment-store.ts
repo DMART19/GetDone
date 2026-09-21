@@ -83,6 +83,48 @@ export class PostgresNodeEnrollmentStore {
     return result.rows.map((row) => row.payload);
   }
 
+  async getCompletedBootstrap(
+    tokenHash: string,
+    nonceHash: string
+  ): Promise<CompletedNodeBootstrap | null> {
+    const challengeResult = await this.database.query<{
+      payload: NodeEnrollmentChallengeRecord;
+      consumed_nonce_hash: string | null;
+      node_id: string | null;
+    }>(
+      `SELECT payload,consumed_nonce_hash,node_id
+       FROM node_enrollment_challenges
+       WHERE token_hash=$1 AND state='consumed'`,
+      [tokenHash]
+    );
+    const row = challengeResult.rows[0];
+    if (!row) return null;
+    if (row.consumed_nonce_hash !== nonceHash || !row.node_id) {
+      throw new ControlPlaneError(
+        "FORBIDDEN",
+        "Node enrollment challenge was already consumed"
+      );
+    }
+    const nodeResult = await this.database.query<{ payload: NodeBootstrapRecord }>(
+      "SELECT payload FROM compute_nodes WHERE id=$1",
+      [row.node_id]
+    );
+    const credentialResult = await this.database.query<{ payload: NodeIdentityCredential }>(
+      `SELECT payload FROM node_identity_credentials
+       WHERE node_id=$1 AND revoked_at IS NULL`,
+      [row.node_id]
+    );
+    const node = nodeResult.rows[0]?.payload;
+    const credential = credentialResult.rows[0]?.payload;
+    if (!node || !credential) {
+      throw new ControlPlaneError(
+        "UNAVAILABLE",
+        "Consumed Node enrollment lost authoritative identity records"
+      );
+    }
+    return { challenge: row.payload, node, credential, replay: true };
+  }
+
   async setState(
     id: string,
     state: Extract<NodeEnrollmentChallengeState, "expired" | "cancelled">,
