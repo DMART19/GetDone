@@ -70,9 +70,17 @@ export class PostgresEntityStore<T extends TransitionEntity>
         ]
       );
     } catch (error) {
-      throw new ControlPlaneError("CONFLICT", "Authoritative entity already exists", {
-        details: { entityType: this.entityType, entityId: entity.id }
-      });
+      if (
+        error
+        && typeof error === "object"
+        && "code" in error
+        && (error as { code?: string }).code === "23505"
+      ) {
+        throw new ControlPlaneError("CONFLICT", "Authoritative entity already exists", {
+          details: { entityType: this.entityType, entityId: entity.id }
+        });
+      }
+      throw error;
     }
   }
 
@@ -249,7 +257,7 @@ export class PostgresAuthorizationGrantStore implements AuthorizationGrantStore 
   constructor(private readonly db: SqlQueryable) {}
 
   async insert(grant: AuthorizationGrant): Promise<void> {
-    await this.db.query(
+    const inserted = await this.db.query(
       `INSERT INTO authorization_grants
         (id, portfolio_id, company_id, status, expires_at, grant_hash, payload)
        VALUES($1,$2,$3,$4,$5,$6,$7::jsonb)
@@ -263,6 +271,13 @@ export class PostgresAuthorizationGrantStore implements AuthorizationGrantStore 
         grant.grantHash,
         JSON.stringify(grant)
       ]
+    );
+    if (inserted.rowCount === 1) return;
+    const existing = await this.get(grant.id);
+    if (existing?.grantHash === grant.grantHash) return;
+    throw new ControlPlaneError(
+      "IDEMPOTENCY_CONFLICT",
+      "Authorization grant ID already exists with different authoritative content"
     );
   }
 
