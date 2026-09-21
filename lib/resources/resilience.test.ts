@@ -3,6 +3,7 @@ import {
   beginDrain,
   createFailureDomainSnapshot,
   createFailoverPlan,
+  createFailoverVerificationEvidence,
   createInitialFailoverRecord,
   evaluateFailureDomainAdmission,
   transitionFailover,
@@ -22,7 +23,46 @@ function domain(overrides: Partial<Parameters<typeof createFailureDomainSnapshot
     observedAt: "2026-09-20T22:00:00Z",
     expiresAt: "2026-09-20T23:00:00Z",
     ...overrides
+    it("rejects verification evidence from the wrong failover lineage", () => {
+    const plan = createFailoverPlan({
+      id: "failover-lineage",
+      scope: { portfolioId: "p1", companyId: "c1", environment: "production" },
+      source: { type: "pool", id: "pool-a" },
+      target: { type: "pool", id: "pool-b" },
+      sourceFailureDomainIds: ["provider-a"],
+      targetFailureDomainIds: ["provider-b"],
+      reason: "provider degradation",
+      retryable: true,
+      checkpointAware: false,
+      estimatedTemporaryCostImpactCents: 50,
+      createdAt: "2026-09-20T22:00:00Z"
+    });
+    let record = createInitialFailoverRecord(plan);
+    record = transitionFailover({ current: record, to: "authorized", updatedAt: "2026-09-20T22:01:00Z" });
+    record = transitionFailover({ current: record, to: "dispatching", updatedAt: "2026-09-20T22:02:00Z" });
+    record = transitionFailover({
+      current: record,
+      to: "verifying",
+      dispatchEvidenceId: "dispatch-good",
+      updatedAt: "2026-09-20T22:03:00Z"
+    });
+    const forged = createFailoverVerificationEvidence({
+      planId: plan.id,
+      planHash: plan.planHash,
+      dispatchEvidenceId: "dispatch-other",
+      verificationReceiptId: "verify-2",
+      verificationReceiptHash: "verified-hash-2",
+      postFailoverHealth: "healthy",
+      observedAt: "2026-09-20T22:03:30Z"
+    });
+    expect(() => transitionFailover({
+      current: record,
+      to: "verified",
+      verificationEvidence: forged,
+      updatedAt: "2026-09-20T22:04:00Z"
+    })).toThrow(/lineage/i);
   });
+});
 }
 
 describe("Phase 37 resilience orchestrator contracts", () => {
@@ -66,6 +106,27 @@ describe("Phase 37 resilience orchestrator contracts", () => {
       remainingWork: 0,
       updatedAt: "2026-09-20T22:02:00Z"
     }).state).toBe("drained");
+  });
+
+  it("prevents drain work or time from moving backwards", () => {
+    const draining = beginDrain({
+      id: "drain-monotonic",
+      scope: { portfolioId: "p1", companyId: "c1", environment: "production" },
+      target: { type: "resource", id: "pi-1" },
+      reason: "maintenance",
+      runningWork: 2,
+      startedAt: "2026-09-20T22:00:00Z"
+    });
+    expect(() => updateDrain({
+      current: draining,
+      remainingWork: 3,
+      updatedAt: "2026-09-20T22:01:00Z"
+    })).toThrow(/cannot increase/i);
+    expect(() => updateDrain({
+      current: draining,
+      remainingWork: 1,
+      updatedAt: "2026-09-20T21:59:00Z"
+    })).toThrow(/cannot move backwards/i);
   });
 
   it("requires failover to escape the same failure domain", () => {
@@ -115,7 +176,7 @@ describe("Phase 37 resilience orchestrator contracts", () => {
       to: "verified",
       updatedAt: "2026-09-20T22:04:00Z",
       postFailoverHealth: "healthy"
-    })).toThrow(/verified receipt/i);
+    })).toThrow(/verification evidence/i);
   });
 
   it("claims recovery only with verification receipt plus healthy post-failover state", () => {
@@ -141,15 +202,23 @@ describe("Phase 37 resilience orchestrator contracts", () => {
       dispatchEvidenceId: "dispatch-evidence",
       updatedAt: "2026-09-20T22:03:00Z"
     });
-    record = transitionFailover({
-      current: record,
-      to: "verified",
+    const verificationEvidence = createFailoverVerificationEvidence({
+      planId: plan.id,
+      planHash: plan.planHash,
+      dispatchEvidenceId: "dispatch-evidence",
       verificationReceiptId: "verify-1",
       verificationReceiptHash: "verified-hash",
       postFailoverHealth: "healthy",
+      observedAt: "2026-09-20T22:03:30Z"
+    });
+    record = transitionFailover({
+      current: record,
+      to: "verified",
+      verificationEvidence,
       updatedAt: "2026-09-20T22:04:00Z"
     });
     expect(record.state).toBe("verified");
     expect(record.authoritativeRecoveryClaimed).toBe(true);
+    expect(record.verificationEvidenceHash).toBe(verificationEvidence.evidenceHash);
   });
 });
