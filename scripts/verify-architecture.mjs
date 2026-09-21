@@ -262,6 +262,103 @@ for (const required of [
   if (!integration.includes(required)) fail(`Phase 4 Integration Registry guard missing: ${required}`);
 }
 
+const postgresClient = read("lib/persistence/postgres/client.ts");
+const postgresAuthorityStores = read("lib/persistence/postgres/authority-stores.ts");
+const postgresTransactionManager = read("lib/persistence/postgres/transaction-manager.ts");
+const postgresReservationStore = read("lib/persistence/postgres/reservation-store.ts");
+const postgresJobStore = read("lib/persistence/postgres/job-store.ts");
+const jobWorkerRuntime = read("lib/execution/job-worker-runtime.ts");
+const businessActionOrchestrator = read("lib/execution/business-action-orchestrator.ts");
+const softwareWorkerRuntime = read("lib/execution/software-worker-runtime.ts");
+const jobExecutionRouter = read("lib/execution/job-execution-router.ts");
+
+for (const required of [
+  'POSTGRES_PERSISTENCE_VERSION = "1.0.0"',
+  "BEGIN ISOLATION LEVEL SERIALIZABLE",
+  "DATABASE_URL is required for PostgreSQL persistence",
+  "PostgresTransactionalDatabase"
+]) {
+  if (!postgresClient.includes(required)) fail(`PostgreSQL persistence boundary missing: ${required}`);
+}
+for (const required of [
+  "PostgresEntityStore",
+  "PostgresIdempotencyStore",
+  "PostgresAuditLedger",
+  "PostgresAuthorizationGrantStore",
+  "PostgresVerificationReceiptStore",
+  "PostgresJobExecutionBridgeStore",
+  "AND version=$8",
+  "SELECT * FROM idempotency_records WHERE key=$1 FOR UPDATE"
+]) {
+  if (!postgresAuthorityStores.includes(required)) fail(`PostgreSQL authority store invariant missing: ${required}`);
+}
+for (const required of [
+  "PostgresControlPlaneTransactionManager",
+  "PostgresAuditLedger(client)",
+  "PostgresIdempotencyStore(client)"
+]) {
+  if (!postgresTransactionManager.includes(required)) fail(`PostgreSQL transaction manager invariant missing: ${required}`);
+}
+for (const required of [
+  "return this.database.transaction",
+  "FOR UPDATE",
+  "IDEMPOTENCY_CONFLICT",
+  "capacity_ledgers",
+  "reservation_commits"
+]) {
+  if (!postgresReservationStore.includes(required)) fail(`PostgreSQL reservation atomicity invariant missing: ${required}`);
+}
+for (const required of [
+  'persistence: "durable-external"',
+  "claimAtomic",
+  "FOR UPDATE OF r,l SKIP LOCKED",
+  "closeActiveLease",
+  "recoverExpired",
+  "job_dead_letters"
+]) {
+  if (!postgresJobStore.includes(required)) fail(`Production durable Job Store invariant missing: ${required}`);
+}
+for (const required of [
+  "class DurableJobWorker",
+  "heartbeat",
+  "maxAttempts",
+  "scheduleRetry",
+  "deadLetter",
+  "recoverExpired"
+]) {
+  if (!jobWorkerRuntime.includes(required)) fail(`Durable Job worker invariant missing: ${required}`);
+}
+for (const required of [
+  'BUSINESS_ACTION_ORCHESTRATOR_VERSION = "1.0.0"',
+  "requestHash",
+  "providerOperationId",
+  "pollAccepted",
+  "verificationFor"
+]) {
+  if (!businessActionOrchestrator.includes(required)) fail(`Business action orchestrator invariant missing: ${required}`);
+}
+for (const required of [
+  'SOFTWARE_WORKER_RUNTIME_VERSION = "1.0.0"',
+  "awaiting-production-approval",
+  "productionPromotionReceiptHash",
+  "deployProduction",
+  "completeProductionVerification",
+  "rollback"
+]) {
+  if (!softwareWorkerRuntime.includes(required)) fail(`Software worker runtime invariant missing: ${required}`);
+}
+for (const required of [
+  'JOB_EXECUTION_ROUTER_VERSION = "1.0.0"',
+  "createPersistedJobExecutionSpec",
+  "business-action",
+  "software-prepare",
+  "software-deploy",
+  "software-verify",
+  "software-rollback"
+]) {
+  if (!jobExecutionRouter.includes(required)) fail(`Durable execution router invariant missing: ${required}`);
+}
+
 const jobRuntime = read("lib/execution/job-runtime-contracts.ts");
 for (const required of [
   "DurableJobStore",
@@ -546,6 +643,18 @@ if (
 }
 
 if (
+  releaseRegistry.database?.status !== "implemented-unconnected"
+  || releaseRegistry.database?.engine !== "postgresql"
+  || releaseRegistry.database?.minimumEngineVersion !== "16"
+  || releaseRegistry.database?.migrationVersion !== "2026-09-21.1"
+  || releaseRegistry.database?.schemaVersion !== "1.0.0"
+  || releaseRegistry.adapters?.postgresPersistence?.status !== "implemented-unconnected"
+  || releaseRegistry.adapters?.durableJobStore?.status !== "implemented-unconnected"
+) {
+  fail("PostgreSQL persistence release truth drifted or overclaims connectivity");
+}
+
+if (
   releaseRegistry.integrations.registryContractVersion !== "1.0.0"
   || releaseRegistry.integrations.liveAdaptersStatus !== "not-connected"
 ) {
@@ -553,14 +662,20 @@ if (
 }
 if (
   releaseRegistry.execution.jobRuntimeContractVersion !== "1.1.0"
-  || releaseRegistry.execution.durableJobStoreStatus !== "not-connected"
+  || releaseRegistry.execution.durableJobStoreStatus !== "implemented-unconnected"
+  || releaseRegistry.execution.durableJobStoreVersion !== "1.0.0"
   || releaseRegistry.execution.businessActionContractVersion !== "1.1.0"
+  || releaseRegistry.execution.businessActionOrchestratorStatus !== "implemented"
   || releaseRegistry.execution.businessAdaptersStatus !== "not-connected"
   || releaseRegistry.execution.softwareWorkerContractVersion !== "1.1.0"
+  || releaseRegistry.execution.softwareWorkerRuntimeStatus !== "implemented"
   || releaseRegistry.execution.softwareDeploymentStatus !== "not-connected"
+  || releaseRegistry.execution.jobExecutionRouterStatus !== "implemented"
   || releaseRegistry.execution.jobExecutionBridgeContractVersion !== "1.0.0"
   || releaseRegistry.execution.jobExecutionBridgeStatus !== "deterministic-contract"
+  || releaseRegistry.execution.jobExecutionBridgeStoreImplementationStatus !== "implemented-unconnected"
   || releaseRegistry.execution.liveJobExecutionBridgeStoreStatus !== "not-connected"
+  || releaseRegistry.execution.persistenceBackend !== "postgresql"
 ) {
   fail("Phases 19-21 / Phase 34 Job bridge release state drifted");
 }
@@ -613,10 +728,18 @@ for (const [name, state] of Object.entries(releaseEnvironment.environments ?? {}
     || state.integrations?.registryStatus !== "deterministic-contract"
     || state.execution?.jobRuntimeContractStatus !== "deterministic-contract"
     || state.execution?.durableJobStoreStatus !== "not-connected"
+    || state.execution?.durableJobStoreImplementationStatus !== "implemented-unconnected"
+    || state.execution?.businessActionOrchestratorStatus !== "implemented"
     || state.execution?.businessActionAdapterStatus !== "not-connected"
+    || state.execution?.softwareWorkerRuntimeStatus !== "implemented"
     || state.execution?.softwareDeploymentStatus !== "not-connected"
+    || state.execution?.jobExecutionRouterStatus !== "implemented"
     || state.execution?.jobExecutionBridgeStatus !== "deterministic-contract"
+    || state.execution?.jobExecutionBridgeStoreImplementationStatus !== "implemented-unconnected"
     || state.execution?.liveJobExecutionBridgeStoreStatus !== "not-connected"
+    || state.connections?.database !== false
+    || state.database?.engine !== "postgresql"
+    || state.database?.adapterStatus !== "implemented-unconnected"
     || state.composition?.goldenPathHarnessStatus !== "deterministic-simulation-only"
     || state.composition?.productionExecutionClaimed !== false
     || state.resourceFabric?.storageFabricContractStatus !== "deterministic-contract"
