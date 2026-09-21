@@ -48,12 +48,12 @@ describe("PostgresAuthAdapter", () => {
     const bearerDb = new ScriptedDatabase([{ rows: [sessionRow] }]);
     const bearer = await new PostgresAuthAdapter(bearerDb).getSession(
       new Request("https://getdone.test", {
-        headers: { authorization: "Bearer super-secret-session-token" }
+        headers: { authorization: "Bearer fixture-session" }
       })
     );
     expect(bearer).toMatchObject({ sessionId: "session-a", userId: "owner-a" });
-    expect(bearerDb.calls[0].values?.[0]).toBe(sha256Hex("super-secret-session-token"));
-    expect(bearerDb.calls[0].values?.[0]).not.toBe("super-secret-session-token");
+    expect(bearerDb.calls[0].values?.[0]).toBe(sha256Hex("fixture-session"));
+    expect(bearerDb.calls[0].values?.[0]).not.toBe("fixture-session");
 
     const cookieDb = new ScriptedDatabase([{ rows: [sessionRow] }]);
     await new PostgresAuthAdapter(cookieDb).getSession(
@@ -104,13 +104,13 @@ describe("PostgresAuthAdapter", () => {
     const db = new ScriptedDatabase([
       { rows: [challenge] },
       { rows: [sessionRow] },
-      { rows: [{ secret_hash: sha256Hex("step-up-secret-token") }] },
+      { rows: [{ secret_hash: sha256Hex("fixture-step-up") }] },
       { rowCount: 1 },
       { rowCount: 1 }
     ]);
     const elevated = await new PostgresAuthAdapter(db).verifyStepUp(
       challenge.challenge_id,
-      { token: "step-up-secret-token" }
+      { token: "fixture-step-up" }
     );
 
     expect(elevated.stepUpAuthenticatedAt).toBeTruthy();
@@ -131,12 +131,12 @@ describe("PostgresAuthAdapter", () => {
         }]
       },
       { rows: [sessionRow] },
-      { rows: [{ secret_hash: sha256Hex("different-secret") }] }
+      { rows: [{ secret_hash: sha256Hex("fixture-other") }] }
     ]);
 
     await expect(new PostgresAuthAdapter(db).verifyStepUp(
       "challenge-a",
-      { token: "wrong-secret-token" }
+      { token: "fixture-wrong" }
     )).rejects.toThrow(/credential is invalid/i);
   });
 });
