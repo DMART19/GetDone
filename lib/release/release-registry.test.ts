@@ -24,6 +24,7 @@ import {
   NODE_DOMAIN_VERSION
 } from "@/lib/nodes/contracts";
 import { NODE_DISPATCH_CONTRACT_VERSION } from "@/lib/nodes/dispatch-contracts";
+import { NODE_IDENTITY_CONTRACT_VERSION } from "@/lib/nodes/identity";
 
 interface VersionedSource {
   version: string;
@@ -69,6 +70,14 @@ interface ReleaseRegistryShape {
     linuxX64: string;
     linuxArm64: string;
     productionReady: boolean;
+    agentVersion: string;
+    enrollmentStatus: string;
+    nodePersistenceStatus: string;
+    identityIssuerStatus: string;
+    productionCaStatus: string;
+    productionMtlsStatus: string;
+    enrollmentMigrationVersion: string;
+    bootstrapAuthentication: string;
     sourcePaths: string[];
   };
   integrations: {
@@ -166,6 +175,14 @@ interface EnvironmentShape {
     linuxX64: string;
     linuxArm64: string;
     productionReady: boolean;
+    agentVersion: string;
+    enrollmentStatus: string;
+    nodePersistenceStatus: string;
+    identityIssuerStatus: string;
+    productionCaStatus: string;
+    productionMtlsStatus: string;
+    enrollmentMigrationVersion: string;
+    bootstrapAuthentication: string;
   };
   integrations: {
     registryStatus: string;
@@ -267,7 +284,7 @@ describe("Phase 41 release/version registry", () => {
     });
   });
 
-  it("records Phase 28.0 contracts without claiming a connected Node Agent", () => {
+  it("records Phase 28.2 secure enrollment without claiming production Node identity connectivity", () => {
     expect(registry.nodeAgent).toMatchObject({
       status: "implemented-development-only",
       domainVersion: NODE_DOMAIN_VERSION,
@@ -275,7 +292,15 @@ describe("Phase 41 release/version registry", () => {
       dispatchContractVersion: NODE_DISPATCH_CONTRACT_VERSION,
       linuxX64: "build-only",
       linuxArm64: "build-only",
-      productionReady: false
+      productionReady: false,
+      agentVersion: "0.2.0-development",
+      enrollmentStatus: "implemented-unconnected",
+      nodePersistenceStatus: "implemented-unconnected",
+      identityIssuerStatus: "development-only",
+      productionCaStatus: "not-connected",
+      productionMtlsStatus: "not-connected",
+      enrollmentMigrationVersion: "2026-09-21.2",
+      bootstrapAuthentication: "one-time-token"
     });
     expect(registry.schemaVersions.nodeDomain).toMatchObject({
       version: NODE_DOMAIN_VERSION,
@@ -283,6 +308,10 @@ describe("Phase 41 release/version registry", () => {
     });
     expect(registry.schemaVersions.nodeDispatch).toMatchObject({
       version: NODE_DISPATCH_CONTRACT_VERSION,
+      contractTracked: true
+    });
+    expect(registry.schemaVersions.nodeIdentity).toMatchObject({
+      version: NODE_IDENTITY_CONTRACT_VERSION,
       contractTracked: true
     });
     for (const state of Object.values(environment.environments)) {
