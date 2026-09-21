@@ -35,6 +35,7 @@ export interface BusinessActionExecutionRecord {
   state: BusinessActionExecutionState;
   adapterResultHash: string;
   latestStatusHash?: string;
+  retryable: boolean;
   updatedAt: string;
   recordHash: string;
 }
@@ -132,6 +133,10 @@ export class BusinessActionExecutionOrchestrator {
       );
     }
 
+    if (existing?.providerOperationId) {
+      return this.pollAccepted(request, adapter, existing);
+    }
+
     const result = await adapter.execute(request);
     assertBusinessActionAdapterResult(result);
     if (
@@ -154,6 +159,7 @@ export class BusinessActionExecutionOrchestrator {
       providerOperationId: result.providerOperationId,
       state: result.status === "accepted" ? "accepted" : result.status,
       adapterResultHash: result.resultHash,
+      retryable: result.retryable,
       updatedAt: result.observedAt
     });
     await this.store.save(record, existing?.recordHash);
@@ -162,41 +168,20 @@ export class BusinessActionExecutionOrchestrator {
       return { record, verificationEvidence: verificationFor(request, record) };
     }
 
-    const polls = this.options.maxStatusPolls ?? 30;
-    const interval = this.options.pollIntervalMs ?? 1_000;
-    const sleep = this.options.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
-
-    for (let index = 0; index < polls; index += 1) {
-      if (index > 0 && interval > 0) await sleep(interval);
-      const status = await adapter.status({
-        requestId: request.id,
-        providerOperationId: result.providerOperationId
-      });
-      assertStatusIdentity(adapter, request, result.providerOperationId, status);
-
-      const previousHash = record.recordHash;
-      record = createRecord({
-        ...record,
-        state: status.state,
-        latestStatusHash: status.statusHash,
-        updatedAt: status.observedAt
-      });
-      await this.store.save(record, previousHash);
-      if (["completed", "failed", "cancelled"].includes(status.state)) {
-        return { record, verificationEvidence: verificationFor(request, record) };
-      }
-    }
-
-    return { record };
+    return this.pollAccepted(request, adapter, record);
   }
 
   async cancel(
     request: AuthorizedBusinessActionRequest,
     reason: string
   ): Promise<BusinessActionExecutionResult> {
+    assertAuthorizedBusinessActionRequest(request);
     const record = await this.store.get(request.id);
     if (!record || !record.providerOperationId) {
       throw new ControlPlaneError("NOT_FOUND", "Business action execution was not found");
+    }
+    if (record.requestHash !== sha256Hex(request)) {
+      throw new ControlPlaneError("IDEMPOTENCY_CONFLICT", "Cancellation request does not match persisted action");
     }
     const adapter = await this.adapters.resolve(request);
     if (!adapter?.cancel) {
@@ -216,5 +201,41 @@ export class BusinessActionExecutionOrchestrator {
     });
     await this.store.save(next, record.recordHash);
     return { record: next, verificationEvidence: verificationFor(request, next) };
+  }
+
+  private async pollAccepted(
+    request: AuthorizedBusinessActionRequest,
+    adapter: BusinessActionAdapter,
+    initial: BusinessActionExecutionRecord
+  ): Promise<BusinessActionExecutionResult> {
+    if (!initial.providerOperationId) {
+      throw new ControlPlaneError("CONFLICT", "Accepted business action is missing provider operation lineage");
+    }
+    let record = initial;
+    const polls = this.options.maxStatusPolls ?? 30;
+    const interval = this.options.pollIntervalMs ?? 1_000;
+    const sleep = this.options.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
+
+    for (let index = 0; index < polls; index += 1) {
+      if (index > 0 && interval > 0) await sleep(interval);
+      const status = await adapter.status({
+        requestId: request.id,
+        providerOperationId: initial.providerOperationId
+      });
+      assertStatusIdentity(adapter, request, initial.providerOperationId, status);
+
+      const previousHash = record.recordHash;
+      record = createRecord({
+        ...record,
+        state: status.state,
+        latestStatusHash: status.statusHash,
+        updatedAt: status.observedAt
+      });
+      await this.store.save(record, previousHash);
+      if (["completed", "failed", "cancelled"].includes(status.state)) {
+        return { record, verificationEvidence: verificationFor(request, record) };
+      }
+    }
+    return { record };
   }
 }
