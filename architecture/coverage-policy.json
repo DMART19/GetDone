@@ -208,7 +208,7 @@
     },
     {
       "source": "lib/persistence/postgres/reservation-store.ts",
-      "test": "lib/persistence/postgres/postgres-adapters.test.ts",
+      "test": "lib/persistence/postgres/postgres-execution-stores.test.ts",
       "critical": true
     },
     {
