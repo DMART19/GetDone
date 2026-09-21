@@ -3,10 +3,11 @@ import type { AuthAdapter, AuthSession } from "@/lib/auth/contracts";
 import { createStepUpProof } from "@/lib/authorization/proofs";
 import type { AuditLedger } from "@/lib/domain/audit";
 import type { DecisionAuthorityStore, AuthoritativeDecision } from "@/lib/domain/decision-service";
-import type { DecisionTransactionManager } from "@/lib/domain/decision-transaction";
+import type { DecisionTransaction, DecisionTransactionManager } from "@/lib/domain/decision-transaction";
 import { MemoryIdempotencyStore } from "@/lib/domain/idempotency";
 import { ServiceBackedControlApiAdapter } from "@/lib/control-api/service-adapter";
 import { ResourceRegistryService } from "@/lib/domain/services/resource-registry-service";
+import { ResourceEnrollmentService, type ResourceEnrollmentRecord } from "@/lib/resources/enrollment";
 import type { Resource } from "@/lib/domain/resources";
 
 const session: AuthSession = {
@@ -50,7 +51,7 @@ class MemoryDecisionManager implements DecisionTransactionManager {
   };
   private readonly idempotency = new MemoryIdempotencyStore();
 
-  async run<T>(operation: Parameters<DecisionTransactionManager["run"]>[0]): Promise<T> {
+  async run<T>(operation: (transaction: DecisionTransaction) => Promise<T>): Promise<T> {
     const store: DecisionAuthorityStore = {
       get: async (id) => id === this.decision.id ? { ...this.decision } : null,
       save: async (next, expectedVersion) => {
@@ -66,7 +67,7 @@ class MemoryDecisionManager implements DecisionTransactionManager {
       stores: { decisions: store },
       audit,
       idempotency: this.idempotency
-    }) as Promise<T>;
+    });
   }
 }
 
@@ -99,13 +100,58 @@ function resource(id = "resource-1", companyId = "company-a"): Resource {
 
 function adapter(overrides: Partial<ConstructorParameters<typeof ServiceBackedControlApiAdapter>[0]> = {}) {
   const decisionTransactions = new MemoryDecisionManager();
-  let capturedEnrollment: any;
+  let capturedDiscovery: {
+    input: Parameters<ResourceRegistryService["discover"]>[0];
+    command: Parameters<ResourceRegistryService["discover"]>[1];
+  } | undefined;
   const resourceRegistry = {
-    discover: async (input: any, command: any) => {
-      capturedEnrollment = { input, command };
+    discover: async (
+      input: Parameters<ResourceRegistryService["discover"]>[0],
+      command: Parameters<ResourceRegistryService["discover"]>[1]
+    ) => {
+      capturedDiscovery = { input, command };
       return resource(input.id);
     }
   } as unknown as ResourceRegistryService;
+
+  const enrollmentRecord: ResourceEnrollmentRecord = {
+    id: "enrollment-1",
+    portfolioId: "portfolio-a",
+    companyId: "company-a",
+    state: "identify",
+    requestedType: "compute",
+    requestedEnvironments: ["development"],
+    ownerActionRequired: false,
+    challengeHash: "challenge-hash",
+    challengeIssuedAt: "2026-09-21T04:00:00Z",
+    challengeExpiresAt: "2099-01-01T00:00:00Z",
+    evidenceIds: [],
+    attempt: 1,
+    version: 1,
+    updatedAt: "2026-09-21T04:00:00Z"
+  };
+  let enrollmentAction = "";
+  const resourceEnrollmentService = {
+    identify: async (
+      input: Parameters<ResourceEnrollmentService["identify"]>[0]
+    ) => ({ ...enrollmentRecord, id: input.id, requestedType: input.requestedType }),
+    createEnrollment: async () => {
+      enrollmentAction = "create";
+      return { ...enrollmentRecord, state: "create-enrollment" as const };
+    },
+    recordOwnerAction: async () => enrollmentRecord,
+    authenticate: async () => enrollmentRecord,
+    discover: async () => enrollmentRecord,
+    profile: async () => enrollmentRecord,
+    validate: async () => enrollmentRecord,
+    test: async () => enrollmentRecord,
+    register: async () => enrollmentRecord,
+    markReady: async () => enrollmentRecord,
+    fail: async () => enrollmentRecord,
+    cancel: async () => enrollmentRecord,
+    expire: async () => enrollmentRecord,
+    restart: async () => enrollmentRecord
+  } as unknown as ResourceEnrollmentService;
 
   const instance = new ServiceBackedControlApiAdapter({
     auth: auth(),
@@ -131,6 +177,11 @@ function adapter(overrides: Partial<ConstructorParameters<typeof ServiceBackedCo
       get: async (id) => id === "foreign" ? resource("foreign", "company-b") : id === "resource-1" ? resource() : null
     },
     resourceRegistry,
+    resourceEnrollments: {
+      listByScope: async () => [enrollmentRecord],
+      get: async (id) => id === enrollmentRecord.id ? enrollmentRecord : null
+    },
+    resourceEnrollmentService,
     jobs: {
       listByScope: async () => [],
       get: async (id) => id === "job-1" ? ({
@@ -163,7 +214,12 @@ function adapter(overrides: Partial<ConstructorParameters<typeof ServiceBackedCo
     ...overrides
   });
 
-  return { instance, decisionTransactions, enrollment: () => capturedEnrollment };
+  return {
+    instance,
+    decisionTransactions,
+    discovery: () => capturedDiscovery,
+    enrollmentAction: () => enrollmentAction
+  };
 }
 
 describe("ServiceBackedControlApiAdapter", () => {
@@ -220,20 +276,50 @@ describe("ServiceBackedControlApiAdapter", () => {
   });
 
   it("delegates Resource discovery with environment/data scope narrowed by trusted principal", async () => {
-    const { instance, enrollment } = adapter();
+    const { instance, discovery } = adapter();
     const principal = await instance.authenticate(new Request("http://localhost"));
-    const enrolled = await instance.enrollResource(principal, {
+    const enrolled = await instance.discoverResource(principal, {
       id: "resource-new",
       type: "compute",
       capabilityNames: ["http"],
       idempotencyKey: "resource-key-1"
     });
     expect(enrolled.id).toBe("resource-new");
-    expect(enrollment().input).toMatchObject({
+    expect(discovery()!.input).toMatchObject({
       environmentPermissions: ["development"],
       dataClassesAllowed: ["public"]
     });
-    expect(enrollment().command.scope).toEqual(scope);
+    expect(discovery()!.command.scope).toEqual(scope);
+  });
+
+  it("delegates governed Resource Enrollment initiation and actions", async () => {
+    const { instance, enrollmentAction } = adapter();
+    const principal = await instance.authenticate(new Request("http://localhost"));
+    const started = await instance.startResourceEnrollment(principal, {
+      id: "enrollment-new",
+      requestedType: "compute",
+      ownerActionRequired: false,
+      challengeToken: "one-time-challenge-value",
+      challengeExpiresAt: "2099-01-01T00:00:00Z",
+      idempotencyKey: "enrollment-key-1"
+    });
+    expect(started).toMatchObject({
+      id: "enrollment-new",
+      requestedEnvironments: ["development"],
+      requestedType: "compute"
+    });
+
+    const advanced = await instance.advanceResourceEnrollment(
+      principal,
+      "enrollment-1",
+      { action: "create", idempotencyKey: "enrollment-key-2" }
+    );
+    expect(advanced.state).toBe("create-enrollment");
+    expect(enrollmentAction()).toBe("create");
+    expect(await instance.listResourceEnrollments(principal)).toHaveLength(1);
+    expect(await instance.getResourceEnrollment(principal, "enrollment-1")).toMatchObject({
+      id: "enrollment-1"
+    });
   });
 
   it("derives Job result views from authoritative Job state", async () => {
