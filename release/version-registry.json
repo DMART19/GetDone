@@ -1,6 +1,6 @@
 {
   "registrySchemaVersion": "1.4.0",
-  "registryVersion": "2026-09-20.6",
+  "registryVersion": "2026-09-20.7",
   "appVersion": "0.1.0",
   "schemaVersions": {
     "controlApi": {
@@ -104,7 +104,7 @@
       ]
     },
     "storageFabric": {
-      "version": "1.0.0",
+      "version": "1.1.0",
       "sourcePath": "lib/resources/storage-fabric.ts",
       "contractTracked": true,
       "contractSourcePaths": [
@@ -112,7 +112,7 @@
       ]
     },
     "resilience": {
-      "version": "1.0.0",
+      "version": "1.1.0",
       "sourcePath": "lib/resources/resilience.ts",
       "contractTracked": true,
       "contractSourcePaths": [
@@ -120,7 +120,7 @@
       ]
     },
     "resourceAdapterSdk": {
-      "version": "1.0.0",
+      "version": "1.1.0",
       "sourcePath": "lib/resources/adapter-sdk.ts",
       "contractTracked": true,
       "contractSourcePaths": [
@@ -128,7 +128,7 @@
       ]
     },
     "resourcePool": {
-      "version": "1.0.0",
+      "version": "1.1.0",
       "sourcePath": "lib/resources/pools.ts",
       "contractTracked": true,
       "contractSourcePaths": [
@@ -136,7 +136,7 @@
       ]
     },
     "phase44AdversarialHarness": {
-      "version": "1.0.0",
+      "version": "1.1.0",
       "sourcePath": "lib/security/phase44-adversarial-harness.ts",
       "contractTracked": true,
       "contractSourcePaths": [
@@ -240,7 +240,7 @@
     },
     "resourceAdapterSdk": {
       "status": "contract-only",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "sourcePath": "lib/resources/adapter-sdk.ts",
       "contractTracked": true,
       "contractSourcePaths": [
@@ -334,13 +334,13 @@
     "liveJobExecutionBridgeStoreStatus": "not-connected"
   },
   "resourceFabric": {
-    "storageFabricContractVersion": "1.0.0",
+    "storageFabricContractVersion": "1.1.0",
     "storageRuntimeStatus": "not-connected",
-    "resilienceContractVersion": "1.0.0",
+    "resilienceContractVersion": "1.1.0",
     "failoverRuntimeStatus": "not-connected",
-    "resourceAdapterSdkContractVersion": "1.0.0",
+    "resourceAdapterSdkContractVersion": "1.1.0",
     "secondProviderStatus": "not-connected",
-    "resourcePoolContractVersion": "1.0.0",
+    "resourcePoolContractVersion": "1.1.0",
     "partnerPoolRuntimeStatus": "not-connected",
     "sourcePaths": [
       "lib/resources/storage-fabric.ts",
@@ -350,7 +350,7 @@
     ]
   },
   "phase44": {
-    "deterministicHarnessVersion": "1.0.0",
+    "deterministicHarnessVersion": "1.1.0",
     "deterministicHarnessStatus": "contract-and-offline-tests",
     "productionAcceptanceStatus": "not-run",
     "sourcePath": "lib/security/phase44-adversarial-harness.ts"
