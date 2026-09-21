@@ -285,7 +285,7 @@ export class NodeEnrollmentApplicationService implements NodeEnrollmentApplicati
       challengeId: persisted.id,
       enrollmentToken,
       architecture: input.architecture,
-      expiresAt
+      expiresAt: persisted.expiresAt
     };
   }
 
