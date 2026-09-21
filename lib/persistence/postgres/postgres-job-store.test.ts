@@ -6,8 +6,7 @@ import {
   createJobRetryScheduleRecord,
   createDeadLetterRecord,
   createJobStoreTransactionReceipt,
-  type DurableJobLease,
-  type JobQueueEnvelope
+  type DurableJobLease
 } from "@/lib/execution/job-runtime-contracts";
 import { PostgresDurableJobStore } from "@/lib/persistence/postgres/job-store";
 import type { PostgresTransactionalDatabase } from "@/lib/persistence/postgres/client";
