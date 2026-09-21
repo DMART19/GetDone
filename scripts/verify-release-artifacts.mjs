@@ -208,10 +208,10 @@ if (failures.length === 0) {
     || manifest.nodeAgent?.domainVersion !== nodeDomainVersion
     || manifest.nodeAgent?.protocolVersion !== nodeAgentProtocolVersion
     || manifest.nodeAgent?.dispatchContractVersion !== nodeDispatchContractVersion
-    || manifest.nodeAgent?.linuxX64 !== "inventory-capable-build"
-    || manifest.nodeAgent?.linuxArm64 !== "inventory-capable-build"
+    || manifest.nodeAgent?.linuxX64 !== "capability-profile-build"
+    || manifest.nodeAgent?.linuxArm64 !== "capability-profile-build"
     || manifest.nodeAgent?.productionReady !== false
-    || manifest.nodeAgent?.agentVersion !== "0.3.0-development"
+    || manifest.nodeAgent?.agentVersion !== "0.4.0-development"
     || manifest.nodeAgent?.enrollmentStatus !== "implemented-unconnected"
     || manifest.nodeAgent?.nodePersistenceStatus !== "implemented-unconnected"
     || manifest.nodeAgent?.identityIssuerStatus !== "development-only"
@@ -224,18 +224,27 @@ if (failures.length === 0) {
     || manifest.nodeAgent?.inventoryPersistenceStatus !== "implemented-unconnected"
     || manifest.nodeAgent?.authenticatedAgentTransportStatus !== "not-connected"
     || manifest.nodeAgent?.inventoryMigrationVersion !== "2026-09-21.3"
+    || manifest.nodeAgent?.capabilityProfilingStatus !== "implemented"
+    || manifest.nodeAgent?.capabilityValidationStatus !== "implemented"
+    || manifest.nodeAgent?.capabilityApiStatus !== "implemented-unconnected"
+    || manifest.nodeAgent?.capabilityPersistenceStatus !== "implemented-unconnected"
+    || manifest.nodeAgent?.capabilityRegistryBridgeStatus !== "implemented"
+    || manifest.nodeAgent?.resourceCapabilityBindingStatus !== "implemented-unconnected"
+    || manifest.nodeAgent?.capabilityMigrationVersion !== "2026-09-21.4"
     || registry.nodeAgent?.status !== "implemented-development-only"
+    || registry.schemaVersions.nodeCapability?.version !== "1.0.0"
+    || registry.schemaVersions.nodeCapabilityBridge?.version !== "1.0.0"
     || registry.schemaVersions.nodeInventory?.version !== "1.0.0"
     || registry.schemaVersions.nodeIdentity?.version !== nodeIdentityContractVersion
   ) {
-    fail("Phase 28.3 Node Agent release artifact truth drifted or overclaims live inventory connectivity");
+    fail("Phase 28.4 Node Agent release artifact truth drifted or overclaims live capability/binding connectivity");
   }
   for (const evidence of manifest.nodeAgent?.sourceEvidence ?? []) {
     if (
       !registry.nodeAgent.sourcePaths.includes(evidence.sourcePath)
       || evidence.sourceSha256 !== fileHash(evidence.sourcePath)
     ) {
-      fail(`Phase 28.3 node source evidence drift: ${evidence.sourcePath}`);
+      fail(`Phase 28.4 node source evidence drift: ${evidence.sourcePath}`);
     }
   }
   if (
