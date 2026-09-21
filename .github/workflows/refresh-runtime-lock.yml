@@ -1,0 +1,40 @@
+name: Refresh runtime lockfile
+
+on:
+  push:
+    branches:
+      - sol/postgres-job-runtime-execution
+    paths:
+      - package.json
+      - .github/workflows/refresh-runtime-lock.yml
+
+permissions:
+  contents: write
+
+jobs:
+  lockfile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: sol/postgres-job-runtime-execution
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+
+      - name: Commit lockfile when changed
+        run: |
+          if git diff --quiet -- package-lock.json; then
+            echo "package-lock.json already current"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package-lock.json
+          git commit -m "Refresh lockfile for PostgreSQL runtime dependencies"
+          git push origin HEAD:sol/postgres-job-runtime-execution
