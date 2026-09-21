@@ -8,6 +8,7 @@ const expectedStages = [
   "policy",
   "decision",
   "approval",
+  "authorization",
   "task",
   "job",
   "placement",
@@ -19,6 +20,8 @@ const expectedStages = [
   "job-running",
   "completion-verification",
   "outcome",
+  "event-audit",
+  "owner-visibility",
   "memory",
   "resource-release"
 ] as const;
@@ -36,6 +39,9 @@ describe("cross-phase deterministic golden path", () => {
     expect(result.final).toEqual({
       jobState: "succeeded",
       outcomeState: "verified",
+      eventState: "processed",
+      ownerVisibleJobState: "succeeded",
+      auditEventCount: 4,
       memoryAuthority: "advisory",
       reservationState: "released",
       credentialState: "released",
@@ -50,6 +56,34 @@ describe("cross-phase deterministic golden path", () => {
     expect(second.resultHash).toBe(first.resultHash);
     expect(second.stages).toEqual(first.stages);
     expect(second.final).toEqual(first.final);
+  });
+
+
+  it("preserves the authoritative lifecycle ordering without shortcutting approval, verification, audit, or owner visibility", async () => {
+    const result = await runDeterministicGoldenPath();
+    const index = (name: (typeof expectedStages)[number]) =>
+      result.stages.findIndex((item) => item.name === name);
+
+    const authorityOrder = [
+      "objective",
+      "plan",
+      "decision",
+      "approval",
+      "authorization",
+      "task",
+      "job",
+      "dispatch-admission",
+      "start-verification",
+      "job-running",
+      "completion-verification",
+      "outcome",
+      "event-audit",
+      "owner-visibility"
+    ] as const;
+
+    for (let i = 1; i < authorityOrder.length; i += 1) {
+      expect(index(authorityOrder[i])).toBeGreaterThan(index(authorityOrder[i - 1]));
+    }
   });
 
   it("places Job running only after independent resource-start verification", async () => {

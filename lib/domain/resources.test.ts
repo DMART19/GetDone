@@ -170,4 +170,62 @@ describe("resource registry readiness", () => {
     expect(result.ready).toBe(false);
     expect(result.reasons).toContain("fresh-healthy-status-required");
   });
+  it("rejects expired identity/trust evidence and revoked provider authority", () => {
+    const result = evaluateResourceReadiness(resource, {
+      ...evidence,
+      identities: evidence.identities.map((item) => ({
+        ...item,
+        expiresAt: "2026-09-20T19:59:59Z"
+      })),
+      trust: evidence.trust.map((item) => ({
+        ...item,
+        expiresAt: "2026-09-20T19:59:59Z"
+      })),
+      providers: evidence.providers.map((item) => ({
+        ...item,
+        status: "revoked" as const
+      }))
+    }, now);
+
+    expect(result.ready).toBe(false);
+    expect(result.reasons).toContain("verified-resource-identity-required");
+    expect(result.reasons).toContain("verified-trust-classification-required");
+    expect(result.reasons).toContain("active-provider-adapter-binding-required");
+  });
+
+  it("does not accept future-dated evidence as current authority", () => {
+    const future = "2026-09-20T20:00:01Z";
+    const result = evaluateResourceReadiness(resource, {
+      identities: evidence.identities.map((item) => ({ ...item, observedAt: future })),
+      trust: evidence.trust.map((item) => ({ ...item, observedAt: future })),
+      health: evidence.health.map((item) => ({ ...item, observedAt: future })),
+      capabilities: evidence.capabilities.map((item) => ({ ...item, observedAt: future })),
+      locations: evidence.locations.map((item) => ({ ...item, observedAt: future })),
+      costs: [],
+      providers: evidence.providers.map((item) => ({ ...item, observedAt: future }))
+    }, now);
+
+    expect(result.ready).toBe(false);
+    expect(result.reasons).toEqual(expect.arrayContaining([
+      "verified-resource-identity-required",
+      "verified-trust-classification-required",
+      "fresh-healthy-status-required",
+      "validated-capability-required:compute.cpu.light",
+      "verified-location-required",
+      "active-provider-adapter-binding-required"
+    ]));
+  });
+
+  it("requires explicit environment permission and policy binding even with healthy evidence", () => {
+    const result = evaluateResourceReadiness({
+      ...resource,
+      environmentPermissions: [],
+      policyBindingIds: []
+    }, evidence, now);
+
+    expect(result.ready).toBe(false);
+    expect(result.reasons).toContain("environment-permission-required");
+    expect(result.reasons).toContain("resource-policy-binding-required");
+  });
+
 });

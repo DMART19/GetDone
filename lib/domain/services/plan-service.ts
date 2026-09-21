@@ -1,5 +1,9 @@
 import { ControlPlaneError } from "@/lib/control-plane/errors";
-import { assertAuthorizationGrantEnvelope, type AuthorizationGrant } from "@/lib/authorization/grants";
+import {
+  assertAuthorizationGrantEnvelope,
+  type AuthorizationGrant,
+  type AuthorizationGrantStore
+} from "@/lib/authorization/grants";
 import type { AuthoritativeCommandEnvelope } from "@/lib/control-plane/command-envelope";
 import type { ControlPlaneTransactionManager } from "@/lib/domain/control-plane-transaction";
 import {
@@ -21,6 +25,8 @@ export type PlanState =
 export interface PlanRecord extends StatefulEntity {
   state: PlanState;
   goalId?: string;
+  planVersion: number;
+  planHash: string;
   requestedCapabilities: readonly string[];
   validationEvidenceId?: string;
   validationErrors: readonly string[];
@@ -31,10 +37,20 @@ export interface PlanRecord extends StatefulEntity {
 
 export interface PlanStores {
   plans: EntityStore<PlanRecord>;
+  authorizationGrants: AuthorizationGrantStore;
+}
+
+function sameCapabilities(left: readonly string[], right: readonly string[]) {
+  const a = [...new Set(left)].sort();
+  const b = [...new Set(right)].sort();
+  return a.length === b.length && a.every((item, index) => item === b[index]);
 }
 
 export class PlanService {
-  constructor(private readonly transactions: ControlPlaneTransactionManager<PlanStores>) {}
+  constructor(
+    private readonly transactions: ControlPlaneTransactionManager<PlanStores>,
+    private readonly now: () => Date = () => new Date()
+  ) {}
 
   beginValidation(id: string, command: AuthoritativeCommandEnvelope) {
     return executeTransitionCommand({
@@ -44,7 +60,8 @@ export class PlanService {
       entityId: id,
       to: "validating",
       command,
-      triggeringEvent: "plan-validation-started"
+      triggeringEvent: "plan-validation-started",
+      now: this.now
     });
   }
 
@@ -64,7 +81,8 @@ export class PlanService {
         }
         return { validationEvidenceId: evidenceId };
       },
-      metadata: () => ({ validationEvidenceId: evidenceId })
+      metadata: () => ({ validationEvidenceId: evidenceId }),
+      now: this.now
     });
   }
 
@@ -80,7 +98,8 @@ export class PlanService {
       to: "rejected",
       command,
       triggeringEvent: "plan-validation-rejected",
-      patch: () => ({ validationErrors: [...errors] })
+      patch: () => ({ validationErrors: [...errors] }),
+      now: this.now
     });
   }
 
@@ -92,12 +111,13 @@ export class PlanService {
       entityId: id,
       to: "awaiting-authorization",
       command,
-      triggeringEvent: "plan-authorization-requested"
+      triggeringEvent: "plan-authorization-requested",
+      now: this.now
     });
   }
 
   authorize(id: string, command: AuthoritativeCommandEnvelope, grant: AuthorizationGrant) {
-    assertAuthorizationGrantEnvelope(grant, command.scope);
+    assertAuthorizationGrantEnvelope(grant, command.scope, this.now().getTime());
     if (grant.planId !== id) {
       throw new ControlPlaneError("FORBIDDEN", "Authorization grant belongs to a different plan");
     }
@@ -109,6 +129,31 @@ export class PlanService {
       to: "authorized",
       command,
       triggeringEvent: "plan-authorized",
+      beforeTransition: async (current, transaction) => {
+        if (
+          current.planVersion !== grant.planVersion
+          || current.planHash !== grant.planHash
+          || !sameCapabilities(current.requestedCapabilities, grant.capabilityNames)
+        ) {
+          throw new ControlPlaneError(
+            "FORBIDDEN",
+            "Authorization grant does not match the current authoritative plan version, hash, or capabilities"
+          );
+        }
+
+        const persistedGrant = await transaction.stores.authorizationGrants.get(grant.id);
+        if (!persistedGrant || persistedGrant.grantHash !== grant.grantHash) {
+          throw new ControlPlaneError(
+            "FORBIDDEN",
+            "Authorization grant is missing or differs from authoritative storage"
+          );
+        }
+        assertAuthorizationGrantEnvelope(
+          persistedGrant,
+          command.scope,
+          this.now().getTime()
+        );
+      },
       patch: () => ({
         authorizationGrantId: grant.id,
         authorizationGrantHash: grant.grantHash
@@ -116,7 +161,8 @@ export class PlanService {
       metadata: () => ({
         authorizationGrantId: grant.id,
         authorizationGrantHash: grant.grantHash
-      })
+      }),
+      now: this.now
     });
   }
 
@@ -131,7 +177,8 @@ export class PlanService {
       command,
       triggeringEvent: "plan-compiled",
       patch: () => ({ compiledGraphId }),
-      metadata: () => ({ compiledGraphId })
+      metadata: () => ({ compiledGraphId }),
+      now: this.now
     });
   }
 
@@ -143,7 +190,8 @@ export class PlanService {
       entityId: id,
       to: "cancelled",
       command,
-      triggeringEvent: "plan-cancelled"
+      triggeringEvent: "plan-cancelled",
+      now: this.now
     });
   }
 }

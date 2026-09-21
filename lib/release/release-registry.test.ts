@@ -435,7 +435,7 @@ describe("Phase 41 release/version registry", () => {
       persistenceBackend: "postgresql"
     });
     expect(registry.composition).toMatchObject({
-      goldenPathHarnessVersion: "1.0.0",
+      goldenPathHarnessVersion: "1.1.0",
       status: "deterministic-simulation-only",
       productionExecutionClaimed: false,
       sourcePath: "lib/composition/golden-path-harness.ts"

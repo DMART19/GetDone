@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "1.5.0",
+  "schemaVersion": "1.6.0",
   "thresholds": {
     "coveredModulePercent": 100,
     "minimumTotalTestCases": 80,
@@ -144,6 +144,26 @@
     {
       "source": "lib/security/phase44-adversarial-harness.ts",
       "test": "lib/security/phase44-adversarial-harness.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/domain/services/transition-service.ts",
+      "test": "lib/domain/services/authority-hardening.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/domain/services/plan-service.ts",
+      "test": "lib/domain/services/authority-hardening.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/domain/services/task-service.ts",
+      "test": "lib/domain/services/authority-hardening.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/domain/services/event-service.ts",
+      "test": "lib/domain/services/event-service.test.ts",
       "critical": true
     },
     {

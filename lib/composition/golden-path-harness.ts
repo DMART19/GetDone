@@ -117,8 +117,15 @@ import {
   createVerificationTrustAttestation
 } from "@/lib/verification/source-trust";
 import { createOperationalMemory } from "@/lib/intelligence/memory";
+import {
+  EventService,
+  type EventRecord,
+  type EventStore,
+  type EventStores
+} from "@/lib/domain/services/event-service";
+import { toJobResultView } from "@/lib/control-api/service-adapter";
 
-export const GOLDEN_PATH_HARNESS_VERSION = "1.0.0";
+export const GOLDEN_PATH_HARNESS_VERSION = "1.1.0";
 
 export type GoldenPathStageName =
   | "objective"
@@ -127,6 +134,7 @@ export type GoldenPathStageName =
   | "policy"
   | "decision"
   | "approval"
+  | "authorization"
   | "task"
   | "job"
   | "placement"
@@ -138,6 +146,8 @@ export type GoldenPathStageName =
   | "job-running"
   | "completion-verification"
   | "outcome"
+  | "event-audit"
+  | "owner-visibility"
   | "memory"
   | "resource-release";
 
@@ -156,6 +166,9 @@ export interface GoldenPathSimulationResult {
   final: Readonly<{
     jobState: "succeeded";
     outcomeState: "verified";
+    eventState: "processed";
+    ownerVisibleJobState: "succeeded";
+    auditEventCount: number;
     memoryAuthority: "advisory";
     reservationState: "released";
     credentialState: "released";
@@ -190,6 +203,26 @@ class MemoryDecisionStore implements DecisionAuthorityStore {
   }
 }
 
+class MemoryEventStore implements EventStore {
+  value: EventRecord | null = null;
+
+  async get(id: string) {
+    return this.value?.id === id ? { ...this.value } : null;
+  }
+
+  async save(next: EventRecord, expectedVersion: number) {
+    if (!this.value || this.value.version !== expectedVersion) {
+      throw new Error("golden-path event concurrency conflict");
+    }
+    this.value = { ...next };
+  }
+
+  async create(record: EventRecord) {
+    if (this.value) throw new Error("golden-path event already exists");
+    this.value = { ...record };
+  }
+}
+
 class MemoryAudit implements AuditLedger {
   readonly events: AuditEvent[] = [];
   async append(event: AuditEvent) {
@@ -201,9 +234,9 @@ class MemoryAudit implements AuditLedger {
 }
 
 function transactionManager<TStores>(
-  stores: TStores
+  stores: TStores,
+  audit = new MemoryAudit()
 ): ControlPlaneTransactionManager<TStores> {
-  const audit = new MemoryAudit();
   const idempotency = new MemoryIdempotencyStore();
   return {
     run: async (operation) => operation({ stores, audit, idempotency })
@@ -703,6 +736,7 @@ export async function runDeterministicGoldenPath(): Promise<GoldenPathSimulation
     issuedAt: "2026-09-20T22:00:07Z",
     expiresAt: "2026-09-20T22:20:00Z"
   });
+  stages.push(stage("authorization", grant.id, grant.grantHash));
 
   const taskGenerator = new TaskGenerator(
     new MemoryTaskDedupe(),
@@ -1308,6 +1342,57 @@ export async function runDeterministicGoldenPath(): Promise<GoldenPathSimulation
   );
   stages.push(stage("outcome", verifiedOutcome.id, outcomeReceipt.receiptHash));
 
+  const eventStore = new MemoryEventStore();
+  const eventAudit = new MemoryAudit();
+  const eventService = new EventService(transactionManager<EventStores>({
+    events: eventStore
+  }, eventAudit));
+  const eventCommand = (suffix: string) => createCommandEnvelope({
+    commandId: `golden-event-${suffix}`,
+    actor: { type: "system", id: "golden-control-plane" },
+    scope,
+    correlationId: `golden-event-correlation-${suffix}`,
+    environment: "staging",
+    idempotencyKey: `golden-event-idempotency-${suffix}`,
+    provenance: "deterministic-golden-path",
+    requestedMutation: { type: `event.${suffix}` }
+  });
+  await eventService.record({
+    id: "golden-event-1",
+    eventType: "outcome.verified",
+    source: "control-plane",
+    provenance: `outcome:${verifiedOutcome.id}`,
+    payloadHash: outcomeReceipt.receiptHash,
+    subjectType: "outcome",
+    subjectId: verifiedOutcome.id,
+    evidenceIds: [outcomeReceipt.id],
+    recordedAt: "2026-09-20T22:02:11Z"
+  }, eventCommand("record"));
+  await eventService.accept("golden-event-1", eventCommand("accept"));
+  await eventService.beginProcessing("golden-event-1", eventCommand("process"));
+  const processedEvent = await eventService.markProcessed(
+    "golden-event-1",
+    eventCommand("processed"),
+    [outcomeReceipt.id]
+  );
+  const auditEventTypes = eventAudit.events.map((event) => event.eventType);
+  stages.push(stage(
+    "event-audit",
+    processedEvent.id,
+    sha256Hex({
+      eventId: processedEvent.id,
+      state: processedEvent.state,
+      auditEventTypes
+    })
+  ));
+
+  const ownerJobView = toJobResultView(succeededJob);
+  stages.push(stage(
+    "owner-visibility",
+    ownerJobView.jobId,
+    sha256Hex(ownerJobView)
+  ));
+
   const memory = createOperationalMemory({
     id: "golden-memory-1",
     kind: "outcome-reference",
@@ -1348,6 +1433,9 @@ export async function runDeterministicGoldenPath(): Promise<GoldenPathSimulation
   const final = Object.freeze({
     jobState: succeededJob.state as "succeeded",
     outcomeState: verifiedOutcome.state as "verified",
+    eventState: processedEvent.state as "processed",
+    ownerVisibleJobState: ownerJobView.state as "succeeded",
+    auditEventCount: eventAudit.events.length,
     memoryAuthority: memory.authority as "advisory",
     reservationState: released.reservation.state as "released",
     credentialState: releasedCredential.status as "released",

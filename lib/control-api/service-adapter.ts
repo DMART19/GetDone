@@ -87,6 +87,19 @@ function assertScopedEntity<T extends { portfolioId: string; companyId: string }
   return entity;
 }
 
+export function toJobResultView(job: JobRecord): JobResultView {
+  return Object.freeze({
+    jobId: job.id,
+    state: job.state,
+    verificationEvidenceIds: Object.freeze([...job.verificationEvidenceIds]),
+    verificationReceiptId: job.verificationReceiptId,
+    verificationReceiptHash: job.verificationReceiptHash,
+    verifiedCompletionFactId: job.verifiedCompletionFactId,
+    verifiedCompletionFactHash: job.verifiedCompletionFactHash,
+    failureReason: job.failureReason
+  });
+}
+
 export class ServiceBackedControlApiAdapter implements ControlApiApplicationAdapter {
   private readonly now: () => Date;
 
@@ -365,16 +378,7 @@ export class ServiceBackedControlApiAdapter implements ControlApiApplicationAdap
   async getJobResult(principal: ControlApiPrincipal, jobId: string): Promise<JobResultView | null> {
     const job = await this.getJob(principal, jobId);
     if (!job) return null;
-    return Object.freeze({
-      jobId: job.id,
-      state: job.state,
-      verificationEvidenceIds: [...job.verificationEvidenceIds],
-      verificationReceiptId: job.verificationReceiptId,
-      verificationReceiptHash: job.verificationReceiptHash,
-      verifiedCompletionFactId: job.verifiedCompletionFactId,
-      verifiedCompletionFactHash: job.verifiedCompletionFactHash,
-      failureReason: job.failureReason
-    });
+    return toJobResultView(job);
   }
 
   listVerifications(principal: ControlApiPrincipal) {

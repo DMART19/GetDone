@@ -411,7 +411,7 @@ for (const required of [
 
 const goldenPath = read("lib/composition/golden-path-harness.ts");
 for (const required of [
-  'GOLDEN_PATH_HARNESS_VERSION = "1.0.0"',
+  'GOLDEN_PATH_HARNESS_VERSION = "1.1.0"',
   "simulationOnly: true",
   "productionExecutionClaimed: false",
   "createJobVerifiedStartFact",
@@ -1136,7 +1136,7 @@ if (
   fail("Phases 19-21 / Phase 34 Job bridge release state drifted");
 }
 if (
-  releaseRegistry.composition?.goldenPathHarnessVersion !== "1.0.0"
+  releaseRegistry.composition?.goldenPathHarnessVersion !== "1.1.0"
   || releaseRegistry.composition?.status !== "deterministic-simulation-only"
   || releaseRegistry.composition?.productionExecutionClaimed !== false
 ) {

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   issueAuthorizationGrant,
   assertAuthorizationGrant,
+  assertAuthorizationGrantEnvelope,
   createAuthorizationConsumptionRecord,
   assertAuthorizationConsumption
 } from "@/lib/authorization/grants";
@@ -15,6 +16,7 @@ import { evaluateStepPolicy } from "@/lib/planning/policy-engine";
 import { validPlan } from "@/lib/planning/test-fixture";
 import { fixtureNow, fixtureScope, receiptFor, autoGrantFor } from "@/lib/planning/test-security-fixture";
 import { CURRENT_POLICY_VERSION } from "@/lib/domain/policy-registry";
+import { sha256Hex } from "@/lib/control-plane/canonical-hash";
 
 describe("authorization grants", () => {
   it("issues an immutable AUTO grant bound to plan version, hashes, receipt and policy version", () => {
@@ -210,4 +212,71 @@ describe("authorization grants", () => {
     expect(grant.stepUpProofId).toBe(stepUp.id);
     expect(grant.stepUpProofHash).toBe(stepUp.proofHash);
   });
+  it("rejects grants outside their exact scope or validity window", () => {
+    const plan = validPlan();
+    const grant = autoGrantFor(plan);
+    const scope = fixtureScope(plan);
+
+    expect(() => assertAuthorizationGrantEnvelope(
+      grant,
+      { ...scope, companyId: "company-b" },
+      fixtureNow.getTime()
+    )).toThrow();
+
+    expect(() => assertAuthorizationGrantEnvelope(
+      grant,
+      scope,
+      Date.parse(grant.issuedAt) - 1
+    )).toThrow(/not currently valid/i);
+
+    expect(() => assertAuthorizationGrantEnvelope(
+      grant,
+      scope,
+      Date.parse(grant.expiresAt)
+    )).toThrow(/not currently valid/i);
+  });
+
+  it("rejects a cryptographically valid but revoked grant", () => {
+    const plan = validPlan();
+    const grant = autoGrantFor(plan);
+    const { grantHash, ...base } = grant;
+    void grantHash;
+    const revokedBase = { ...base, status: "revoked" as const };
+    const revoked = Object.freeze({
+      ...revokedBase,
+      grantHash: sha256Hex(revokedBase)
+    });
+
+    expect(() => assertAuthorizationGrantEnvelope(
+      revoked,
+      fixtureScope(plan),
+      fixtureNow.getTime()
+    )).toThrow(/not active/i);
+  });
+
+  it("rejects tampered authorization consumption lineage", () => {
+    const plan = validPlan();
+    const grant = autoGrantFor(plan);
+    const consumption = createAuthorizationConsumptionRecord({
+      id: `authorization-consumption:${grant.id}`,
+      grant,
+      consumerType: "task",
+      consumerId: "task-1",
+      consumedAt: fixtureNow.toISOString()
+    });
+
+    expect(() => assertAuthorizationConsumption(
+      { ...consumption, consumerId: "task-2" },
+      grant
+    )).toThrow(/does not match its grant/i);
+
+    expect(() => createAuthorizationConsumptionRecord({
+      id: "caller-selected-consumption-id",
+      grant,
+      consumerType: "task",
+      consumerId: "task-1",
+      consumedAt: fixtureNow.toISOString()
+    })).toThrow(/derived from the grant id/i);
+  });
+
 });
