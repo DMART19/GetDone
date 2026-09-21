@@ -143,6 +143,8 @@ This repository has already been advanced beyond a visual scaffold. Astra should
 - provider ACCEPTED is evidence only, never running truth
 - start verification reuses Phase 22 `resource-start`; VERIFIED receipts must additionally carry a trusted verifier-source attestation whose registered independence domain is separate from dispatch
 - verified running/completion records explicitly do not mutate Job truth; JobService remains authoritative
+- the deterministic Phase 34 → JobService bridge now exists: JobService claimed → running requires a persisted `JobVerifiedStartFact`; running → verifying requires the matching persisted `JobVerifiedCompletionFact`; provider ACCEPTED is never Job authority
+- final Job success still requires the existing authoritative Job verification receipt
 - completion release calls the unchanged Phase 33 release contract
 - deterministic scheduler audit entries carry explanation plus hash lineage
 - live adapter calls, durable scheduler state, real start probes, crash recovery, and production fallback remain integration work
@@ -237,7 +239,11 @@ Once the owner/infrastructure blockers are resolved, Astra should focus its high
    - persist Phase 31 policy bindings and prove them against real resource metadata
    - persist Phase 32 placement requests/evaluation snapshots without adding scheduler authority
    - implement the existing Phase 33 AtomicReservationStore against the production database with atomic ledger+reservation writes, scoped idempotency uniqueness, compare-and-swap revision/hash enforcement, durable lease expiry/reaping, and live multi-process race tests
-   - connect the existing Phase 34 ResourceDispatchAdapter contract to real resource/provider adapters, persist placement/dispatch/monitor records, feed independent start/completion probes into VerificationService, and transition JobService only from verified scheduler facts
+   - connect the existing Phase 34 ResourceDispatchAdapter contract to real resource/provider adapters, persist placement/dispatch/monitor records, and feed independent start/completion probes into VerificationService
+   - implement the existing `JobExecutionBridgeStore` durably inside the authoritative control-plane persistence model
+   - persist verified-start/completion facts before invoking the existing JobService bridge transitions; preserve exact running-placement lineage and fact hashes
+   - prove crash/restart recovery across verified placement -> bridge fact -> Job transition without replaying side effects
+   - never restore a direct provider-accepted -> Job running path; final success still requires an authoritative Job verification receipt
    - prove crash recovery for reserve -> dispatch -> start verify -> monitor -> completion verify -> release, including provider timeouts and lease expiry
    - do not let an agent/provider/frontend bypass READY, credential, policy, placement, reservation, dispatch, or verification authority
 
@@ -286,6 +292,7 @@ Before a heavy Astra pass, read:
 - `docs/SOL_PHASE_42_REPORT.md`
 - `docs/SOL_QUALITY_PHASE_4_13_19_21_REPORT.md`
 - `docs/SOL_PHASE_36_39_44_REPORT.md`
+- `docs/SOL_GOLDEN_PATH_JOB_BRIDGE_REPORT.md`
 - `release/version-registry.json`
 - `release/environment-manifest.json`
 - latest GitHub Actions result
@@ -325,6 +332,8 @@ Astra must treat the following as existing architecture, not greenfield work:
 - Phase 37 failure-domain/drain/failover contracts;
 - Phase 38 Resource Adapter SDK/conformance contract and DEVELOPMENT mock;
 - Phase 39 governed aggregate ResourcePool contracts;
-- Phase 44 deterministic offline adversarial harness covering the current authority boundaries.
+- Phase 44 deterministic offline adversarial harness covering the current authority boundaries;
+- authoritative Phase 34 → JobService verified-start/completion bridge contracts and JobService enforcement;
+- deterministic 19-stage cross-phase golden-path composition harness, explicitly simulation-only and non-production.
 
 Canonical PASS for these phases still depends on real persistence/runtime/hardware acceptance where specified by the master plan. The existence of deterministic code is not permission to mark infrastructure-dependent acceptance complete.
