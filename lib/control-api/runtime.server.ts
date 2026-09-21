@@ -17,7 +17,7 @@ class UnavailableControlApiAdapter implements ControlApiApplicationAdapter {
   async health(): Promise<ControlApiHealth> {
     return {
       service: "getdone-control-api",
-      surfaceVersion: "1.0.0",
+      surfaceVersion: "1.1.0",
       status: "unavailable",
       authConnected: false,
       persistenceConnected: false,
