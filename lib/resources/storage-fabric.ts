@@ -316,6 +316,26 @@ export function createStorageCopyPlan(input: {
       "Production authoritative state cannot depend only on HOME storage"
     );
   }
+  for (const copy of authoritativeCopies) {
+    if (copy.failureDomainIds.length === 0) {
+      throw new ControlPlaneError(
+        "POLICY_BLOCKED",
+        "Authoritative copies require explicit failure-domain membership"
+      );
+    }
+  }
+  for (let left = 0; left < authoritativeCopies.length; left += 1) {
+    const leftDomains = new Set(authoritativeCopies[left].failureDomainIds);
+    for (let right = left + 1; right < authoritativeCopies.length; right += 1) {
+      const shared = authoritativeCopies[right].failureDomainIds.filter((id) => leftDomains.has(id));
+      if (shared.length > 0) {
+        throw new ControlPlaneError(
+          "POLICY_BLOCKED",
+          `Authoritative replicas share a correlated failure domain: ${shared.join(",")}`
+        );
+      }
+    }
+  }
   const domains = new Set(authoritativeCopies.flatMap((copy) => copy.failureDomainIds));
   if (input.object.authoritative && input.object.replicationFactor > 1 && domains.size < 2) {
     throw new ControlPlaneError(
