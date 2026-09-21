@@ -1,6 +1,6 @@
 {
   "registrySchemaVersion": "1.6.0",
-  "registryVersion": "2026-09-21.5",
+  "registryVersion": "2026-09-21.6",
   "appVersion": "0.1.0",
   "schemaVersions": {
     "controlApi": {
@@ -222,6 +222,10 @@
       "contractSourcePaths": [
         "lib/nodes/identity.ts"
       ]
+    },
+    "nodeInventory": {
+      "version": "1.0.0",
+      "sourcePath": "lib/nodes/inventory-service.ts"
     }
   },
   "policy": {
@@ -414,7 +418,12 @@
     "lib/nodes/application.test.ts",
     "lib/nodes/http.test.ts",
     "lib/persistence/postgres/node-enrollment.test.ts",
-    "agent/internal/enrollment/client_test.go"
+    "agent/internal/enrollment/client_test.go",
+    "agent/pkg/protocol/hash_test.go",
+    "agent/internal/inventory/inventory_test.go",
+    "lib/nodes/inventory-service.test.ts",
+    "lib/nodes/agent-http.test.ts",
+    "lib/persistence/postgres/node-inventory-store.test.ts"
   ],
   "manualSourcePaths": [
     "docs/ARCHITECTURE.md",
@@ -532,8 +541,8 @@
     "domainVersion": "1.0.0",
     "protocolVersion": "1.0.0",
     "dispatchContractVersion": "1.0.0",
-    "linuxX64": "build-only",
-    "linuxArm64": "build-only",
+    "linuxX64": "inventory-capable-build",
+    "linuxArm64": "inventory-capable-build",
     "productionReady": false,
     "sourcePaths": [
       "lib/nodes/contracts.ts",
@@ -566,15 +575,39 @@
       "agent/internal/enrollment/client.go",
       "agent/internal/enrollment/identity.go",
       "agent/packaging/install/install.sh",
-      "agent/packaging/install/manifest.example.json"
+      "agent/packaging/install/manifest.example.json",
+      "agent/pkg/protocol/hash.go",
+      "agent/internal/inventory/probe.go",
+      "agent/internal/inventory/types.go",
+      "agent/internal/inventory/cpu_linux.go",
+      "agent/internal/inventory/memory_linux.go",
+      "agent/internal/inventory/storage_linux.go",
+      "agent/internal/inventory/network_linux.go",
+      "agent/internal/inventory/os_linux.go",
+      "agent/internal/inventory/gpu.go",
+      "agent/internal/inventory/gpu_nvidia.go",
+      "agent/internal/inventory/gpu_amd.go",
+      "agent/internal/inventory/inventory.go",
+      "agent/internal/inventory/local.go",
+      "lib/nodes/inventory-service.ts",
+      "lib/nodes/agent-runtime.server.ts",
+      "lib/nodes/agent-http.ts",
+      "lib/persistence/postgres/node-inventory-store.ts",
+      "app/api/agent/v1/inventory/route.ts",
+      "migrations/2026-09-21.3_phase28_inventory.sql"
     ],
-    "agentVersion": "0.2.0-development",
+    "agentVersion": "0.3.0-development",
     "enrollmentStatus": "implemented-unconnected",
     "nodePersistenceStatus": "implemented-unconnected",
     "identityIssuerStatus": "development-only",
     "productionCaStatus": "not-connected",
     "productionMtlsStatus": "not-connected",
     "enrollmentMigrationVersion": "2026-09-21.2",
-    "bootstrapAuthentication": "one-time-token"
+    "bootstrapAuthentication": "one-time-token",
+    "inventoryDiscoveryStatus": "implemented",
+    "inventoryApiStatus": "implemented-unconnected",
+    "inventoryPersistenceStatus": "implemented-unconnected",
+    "authenticatedAgentTransportStatus": "not-connected",
+    "inventoryMigrationVersion": "2026-09-21.3"
   }
 }
