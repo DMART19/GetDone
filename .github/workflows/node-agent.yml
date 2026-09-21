@@ -1,0 +1,56 @@
+name: Node Agent CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "agent/**"
+      - "scripts/build-node-agent.sh"
+      - ".github/workflows/node-agent.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "agent/**"
+      - "scripts/build-node-agent.sh"
+      - ".github/workflows/node-agent.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: node-agent-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: agent/go.mod
+          cache: false
+
+      - name: Verify formatting
+        working-directory: agent
+        run: |
+          test -z "$(gofmt -l .)"
+
+      - name: Vet
+        working-directory: agent
+        run: go vet ./...
+
+      - name: Test
+        working-directory: agent
+        run: go test ./...
+
+      - name: Cross-build Linux amd64 and arm64
+        run: bash scripts/build-node-agent.sh
+
+      - name: Verify target binaries
+        run: |
+          test -s dist/getdone-agent-linux-amd64
+          test -s dist/getdone-agent-linux-arm64
