@@ -186,11 +186,7 @@ export class DevelopmentNodeIdentityIssuer implements NodeIdentityIssuer {
     return this.issue(request);
   }
 
-  async revoke(
-    _credential: NodeIdentityCredential,
-    _reason: string,
-    _revokedAt: string
-  ) {
+  async revoke() {
     // Development issuer has no remote CA state. Persistent revocation is store-owned.
   }
 
