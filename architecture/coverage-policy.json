@@ -240,6 +240,31 @@
       "source": "lib/execution/job-execution-router.ts",
       "test": "lib/execution/job-execution-router.test.ts",
       "critical": true
+    },
+    {
+      "source": "lib/nodes/contracts.ts",
+      "test": "lib/nodes/contracts.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/nodes/dispatch-contracts.ts",
+      "test": "lib/nodes/contracts.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/nodes/schemas.ts",
+      "test": "lib/nodes/schemas.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/nodes/hashes.ts",
+      "test": "lib/nodes/hashes.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/nodes/enrollment.ts",
+      "test": "lib/nodes/enrollment.test.ts",
+      "critical": true
     }
   ]
 }
