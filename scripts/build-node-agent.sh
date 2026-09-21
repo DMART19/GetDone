@@ -21,5 +21,16 @@ LDFLAGS="-s -w -X github.com/DMART19/GetDone/agent/internal/version.AgentVersion
 test -s "$DIST_DIR/getdone-agent-linux-amd64"
 test -s "$DIST_DIR/getdone-agent-linux-arm64"
 
+cp "$AGENT_DIR/packaging/systemd/getdone-agent.service" "$DIST_DIR/getdone-agent.service"
+cp "$AGENT_DIR/packaging/install/manifest.example.json" "$DIST_DIR/manifest.json"
+
+(
+  cd "$DIST_DIR"
+  sha256sum getdone-agent-linux-amd64 > getdone-agent-linux-amd64.sha256
+  sha256sum getdone-agent-linux-arm64 > getdone-agent-linux-arm64.sha256
+  sha256sum getdone-agent.service > getdone-agent.service.sha256
+)
+
 printf 'Built %s\n' "$DIST_DIR/getdone-agent-linux-amd64"
 printf 'Built %s\n' "$DIST_DIR/getdone-agent-linux-arm64"
+printf 'Prepared installer metadata in %s\n' "$DIST_DIR"
