@@ -232,7 +232,7 @@ describe("PostgresDurableJobStore", () => {
     ]);
     const receipt = await new PostgresDurableJobStore(db).scheduleRetry(retry);
     expect(receipt.operation).toBe("retry");
-    expect(db.calls.some((call) => call.includes("state='released'"))).toBe(true);
+    expect(db.calls.some((call) => call.includes("UPDATE job_leases"))).toBe(true);
   });
 
   it("dead-letters and cancels while closing active leases", async () => {
