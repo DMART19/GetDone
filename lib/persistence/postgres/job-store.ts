@@ -121,6 +121,38 @@ async function loadTransaction(
   return result.rows[0]?.payload ?? null;
 }
 
+async function closeActiveLease(
+  db: PoolClient,
+  jobId: string,
+  state: "released" | "expired" = "released"
+) {
+  const result = await db.query<LeaseRow>(
+    `SELECT payload FROM job_leases
+     WHERE job_id=$1 AND state='active'
+     FOR UPDATE`,
+    [jobId]
+  );
+  const current = result.rows[0]?.payload;
+  if (!current) return null;
+  const base = {
+    ...current,
+    state,
+    version: current.version + 1
+  };
+  delete (base as Partial<DurableJobLease>).leaseHash;
+  const next = Object.freeze({
+    ...base,
+    leaseHash: sha256Hex(base)
+  }) as DurableJobLease;
+  await db.query(
+    `UPDATE job_leases
+     SET state=$2,lease_hash=$3,version=$4,payload=$5::jsonb
+     WHERE id=$1`,
+    [next.id, state, next.leaseHash, next.version, JSON.stringify(next)]
+  );
+  return next;
+}
+
 export class PostgresDurableJobStore implements DurableJobWorkStore {
   readonly descriptor = Object.freeze({
     persistence: "durable-external" as const,
@@ -482,6 +514,7 @@ export class PostgresDurableJobStore implements DurableJobWorkStore {
          ON CONFLICT (id) DO NOTHING`,
         [record.id, record.jobId, record.runAt, record.recordHash, JSON.stringify(record)]
       );
+      await closeActiveLease(db, row.job_id);
       await db.query(
         `UPDATE job_runtime_state
          SET runtime_state='retry-wait',version=$2,state_hash=$3,scheduled_at=$4,updated_at=$5
@@ -529,6 +562,7 @@ export class PostgresDurableJobStore implements DurableJobWorkStore {
          ON CONFLICT (job_id) DO NOTHING`,
         [record.id, record.jobId, record.failedAt, record.recordHash, JSON.stringify(record)]
       );
+      await closeActiveLease(db, row.job_id);
       await db.query(
         `UPDATE job_runtime_state
          SET runtime_state='dead-lettered',version=$2,state_hash=$3,updated_at=$4
@@ -589,10 +623,7 @@ export class PostgresDurableJobStore implements DurableJobWorkStore {
          WHERE job_id=$1`,
         [input.jobId, input.reason, nextVersion, nextHash, input.cancelledAt]
       );
-      await db.query(
-        "UPDATE job_leases SET state='released' WHERE job_id=$1 AND state='active'",
-        [input.jobId]
-      );
+      await closeActiveLease(db, input.jobId);
       await persistTransaction(db, receipt);
       return receipt;
     });
