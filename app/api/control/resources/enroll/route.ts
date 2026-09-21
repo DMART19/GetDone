@@ -1,4 +1,4 @@
-import { handleEnrollResource } from "@/lib/control-api/http";
+import { handleStartResourceEnrollment } from "@/lib/control-api/http";
 
 export const dynamic = "force-dynamic";
-export const POST = handleEnrollResource;
+export const POST = handleStartResourceEnrollment;
