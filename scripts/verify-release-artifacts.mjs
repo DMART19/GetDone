@@ -315,15 +315,23 @@ if (failures.length === 0) {
   }
 
   if (
-    registry.nodeAgent?.status !== "contract-only"
-    || registry.nodeAgent?.linuxX64 !== "not-connected"
-    || registry.nodeAgent?.linuxArm64 !== "not-connected"
+    registry.nodeAgent?.milestone !== "28.1"
+    || registry.nodeAgent?.status !== "implemented-unconnected"
+    || registry.nodeAgent?.agentVersion !== "0.1.0"
+    || registry.nodeAgent?.agentShellStatus !== "implemented"
+    || registry.nodeAgent?.enrollmentStatus !== "not-implemented"
+    || registry.nodeAgent?.linuxX64 !== "build-supported-unconnected"
+    || registry.nodeAgent?.linuxArm64 !== "build-supported-unconnected"
     || registry.adapters.nodeAgent?.status !== "contract-only"
-    || manifest.nodeAgent?.status !== "contract-only"
-    || manifest.nodeAgent?.linuxX64 !== "not-connected"
-    || manifest.nodeAgent?.linuxArm64 !== "not-connected"
+    || manifest.nodeAgent?.milestone !== "28.1"
+    || manifest.nodeAgent?.status !== "implemented-unconnected"
+    || manifest.nodeAgent?.agentVersion !== "0.1.0"
+    || manifest.nodeAgent?.agentShellStatus !== "implemented"
+    || manifest.nodeAgent?.enrollmentStatus !== "not-implemented"
+    || manifest.nodeAgent?.linuxX64 !== "build-supported-unconnected"
+    || manifest.nodeAgent?.linuxArm64 !== "build-supported-unconnected"
   ) {
-    fail("Phase 28.0 Node Agent release truth must remain contract-only and unconnected");
+    fail("Phase 28.1 Node Agent release truth must expose the built shell without claiming enrollment connectivity");
   }
 
   if (
@@ -431,9 +439,11 @@ if (failures.length === 0) {
       || environmentState.connections.resourceAgent !== false
       || !environmentState.nodeAgent
       || environmentState.nodeAgent.contractStatus !== "deterministic-contract"
-      || environmentState.nodeAgent.agentRuntimeStatus !== "not-connected"
-      || environmentState.nodeAgent.linuxX64 !== "not-connected"
-      || environmentState.nodeAgent.linuxArm64 !== "not-connected"
+      || environmentState.nodeAgent.agentRuntimeStatus !== "implemented-unconnected"
+      || environmentState.nodeAgent.agentShellStatus !== "implemented"
+      || environmentState.nodeAgent.enrollmentStatus !== "not-implemented"
+      || environmentState.nodeAgent.linuxX64 !== "build-supported-unconnected"
+      || environmentState.nodeAgent.linuxArm64 !== "build-supported-unconnected"
       || !environmentState.integrations
       || environmentState.integrations.registryStatus !== "deterministic-contract"
       || environmentState.integrations.adapterStatus !== "not-connected"
