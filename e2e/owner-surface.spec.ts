@@ -76,6 +76,27 @@ test.describe("existing owner surface", () => {
     const decisionBody = await decisions.json();
     expect(decisionBody.ok).toBe(true);
     expect(decisionBody.data.some((item: { id: string }) => item.id === "approve-dc-west")).toBe(true);
+
+    const controlHealth = await request.get("/api/control/health");
+    expect(controlHealth.ok()).toBeTruthy();
+    expect(await controlHealth.json()).toMatchObject({
+      ok: true,
+      environment: "development",
+      data: {
+        service: "getdone-control-api",
+        surfaceVersion: "1.0.0",
+        status: "unavailable",
+        authConnected: false,
+        persistenceConnected: false
+      }
+    });
+
+    const protectedControlRead = await request.get("/api/control/decisions");
+    expect(protectedControlRead.status()).toBe(503);
+    expect(await protectedControlRead.json()).toMatchObject({
+      ok: false,
+      error: { code: "UNAVAILABLE" }
+    });
   });
 
   test("chat and decision controls remain preview-only", async ({ page }) => {
