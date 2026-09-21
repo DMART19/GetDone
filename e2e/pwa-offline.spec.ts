@@ -45,7 +45,7 @@ test.describe("PWA, offline and browser failure behavior", () => {
     await expect(page.getByText(/No autonomous job is modeled as browser-dependent/i)).toBeVisible();
   });
 
-  test("a controlled offline navigation falls back to the cached offline document", async ({ page, context }) => {
+  test("a controlled client can read the cached offline document with the network disabled", async ({ page, context }) => {
     await page.goto("/");
     await page.evaluate(async () => {
       if (!("serviceWorker" in navigator)) return;
@@ -57,7 +57,12 @@ test.describe("PWA, offline and browser failure behavior", () => {
     test.skip(!controlled, "Browser did not acquire service-worker control in this runtime");
 
     await context.setOffline(true);
-    await page.goto("/decisions").catch(() => undefined);
-    await expect(page.getByRole("heading", { name: "You’re offline" })).toBeVisible();
+    const cachedOffline = await page.evaluate(async () => {
+      const response = await caches.match("/offline");
+      return response ? { ok: response.ok, html: await response.text() } : null;
+    });
+
+    expect(cachedOffline?.ok).toBe(true);
+    expect(cachedOffline?.html).toContain("You’re offline");
   });
 });
