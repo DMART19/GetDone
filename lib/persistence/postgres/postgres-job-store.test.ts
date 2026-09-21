@@ -307,4 +307,146 @@ describe("PostgresDurableJobStore", () => {
     expect(recovered[0].outcome).toBe("dead-lettered");
     expect(db.calls.some((call) => call.includes("INSERT INTO job_dead_letters"))).toBe(true);
   });
+
+  it("covers null snapshots and conflicting enqueue/claim branches", async () => {
+    const empty = new PostgresDurableJobStore(new ScriptedDb([{ rows: [] }]));
+    expect(await empty.getRuntimeSnapshot("missing")).toBeNull();
+
+    const enqueueConflict = new PostgresDurableJobStore(new ScriptedDb([
+      { rows: [runtimeRow()] },
+      { rows: [] }
+    ]));
+    await expect(enqueueConflict.enqueue(envelope)).rejects.toThrow(/conflicts with existing runtime state/i);
+
+    const priorClaim = createJobStoreTransactionReceipt({
+      id: "prior-claim",
+      operation: "claim",
+      jobId: envelope.jobId,
+      idempotencyKey: "claim-duplicate",
+      expectedVersion: 1,
+      expectedHash: "runtime-hash",
+      nextVersion: 2,
+      nextHash: "claimed",
+      occurredAt: "2026-09-21T04:00:01Z"
+    });
+    const duplicateClaim = new PostgresDurableJobStore(new ScriptedDb([
+      { rows: [runtimeRow()] },
+      { rows: [{ payload: priorClaim }] }
+    ]));
+    expect(await duplicateClaim.claimAtomic({
+      jobId: envelope.jobId,
+      workerId: "worker-a",
+      now: "2026-09-21T04:00:01Z",
+      leaseSeconds: 60,
+      expectedJobVersion: 1,
+      expectedJobHash: "runtime-hash",
+      idempotencyKey: "claim-duplicate"
+    })).toBeNull();
+  });
+
+  it("rejects stale heartbeat and release CAS/lease lineage", async () => {
+    const active = lease();
+    const badHeartbeatCas = new PostgresDurableJobStore(new ScriptedDb([
+      { rows: [runtimeRow("queued", 1, "runtime-hash", 0)] }
+    ]));
+    await expect(badHeartbeatCas.heartbeat({
+      lease: active,
+      now: "2026-09-21T04:00:10Z",
+      extendSeconds: 60,
+      expectedJobVersion: 1,
+      expectedJobHash: "runtime-hash",
+      idempotencyKey: "heartbeat-bad"
+    })).rejects.toThrow(/heartbeat lost/i);
+
+    const badHeartbeatLease = new PostgresDurableJobStore(new ScriptedDb([
+      { rows: [runtimeRow("claimed", 2, "claimed-hash", 1)] },
+      { rows: [] }
+    ]));
+    await expect(badHeartbeatLease.heartbeat({
+      lease: active,
+      now: "2026-09-21T04:00:10Z",
+      extendSeconds: 60,
+      expectedJobVersion: 2,
+      expectedJobHash: "claimed-hash",
+      idempotencyKey: "heartbeat-stale"
+    })).rejects.toThrow(/lease is stale/i);
+
+    const badReleaseCas = new PostgresDurableJobStore(new ScriptedDb([
+      { rows: [runtimeRow("claimed", 3, "different", 1)] }
+    ]));
+    await expect(badReleaseCas.release({
+      lease: active,
+      now: "2026-09-21T04:00:15Z",
+      expectedJobVersion: 2,
+      expectedJobHash: "claimed-hash",
+      idempotencyKey: "release-bad"
+    })).rejects.toThrow(/release lost/i);
+
+    const badReleaseLease = new PostgresDurableJobStore(new ScriptedDb([
+      { rows: [runtimeRow("claimed", 2, "claimed-hash", 1)] },
+      { rows: [] }
+    ]));
+    await expect(badReleaseLease.release({
+      lease: active,
+      now: "2026-09-21T04:00:15Z",
+      expectedJobVersion: 2,
+      expectedJobHash: "claimed-hash",
+      idempotencyKey: "release-stale"
+    })).rejects.toThrow(/lease is stale/i);
+  });
+
+  it("rejects retry, dead-letter, and cancellation lineage conflicts", async () => {
+    const retry = createJobRetryScheduleRecord({
+      id: "retry-conflict",
+      jobId: envelope.jobId,
+      nextAttempt: 2,
+      runAt: "2026-09-21T04:01:00Z",
+      reason: "transient",
+      sourceEnvelopeHash: "wrong-envelope",
+      transactionHash: "prior"
+    });
+    await expect(new PostgresDurableJobStore(new ScriptedDb([
+      { rows: [runtimeRow("claimed", 2, "claimed-hash", 1)] }
+    ])).scheduleRetry(retry)).rejects.toThrow(/Retry lineage/i);
+
+    const dead = createDeadLetterRecord({
+      id: "dead-conflict",
+      jobId: envelope.jobId,
+      finalAttempt: 2,
+      reason: "terminal",
+      failedAt: "2026-09-21T04:02:00Z",
+      sourceEnvelopeHash: "wrong-envelope",
+      transactionHash: "prior"
+    });
+    await expect(new PostgresDurableJobStore(new ScriptedDb([
+      { rows: [runtimeRow("claimed", 2, "claimed-hash", 2)] }
+    ])).deadLetter(dead)).rejects.toThrow(/Dead-letter lineage/i);
+
+    await expect(new PostgresDurableJobStore(new ScriptedDb([
+      { rows: [runtimeRow("claimed", 2, "claimed-hash", 1)] }
+    ])).cancel({
+      jobId: envelope.jobId,
+      reason: "owner",
+      cancelledAt: "2026-09-21T04:02:00Z",
+      expectedJobVersion: 99,
+      expectedJobHash: "wrong",
+      idempotencyKey: "cancel-conflict"
+    })).rejects.toThrow(/cancellation lost/i);
+  });
+
+  it("recovers already-cancelled expired work without scheduling retry or dead letter", async () => {
+    const active = lease(1);
+    const db = new ScriptedDb([
+      { rows: [{ ...runtimeRow("cancelled", 4, "cancelled-hash", 1), cancelled_reason: "owner", lease_payload: active }] },
+      { rowCount: 1 },
+      { rowCount: 1 },
+      { rowCount: 1 },
+      { rowCount: 1 }
+    ]);
+    const recovered = await new PostgresDurableJobStore(db)
+      .recoverExpired({ now: "2026-09-21T04:02:00Z", limit: 10 });
+    expect(recovered[0].outcome).toBe("cancelled");
+    expect(db.calls.some((call) => call.includes("INSERT INTO job_retry_schedule"))).toBe(false);
+    expect(db.calls.some((call) => call.includes("INSERT INTO job_dead_letters"))).toBe(false);
+  });
 });
