@@ -1,0 +1,77 @@
+name: Phase 28.1 App validation
+
+on:
+  push:
+    branches: [sol/phase28.1-agent-skeleton]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  NPM_CONFIG_IGNORE_SCRIPTS: "true"
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm run verify:dependencies
+      - run: npm run verify:runtime
+      - run: npm run verify:secrets
+      - run: npm run verify:architecture
+      - run: npm run verify:contract-versions
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run verify:coverage
+      - run: npm run build
+        env:
+          NEXT_PUBLIC_APP_ENV: development
+          GETDONE_RUNTIME_ENV: development
+          GETDONE_DATA_MODE: development-seed
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+        env:
+          NEXT_PUBLIC_APP_ENV: development
+          GETDONE_RUNTIME_ENV: development
+          GETDONE_DATA_MODE: development-seed
+      - run: npm run release:generate
+      - run: npm run verify:release
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: getdone-quality-evidence-${{ github.run_number }}
+          path: |
+            coverage/
+            playwright-report/
+            test-results/
+          if-no-files-found: error
+          retention-days: 30
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: getdone-release-evidence-${{ github.run_number }}
+          path: |
+            release/out/
+            coverage/control-plane-module-coverage.json
+            coverage/vitest/coverage-summary.json
+            coverage/security/
+            test-results/playwright-results.json
+          if-no-files-found: error
+          retention-days: 30
