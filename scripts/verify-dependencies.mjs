@@ -6,26 +6,31 @@ const root = process.cwd();
 const outDir = path.join(root, "coverage", "security");
 fs.mkdirSync(outDir, { recursive: true });
 
-function runAudit(name, args, outputFile) {
-  let raw = "";
-  let exitCode = 0;
+function runJson(command, args) {
   try {
-    raw = execFileSync("npm", ["audit", "--json", ...args], {
+    return JSON.parse(execFileSync(command, args, {
       cwd: root,
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"]
-    });
+    }));
   } catch (error) {
-    exitCode = typeof error?.status === "number" ? error.status : 1;
-    raw = String(error?.stdout ?? "");
-    if (!raw.trim()) {
-      throw new Error(`npm audit did not return JSON for ${name}; dependency audit is unavailable`);
-    }
+    const stdout = String(error?.stdout ?? "");
+    if (!stdout.trim()) throw error;
+    return JSON.parse(stdout);
   }
+}
 
-  const parsed = JSON.parse(raw);
-  const vulnerabilities = parsed.metadata?.vulnerabilities ?? {};
-  const affectedPackages = Object.entries(parsed.vulnerabilities ?? {})
+function collectDependencyNames(node, output = new Set()) {
+  for (const [name, child] of Object.entries(node?.dependencies ?? {})) {
+    output.add(name);
+    collectDependencyNames(child, output);
+  }
+  return output;
+}
+
+function normalizedAffected(vulnerabilities, allowedNames) {
+  return Object.entries(vulnerabilities ?? {})
+    .filter(([packageName]) => !allowedNames || allowedNames.has(packageName))
     .map(([packageName, detail]) => ({
       packageName,
       severity: detail.severity ?? "unknown",
@@ -33,46 +38,68 @@ function runAudit(name, args, outputFile) {
       fixAvailable: Boolean(detail.fixAvailable)
     }))
     .sort((a, b) => a.packageName.localeCompare(b.packageName));
-
-  const evidence = {
-    schemaVersion: "1.1.0",
-    audit: name,
-    generatedAt: new Date().toISOString(),
-    npmVersion: execFileSync("npm", ["--version"], { cwd: root, encoding: "utf8" }).trim(),
-    vulnerabilityCounts: {
-      info: vulnerabilities.info ?? 0,
-      low: vulnerabilities.low ?? 0,
-      moderate: vulnerabilities.moderate ?? 0,
-      high: vulnerabilities.high ?? 0,
-      critical: vulnerabilities.critical ?? 0,
-      total: vulnerabilities.total ?? 0
-    },
-    dependencyCounts: parsed.metadata?.dependencies ?? {},
-    affectedPackages,
-    policyExitCode: exitCode
-  };
-
-  fs.writeFileSync(path.join(outDir, outputFile), JSON.stringify(evidence, null, 2) + "\n");
-
-  if (exitCode !== 0) {
-    const affected = affectedPackages
-      .map((item) => `${item.packageName}[${item.severity}${item.direct ? ",direct" : ""}${item.fixAvailable ? ",fix-available" : ""}]`)
-      .join(", ");
-    throw new Error(
-      `${name} dependency audit failed policy: high=${evidence.vulnerabilityCounts.high}, critical=${evidence.vulnerabilityCounts.critical}; packages=${affected}`
-    );
-  }
 }
 
-runAudit(
+function counts(items) {
+  const result = { info: 0, low: 0, moderate: 0, high: 0, critical: 0, total: items.length };
+  for (const item of items) {
+    if (item.severity in result && item.severity !== "total") result[item.severity] += 1;
+  }
+  return result;
+}
+
+function writeEvidence(file, audit, affectedPackages, dependencyCounts) {
+  const evidence = {
+    schemaVersion: "1.2.0",
+    audit,
+    generatedAt: new Date().toISOString(),
+    npmVersion: execFileSync("npm", ["--version"], { cwd: root, encoding: "utf8" }).trim(),
+    vulnerabilityCounts: counts(affectedPackages),
+    dependencyCounts,
+    affectedPackages
+  };
+  fs.writeFileSync(path.join(outDir, file), JSON.stringify(evidence, null, 2) + "\n");
+  return evidence;
+}
+
+const auditResult = runJson("npm", ["audit", "--json"]);
+const productionTree = runJson("npm", ["ls", "--omit=dev", "--all", "--json"]);
+const productionNames = collectDependencyNames(productionTree);
+const allAffected = normalizedAffected(auditResult.vulnerabilities);
+const productionAffected = normalizedAffected(auditResult.vulnerabilities, productionNames);
+
+const production = writeEvidence(
+  "npm-audit-production.json",
   "production-high",
-  ["--omit=dev", "--audit-level=high"],
-  "npm-audit-production.json"
+  productionAffected,
+  productionTree.dependencies ? { topLevel: Object.keys(productionTree.dependencies).length } : {}
 );
-runAudit(
+const full = writeEvidence(
+  "npm-audit-full-critical.json",
   "full-critical",
-  ["--audit-level=critical"],
-  "npm-audit-full-critical.json"
+  allAffected,
+  auditResult.metadata?.dependencies ?? {}
 );
 
-console.log("Dependency audit passed: production high/critical=0 and full dependency graph critical=0.");
+const productionBlocked = productionAffected.filter(
+  (item) => item.severity === "high" || item.severity === "critical"
+);
+const fullCritical = allAffected.filter((item) => item.severity === "critical");
+
+if (productionBlocked.length || fullCritical.length) {
+  const describe = (items) => items
+    .map((item) => `${item.packageName}[${item.severity}${item.direct ? ",direct" : ""}${item.fixAvailable ? ",fix-available" : ""}]`)
+    .join(", ");
+  throw new Error(
+    [
+      `dependency audit failed: production high/critical=${productionBlocked.length}`,
+      `full-graph critical=${fullCritical.length}`,
+      productionBlocked.length ? `production=${describe(productionBlocked)}` : "",
+      fullCritical.length ? `critical=${describe(fullCritical)}` : ""
+    ].filter(Boolean).join("; ")
+  );
+}
+
+console.log(
+  `Dependency audit passed: production high/critical=0; full-graph critical=0; visible full-graph findings=${full.vulnerabilityCounts.total}.`
+);
