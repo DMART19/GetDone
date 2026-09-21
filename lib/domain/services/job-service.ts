@@ -349,6 +349,7 @@ export class JobService {
         receipt = await requireAuthoritativeVerificationReceipt(store, receiptId, {
           scope: command.scope,
           subject: { type: "job", id },
+          now: this.now().getTime(),
           allowedVerdicts: ["verified"]
         });
       },
@@ -395,6 +396,7 @@ export class JobService {
         receipt = await requireAuthoritativeVerificationReceipt(store, receiptId, {
           scope: command.scope,
           subject: { type: "job", id },
+          now: this.now().getTime(),
           allowedVerdicts: ["uncertain"]
         });
       },
