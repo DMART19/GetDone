@@ -268,7 +268,7 @@ describe("Task and Job authoritative lifecycle hardening", () => {
       maxAttempts: 3,
       createdAt: fixtureNow.toISOString()
     }, createCommand);
-    expect((await service.create({
+    expect(await service.create({
       id: "job-created",
       taskId: "task-job-parent",
       dependencyJobIds: ["job-dependency"],
