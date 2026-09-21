@@ -15,7 +15,7 @@ const decisionMutationSchema = z.object({
   note: z.string().max(2_000).optional()
 });
 
-const resourceEnrollmentSchema = z.object({
+const resourceDiscoverySchema = z.object({
   id: z.string().min(1).max(160).regex(/^[A-Za-z0-9._:-]+$/),
   type: z.enum(["compute", "gpu", "storage", "network", "cloud", "partner", "other"]),
   providerId: z.string().min(1).max(160).optional(),
@@ -26,6 +26,29 @@ const resourceEnrollmentSchema = z.object({
   policyBindingIds: z.array(z.string().min(1).max(160)).max(100).optional(),
   region: z.string().min(1).max(160).optional(),
   architecture: z.string().min(1).max(160).optional()
+});
+
+const resourceEnrollmentStartSchema = z.object({
+  id: z.string().min(1).max(160).regex(/^[A-Za-z0-9._:-]+$/),
+  requestedType: z.enum(["compute", "gpu", "storage", "network", "cloud", "partner", "other"]),
+  ownerActionRequired: z.boolean(),
+  ownerActionDescription: z.string().min(1).max(2_000).optional(),
+  challengeToken: z.string().min(16).max(512),
+  challengeExpiresAt: z.string().datetime()
+});
+
+const resourceEnrollmentActionSchema = z.object({
+  action: z.enum([
+    "create", "owner-action", "authenticate", "discover", "profile", "validate",
+    "test", "register", "ready", "fail", "cancel", "expire", "restart"
+  ]),
+  evidenceId: z.string().min(1).max(160).optional(),
+  challengeToken: z.string().min(16).max(512).optional(),
+  authenticatedAt: z.string().datetime().optional(),
+  resourceId: z.string().min(1).max(160).regex(/^[A-Za-z0-9._:-]+$/).optional(),
+  reason: z.string().min(1).max(2_000).optional(),
+  challengeExpiresAt: z.string().datetime().optional(),
+  restartedAt: z.string().datetime().optional()
 });
 
 function safeId(value: string, label: string) {
@@ -134,15 +157,55 @@ export function handleGetResource(request: Request, resourceId: string) {
   });
 }
 
-export function handleEnrollResource(request: Request) {
+export function handleDiscoverResource(request: Request) {
   return execute(async (adapter) => {
     const actor = await adapter.authenticate(request);
-    const body = await parseJson(request, resourceEnrollmentSchema, "resource enrollment");
-    return adapter.enrollResource(actor, {
+    const body = await parseJson(request, resourceDiscoverySchema, "resource discovery");
+    return adapter.discoverResource(actor, {
       ...body,
       idempotencyKey: requireIdempotencyKey(request)
     });
   }, { status: 201 });
+}
+
+export function handleListResourceEnrollments(request: Request) {
+  return execute(async (adapter) =>
+    adapter.listResourceEnrollments(await adapter.authenticate(request))
+  );
+}
+
+export function handleGetResourceEnrollment(request: Request, enrollmentId: string) {
+  return execute(async (adapter) => {
+    const value = await adapter.getResourceEnrollment(
+      await adapter.authenticate(request),
+      safeId(enrollmentId, "enrollmentId")
+    );
+    if (!value) throw new ControlPlaneError("NOT_FOUND", "Resource enrollment was not found");
+    return value;
+  });
+}
+
+export function handleStartResourceEnrollment(request: Request) {
+  return execute(async (adapter) => {
+    const actor = await adapter.authenticate(request);
+    const body = await parseJson(request, resourceEnrollmentStartSchema, "resource enrollment");
+    return adapter.startResourceEnrollment(actor, {
+      ...body,
+      idempotencyKey: requireIdempotencyKey(request)
+    });
+  }, { status: 201 });
+}
+
+export function handleAdvanceResourceEnrollment(request: Request, enrollmentId: string) {
+  return execute(async (adapter) => {
+    const actor = await adapter.authenticate(request);
+    const body = await parseJson(request, resourceEnrollmentActionSchema, "resource enrollment action");
+    return adapter.advanceResourceEnrollment(
+      actor,
+      safeId(enrollmentId, "enrollmentId"),
+      { ...body, idempotencyKey: requireIdempotencyKey(request) }
+    );
+  });
 }
 
 export function handleListJobs(request: Request) {
