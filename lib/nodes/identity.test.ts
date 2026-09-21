@@ -4,10 +4,10 @@ import {
 } from "@/lib/nodes/identity";
 
 describe("DevelopmentNodeIdentityIssuer", () => {
-  const secret = "0123456789abcdef0123456789abcdef";
+  const signingFixture = "0123456789abcdef0123456789abcdef";
 
   it("issues and verifies a hash-bound development credential", async () => {
-    const issuer = new DevelopmentNodeIdentityIssuer(secret);
+    const issuer = new DevelopmentNodeIdentityIssuer(signingFixture);
     const credential = await issuer.issue({
       nodeId: "node-1",
       portfolioId: "portfolio-a",
@@ -25,7 +25,7 @@ describe("DevelopmentNodeIdentityIssuer", () => {
   });
 
   it("rotates to a distinct credential bound to the same node", async () => {
-    const issuer = new DevelopmentNodeIdentityIssuer(secret);
+    const issuer = new DevelopmentNodeIdentityIssuer(signingFixture);
     const current = await issuer.issue({
       nodeId: "node-1",
       portfolioId: "portfolio-a",
@@ -51,7 +51,7 @@ describe("DevelopmentNodeIdentityIssuer", () => {
   it("rejects short development signing secrets and invalid expiry", async () => {
     expect(() => new DevelopmentNodeIdentityIssuer("short"))
       .toThrow(/at least 32 bytes/i);
-    const issuer = new DevelopmentNodeIdentityIssuer(secret);
+    const issuer = new DevelopmentNodeIdentityIssuer(signingFixture);
     await expect(issuer.issue({
       nodeId: "node-1",
       portfolioId: "portfolio-a",
