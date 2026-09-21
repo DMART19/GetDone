@@ -116,7 +116,7 @@ function fakeAdapter(): ControlApiApplicationAdapter {
     authenticate: async () => principal,
     health: async () => ({
       service: "getdone-control-api",
-      surfaceVersion: "1.0.0",
+      surfaceVersion: "1.1.0",
       status: "ready",
       authConnected: true,
       persistenceConnected: true,
