@@ -561,6 +561,60 @@ for (const required of [
   if (!sourceTrust.includes(required)) fail(`Verification source trust contract missing: ${required}`);
 }
 
+const nodeContracts = read("lib/nodes/contracts.ts");
+const nodeDispatchContracts = read("lib/nodes/dispatch-contracts.ts");
+const nodeSchemas = read("lib/nodes/schemas.ts");
+const nodeHashes = read("lib/nodes/hashes.ts");
+const nodeEnrollment = read("lib/nodes/enrollment.ts");
+for (const required of [
+  'NODE_DOMAIN_VERSION = "1.0.0"',
+  'NODE_AGENT_PROTOCOL_VERSION = "1.0.0"',
+  'type NodeArchitecture = "x86_64" | "arm64"',
+  'type NodePlatform = "linux"',
+  "NodeAllocatableProfile",
+  "NodeHeartbeat",
+  "HardwareInventory"
+]) {
+  if (!nodeContracts.includes(required)) fail(`Phase 28.0 Node domain contract missing: ${required}`);
+}
+for (const required of [
+  'NODE_DISPATCH_CONTRACT_VERSION = "1.0.0"',
+  "authorizationConsumptionHash",
+  "executionSpecHash",
+  "reservationId",
+  "payloadHash",
+  "NodeJobResultSubmission"
+]) {
+  if (!nodeDispatchContracts.includes(required)) fail(`Phase 28.0 dispatch contract missing: ${required}`);
+}
+for (const required of [
+  'z.enum(["x86_64", "arm64"])',
+  'z.literal("linux")',
+  ".strict()",
+  "dispatch must expire after creation"
+]) {
+  if (!nodeSchemas.includes(required)) fail(`Phase 28.0 protocol validation missing: ${required}`);
+}
+for (const required of [
+  "sha256Hex",
+  "assertNodeDispatchIntegrity",
+  "hashHardwareInventory",
+  "hashNodeJobResult"
+]) {
+  if (!nodeHashes.includes(required)) fail(`Phase 28.0 canonical hashing missing: ${required}`);
+}
+for (const required of [
+  "class NodeEnrollmentCoordinator",
+  "ResourceEnrollmentService",
+  'requestedType: "compute"',
+  "resourceEnrollment.identify",
+  "resourceEnrollment.authenticate",
+  "resourceEnrollment.profile",
+  "resourceEnrollment.markReady"
+]) {
+  if (!nodeEnrollment.includes(required)) fail(`Phase 28.0 enrollment authority binding missing: ${required}`);
+}
+
 const ci = read(".github/workflows/ci.yml");
 for (const requiredScript of [
   "npm run verify:dependencies",
@@ -592,6 +646,7 @@ for (const required of [
   "policy",
   "aiGateway",
   "controlApi",
+  "nodeAgent",
   "integrations",
   "execution",
   "composition",
@@ -623,6 +678,19 @@ if (
   || releaseRegistry.adapters?.openRouter?.version !== "1.0.0"
 ) {
   fail("Phase 13 release state must expose the implemented OpenRouter adapter without claiming live routing/connectivity");
+}
+if (
+  releaseRegistry.nodeAgent?.status !== "contract-only"
+  || releaseRegistry.nodeAgent?.domainVersion !== "1.0.0"
+  || releaseRegistry.nodeAgent?.protocolVersion !== "1.0.0"
+  || releaseRegistry.nodeAgent?.dispatchContractVersion !== "1.0.0"
+  || releaseRegistry.nodeAgent?.linuxX64 !== "not-connected"
+  || releaseRegistry.nodeAgent?.linuxArm64 !== "not-connected"
+  || releaseRegistry.nodeAgent?.productionReady !== false
+  || releaseRegistry.schemaVersions?.nodeDomain?.version !== "1.0.0"
+  || releaseRegistry.schemaVersions?.nodeDispatch?.version !== "1.0.0"
+) {
+  fail("Phase 28.0 release state drifted or claims Node Agent connectivity");
 }
 if (
   releaseRegistry.controlApi?.surfaceVersion !== "1.0.0"
@@ -715,7 +783,15 @@ if (
 
 for (const [name, state] of Object.entries(releaseEnvironment.environments ?? {})) {
   if (
-    state.connections?.aiGateway !== false
+    state.nodeAgent?.status !== "contract-only"
+    || state.nodeAgent?.domainVersion !== "1.0.0"
+    || state.nodeAgent?.protocolVersion !== "1.0.0"
+    || state.nodeAgent?.dispatchContractVersion !== "1.0.0"
+    || state.nodeAgent?.linuxX64 !== "not-connected"
+    || state.nodeAgent?.linuxArm64 !== "not-connected"
+    || state.nodeAgent?.productionReady !== false
+    || state.connections?.resourceAgent !== false
+    ||     state.connections?.aiGateway !== false
     || state.aiGateway?.contractStatus !== "deterministic-contract"
     || state.aiGateway?.adapterStatus !== "not-connected"
     || state.aiGateway?.adapterImplementationStatus !== "implemented-unconfigured"
