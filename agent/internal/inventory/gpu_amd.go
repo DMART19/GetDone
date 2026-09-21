@@ -3,7 +3,6 @@ package inventory
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"strconv"
 	"strings"
 )
@@ -80,6 +79,5 @@ func firstUint(values map[string]any, keys ...string) uint64 {
 			}
 		}
 	}
-	_ = fmt.Sprintf("")
 	return 0
 }
