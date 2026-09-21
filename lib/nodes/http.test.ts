@@ -18,6 +18,7 @@ import type {
   ControlApiPrincipal
 } from "@/lib/control-api/contracts";
 import type {
+  CreateNodeEnrollmentInput,
   NodeEnrollmentApplicationAdapter
 } from "@/lib/nodes/application";
 
@@ -81,7 +82,7 @@ describe("Phase 28.2 Node enrollment HTTP surface", () => {
   it("accepts a valid agent bootstrap only through the installed application adapter", async () => {
     let received: unknown;
     installNodeEnrollmentAdapter({
-      enrollAgent: async (input) => {
+      enrollAgent: async (input: Parameters<NodeEnrollmentApplicationAdapter["enrollAgent"]>[0]) => {
         received = input;
         return {
           nodeId: "node-1",
@@ -118,7 +119,10 @@ describe("Phase 28.2 Node enrollment HTTP surface", () => {
     installOwnerAuth();
     let received: unknown;
     installNodeEnrollmentAdapter({
-      create: async (_principal, input) => {
+      create: async (
+        _principal: ControlApiPrincipal,
+        input: CreateNodeEnrollmentInput
+      ) => {
         received = input;
         return {
           enrollmentId: input.id,
