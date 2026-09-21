@@ -27,7 +27,7 @@ Added `lib/resources/storage-fabric.ts`.
 
 Version:
 
-`STORAGE_FABRIC_CONTRACT_VERSION = 1.0.0`
+`STORAGE_FABRIC_CONTRACT_VERSION = 1.1.0`
 
 Implemented:
 
@@ -91,7 +91,7 @@ Added `lib/resources/resilience.ts`.
 
 Version:
 
-`RESILIENCE_CONTRACT_VERSION = 1.0.0`
+`RESILIENCE_CONTRACT_VERSION = 1.1.0`
 
 Implemented:
 
@@ -159,7 +159,7 @@ Added:
 
 Version:
 
-`RESOURCE_ADAPTER_SDK_CONTRACT_VERSION = 1.0.0`
+`RESOURCE_ADAPTER_SDK_CONTRACT_VERSION = 1.1.0`
 
 Provider-neutral operations:
 
@@ -216,7 +216,7 @@ Added `lib/resources/pools.ts`.
 
 Version:
 
-`RESOURCE_POOL_CONTRACT_VERSION = 1.0.0`
+`RESOURCE_POOL_CONTRACT_VERSION = 1.1.0`
 
 Implemented:
 
@@ -291,7 +291,7 @@ Added `lib/security/phase44-adversarial-harness.ts`.
 
 Version:
 
-`PHASE44_DETERMINISTIC_HARNESS_VERSION = 1.0.0`
+`PHASE44_DETERMINISTIC_HARNESS_VERSION = 1.1.0`
 
 The offline blocking matrix includes:
 
