@@ -1,0 +1,40 @@
+name: Format Phase 28.2 Go files
+
+on:
+  push:
+    branches: [sol/phase28.2-secure-enrollment]
+    paths:
+      - ".github/workflows/phase28.2-gofmt.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: sol/phase28.2-secure-enrollment
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: agent/go.mod
+          cache: false
+
+      - name: Format Go
+        working-directory: agent
+        run: gofmt -w .
+
+      - name: Commit formatting
+        run: |
+          if git diff --quiet -- agent; then
+            echo "Go formatting already current"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add agent
+          git commit -m "Format Phase 28.2 Go enrollment code"
+          git push origin HEAD:sol/phase28.2-secure-enrollment
