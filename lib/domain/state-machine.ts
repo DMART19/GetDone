@@ -48,10 +48,10 @@ const transitions: Record<StateMachineEntity, Record<string, readonly string[]>>
     proposed: ["authorized", "cancelled"],
     authorized: ["queued", "cancelled"],
     queued: ["running", "cancelled", "failed"],
-    running: ["verifying", "failed", "cancelled"],
+    running: ["verifying", "failed", "cancelled", "queued"],
     verifying: ["succeeded", "failed", "uncertain"],
     succeeded: [],
-    failed: [],
+    failed: ["queued"],
     uncertain: [],
     cancelled: []
   },
@@ -62,7 +62,7 @@ const transitions: Record<StateMachineEntity, Record<string, readonly string[]>>
     running: ["verifying", "queued", "failed", "cancelled"],
     verifying: ["succeeded", "failed", "uncertain"],
     succeeded: [],
-    failed: [],
+    failed: ["queued"],
     uncertain: [],
     cancelled: []
   },
