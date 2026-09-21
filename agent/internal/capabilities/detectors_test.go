@@ -10,15 +10,15 @@ func TestRemainingInitialDetectorsValidate(t *testing.T) {
 		out []byte
 		err error
 	}{
-		"ctr version": success("Client:\n  Version: 2.0.0"),
-		"ctr plugins ls": success("TYPE ID PLATFORM STATUS"),
-		"java --version": success("openjdk 21.0.4"),
+		"ctr version":                      success("Client:\n  Version: 2.0.0"),
+		"ctr plugins ls":                   success("TYPE ID PLATFORM STATUS"),
+		"java --version":                   success("openjdk 21.0.4"),
 		"java -XshowSettings:vm --version": success("openjdk 21.0.4"),
-		"git --version": success("git version 2.47.0"),
+		"git --version":                    success("git version 2.47.0"),
 		"git check-ref-format refs/heads/getdone-capability-probe": success(""),
 		"ffmpeg -version": success("ffmpeg version 7.0"),
-		"ffmpeg -v error -f lavfi -i color=c=black:s=2x2:d=0.01 -f null -": success(""),
-		"nvidia-smi --query-gpu=driver_version --format=csv,noheader": success("570.1"),
+		"ffmpeg -v error -f lavfi -i color=c=black:s=2x2:d=0.01 -f null -":       success(""),
+		"nvidia-smi --query-gpu=driver_version --format=csv,noheader":            success("570.1"),
 		"nvidia-smi --query-gpu=index,compute_cap --format=csv,noheader,nounits": success("0, 8.9"),
 	}}
 
