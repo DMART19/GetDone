@@ -335,6 +335,12 @@ export function assertFailoverVerificationEvidence(input: {
     );
   }
   const observedAt = parseTime(input.evidence.observedAt, "failover verification observedAt");
+  if (observedAt < Date.parse(input.record.updatedAt)) {
+    throw new ControlPlaneError(
+      "FORBIDDEN",
+      "Failover verification evidence cannot predate the verifying state"
+    );
+  }
   if (input.now !== undefined && observedAt > input.now) {
     throw new ControlPlaneError(
       "FORBIDDEN",
