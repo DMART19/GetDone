@@ -9,10 +9,13 @@ import type { ResourceEnrollmentRecord } from "@/lib/resources/enrollment";
 
 export const CONTROL_API_SURFACE_VERSION = "1.0.0";
 
+export type ControlApiRole = "owner" | "admin" | "operator" | "viewer";
+
 export interface ControlApiPrincipal {
   actor: TrustedActor;
   scope: TrustedExecutionScope;
   sessionId: string;
+  role: ControlApiRole;
   /** Server-resolved evidence only. Never accept this proof from request JSON. */
   stepUpProof?: StepUpProof;
 }
