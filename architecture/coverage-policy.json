@@ -320,6 +320,41 @@
       "source": "lib/persistence/postgres/node-inventory-store.ts",
       "test": "lib/persistence/postgres/node-inventory-store.test.ts",
       "critical": true
+    },
+    {
+      "source": "lib/nodes/capability-service.ts",
+      "test": "lib/nodes/capability-service.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/nodes/capability-bridge.ts",
+      "test": "lib/nodes/capability-bridge.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/nodes/capability-runtime.server.ts",
+      "test": "lib/nodes/capability-http.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/nodes/capability-http.ts",
+      "test": "lib/nodes/capability-http.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/persistence/postgres/node-capability-store.ts",
+      "test": "lib/persistence/postgres/node-capability-store.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/nodes/capability-catalog.ts",
+      "test": "lib/nodes/capability-catalog.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/domain/resources.ts",
+      "test": "lib/domain/resources.test.ts",
+      "critical": true
     }
   ]
 }

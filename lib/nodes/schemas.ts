@@ -125,6 +125,36 @@ export const nodeCapabilitySchema = z.object({
   capabilityHash: hash
 }).strict();
 
+export const nodeCapabilityProfileSchema = z.object({
+  nodeId: safeId,
+  observedAt: isoDate,
+  capabilities: z.array(nodeCapabilitySchema).max(100),
+  profileHash: hash
+}).strict().superRefine((value, ctx) => {
+  const names = new Set<string>();
+  for (const capability of value.capabilities) {
+    if (capability.nodeId !== value.nodeId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Capability nodeId must match profile nodeId"
+      });
+    }
+    if (capability.observedAt !== value.observedAt) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Capability observedAt must match profile observedAt"
+      });
+    }
+    if (names.has(capability.name)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `Duplicate capability name: ${capability.name}`
+      });
+    }
+    names.add(capability.name);
+  }
+});
+
 export const nodeAllocatableProfileSchema = z.object({
   nodeId: safeId,
   cpuMillicores: positiveInt,

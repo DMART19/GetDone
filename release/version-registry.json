@@ -1,6 +1,6 @@
 {
   "registrySchemaVersion": "1.6.0",
-  "registryVersion": "2026-09-21.6",
+  "registryVersion": "2026-09-21.7",
   "appVersion": "0.1.0",
   "schemaVersions": {
     "controlApi": {
@@ -226,6 +226,14 @@
     "nodeInventory": {
       "version": "1.0.0",
       "sourcePath": "lib/nodes/inventory-service.ts"
+    },
+    "nodeCapability": {
+      "version": "1.0.0",
+      "sourcePath": "lib/nodes/capability-service.ts"
+    },
+    "nodeCapabilityBridge": {
+      "version": "1.0.0",
+      "sourcePath": "lib/nodes/capability-bridge.ts"
     }
   },
   "policy": {
@@ -423,7 +431,15 @@
     "agent/internal/inventory/inventory_test.go",
     "lib/nodes/inventory-service.test.ts",
     "lib/nodes/agent-http.test.ts",
-    "lib/persistence/postgres/node-inventory-store.test.ts"
+    "lib/persistence/postgres/node-inventory-store.test.ts",
+    "agent/internal/capabilities/profile_test.go",
+    "lib/nodes/capability-service.test.ts",
+    "lib/nodes/capability-bridge.test.ts",
+    "lib/nodes/capability-http.test.ts",
+    "lib/persistence/postgres/node-capability-store.test.ts",
+    "agent/internal/capabilities/detectors_test.go",
+    "lib/nodes/capability-catalog.test.ts",
+    "lib/domain/resources.test.ts"
   ],
   "manualSourcePaths": [
     "docs/ARCHITECTURE.md",
@@ -541,8 +557,8 @@
     "domainVersion": "1.0.0",
     "protocolVersion": "1.0.0",
     "dispatchContractVersion": "1.0.0",
-    "linuxX64": "inventory-capable-build",
-    "linuxArm64": "inventory-capable-build",
+    "linuxX64": "capability-profile-build",
+    "linuxArm64": "capability-profile-build",
     "productionReady": false,
     "sourcePaths": [
       "lib/nodes/contracts.ts",
@@ -594,9 +610,30 @@
       "lib/nodes/agent-http.ts",
       "lib/persistence/postgres/node-inventory-store.ts",
       "app/api/agent/v1/inventory/route.ts",
-      "migrations/2026-09-21.3_phase28_inventory.sql"
+      "migrations/2026-09-21.3_phase28_inventory.sql",
+      "agent/internal/capabilities/detector.go",
+      "agent/internal/capabilities/run.go",
+      "agent/internal/capabilities/docker.go",
+      "agent/internal/capabilities/containerd.go",
+      "agent/internal/capabilities/python.go",
+      "agent/internal/capabilities/nodejs.go",
+      "agent/internal/capabilities/java.go",
+      "agent/internal/capabilities/git.go",
+      "agent/internal/capabilities/ollama.go",
+      "agent/internal/capabilities/cuda.go",
+      "agent/internal/capabilities/ffmpeg.go",
+      "agent/internal/capabilities/profile.go",
+      "agent/internal/capabilities/local.go",
+      "lib/nodes/capability-catalog.ts",
+      "lib/nodes/capability-service.ts",
+      "lib/nodes/capability-bridge.ts",
+      "lib/nodes/capability-runtime.server.ts",
+      "lib/nodes/capability-http.ts",
+      "lib/persistence/postgres/node-capability-store.ts",
+      "app/api/agent/v1/capabilities/route.ts",
+      "migrations/2026-09-21.4_phase28_capabilities.sql"
     ],
-    "agentVersion": "0.3.0-development",
+    "agentVersion": "0.4.0-development",
     "enrollmentStatus": "implemented-unconnected",
     "nodePersistenceStatus": "implemented-unconnected",
     "identityIssuerStatus": "development-only",
@@ -608,6 +645,13 @@
     "inventoryApiStatus": "implemented-unconnected",
     "inventoryPersistenceStatus": "implemented-unconnected",
     "authenticatedAgentTransportStatus": "not-connected",
-    "inventoryMigrationVersion": "2026-09-21.3"
+    "inventoryMigrationVersion": "2026-09-21.3",
+    "capabilityProfilingStatus": "implemented",
+    "capabilityValidationStatus": "implemented",
+    "capabilityApiStatus": "implemented-unconnected",
+    "capabilityPersistenceStatus": "implemented-unconnected",
+    "capabilityRegistryBridgeStatus": "implemented",
+    "resourceCapabilityBindingStatus": "implemented-unconnected",
+    "capabilityMigrationVersion": "2026-09-21.4"
   }
 }

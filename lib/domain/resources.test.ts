@@ -124,6 +124,27 @@ describe("resource registry readiness", () => {
     );
   });
 
+  it("treats the newest capability evidence as authoritative", () => {
+    const result = evaluateResourceReadiness(resource, {
+      ...evidence,
+      capabilities: [
+        ...evidence.capabilities,
+        {
+          ...evidence.capabilities[0],
+          id: "capability-2",
+          validated: false,
+          evidenceIds: ["capability-revoked"],
+          observedAt: "2026-09-20T19:58:00Z"
+        }
+      ]
+    }, now);
+
+    expect(result.ready).toBe(false);
+    expect(result.reasons).toContain(
+      "validated-capability-required:compute.cpu.light"
+    );
+  });
+
   it("rejects evidence from another company", () => {
     const result = evaluateResourceReadiness(resource, {
       ...evidence,

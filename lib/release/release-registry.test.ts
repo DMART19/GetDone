@@ -83,6 +83,13 @@ interface ReleaseRegistryShape {
     inventoryPersistenceStatus: string;
     authenticatedAgentTransportStatus: string;
     inventoryMigrationVersion: string;
+    capabilityProfilingStatus: string;
+    capabilityValidationStatus: string;
+    capabilityApiStatus: string;
+    capabilityPersistenceStatus: string;
+    capabilityRegistryBridgeStatus: string;
+    resourceCapabilityBindingStatus: string;
+    capabilityMigrationVersion: string;
     sourcePaths: string[];
   };
   integrations: {
@@ -193,6 +200,13 @@ interface EnvironmentShape {
     inventoryPersistenceStatus: string;
     authenticatedAgentTransportStatus: string;
     inventoryMigrationVersion: string;
+    capabilityProfilingStatus: string;
+    capabilityValidationStatus: string;
+    capabilityApiStatus: string;
+    capabilityPersistenceStatus: string;
+    capabilityRegistryBridgeStatus: string;
+    resourceCapabilityBindingStatus: string;
+    capabilityMigrationVersion: string;
   };
   integrations: {
     registryStatus: string;
@@ -294,16 +308,16 @@ describe("Phase 41 release/version registry", () => {
     });
   });
 
-  it("records Phase 28.3 hardware discovery without claiming live authenticated inventory transport", () => {
+  it("records Phase 28.4 capability profiling without claiming live capability binding connectivity", () => {
     expect(registry.nodeAgent).toMatchObject({
       status: "implemented-development-only",
       domainVersion: NODE_DOMAIN_VERSION,
       protocolVersion: NODE_AGENT_PROTOCOL_VERSION,
       dispatchContractVersion: NODE_DISPATCH_CONTRACT_VERSION,
-      linuxX64: "inventory-capable-build",
-      linuxArm64: "inventory-capable-build",
+      linuxX64: "capability-profile-build",
+      linuxArm64: "capability-profile-build",
       productionReady: false,
-      agentVersion: "0.3.0-development",
+      agentVersion: "0.4.0-development",
       enrollmentStatus: "implemented-unconnected",
       nodePersistenceStatus: "implemented-unconnected",
       identityIssuerStatus: "development-only",
@@ -315,7 +329,14 @@ describe("Phase 41 release/version registry", () => {
       inventoryApiStatus: "implemented-unconnected",
       inventoryPersistenceStatus: "implemented-unconnected",
       authenticatedAgentTransportStatus: "not-connected",
-      inventoryMigrationVersion: "2026-09-21.3"
+      inventoryMigrationVersion: "2026-09-21.3",
+      capabilityProfilingStatus: "implemented",
+      capabilityValidationStatus: "implemented",
+      capabilityApiStatus: "implemented-unconnected",
+      capabilityPersistenceStatus: "implemented-unconnected",
+      capabilityRegistryBridgeStatus: "implemented",
+      resourceCapabilityBindingStatus: "implemented-unconnected",
+      capabilityMigrationVersion: "2026-09-21.4"
     });
     expect(registry.schemaVersions.nodeDomain).toMatchObject({
       version: NODE_DOMAIN_VERSION,
@@ -332,6 +353,12 @@ describe("Phase 41 release/version registry", () => {
     expect(registry.schemaVersions.nodeInventory).toMatchObject({
       version: "1.0.0"
     });
+    expect(registry.schemaVersions.nodeCapability).toMatchObject({
+      version: "1.0.0"
+    });
+    expect(registry.schemaVersions.nodeCapabilityBridge).toMatchObject({
+      version: "1.0.0"
+    });
     for (const state of Object.values(environment.environments)) {
       expect(state.connections.resourceAgent).toBe(false);
       expect(state.nodeAgent).toMatchObject({
@@ -339,15 +366,22 @@ describe("Phase 41 release/version registry", () => {
         domainVersion: NODE_DOMAIN_VERSION,
         protocolVersion: NODE_AGENT_PROTOCOL_VERSION,
         dispatchContractVersion: NODE_DISPATCH_CONTRACT_VERSION,
-        linuxX64: "inventory-capable-build",
-        linuxArm64: "inventory-capable-build",
+        linuxX64: "capability-profile-build",
+        linuxArm64: "capability-profile-build",
         productionReady: false,
-        agentVersion: "0.3.0-development",
+        agentVersion: "0.4.0-development",
         inventoryDiscoveryStatus: "implemented",
         inventoryApiStatus: "implemented-unconnected",
         inventoryPersistenceStatus: "implemented-unconnected",
         authenticatedAgentTransportStatus: "not-connected",
-        inventoryMigrationVersion: "2026-09-21.3"
+        inventoryMigrationVersion: "2026-09-21.3",
+        capabilityProfilingStatus: "implemented",
+        capabilityValidationStatus: "implemented",
+        capabilityApiStatus: "implemented-unconnected",
+        capabilityPersistenceStatus: "implemented-unconnected",
+        capabilityRegistryBridgeStatus: "implemented",
+        resourceCapabilityBindingStatus: "implemented-unconnected",
+        capabilityMigrationVersion: "2026-09-21.4"
       });
     }
   });

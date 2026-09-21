@@ -270,6 +270,15 @@ export function evaluateResourceReadiness(
   const trust = evidence.trust.filter((item) => evidenceInScope(item, resource, now));
   const health = evidence.health.filter((item) => evidenceInScope(item, resource, now));
   const capabilities = evidence.capabilities.filter((item) => evidenceInScope(item, resource, now));
+  const latestCapabilities = new Map<string, ResourceCapabilityBinding>();
+  for (const capability of [...capabilities].sort((left, right) => {
+    const observed = Date.parse(right.observedAt) - Date.parse(left.observedAt);
+    return observed !== 0 ? observed : right.id.localeCompare(left.id);
+  })) {
+    if (!latestCapabilities.has(capability.capabilityName)) {
+      latestCapabilities.set(capability.capabilityName, capability);
+    }
+  }
   const locations = evidence.locations.filter((item) => evidenceInScope(item, resource, now));
   const providers = evidence.providers.filter((item) => evidenceInScope(item, resource, now));
 
@@ -292,12 +301,8 @@ export function evaluateResourceReadiness(
   }
 
   for (const capabilityName of resource.capabilityNames) {
-    if (!capabilities.some(
-      (item) =>
-        item.capabilityName === capabilityName
-        && item.validated
-        && Boolean(item.adapterBinding)
-    )) {
+    const latest = latestCapabilities.get(capabilityName);
+    if (!latest?.validated || !latest.adapterBinding) {
       reasons.push("validated-capability-required:" + capabilityName);
     }
   }
