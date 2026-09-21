@@ -630,6 +630,107 @@ for (const required of [
   if (!agentWorkflow.includes(required)) fail(`Phase 28.1 Go CI gate missing: ${required}`);
 }
 
+const agentCapabilityProfile = read("agent/internal/capabilities/profile.go");
+const agentDockerCapability = read("agent/internal/capabilities/docker.go");
+const agentCudaCapability = read("agent/internal/capabilities/cuda.go");
+const nodeCapabilityCatalog = read("lib/nodes/capability-catalog.ts");
+const nodeCapabilityService = read("lib/nodes/capability-service.ts");
+const nodeCapabilityBridge = read("lib/nodes/capability-bridge.ts");
+const nodeCapabilityRuntime = read("lib/nodes/capability-runtime.server.ts");
+const nodeCapabilityHttp = read("lib/nodes/capability-http.ts");
+const nodeCapabilityStore = read("lib/persistence/postgres/node-capability-store.ts");
+const nodeCapabilityMigration = read("migrations/2026-09-21.4_phase28_capabilities.sql");
+
+for (const required of [
+  "DefaultDetectors",
+  "DockerDetector",
+  "ContainerdDetector",
+  "PythonDetector",
+  "NodeJSDetector",
+  "JavaDetector",
+  "GitDetector",
+  "OllamaDetector",
+  "CUDADetector",
+  "FFmpegDetector",
+  "SHA256CanonicalWithoutField"
+]) {
+  if (!agentCapabilityProfile.includes(required)) fail(`Phase 28.4 capability profiler missing: ${required}`);
+}
+for (const required of [
+  '"--pull=never"',
+  '"--network=none"',
+  '"--read-only"',
+  '"--cap-drop=ALL"'
+]) {
+  if (!agentDockerCapability.includes(required)) fail(`Phase 28.4 Docker validation safety invariant missing: ${required}`);
+}
+if (!agentCudaCapability.includes('"nvidia-smi"')) {
+  fail("Phase 28.4 CUDA validation must use the local NVIDIA driver boundary");
+}
+for (const required of [
+  '"runtime.docker"',
+  '"runtime.containerd"',
+  '"runtime.python"',
+  '"runtime.nodejs"',
+  '"runtime.java"',
+  '"tool.git"',
+  '"runtime.ollama"',
+  '"gpu.cuda"',
+  '"tool.ffmpeg"'
+]) {
+  if (!nodeCapabilityCatalog.includes(required)) fail(`Phase 28.4 bounded capability catalog missing: ${required}`);
+}
+for (const required of [
+  'NODE_CAPABILITY_SERVICE_VERSION = "1.0.0"',
+  "hashNodeCapabilityProfile",
+  "hashNodeCapability(capability)",
+  "Authoritative Node inventory is required before capability profiling",
+  "CUDA capability evidence is inconsistent with authoritative hardware inventory"
+]) {
+  if (!nodeCapabilityService.includes(required)) fail(`Phase 28.4 capability authority check missing: ${required}`);
+}
+for (const required of [
+  'NODE_CAPABILITY_BRIDGE_VERSION = "1.0.0"',
+  "getCapability",
+  '"compute.cpu.light"',
+  '"compute.gpu.inference"',
+  'adapterBinding.startsWith("resource.")'
+]) {
+  if (!nodeCapabilityBridge.includes(required)) fail(`Phase 28.4 Capability Registry bridge missing: ${required}`);
+}
+for (const required of [
+  "Node capability persistence service is not connected",
+  "installNodeCapabilityAdapter",
+  "resetNodeCapabilityAdapter"
+]) {
+  if (!nodeCapabilityRuntime.includes(required)) fail(`Phase 28.4 fail-closed capability runtime missing: ${required}`);
+}
+for (const required of [
+  "Idempotency-Key header is required",
+  "getNodeAgentAuthenticator().authenticate",
+  "nodeCapabilityProfileSchema"
+]) {
+  if (!nodeCapabilityHttp.includes(required)) fail(`Phase 28.4 capability HTTP boundary missing: ${required}`);
+}
+for (const required of [
+  "SELECT id FROM compute_nodes WHERE id=$1 FOR UPDATE",
+  "absent-from-full-profile",
+  "older than authoritative current state",
+  "node_capability_history",
+  "node_capability_state"
+]) {
+  if (!nodeCapabilityStore.includes(required)) fail(`Phase 28.4 capability reconciliation invariant missing: ${required}`);
+}
+for (const required of [
+  "node_capability_profiles",
+  "node_capability_state",
+  "node_capability_history",
+  "UNIQUE(node_id, profile_hash)",
+  "PRIMARY KEY(node_id, capability_name)"
+]) {
+  if (!nodeCapabilityMigration.includes(required)) fail(`Phase 28.4 capability migration invariant missing: ${required}`);
+}
+
 const agentInventory = read("agent/internal/inventory/inventory.go");
 const agentCPUInventory = read("agent/internal/inventory/cpu_linux.go");
 const agentStorageInventory = read("agent/internal/inventory/storage_linux.go");
@@ -930,10 +1031,10 @@ if (
   || releaseRegistry.nodeAgent?.domainVersion !== "1.0.0"
   || releaseRegistry.nodeAgent?.protocolVersion !== "1.0.0"
   || releaseRegistry.nodeAgent?.dispatchContractVersion !== "1.0.0"
-  || releaseRegistry.nodeAgent?.linuxX64 !== "inventory-capable-build"
-  || releaseRegistry.nodeAgent?.linuxArm64 !== "inventory-capable-build"
+  || releaseRegistry.nodeAgent?.linuxX64 !== "capability-profile-build"
+  || releaseRegistry.nodeAgent?.linuxArm64 !== "capability-profile-build"
   || releaseRegistry.nodeAgent?.productionReady !== false
-  || releaseRegistry.nodeAgent?.agentVersion !== "0.3.0-development"
+  || releaseRegistry.nodeAgent?.agentVersion !== "0.4.0-development"
   || releaseRegistry.nodeAgent?.enrollmentStatus !== "implemented-unconnected"
   || releaseRegistry.nodeAgent?.nodePersistenceStatus !== "implemented-unconnected"
   || releaseRegistry.nodeAgent?.identityIssuerStatus !== "development-only"
@@ -946,12 +1047,21 @@ if (
   || releaseRegistry.nodeAgent?.inventoryPersistenceStatus !== "implemented-unconnected"
   || releaseRegistry.nodeAgent?.authenticatedAgentTransportStatus !== "not-connected"
   || releaseRegistry.nodeAgent?.inventoryMigrationVersion !== "2026-09-21.3"
+  || releaseRegistry.nodeAgent?.capabilityProfilingStatus !== "implemented"
+  || releaseRegistry.nodeAgent?.capabilityValidationStatus !== "implemented"
+  || releaseRegistry.nodeAgent?.capabilityApiStatus !== "implemented-unconnected"
+  || releaseRegistry.nodeAgent?.capabilityPersistenceStatus !== "implemented-unconnected"
+  || releaseRegistry.nodeAgent?.capabilityRegistryBridgeStatus !== "implemented"
+  || releaseRegistry.nodeAgent?.resourceCapabilityBindingStatus !== "implemented-unconnected"
+  || releaseRegistry.nodeAgent?.capabilityMigrationVersion !== "2026-09-21.4"
+  || releaseRegistry.schemaVersions?.nodeCapability?.version !== "1.0.0"
+  || releaseRegistry.schemaVersions?.nodeCapabilityBridge?.version !== "1.0.0"
   || releaseRegistry.schemaVersions?.nodeInventory?.version !== "1.0.0"
   || releaseRegistry.schemaVersions?.nodeIdentity?.version !== "1.0.0"
   || releaseRegistry.schemaVersions?.nodeDomain?.version !== "1.0.0"
   || releaseRegistry.schemaVersions?.nodeDispatch?.version !== "1.0.0"
 ) {
-  fail("Phase 28.3 release state drifted or overclaims live Node Agent inventory connectivity");
+  fail("Phase 28.4 release state drifted or overclaims live Node capability/binding connectivity");
 }
 if (
   releaseRegistry.controlApi?.surfaceVersion !== "1.0.0"
@@ -1048,10 +1158,10 @@ for (const [name, state] of Object.entries(releaseEnvironment.environments ?? {}
     || state.nodeAgent?.domainVersion !== "1.0.0"
     || state.nodeAgent?.protocolVersion !== "1.0.0"
     || state.nodeAgent?.dispatchContractVersion !== "1.0.0"
-    || state.nodeAgent?.linuxX64 !== "inventory-capable-build"
-    || state.nodeAgent?.linuxArm64 !== "inventory-capable-build"
+    || state.nodeAgent?.linuxX64 !== "capability-profile-build"
+    || state.nodeAgent?.linuxArm64 !== "capability-profile-build"
     || state.nodeAgent?.productionReady !== false
-    || state.nodeAgent?.agentVersion !== "0.3.0-development"
+    || state.nodeAgent?.agentVersion !== "0.4.0-development"
     || state.nodeAgent?.enrollmentStatus !== "implemented-unconnected"
     || state.nodeAgent?.nodePersistenceStatus !== "implemented-unconnected"
     || state.nodeAgent?.identityIssuerStatus !== "development-only"
@@ -1064,6 +1174,13 @@ for (const [name, state] of Object.entries(releaseEnvironment.environments ?? {}
     || state.nodeAgent?.inventoryPersistenceStatus !== "implemented-unconnected"
     || state.nodeAgent?.authenticatedAgentTransportStatus !== "not-connected"
     || state.nodeAgent?.inventoryMigrationVersion !== "2026-09-21.3"
+    || state.nodeAgent?.capabilityProfilingStatus !== "implemented"
+    || state.nodeAgent?.capabilityValidationStatus !== "implemented"
+    || state.nodeAgent?.capabilityApiStatus !== "implemented-unconnected"
+    || state.nodeAgent?.capabilityPersistenceStatus !== "implemented-unconnected"
+    || state.nodeAgent?.capabilityRegistryBridgeStatus !== "implemented"
+    || state.nodeAgent?.resourceCapabilityBindingStatus !== "implemented-unconnected"
+    || state.nodeAgent?.capabilityMigrationVersion !== "2026-09-21.4"
     || state.connections?.resourceAgent !== false
     ||     state.connections?.aiGateway !== false
     || state.aiGateway?.contractStatus !== "deterministic-contract"
