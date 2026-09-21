@@ -630,6 +630,95 @@ for (const required of [
   if (!agentWorkflow.includes(required)) fail(`Phase 28.1 Go CI gate missing: ${required}`);
 }
 
+const nodeIdentity = read("lib/nodes/identity.ts");
+const nodeApplication = read("lib/nodes/application.ts");
+const nodeRuntime = read("lib/nodes/runtime.server.ts");
+const nodeHttp = read("lib/nodes/http.ts");
+const nodeEnrollmentStore = read("lib/persistence/postgres/node-enrollment-store.ts");
+const nodeIdentityStore = read("lib/persistence/postgres/node-identity-store.ts");
+const nodeMigration = read("migrations/2026-09-21.2_phase28_nodes.sql");
+const agentEnrollment = read("agent/internal/enrollment/client.go");
+const agentInstaller = read("agent/packaging/install/install.sh");
+
+for (const required of [
+  'NODE_IDENTITY_CONTRACT_VERSION = "1.0.0"',
+  "interface NodeIdentityIssuer",
+  "DevelopmentNodeIdentityIssuer",
+  "timingSafeEqual"
+]) {
+  if (!nodeIdentity.includes(required)) fail(`Phase 28.2 identity contract missing: ${required}`);
+}
+for (const required of [
+  'NODE_ENROLLMENT_APPLICATION_VERSION = "1.0.0"',
+  "challengeSecret",
+  "deriveEnrollmentToken",
+  "getCompletedBootstrap",
+  "coordinator.authenticate",
+  "completeBootstrap"
+]) {
+  if (!nodeApplication.includes(required)) fail(`Phase 28.2 secure enrollment invariant missing: ${required}`);
+}
+for (const required of [
+  "Node enrollment application adapter is not connected",
+  "installNodeEnrollmentAdapter",
+  "resetNodeEnrollmentAdapter"
+]) {
+  if (!nodeRuntime.includes(required)) fail(`Phase 28.2 fail-closed runtime invariant missing: ${required}`);
+}
+for (const required of [
+  "getControlApiAdapter().authenticate",
+  "Idempotency-Key header is required",
+  "handleAgentNodeEnrollment",
+  "nodeAgentBootstrapSchema"
+]) {
+  if (!nodeHttp.includes(required)) fail(`Phase 28.2 HTTP boundary missing: ${required}`);
+}
+for (const required of [
+  "FOR UPDATE",
+  "consumed_nonce_hash",
+  "INSERT INTO compute_nodes",
+  "INSERT INTO node_identity_credentials",
+  "Node enrollment challenge was already consumed"
+]) {
+  if (!nodeEnrollmentStore.includes(required)) fail(`Phase 28.2 atomic bootstrap persistence missing: ${required}`);
+}
+for (const required of [
+  "rotateAtomic",
+  "previous_credential_id",
+  "next_credential_id",
+  "rotationHash"
+]) {
+  if (!nodeIdentityStore.includes(required)) fail(`Phase 28.2 credential rotation lineage missing: ${required}`);
+}
+for (const required of [
+  "node_enrollment_challenges",
+  "token_hash text NOT NULL UNIQUE",
+  "node_identity_one_active_credential",
+  "node_certificate_rotations",
+  "node_agent_sessions"
+]) {
+  if (!nodeMigration.includes(required)) fail(`Phase 28.2 node migration invariant missing: ${required}`);
+}
+for (const required of [
+  "ed25519.GenerateKey",
+  '"/api/agent/v1/enroll"',
+  "config.EraseEnrollmentToken",
+  "CertificateReference",
+  "PrivateKeyReference"
+]) {
+  if (!agentEnrollment.includes(required)) fail(`Phase 28.2 agent bootstrap invariant missing: ${required}`);
+}
+for (const required of [
+  "--enrollment",
+  "sha256sum --check",
+  "useradd --system",
+  "systemctl enable --now getdone-agent.service",
+  "getdone-agent-linux-amd64",
+  "getdone-agent-linux-arm64"
+]) {
+  if (!agentInstaller.includes(required)) fail(`Phase 28.2 installer invariant missing: ${required}`);
+}
+
 const nodeContracts = read("lib/nodes/contracts.ts");
 const nodeDispatchContracts = read("lib/nodes/dispatch-contracts.ts");
 const nodeSchemas = read("lib/nodes/schemas.ts");
@@ -756,10 +845,19 @@ if (
   || releaseRegistry.nodeAgent?.linuxX64 !== "build-only"
   || releaseRegistry.nodeAgent?.linuxArm64 !== "build-only"
   || releaseRegistry.nodeAgent?.productionReady !== false
+  || releaseRegistry.nodeAgent?.agentVersion !== "0.2.0-development"
+  || releaseRegistry.nodeAgent?.enrollmentStatus !== "implemented-unconnected"
+  || releaseRegistry.nodeAgent?.nodePersistenceStatus !== "implemented-unconnected"
+  || releaseRegistry.nodeAgent?.identityIssuerStatus !== "development-only"
+  || releaseRegistry.nodeAgent?.productionCaStatus !== "not-connected"
+  || releaseRegistry.nodeAgent?.productionMtlsStatus !== "not-connected"
+  || releaseRegistry.nodeAgent?.enrollmentMigrationVersion !== "2026-09-21.2"
+  || releaseRegistry.nodeAgent?.bootstrapAuthentication !== "one-time-token"
+  || releaseRegistry.schemaVersions?.nodeIdentity?.version !== "1.0.0"
   || releaseRegistry.schemaVersions?.nodeDomain?.version !== "1.0.0"
   || releaseRegistry.schemaVersions?.nodeDispatch?.version !== "1.0.0"
 ) {
-  fail("Phase 28.0 release state drifted or claims Node Agent connectivity");
+  fail("Phase 28.2 release state drifted or overclaims Node Agent production identity connectivity");
 }
 if (
   releaseRegistry.controlApi?.surfaceVersion !== "1.0.0"
@@ -859,6 +957,14 @@ for (const [name, state] of Object.entries(releaseEnvironment.environments ?? {}
     || state.nodeAgent?.linuxX64 !== "build-only"
     || state.nodeAgent?.linuxArm64 !== "build-only"
     || state.nodeAgent?.productionReady !== false
+    || state.nodeAgent?.agentVersion !== "0.2.0-development"
+    || state.nodeAgent?.enrollmentStatus !== "implemented-unconnected"
+    || state.nodeAgent?.nodePersistenceStatus !== "implemented-unconnected"
+    || state.nodeAgent?.identityIssuerStatus !== "development-only"
+    || state.nodeAgent?.productionCaStatus !== "not-connected"
+    || state.nodeAgent?.productionMtlsStatus !== "not-connected"
+    || state.nodeAgent?.enrollmentMigrationVersion !== "2026-09-21.2"
+    || state.nodeAgent?.bootstrapAuthentication !== "one-time-token"
     || state.connections?.resourceAgent !== false
     ||     state.connections?.aiGateway !== false
     || state.aiGateway?.contractStatus !== "deterministic-contract"
