@@ -236,6 +236,64 @@ for (const required of [
   if (!controlApiServices.includes(required)) fail(`Control API service authority binding missing: ${required}`);
 }
 
+const nodeContracts = read("lib/nodes/contracts.ts");
+const nodeDispatchContracts = read("lib/nodes/dispatch-contracts.ts");
+const nodeEnrollment = read("lib/nodes/enrollment.ts");
+const nodeSchemas = read("lib/nodes/schemas.ts");
+const nodeHashes = read("lib/nodes/hashes.ts");
+
+for (const required of [
+  'NODE_DOMAIN_VERSION = "1.0.0"',
+  'NODE_AGENT_PROTOCOL_VERSION = "1.0.0"',
+  'export type NodeArchitecture = "x86_64" | "arm64"',
+  'export type NodePlatform = "linux"',
+  "NodeAllocatableProfile",
+  "NodeHeartbeat",
+  "HardwareInventory"
+]) {
+  if (!nodeContracts.includes(required)) fail(`Phase 28.0 node-domain invariant missing: ${required}`);
+}
+for (const required of [
+  'NODE_DISPATCH_CONTRACT_VERSION = "1.0.0"',
+  "authorizationConsumptionHash",
+  "executionSpecHash",
+  "reservationId",
+  "payloadHash",
+  "NodeJobResultSubmission"
+]) {
+  if (!nodeDispatchContracts.includes(required)) fail(`Phase 28.0 node-dispatch invariant missing: ${required}`);
+}
+for (const required of [
+  "ResourceEnrollmentService",
+  'requestedType: "compute"',
+  "requestedEnvironments: [request.environment]",
+  "Node enrollment scope must exactly match the trusted command scope",
+  "Unsupported authoritative node architecture"
+]) {
+  if (!nodeEnrollment.includes(required)) fail(`Phase 28.0 enrollment authority binding missing: ${required}`);
+}
+for (const required of [
+  'z.enum(["x86_64", "arm64"])',
+  'z.literal("linux")',
+  "parseNodeJobDispatch",
+  "Node dispatch has expired",
+  "Node dispatch hash is invalid",
+  "reservationId: id"
+]) {
+  if (!nodeSchemas.includes(required)) fail(`Phase 28.0 protocol schema guard missing: ${required}`);
+}
+for (const required of [
+  "hashHardwareInventory",
+  "hashNodeCapability",
+  "hashAllocatableProfile",
+  "hashNodeHeartbeat",
+  "hashNodeDispatch",
+  "hashNodeJobResult",
+  "sha256Hex"
+]) {
+  if (!nodeHashes.includes(required)) fail(`Phase 28.0 canonical node hash missing: ${required}`);
+}
+
 const aiBudgetReservation = read("lib/ai-gateway/budget-reservation.ts");
 for (const required of [
   'AI_BUDGET_RESERVATION_CONTRACT_VERSION = "1.0.0"',
@@ -592,6 +650,7 @@ for (const required of [
   "policy",
   "aiGateway",
   "controlApi",
+  "nodeAgent",
   "integrations",
   "execution",
   "composition",
@@ -634,6 +693,20 @@ if (
 ) {
   fail("Control API release state must expose the implemented surface while preserving unconnected authority adapters");
 }
+if (
+  releaseRegistry.nodeAgent?.status !== "contract-only"
+  || releaseRegistry.nodeAgent?.domainVersion !== "1.0.0"
+  || releaseRegistry.nodeAgent?.protocolVersion !== "1.0.0"
+  || releaseRegistry.nodeAgent?.dispatchContractVersion !== "1.0.0"
+  || releaseRegistry.nodeAgent?.linuxX64 !== "not-connected"
+  || releaseRegistry.nodeAgent?.linuxArm64 !== "not-connected"
+  || releaseRegistry.adapters?.nodeAgent?.status !== "contract-only"
+  || releaseRegistry.schemaVersions?.nodeDomain?.version !== "1.0.0"
+  || releaseRegistry.schemaVersions?.nodeDispatch?.version !== "1.0.0"
+) {
+  fail("Phase 28.0 release state must remain contract-only for both Linux architectures");
+}
+
 if (
   releaseRegistry.schemaVersions?.aiBudgetReservation?.version !== "1.0.0"
   || releaseRegistry.schemaVersions?.aiBudgetReservation?.contractTracked !== true
@@ -721,6 +794,11 @@ for (const [name, state] of Object.entries(releaseEnvironment.environments ?? {}
     || state.aiGateway?.adapterImplementationStatus !== "implemented-unconfigured"
     || state.aiGateway?.provider !== "OPENROUTER_UNCONFIGURED"
     || state.connections?.controlApiPersistence !== false
+    || state.connections?.resourceAgent !== false
+    || state.nodeAgent?.contractStatus !== "deterministic-contract"
+    || state.nodeAgent?.agentRuntimeStatus !== "not-connected"
+    || state.nodeAgent?.linuxX64 !== "not-connected"
+    || state.nodeAgent?.linuxArm64 !== "not-connected"
     || state.controlApi?.surfaceStatus !== "implemented"
     || state.controlApi?.applicationAdapterStatus !== "not-connected"
     || state.controlApi?.authStatus !== "not-connected"
