@@ -1,0 +1,15 @@
+{
+  "schemaVersion": "1.0.0",
+  "releaseChannel": "development",
+  "protocolVersion": "1.0.0",
+  "artifacts": [
+    {
+      "artifact": "getdone-agent-linux-amd64",
+      "architecture": "amd64"
+    },
+    {
+      "artifact": "getdone-agent-linux-arm64",
+      "architecture": "arm64"
+    }
+  ]
+}
