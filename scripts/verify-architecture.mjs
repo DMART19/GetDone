@@ -631,6 +631,8 @@ for (const required of [
 }
 
 const agentCapabilityProfile = read("agent/internal/capabilities/profile.go");
+const agentCapabilityRunner = read("agent/internal/capabilities/runner_linux.go");
+const resourceDomain = read("lib/domain/resources.ts");
 const agentDockerCapability = read("agent/internal/capabilities/docker.go");
 const agentCudaCapability = read("agent/internal/capabilities/cuda.go");
 const nodeCapabilityCatalog = read("lib/nodes/capability-catalog.ts");
@@ -668,6 +670,12 @@ if (!agentCudaCapability.includes('"nvidia-smi"')) {
   fail("Phase 28.4 CUDA validation must use the local NVIDIA driver boundary");
 }
 for (const required of [
+  "exec.CommandContext",
+  "CombinedOutput"
+]) {
+  if (!agentCapabilityRunner.includes(required)) fail(`Phase 28.4 Linux capability runner missing: ${required}`);
+}
+for (const required of [
   '"runtime.docker"',
   '"runtime.containerd"',
   '"runtime.python"',
@@ -694,9 +702,18 @@ for (const required of [
   "getCapability",
   '"compute.cpu.light"',
   '"compute.gpu.inference"',
-  'adapterBinding.startsWith("resource.")'
+  'adapterBinding.startsWith("resource.")',
+  "deriveNodeCapabilityReconciliationBindings",
+  "ResourceRegistryNodeCapabilityBridge",
+  "addCapabilityBinding"
 ]) {
   if (!nodeCapabilityBridge.includes(required)) fail(`Phase 28.4 Capability Registry bridge missing: ${required}`);
+}
+for (const required of [
+  "latestCapabilities",
+  "latest?.validated"
+]) {
+  if (!resourceDomain.includes(required)) fail(`Phase 28.4 Resource Registry capability revocation invariant missing: ${required}`);
 }
 for (const required of [
   "Node capability persistence service is not connected",
