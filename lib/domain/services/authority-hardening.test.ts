@@ -434,10 +434,10 @@ describe("MVP authority service hardening", () => {
       planFixture(grant, { state: "awaiting-authorization" }),
       new MutableGrantStore(grant)
     );
-    await expect(
+    expect(() =>
       new PlanService(expiredTx, () => new Date(Date.parse(grant.expiresAt) + 1))
         .authorize(grant.planId, command("plan.authorize.expired"), grant)
-    ).rejects.toThrow(/not currently valid/i);
+    ).toThrow(/not currently valid/i);
   });
 
   it("requires exact Task capabilities and authoritative active grant storage before consumption", async () => {
@@ -464,7 +464,7 @@ describe("MVP authority service hardening", () => {
     ).rejects.toThrow();
 
     const expiredTask = new MemoryStore<TaskRecord>(taskFixture(grant));
-    await expect(
+    expect(() =>
       new TaskService(manager<TaskStores>({
         tasks: expiredTask,
         authorizationGrants: new MutableGrantStore(grant)
@@ -474,7 +474,7 @@ describe("MVP authority service hardening", () => {
         grant,
         new Date(Date.parse(grant.expiresAt) + 1).toISOString()
       )
-    ).rejects.toThrow(/not currently valid/i);
+    ).toThrow(/not currently valid/i);
   });
 
   it("does not queue a Task that lacks persisted authorization consumption", async () => {
