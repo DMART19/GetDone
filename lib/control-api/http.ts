@@ -51,17 +51,22 @@ async function jsonBody(request: Request) {
   }
 }
 
+async function parseJson<T>(request: Request, schema: z.ZodType<T>, label: string): Promise<T> {
+  const parsed = schema.safeParse(await jsonBody(request));
+  if (!parsed.success) {
+    throw new ControlPlaneError("VALIDATION_FAILED", `Invalid ${label} payload`);
+  }
+  return parsed.data;
+}
+
 async function execute<T>(
   operation: (adapter: ReturnType<typeof getControlApiAdapter>) => Promise<T>,
-  options: { status?: number; request?: Request; authenticate?: boolean } = {}
+  options: { status?: number } = {}
 ) {
   const correlationId = createCorrelationId();
   const environment = readServerRuntimeEnvironment();
   try {
     const adapter = getControlApiAdapter();
-    if (options.authenticate && options.request) {
-      await adapter.authenticate(options.request);
-    }
     const data = await operation(adapter);
     return Response.json(apiSuccess(data, { correlationId, environment }), {
       status: options.status ?? 200,
@@ -79,9 +84,6 @@ async function execute<T>(
   }
 }
 
-async function principal(request: Request) {
-  return getControlApiAdapter().authenticate(request);
-}
 
 export function handleControlHealth() {
   return execute((adapter) => adapter.health());
@@ -89,19 +91,19 @@ export function handleControlHealth() {
 
 export function handleOwnerIntent(request: Request) {
   return execute(async (adapter) => {
-    const actor = await principal(request);
-    const input = ownerIntentSchema.parse(await jsonBody(request));
+    const actor = await adapter.authenticate(request);
+    const input = await parseJson(request, ownerIntentSchema, "owner intent");
     return adapter.submitOwnerIntent(actor, input, requireIdempotencyKey(request));
   }, { status: 202 });
 }
 
 export function handleListDecisions(request: Request) {
-  return execute(async (adapter) => adapter.listDecisions(await principal(request)));
+  return execute(async (adapter) => adapter.listDecisions(await adapter.authenticate(request)));
 }
 
 export function handleGetDecision(request: Request, decisionId: string) {
   return execute(async (adapter) => {
-    const value = await adapter.getDecision(await principal(request), safeId(decisionId, "decisionId"));
+    const value = await adapter.getDecision(await adapter.authenticate(request), safeId(decisionId, "decisionId"));
     if (!value) throw new ControlPlaneError("NOT_FOUND", "Decision was not found");
     return value;
   });
@@ -109,8 +111,8 @@ export function handleGetDecision(request: Request, decisionId: string) {
 
 export function handleMutateDecision(request: Request, decisionId: string) {
   return execute(async (adapter) => {
-    const actor = await principal(request);
-    const body = decisionMutationSchema.parse(await jsonBody(request));
+    const actor = await adapter.authenticate(request);
+    const body = await parseJson(request, decisionMutationSchema, "decision mutation");
     return adapter.mutateDecision(actor, {
       decisionId: safeId(decisionId, "decisionId"),
       action: body.action,
@@ -121,12 +123,12 @@ export function handleMutateDecision(request: Request, decisionId: string) {
 }
 
 export function handleListResources(request: Request) {
-  return execute(async (adapter) => adapter.listResources(await principal(request)));
+  return execute(async (adapter) => adapter.listResources(await adapter.authenticate(request)));
 }
 
 export function handleGetResource(request: Request, resourceId: string) {
   return execute(async (adapter) => {
-    const value = await adapter.getResource(await principal(request), safeId(resourceId, "resourceId"));
+    const value = await adapter.getResource(await adapter.authenticate(request), safeId(resourceId, "resourceId"));
     if (!value) throw new ControlPlaneError("NOT_FOUND", "Resource was not found");
     return value;
   });
@@ -134,8 +136,8 @@ export function handleGetResource(request: Request, resourceId: string) {
 
 export function handleEnrollResource(request: Request) {
   return execute(async (adapter) => {
-    const actor = await principal(request);
-    const body = resourceEnrollmentSchema.parse(await jsonBody(request));
+    const actor = await adapter.authenticate(request);
+    const body = await parseJson(request, resourceEnrollmentSchema, "resource enrollment");
     return adapter.enrollResource(actor, {
       ...body,
       idempotencyKey: requireIdempotencyKey(request)
@@ -144,12 +146,12 @@ export function handleEnrollResource(request: Request) {
 }
 
 export function handleListJobs(request: Request) {
-  return execute(async (adapter) => adapter.listJobs(await principal(request)));
+  return execute(async (adapter) => adapter.listJobs(await adapter.authenticate(request)));
 }
 
 export function handleGetJob(request: Request, jobId: string) {
   return execute(async (adapter) => {
-    const value = await adapter.getJob(await principal(request), safeId(jobId, "jobId"));
+    const value = await adapter.getJob(await adapter.authenticate(request), safeId(jobId, "jobId"));
     if (!value) throw new ControlPlaneError("NOT_FOUND", "Job was not found");
     return value;
   });
@@ -157,20 +159,20 @@ export function handleGetJob(request: Request, jobId: string) {
 
 export function handleGetJobResult(request: Request, jobId: string) {
   return execute(async (adapter) => {
-    const value = await adapter.getJobResult(await principal(request), safeId(jobId, "jobId"));
+    const value = await adapter.getJobResult(await adapter.authenticate(request), safeId(jobId, "jobId"));
     if (!value) throw new ControlPlaneError("NOT_FOUND", "Job result was not found");
     return value;
   });
 }
 
 export function handleListVerifications(request: Request) {
-  return execute(async (adapter) => adapter.listVerifications(await principal(request)));
+  return execute(async (adapter) => adapter.listVerifications(await adapter.authenticate(request)));
 }
 
 export function handleGetVerification(request: Request, verificationId: string) {
   return execute(async (adapter) => {
     const value = await adapter.getVerification(
-      await principal(request),
+      await adapter.authenticate(request),
       safeId(verificationId, "verificationId")
     );
     if (!value) throw new ControlPlaneError("NOT_FOUND", "Verification was not found");
