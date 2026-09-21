@@ -713,8 +713,9 @@ for (const required of [
   "sha256sum --check",
   "useradd --system",
   "systemctl enable --now getdone-agent.service",
-  "getdone-agent-linux-amd64",
-  "getdone-agent-linux-arm64"
+  'ARCH="amd64"',
+  'ARCH="arm64"',
+  'ARTIFACT="getdone-agent-linux-${ARCH}"'
 ]) {
   if (!agentInstaller.includes(required)) fail(`Phase 28.2 installer invariant missing: ${required}`);
 }
