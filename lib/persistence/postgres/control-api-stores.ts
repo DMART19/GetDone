@@ -1,5 +1,6 @@
 import { ControlPlaneError } from "@/lib/control-plane/errors";
-import type { OwnerIntentRecord, OwnerIntentStore } from "@/lib/control-api/service-adapter";
+import type { OwnerIntentRecord } from "@/lib/control-api/contracts";
+import type { OwnerIntentStore } from "@/lib/control-api/service-adapter";
 import type {
   Resource,
   ResourceCapabilityBinding,
