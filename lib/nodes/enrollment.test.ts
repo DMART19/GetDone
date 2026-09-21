@@ -100,10 +100,10 @@ describe("Phase 28 NodeEnrollmentCoordinator", () => {
     const service = delegate();
     const coordinator = new NodeEnrollmentCoordinator(service);
 
-    await expect(coordinator.identify(
+    expect(() => coordinator.identify(
       { ...request(), companyId: "company-attacker" },
       command()
-    )).rejects.toThrow(/trusted command scope/i);
+    )).toThrow(/trusted command scope/i);
 
     expect(service.identify).not.toHaveBeenCalled();
   });
@@ -137,12 +137,12 @@ describe("Phase 28 NodeEnrollmentCoordinator", () => {
       "2026-09-21T10:05:00Z"
     );
 
-    await expect(coordinator.authenticate(
+    expect(() => coordinator.authenticate(
       "another-enrollment",
       command(),
       "0123456789abcdef",
       evidence
-    )).rejects.toThrow(/not bound/i);
+    )).toThrow(/not bound/i);
   });
 
   it("requires node profile evidence and delegates only its authoritative evidence ID", async () => {
@@ -168,11 +168,11 @@ describe("Phase 28 NodeEnrollmentCoordinator", () => {
       "profile-evidence-1"
     );
 
-    await expect(coordinator.profile(
+    expect(() => coordinator.profile(
       "enrollment-1",
       command(),
       { ...profile, inventoryHash: "" }
-    )).rejects.toThrow(/incomplete/i);
+    )).toThrow(/incomplete/i);
   });
 
   it("passes later state transitions through the existing Resource Enrollment authority", async () => {
