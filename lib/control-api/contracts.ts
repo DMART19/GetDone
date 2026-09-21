@@ -1,4 +1,5 @@
 import type { TrustedActor } from "@/lib/control-plane/request-context";
+import type { StepUpProof } from "@/lib/authorization/proofs";
 import type { TrustedExecutionScope } from "@/lib/control-plane/trusted-execution-scope";
 import type { AuthoritativeDecision } from "@/lib/domain/decision-service";
 import type { JobRecord } from "@/lib/domain/services/job-service";
@@ -11,6 +12,8 @@ export interface ControlApiPrincipal {
   actor: TrustedActor;
   scope: TrustedExecutionScope;
   sessionId: string;
+  /** Server-resolved evidence only. Never accept this proof from request JSON. */
+  stepUpProof?: StepUpProof;
 }
 
 export interface OwnerIntentInput {
