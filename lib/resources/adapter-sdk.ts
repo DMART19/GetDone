@@ -168,17 +168,13 @@ export async function assertResourceAdapterConformance(input: {
   const capacity = await adapter.capacity(context, fixtureTargetId);
   const cost = await adapter.cost(context, fixtureTargetId);
 
-  for (const evidence of [
-    metadata,
-    discovery,
-    authentication,
-    capabilities,
-    health,
-    capacity,
-    cost
-  ]) {
-    assertResourceAdapterEvidence(evidence, adapter, context);
-  }
+  assertResourceAdapterEvidence(metadata, adapter, context);
+  assertResourceAdapterEvidence(discovery, adapter, context);
+  assertResourceAdapterEvidence(authentication, adapter, context);
+  assertResourceAdapterEvidence(capabilities, adapter, context);
+  assertResourceAdapterEvidence(health, adapter, context);
+  assertResourceAdapterEvidence(capacity, adapter, context);
+  assertResourceAdapterEvidence(cost, adapter, context);
 
   if (metadata.payload.mock && context.scope.environment !== "development") {
     throw new ControlPlaneError("FORBIDDEN", "Mock Resource Adapter is DEVELOPMENT-only");
