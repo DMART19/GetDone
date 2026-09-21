@@ -1,8 +1,8 @@
-import { randomBytes } from "node:crypto";
+import { createHmac } from "node:crypto";
 import { createCommandEnvelope } from "@/lib/control-plane/command-envelope";
 import { ControlPlaneError } from "@/lib/control-plane/errors";
 import { createCorrelationId } from "@/lib/control-plane/request-context";
-import { sha256Hex } from "@/lib/control-plane/canonical-hash";
+import { canonicalSerialize, sha256Hex } from "@/lib/control-plane/canonical-hash";
 import type { ControlApiPrincipal } from "@/lib/control-api/contracts";
 import {
   NODE_AGENT_PROTOCOL_VERSION,
@@ -109,7 +109,7 @@ export interface NodeEnrollmentApplicationDependencies {
   challenges: NodeEnrollmentChallengeStore;
   identityIssuer: NodeIdentityIssuer;
   now?: () => Date;
-  tokenGenerator?: () => string;
+  challengeSecret: string | Buffer;
   nodeIdGenerator?: () => string;
 }
 
@@ -136,13 +136,20 @@ function requireFutureExpiry(expiresAt: string, now: Date) {
 
 export class NodeEnrollmentApplicationService {
   private readonly now: () => Date;
-  private readonly tokenGenerator: () => string;
+  private readonly challengeSecret: Buffer;
   private readonly nodeIdGenerator: () => string;
 
   constructor(private readonly deps: NodeEnrollmentApplicationDependencies) {
     this.now = deps.now ?? (() => new Date());
-    this.tokenGenerator = deps.tokenGenerator
-      ?? (() => randomBytes(32).toString("base64url"));
+    this.challengeSecret = Buffer.isBuffer(deps.challengeSecret)
+      ? Buffer.from(deps.challengeSecret)
+      : Buffer.from(deps.challengeSecret);
+    if (this.challengeSecret.length < 32) {
+      throw new ControlPlaneError(
+        "VALIDATION_FAILED",
+        "Node enrollment challenge secret must be at least 32 bytes"
+      );
+    }
     this.nodeIdGenerator = deps.nodeIdGenerator
       ?? (() => `node-${crypto.randomUUID()}`);
   }
@@ -172,7 +179,7 @@ export class NodeEnrollmentApplicationService {
     const now = this.now();
     const issuedAt = now.toISOString();
     const expiresAt = new Date(now.getTime() + 15 * 60_000).toISOString();
-    const enrollmentToken = this.tokenGenerator();
+    const enrollmentToken = this.deriveEnrollmentToken(principal, input);
 
     const identified = await this.deps.coordinator.identify({
       id: input.id,
@@ -418,6 +425,23 @@ export class NodeEnrollmentApplicationService {
       ).catch(() => undefined);
       throw error;
     }
+  }
+
+  private deriveEnrollmentToken(
+    principal: ControlApiPrincipal,
+    input: CreateNodeEnrollmentInput
+  ) {
+    return createHmac("sha256", this.challengeSecret)
+      .update(canonicalSerialize({
+        userId: principal.scope.userId,
+        portfolioId: principal.scope.portfolioId,
+        companyId: principal.scope.companyId,
+        environment: principal.scope.environment,
+        enrollmentId: input.id,
+        architecture: input.architecture,
+        idempotencyKey: input.idempotencyKey
+      }))
+      .digest("base64url");
   }
 
   private bootstrapResult(input: {
