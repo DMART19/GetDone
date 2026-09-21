@@ -11,6 +11,8 @@ import { INTEGRATION_REGISTRY_CONTRACT_VERSION } from "@/lib/integrations/contra
 import { JOB_RUNTIME_CONTRACT_VERSION } from "@/lib/execution/job-runtime-contracts";
 import { BUSINESS_ACTION_ADAPTER_CONTRACT_VERSION } from "@/lib/execution/adapters/business-action";
 import { SOFTWARE_WORKER_CONTRACT_VERSION } from "@/lib/execution/software-worker";
+import { JOB_EXECUTION_BRIDGE_CONTRACT_VERSION } from "@/lib/domain/services/job-execution-bridge";
+import { GOLDEN_PATH_HARNESS_VERSION } from "@/lib/composition/golden-path-harness";
 import { STORAGE_FABRIC_CONTRACT_VERSION } from "@/lib/resources/storage-fabric";
 import { RESILIENCE_CONTRACT_VERSION } from "@/lib/resources/resilience";
 import { RESOURCE_ADAPTER_SDK_CONTRACT_VERSION } from "@/lib/resources/adapter-sdk";
@@ -50,6 +52,15 @@ interface ReleaseRegistryShape {
     businessAdaptersStatus: string;
     softwareWorkerContractVersion: string;
     softwareDeploymentStatus: string;
+    jobExecutionBridgeContractVersion: string;
+    jobExecutionBridgeStatus: string;
+    liveJobExecutionBridgeStoreStatus: string;
+  };
+  composition: {
+    goldenPathHarnessVersion: string;
+    status: string;
+    productionExecutionClaimed: boolean;
+    sourcePath: string;
   };
   resourceFabric: {
     storageFabricContractVersion: string;
@@ -104,6 +115,12 @@ interface EnvironmentShape {
     durableJobStoreStatus: string;
     businessActionAdapterStatus: string;
     softwareDeploymentStatus: string;
+    jobExecutionBridgeStatus: string;
+    liveJobExecutionBridgeStoreStatus: string;
+  };
+  composition: {
+    goldenPathHarnessStatus: string;
+    productionExecutionClaimed: boolean;
   };
   resourceFabric: {
     storageFabricContractStatus: string;
@@ -144,10 +161,10 @@ const packageJson = readJson<{ version: string }>("package.json");
 
 describe("Phase 41 release/version registry", () => {
   it("binds application policy and machine-readable schema versions", () => {
-    expect(registry.registrySchemaVersion).toBe("1.3.0");
-    expect(registry.environmentManifestSchemaVersion).toBe("1.3.0");
-    expect(environment.manifestSchemaVersion).toBe("1.3.0");
-    expect(registry.schemaVersions.releaseManifest.version).toBe("1.3.0");
+    expect(registry.registrySchemaVersion).toBe("1.4.0");
+    expect(registry.environmentManifestSchemaVersion).toBe("1.4.0");
+    expect(environment.manifestSchemaVersion).toBe("1.4.0");
+    expect(registry.schemaVersions.releaseManifest.version).toBe("1.4.0");
     expect(registry.appVersion).toBe(packageJson.version);
     expect(registry.policy.registryVersion).toBe(CURRENT_POLICY_VERSION);
     expect(registry.policy.engineVersion).toBe(POLICY_ENGINE_VERSION);
@@ -190,7 +207,16 @@ describe("Phase 41 release/version registry", () => {
       businessActionContractVersion: BUSINESS_ACTION_ADAPTER_CONTRACT_VERSION,
       businessAdaptersStatus: "not-connected",
       softwareWorkerContractVersion: SOFTWARE_WORKER_CONTRACT_VERSION,
-      softwareDeploymentStatus: "not-connected"
+      softwareDeploymentStatus: "not-connected",
+      jobExecutionBridgeContractVersion: JOB_EXECUTION_BRIDGE_CONTRACT_VERSION,
+      jobExecutionBridgeStatus: "deterministic-contract",
+      liveJobExecutionBridgeStoreStatus: "not-connected"
+    });
+    expect(registry.composition).toMatchObject({
+      goldenPathHarnessVersion: GOLDEN_PATH_HARNESS_VERSION,
+      status: "deterministic-simulation-only",
+      productionExecutionClaimed: false,
+      sourcePath: "lib/composition/golden-path-harness.ts"
     });
   });
 
@@ -263,6 +289,14 @@ describe("Phase 41 release/version registry", () => {
         resourcePoolContractStatus: "deterministic-contract",
         partnerPoolRuntimeStatus: "not-connected",
         developmentMockAdapterAllowed: name === "development"
+      });
+      expect(state.execution).toMatchObject({
+        jobExecutionBridgeStatus: "deterministic-contract",
+        liveJobExecutionBridgeStoreStatus: "not-connected"
+      });
+      expect(state.composition).toEqual({
+        goldenPathHarnessStatus: "deterministic-simulation-only",
+        productionExecutionClaimed: false
       });
       expect(state.phase44).toEqual({
         deterministicHarnessStatus: "offline-blocking-suite",
