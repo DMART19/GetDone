@@ -27,7 +27,7 @@ Backend/resource complexity must not turn the product into an infrastructure adm
 - Phase 31 hard resource/data policy;
 - Phase 32 placement eligibility;
 - Phase 33 reservation/capacity-ledger CAS contracts;
-- Phase 34 scheduler/dispatch contracts;
+- Phase 34 scheduler/dispatch contracts plus the verified-start/completion bridge into JobService;
 - Phase 35 cost/capacity governor;
 - Phase 36 storage placement/replication/authoritative-copy contracts;
 - Phase 37 failure-domain admission, drain, and failover contracts;
@@ -72,12 +72,18 @@ authorized Job
   -> resource adapter dispatch
   -> trusted independent verifier-source attestation
   -> verified running placement
+  -> persisted JobVerifiedStartFact
+  -> JobService claimed -> running
   -> monitoring
   -> trusted completion verification
+  -> persisted JobVerifiedCompletionFact
+  -> JobService running -> verifying
+  -> authoritative Job verification receipt
+  -> JobService verifying -> succeeded
   -> Phase 33 exact-once release
 ```
 
-Provider `accepted`, HTTP success, resource-agent claims, model output, and frontend state are evidence only. They do not establish Job success, placement truth, verification truth, approval, policy mutation, or production authority.
+Provider `accepted`, HTTP success, resource-agent claims, model output, and frontend state are evidence only. They do not establish Job running/success, placement truth, verification truth, approval, policy mutation, or production authority. Job running requires an authoritative persisted verified-start bridge fact derived from Phase 34 independent verification; final Job success still requires an authoritative Job verification receipt.
 
 ### AI boundary
 
@@ -93,7 +99,11 @@ No live OpenRouter/provider adapter, key, canary, or active routing configuratio
 
 `lib/execution` now defines the provider-neutral contracts for durable Job leases/recovery, business action adapters, and the software-worker/deployment pipeline. There is deliberately no production in-memory queue/store, live business adapter, or production deployment executor.
 
-Provider acceptance remains evidence only; JobService and verification remain authoritative. Production software promotion requires explicit approval + staging-verification lineage.
+Provider acceptance remains evidence only; JobService and verification remain authoritative. The Phase 34 → JobService bridge persists hash-bound verified-start/completion facts and strips provider acceptance out of Job authority. Production software promotion requires explicit approval + staging-verification lineage.
+
+### Cross-phase composition boundary
+
+`lib/composition/golden-path-harness.ts` is deterministic composition evidence, not runtime infrastructure. It executes the 19-stage Objective-to-release path using fixed clocks and deterministic stores/adapters, returns `simulationOnly: true` and `productionExecutionClaimed: false`, and is blocked by the dependency matrix from production UI/feature imports. Its purpose is to catch incorrect phase-to-phase wiring without turning simulation success into production acceptance.
 
 ### Resource Fabric storage/resilience/provider boundary
 
@@ -142,7 +152,8 @@ Development seed data is confined to the development read-repository seam and fa
 - no secret-like `NEXT_PUBLIC_*` variables;
 - DEVELOPMENT seed-data import isolation;
 - zero-side-effect simulator isolation from reservation/dispatch/credential modules;
-- Phase 34 governor, credential, admission, trusted-verifier, and Job-truth bindings;
+- Phase 34 governor, credential, admission, trusted-verifier, verified-start/completion Job bridge, and Job-truth bindings;
+- golden-path harness simulation-only/non-production invariants and production import isolation;
 - no stale architecture documentation claiming the Phase 25 service worker is still deferred;
 - Phase 42 voice cannot import approval/credential/dispatch authority, weaken secure approval/credential handoff, or drift from the release-registry environment state;
 - Phase 36 HOME/authoritative-storage guardrails;
