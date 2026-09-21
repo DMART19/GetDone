@@ -220,6 +220,12 @@ export class SoftwareWorkerRuntime {
     }
     const evidence = current.artifacts.changeEvidence;
     if (!evidence) throw new ControlPlaneError("FORBIDDEN", "Staged software change evidence is missing");
+    if (current.pipeline.productionPromotionReceiptHash !== promotion.receiptHash) {
+      throw new ControlPlaneError(
+        "FORBIDDEN",
+        "Production deployment promotion does not match persisted authorization"
+      );
+    }
 
     const deployment = await this.deployments.deploy({ plan, evidence, promotion });
     let next = this.transitionRuntime(
