@@ -30,7 +30,11 @@ class UnavailableControlApiAdapter implements ControlApiApplicationAdapter {
   async mutateDecision(): Promise<never> { return this.unavailable(); }
   async listResources(): Promise<never> { return this.unavailable(); }
   async getResource(): Promise<never> { return this.unavailable(); }
-  async enrollResource(): Promise<never> { return this.unavailable(); }
+  async discoverResource(): Promise<never> { return this.unavailable(); }
+  async listResourceEnrollments(): Promise<never> { return this.unavailable(); }
+  async getResourceEnrollment(): Promise<never> { return this.unavailable(); }
+  async startResourceEnrollment(): Promise<never> { return this.unavailable(); }
+  async advanceResourceEnrollment(): Promise<never> { return this.unavailable(); }
   async listJobs(): Promise<never> { return this.unavailable(); }
   async getJob(): Promise<never> { return this.unavailable(); }
   async getJobResult(): Promise<never> { return this.unavailable(); }
