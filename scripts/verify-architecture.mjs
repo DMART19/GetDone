@@ -294,6 +294,87 @@ for (const required of [
   if (!nodeHashes.includes(required)) fail(`Phase 28.0 canonical node hash missing: ${required}`);
 }
 
+const nodeAgentMain = read("agent/cmd/getdone-agent/main.go");
+const nodeAgentConfig = read("agent/internal/config/config.go");
+const nodeAgentState = read("agent/internal/localstate/store.go");
+const nodeAgentVersion = read("agent/internal/version/version.go");
+const nodeAgentRuntime = read("agent/internal/agentruntime/runtime.go");
+const nodeAgentSystemd = read("agent/packaging/systemd/getdone-agent.service");
+const nodeAgentBuild = read("scripts/build-node-agent.sh");
+const nodeAgentWorkflow = read(".github/workflows/node-agent.yml");
+
+for (const required of [
+  "config.LoadFromEnv()",
+  "localstate.NewStore",
+  "controlplane.New",
+  "health.New()",
+  "agentruntime.New",
+  "signal.NotifyContext"
+]) {
+  if (!nodeAgentMain.includes(required)) fail(`Phase 28.1 Agent shell invariant missing: ${required}`);
+}
+for (const required of [
+  "GETDONE_CONTROL_PLANE_URL",
+  "GETDONE_ENROLLMENT_TOKEN",
+  "[REDACTED]",
+  "plaintext control-plane URL is allowed only for loopback development"
+]) {
+  if (!nodeAgentConfig.includes(required)) fail(`Phase 28.1 Agent config guard missing: ${required}`);
+}
+for (const required of [
+  "os.CreateTemp",
+  "temp.Sync()",
+  "os.Rename",
+  "syncDirectory",
+  "DisallowUnknownFields"
+]) {
+  if (!nodeAgentState.includes(required)) fail(`Phase 28.1 crash-safe state invariant missing: ${required}`);
+}
+for (const required of [
+  'AgentVersion   = "0.1.0"',
+  'ProtocolVersion = "1.0.0"',
+  'return "x86_64"',
+  'return "arm64"'
+]) {
+  if (!nodeAgentVersion.includes(required)) fail(`Phase 28.1 Agent version/architecture invariant missing: ${required}`);
+}
+for (const required of ["health.Start", "health.Stop", "<-ctx.Done()"]) {
+  if (!nodeAgentRuntime.includes(required)) fail(`Phase 28.1 runtime lifecycle invariant missing: ${required}`);
+}
+for (const required of [
+  "User=getdone-agent",
+  "Group=getdone-agent",
+  "NoNewPrivileges=true",
+  "ProtectSystem=strict",
+  "ProtectHome=true",
+  "ReadWritePaths=/var/lib/getdone-agent"
+]) {
+  if (!nodeAgentSystemd.includes(required)) fail(`Phase 28.1 systemd hardening invariant missing: ${required}`);
+}
+for (const required of [
+  "GOARCH=amd64",
+  "GOARCH=arm64",
+  "getdone-agent-linux-amd64",
+  "getdone-agent-linux-arm64"
+]) {
+  if (!nodeAgentBuild.includes(required)) fail(`Phase 28.1 cross-build invariant missing: ${required}`);
+}
+for (const required of [
+  "actions/setup-go@v6",
+  "gofmt -l agent",
+  "go vet ./...",
+  "go test ./...",
+  "bash scripts/build-node-agent.sh"
+]) {
+  if (!nodeAgentWorkflow.includes(required)) fail(`Phase 28.1 Agent CI gate missing: ${required}`);
+}
+if (fs.existsSync(path.join(root, "agent/internal/enrollment"))) {
+  fail("Phase 28.1 scope drift: enrollment implementation appeared before Phase 28.2");
+}
+if (fs.existsSync(path.join(root, "app/api/agent/v1/enroll/route.ts"))) {
+  fail("Phase 28.1 scope drift: Agent enrollment API appeared before Phase 28.2");
+}
+
 const aiBudgetReservation = read("lib/ai-gateway/budget-reservation.ts");
 for (const required of [
   'AI_BUDGET_RESERVATION_CONTRACT_VERSION = "1.0.0"',
@@ -694,17 +775,21 @@ if (
   fail("Control API release state must expose the implemented surface while preserving unconnected authority adapters");
 }
 if (
-  releaseRegistry.nodeAgent?.status !== "contract-only"
+  releaseRegistry.nodeAgent?.milestone !== "28.1"
+  || releaseRegistry.nodeAgent?.status !== "implemented-unconnected"
+  || releaseRegistry.nodeAgent?.agentVersion !== "0.1.0"
+  || releaseRegistry.nodeAgent?.agentShellStatus !== "implemented"
+  || releaseRegistry.nodeAgent?.enrollmentStatus !== "not-implemented"
   || releaseRegistry.nodeAgent?.domainVersion !== "1.0.0"
   || releaseRegistry.nodeAgent?.protocolVersion !== "1.0.0"
   || releaseRegistry.nodeAgent?.dispatchContractVersion !== "1.0.0"
-  || releaseRegistry.nodeAgent?.linuxX64 !== "not-connected"
-  || releaseRegistry.nodeAgent?.linuxArm64 !== "not-connected"
+  || releaseRegistry.nodeAgent?.linuxX64 !== "build-supported-unconnected"
+  || releaseRegistry.nodeAgent?.linuxArm64 !== "build-supported-unconnected"
   || releaseRegistry.adapters?.nodeAgent?.status !== "contract-only"
   || releaseRegistry.schemaVersions?.nodeDomain?.version !== "1.0.0"
   || releaseRegistry.schemaVersions?.nodeDispatch?.version !== "1.0.0"
 ) {
-  fail("Phase 28.0 release state must remain contract-only for both Linux architectures");
+  fail("Phase 28.1 release state must expose the built Agent shell without claiming enrollment/runtime connectivity");
 }
 
 if (
@@ -796,9 +881,11 @@ for (const [name, state] of Object.entries(releaseEnvironment.environments ?? {}
     || state.connections?.controlApiPersistence !== false
     || state.connections?.resourceAgent !== false
     || state.nodeAgent?.contractStatus !== "deterministic-contract"
-    || state.nodeAgent?.agentRuntimeStatus !== "not-connected"
-    || state.nodeAgent?.linuxX64 !== "not-connected"
-    || state.nodeAgent?.linuxArm64 !== "not-connected"
+    || state.nodeAgent?.agentRuntimeStatus !== "implemented-unconnected"
+    || state.nodeAgent?.agentShellStatus !== "implemented"
+    || state.nodeAgent?.enrollmentStatus !== "not-implemented"
+    || state.nodeAgent?.linuxX64 !== "build-supported-unconnected"
+    || state.nodeAgent?.linuxArm64 !== "build-supported-unconnected"
     || state.controlApi?.surfaceStatus !== "implemented"
     || state.controlApi?.applicationAdapterStatus !== "not-connected"
     || state.controlApi?.authStatus !== "not-connected"
