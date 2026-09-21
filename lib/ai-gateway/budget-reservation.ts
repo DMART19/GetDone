@@ -100,6 +100,14 @@ function reservationBase(
   return input;
 }
 
+function withoutReservationHash(
+  reservation: AIBudgetReservation
+): Omit<AIBudgetReservation, "reservationHash"> {
+  const copy: Partial<AIBudgetReservation> = { ...reservation };
+  delete copy.reservationHash;
+  return copy as Omit<AIBudgetReservation, "reservationHash">;
+}
+
 export function createAIBudgetReservation(
   input: AIBudgetReservationInput
 ): AIBudgetReservation {
@@ -293,9 +301,8 @@ export class MemoryAIBudgetReservationStore implements AIBudgetReservationStore 
     const unused = normalizeCents(current.reservedCents - actualCostCents, "unused reserved cents");
     this.credit(current, unused);
 
-    const { reservationHash: _oldHash, ...rest } = current;
     const base = reservationBase({
-      ...rest,
+      ...withoutReservationHash(current),
       actualCostCents,
       settledAt: new Date(settledAt).toISOString(),
       state: "committed",
@@ -315,9 +322,8 @@ export class MemoryAIBudgetReservationStore implements AIBudgetReservationStore 
     const settledAt = parseTime(input.settledAt, "settledAt");
     this.credit(current, current.reservedCents);
 
-    const { reservationHash: _oldHash, ...rest } = current;
     const base = reservationBase({
-      ...rest,
+      ...withoutReservationHash(current),
       settledAt: new Date(settledAt).toISOString(),
       state: "released",
       version: current.version + 1
