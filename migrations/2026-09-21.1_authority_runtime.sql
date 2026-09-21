@@ -192,6 +192,7 @@ CREATE TABLE IF NOT EXISTS business_action_executions (
   provider_operation_id text,
   state text NOT NULL,
   request_hash text NOT NULL,
+  record_hash text NOT NULL,
   payload jsonb NOT NULL,
   updated_at timestamptz NOT NULL
 );
