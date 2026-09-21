@@ -17,6 +17,12 @@ import {
   type JobStoreTransactionReceipt
 } from "@/lib/execution/job-runtime-contracts";
 import type { PostgresTransactionalDatabase } from "@/lib/persistence/postgres/client";
+import {
+  createDurableJobExecutionOutcome,
+  createDurableJobRuntimeEvent,
+  type DurableJobExecutionOutcomeRecord,
+  type DurableJobRuntimeEventRecord
+} from "@/lib/execution/job-runtime-records";
 
 export interface DurableJobCandidate {
   envelope: JobQueueEnvelope;
@@ -121,6 +127,61 @@ async function loadTransaction(
   return result.rows[0]?.payload ?? null;
 }
 
+async function persistOutcomeAndEvent(
+  db: PoolClient,
+  input: {
+    jobId: string;
+    kind: DurableJobExecutionOutcomeRecord["kind"];
+    runtimeState: string;
+    attempt: number;
+    reason?: string;
+    occurredAt: string;
+    transactionHash: string;
+    eventType: string;
+  }
+) {
+  const outcome = createDurableJobExecutionOutcome({
+    id: crypto.randomUUID(),
+    jobId: input.jobId,
+    kind: input.kind,
+    runtimeState: input.runtimeState,
+    attempt: input.attempt,
+    reason: input.reason,
+    occurredAt: input.occurredAt,
+    transactionHash: input.transactionHash
+  });
+  const event = createDurableJobRuntimeEvent({
+    id: crypto.randomUUID(),
+    jobId: input.jobId,
+    eventType: input.eventType,
+    attempt: input.attempt,
+    occurredAt: input.occurredAt,
+    transactionHash: input.transactionHash,
+    outcome
+  });
+
+  await db.query(
+    `INSERT INTO job_execution_outcomes
+      (id,job_id,kind,runtime_state,attempt,occurred_at,transaction_hash,record_hash,payload)
+     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb)
+     ON CONFLICT (job_id, transaction_hash) DO NOTHING`,
+    [
+      outcome.id, outcome.jobId, outcome.kind, outcome.runtimeState, outcome.attempt,
+      outcome.occurredAt, outcome.transactionHash, outcome.recordHash, JSON.stringify(outcome)
+    ]
+  );
+  await db.query(
+    `INSERT INTO job_runtime_events
+      (id,job_id,event_type,attempt,occurred_at,transaction_hash,outcome_hash,record_hash,payload)
+     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb)
+     ON CONFLICT (job_id, transaction_hash, event_type) DO NOTHING`,
+    [
+      event.id, event.jobId, event.eventType, event.attempt, event.occurredAt,
+      event.transactionHash, event.outcomeHash, event.recordHash, JSON.stringify(event)
+    ]
+  );
+}
+
 async function closeActiveLease(
   db: PoolClient,
   jobId: string,
@@ -190,6 +251,22 @@ export class PostgresDurableJobStore implements DurableJobWorkStore {
       [jobId]
     );
     return result.rows[0] ? snapshot(result.rows[0]) : null;
+  }
+
+  async listExecutionOutcomes(jobId: string): Promise<readonly DurableJobExecutionOutcomeRecord[]> {
+    const result = await this.database.query<{ payload: DurableJobExecutionOutcomeRecord }>(
+      "SELECT payload FROM job_execution_outcomes WHERE job_id=$1 ORDER BY occurred_at,id",
+      [jobId]
+    );
+    return result.rows.map((row) => row.payload);
+  }
+
+  async listRuntimeEvents(jobId: string): Promise<readonly DurableJobRuntimeEventRecord[]> {
+    const result = await this.database.query<{ payload: DurableJobRuntimeEventRecord }>(
+      "SELECT payload FROM job_runtime_events WHERE job_id=$1 ORDER BY occurred_at,id",
+      [jobId]
+    );
+    return result.rows.map((row) => row.payload);
   }
 
   async enqueue(envelope: JobQueueEnvelope) {
@@ -473,6 +550,15 @@ export class PostgresDurableJobStore implements DurableJobWorkStore {
         [releasedLease.id, releasedLease.leaseHash, releasedLease.version, JSON.stringify(releasedLease)]
       );
       await persistTransaction(db, receipt);
+      await persistOutcomeAndEvent(db, {
+        jobId: row.job_id,
+        kind: "succeeded",
+        runtimeState: "released",
+        attempt: row.attempt,
+        occurredAt: input.now,
+        transactionHash: receipt.transactionHash,
+        eventType: "job.execution-succeeded"
+      });
       return receipt;
     });
   }
@@ -522,6 +608,16 @@ export class PostgresDurableJobStore implements DurableJobWorkStore {
         [row.job_id, nextVersion, nextHash, record.runAt, receipt.occurredAt]
       );
       await persistTransaction(db, receipt);
+      await persistOutcomeAndEvent(db, {
+        jobId: row.job_id,
+        kind: "retry-scheduled",
+        runtimeState: "retry-wait",
+        attempt: row.attempt,
+        reason: record.reason,
+        occurredAt: receipt.occurredAt,
+        transactionHash: receipt.transactionHash,
+        eventType: "job.retry-scheduled"
+      });
       return receipt;
     });
   }
@@ -570,6 +666,16 @@ export class PostgresDurableJobStore implements DurableJobWorkStore {
         [row.job_id, nextVersion, nextHash, record.failedAt]
       );
       await persistTransaction(db, receipt);
+      await persistOutcomeAndEvent(db, {
+        jobId: row.job_id,
+        kind: "dead-lettered",
+        runtimeState: "dead-lettered",
+        attempt: row.attempt,
+        reason: record.reason,
+        occurredAt: record.failedAt,
+        transactionHash: receipt.transactionHash,
+        eventType: "job.dead-lettered"
+      });
       return receipt;
     });
   }
@@ -625,6 +731,16 @@ export class PostgresDurableJobStore implements DurableJobWorkStore {
       );
       await closeActiveLease(db, input.jobId);
       await persistTransaction(db, receipt);
+      await persistOutcomeAndEvent(db, {
+        jobId: row.job_id,
+        kind: "cancelled",
+        runtimeState: "cancelled",
+        attempt: row.attempt,
+        reason: input.reason,
+        occurredAt: input.cancelledAt,
+        transactionHash: receipt.transactionHash,
+        eventType: "job.execution-cancelled"
+      });
       return receipt;
     });
   }
@@ -714,6 +830,20 @@ export class PostgresDurableJobStore implements DurableJobWorkStore {
           ]
         );
         await persistTransaction(db, receipt);
+        await persistOutcomeAndEvent(db, {
+          jobId: row.job_id,
+          kind: outcome === "retry-scheduled"
+            ? "retry-scheduled"
+            : outcome === "dead-lettered"
+              ? "dead-lettered"
+              : "cancelled",
+          runtimeState: nextState,
+          attempt: row.attempt,
+          reason: "expired worker lease recovered",
+          occurredAt: input.now,
+          transactionHash: receipt.transactionHash,
+          eventType: `job.recovered.${outcome}`
+        });
 
         if (outcome === "retry-scheduled") {
           const retry = createJobRetryScheduleRecord({
