@@ -2,16 +2,20 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { ControlApiApplicationAdapter, ControlApiPrincipal } from "@/lib/control-api/contracts";
 import {
   handleControlHealth,
-  handleEnrollResource,
+  handleDiscoverResource,
+  handleAdvanceResourceEnrollment,
   handleGetDecision,
+  handleGetResourceEnrollment,
   handleGetJobResult,
   handleGetVerification,
   handleListDecisions,
   handleListJobs,
+  handleListResourceEnrollments,
   handleListResources,
   handleListVerifications,
   handleMutateDecision,
-  handleOwnerIntent
+  handleOwnerIntent,
+  handleStartResourceEnrollment
 } from "@/lib/control-api/http";
 import {
   installControlApiAdapter,
@@ -78,6 +82,23 @@ const job = {
   updatedAt: "2026-09-21T04:00:00Z"
 };
 
+const enrollment = {
+  id: "enrollment-1",
+  portfolioId: "portfolio-a",
+  companyId: "company-a",
+  state: "identify" as const,
+  requestedType: "compute" as const,
+  requestedEnvironments: ["development" as const],
+  ownerActionRequired: false,
+  challengeHash: "challenge-hash",
+  challengeIssuedAt: "2026-09-21T04:00:00Z",
+  challengeExpiresAt: "2099-01-01T00:00:00Z",
+  evidenceIds: [],
+  attempt: 1,
+  version: 1,
+  updatedAt: "2026-09-21T04:00:00Z"
+};
+
 const verification = {
   id: "verification-1",
   portfolioId: "portfolio-a",
@@ -122,7 +143,19 @@ function fakeAdapter(): ControlApiApplicationAdapter {
     }),
     listResources: async () => [resource],
     getResource: async (_principal, id) => id === resource.id ? resource : null,
-    enrollResource: async (_principal, input) => ({ ...resource, id: input.id, type: input.type }),
+    discoverResource: async (_principal, input) => ({ ...resource, id: input.id, type: input.type }),
+    listResourceEnrollments: async () => [enrollment],
+    getResourceEnrollment: async (_principal, id) => id === enrollment.id ? enrollment : null,
+    startResourceEnrollment: async (_principal, input) => ({
+      ...enrollment,
+      id: input.id,
+      requestedType: input.requestedType
+    }),
+    advanceResourceEnrollment: async (_principal, id, input) => ({
+      ...enrollment,
+      id,
+      state: input.action === "create" ? "create-enrollment" : enrollment.state
+    }),
     listJobs: async () => [job],
     getJob: async (_principal, id) => id === job.id ? job : null,
     getJobResult: async (_principal, id) => id === job.id ? {
@@ -138,7 +171,7 @@ function fakeAdapter(): ControlApiApplicationAdapter {
 }
 
 async function json(response: Response) {
-  return response.json() as Promise<Record<string, any>>;
+  return response.json() as Promise<Record<string, unknown>>;
 }
 
 beforeEach(() => {
@@ -213,7 +246,7 @@ describe("Control API HTTP surface", () => {
 
   it("serves scoped Decision reads and mutation contracts", async () => {
     const list = await handleListDecisions(new Request("http://localhost/api/control/decisions"));
-    expect((await json(list)).data).toHaveLength(1);
+    expect(await json(list)).toMatchObject({ ok: true, data: [{ id: "decision-1" }] });
 
     const missing = await handleGetDecision(
       new Request("http://localhost/api/control/decisions/missing"),
@@ -250,21 +283,54 @@ describe("Control API HTTP surface", () => {
 
   it("exposes Resource enrollment through the adapter instead of route-local persistence", async () => {
     const list = await handleListResources(new Request("http://localhost/api/control/resources"));
-    expect((await json(list)).data[0].id).toBe("resource-1");
+    expect(await json(list)).toMatchObject({ ok: true, data: [{ id: "resource-1" }] });
 
-    const enrolled = await handleEnrollResource(new Request("http://localhost/api/control/resources/enroll", {
+    const discovered = await handleDiscoverResource(new Request("http://localhost/api/control/resources", {
       method: "POST",
       headers: { "idempotency-key": "resource-key-1" },
       body: JSON.stringify({ id: "resource-new", type: "compute", capabilityNames: ["http"] })
     }));
-    expect(enrolled.status).toBe(201);
-    expect(await json(enrolled)).toMatchObject({ ok: true, data: { id: "resource-new", type: "compute" } });
+    expect(discovered.status).toBe(201);
+    expect(await json(discovered)).toMatchObject({ ok: true, data: { id: "resource-new", type: "compute" } });
+
+    const started = await handleStartResourceEnrollment(new Request("http://localhost/api/control/resources/enroll", {
+      method: "POST",
+      headers: { "idempotency-key": "enrollment-key-1" },
+      body: JSON.stringify({
+        id: "enrollment-new",
+        requestedType: "compute",
+        ownerActionRequired: false,
+        challengeToken: "one-time-challenge-value",
+        challengeExpiresAt: "2099-01-01T00:00:00Z"
+      })
+    }));
+    expect(started.status).toBe(201);
+    expect(await json(started)).toMatchObject({ ok: true, data: { id: "enrollment-new", state: "identify" } });
+
+    expect((await json(await handleListResourceEnrollments(
+      new Request("http://localhost/api/control/resource-enrollments")
+    )))).toMatchObject({ ok: true, data: [{ id: "enrollment-1" }] });
+
+    expect(await json(await handleGetResourceEnrollment(
+      new Request("http://localhost/api/control/resource-enrollments/enrollment-1"),
+      "enrollment-1"
+    ))).toMatchObject({ ok: true, data: { id: "enrollment-1" } });
+
+    const advanced = await handleAdvanceResourceEnrollment(
+      new Request("http://localhost/api/control/resource-enrollments/enrollment-1/actions", {
+        method: "POST",
+        headers: { "idempotency-key": "enrollment-key-2" },
+        body: JSON.stringify({ action: "create" })
+      }),
+      "enrollment-1"
+    );
+    expect(await json(advanced)).toMatchObject({ ok: true, data: { state: "create-enrollment" } });
   });
 
   it("exposes Jobs, verified result views, and Verification reads", async () => {
-    expect((await json(await handleListJobs(
+    expect(await json(await handleListJobs(
       new Request("http://localhost/api/control/jobs")
-    ))).data[0].id).toBe("job-1");
+    ))).toMatchObject({ ok: true, data: [{ id: "job-1" }] });
 
     const result = await handleGetJobResult(
       new Request("http://localhost/api/control/jobs/job-1/result"),
@@ -275,9 +341,9 @@ describe("Control API HTTP surface", () => {
       data: { jobId: "job-1", state: "succeeded", verificationReceiptId: "receipt-1" }
     });
 
-    expect((await json(await handleListVerifications(
+    expect(await json(await handleListVerifications(
       new Request("http://localhost/api/control/verifications")
-    ))).data[0].id).toBe("verification-1");
+    ))).toMatchObject({ ok: true, data: [{ id: "verification-1" }] });
 
     const missingVerification = await handleGetVerification(
       new Request("http://localhost/api/control/verifications/missing"),
