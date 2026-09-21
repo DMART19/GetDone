@@ -94,17 +94,20 @@ function manager<TStores>(stores: TStores, audit = new MemoryAudit()): ControlPl
 }
 
 let commandNumber = 0;
-function command(type: string) {
+function command(
+  type: string,
+  scope: AuthorizationGrant["scope"] = {
+    userId: "owner-a",
+    portfolioId: "portfolio-a",
+    companyId: "company-a",
+    environment: "staging"
+  }
+) {
   commandNumber += 1;
   return createCommandEnvelope({
     commandId: `task-job-command-${commandNumber}`,
     actor: { type: "system", id: "control-plane" },
-    scope: {
-      userId: "owner-a",
-      portfolioId: "portfolio-a",
-      companyId: "company-a",
-      environment: "staging"
-    },
+    scope,
     correlationId: `task-job-correlation-${commandNumber}`,
     environment: "staging",
     idempotencyKey: `task-job-idempotency-${commandNumber}`,
@@ -158,8 +161,8 @@ describe("Task and Job authoritative lifecycle hardening", () => {
     const consumption = authorizedConsumption(grant, "task-child");
     const dependency: TaskRecord = {
       id: "task-parent",
-      portfolioId: "portfolio-a",
-      companyId: "company-a",
+      portfolioId: grant.scope.portfolioId,
+      companyId: grant.scope.companyId,
       state: "running",
       reason: "parent",
       evidenceIds: [],
@@ -260,7 +263,7 @@ describe("Task and Job authoritative lifecycle hardening", () => {
       authorizationGrants: grants
     }, audit), () => fixtureNow);
 
-    const createCommand = command("job.create");
+    const createCommand = command("job.create", grant.scope);
     const created = await service.create({
       id: "job-created",
       taskId: "task-job-parent",
@@ -278,7 +281,7 @@ describe("Task and Job authoritative lifecycle hardening", () => {
 
     await expect(service.queue(
       created.id,
-      command("job.queue.blocked"),
+      command("job.queue.blocked", grant.scope),
       grant,
       consumption,
       fixtureNow.toISOString()
@@ -287,7 +290,7 @@ describe("Task and Job authoritative lifecycle hardening", () => {
     store.values.set(dependency.id, { ...dependency, state: "succeeded" });
     expect((await service.queue(
       created.id,
-      command("job.queue.ready"),
+      command("job.queue.ready", grant.scope),
       grant,
       consumption,
       fixtureNow.toISOString()
