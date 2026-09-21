@@ -57,7 +57,15 @@ jobs:
       - name: Cross-build Linux amd64 and arm64
         run: bash scripts/build-node-agent.sh
 
-      - name: Verify target binaries
+      - name: Verify target binaries and installer metadata
         run: |
           test -s dist/getdone-agent-linux-amd64
           test -s dist/getdone-agent-linux-arm64
+          test -s dist/getdone-agent-linux-amd64.sha256
+          test -s dist/getdone-agent-linux-arm64.sha256
+          test -s dist/getdone-agent.service
+          test -s dist/getdone-agent.service.sha256
+          test -s dist/manifest.json
+          (cd dist && sha256sum --check getdone-agent-linux-amd64.sha256)
+          (cd dist && sha256sum --check getdone-agent-linux-arm64.sha256)
+          (cd dist && sha256sum --check getdone-agent.service.sha256)
