@@ -200,14 +200,14 @@ if (failures.length === 0) {
     "PHASE44_DETERMINISTIC_HARNESS_VERSION"
   );
   if (
-    manifest.nodeAgent?.status !== "contract-only"
+    manifest.nodeAgent?.status !== "implemented-development-only"
     || manifest.nodeAgent?.domainVersion !== nodeDomainVersion
     || manifest.nodeAgent?.protocolVersion !== nodeAgentProtocolVersion
     || manifest.nodeAgent?.dispatchContractVersion !== nodeDispatchContractVersion
-    || manifest.nodeAgent?.linuxX64 !== "not-connected"
-    || manifest.nodeAgent?.linuxArm64 !== "not-connected"
+    || manifest.nodeAgent?.linuxX64 !== "build-only"
+    || manifest.nodeAgent?.linuxArm64 !== "build-only"
     || manifest.nodeAgent?.productionReady !== false
-    || registry.nodeAgent?.status !== "contract-only"
+    || registry.nodeAgent?.status !== "implemented-development-only"
   ) {
     fail("Phase 28.0 Node Agent release artifact truth drifted or overclaims connectivity");
   }
