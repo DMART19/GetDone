@@ -185,6 +185,13 @@ CREATE TABLE IF NOT EXISTS job_recovery_records (
   payload jsonb NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS job_execution_specs (
+  job_id text PRIMARY KEY,
+  spec_hash text NOT NULL,
+  payload jsonb NOT NULL,
+  created_at timestamptz NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS business_action_executions (
   request_id text PRIMARY KEY,
   job_id text NOT NULL,
