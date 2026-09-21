@@ -3,6 +3,7 @@ import type {
   ControlApiApplicationAdapter,
   ControlApiHealth
 } from "@/lib/control-api/contracts";
+import { createPostgresControlApiAdapter } from "@/lib/control-api/postgres-runtime.server";
 
 class UnavailableControlApiAdapter implements ControlApiApplicationAdapter {
   private unavailable(): never {
@@ -16,7 +17,7 @@ class UnavailableControlApiAdapter implements ControlApiApplicationAdapter {
   async health(): Promise<ControlApiHealth> {
     return {
       service: "getdone-control-api",
-      surfaceVersion: "1.0.0",
+      surfaceVersion: "1.1.0",
       status: "unavailable",
       authConnected: false,
       persistenceConnected: false,
@@ -24,6 +25,8 @@ class UnavailableControlApiAdapter implements ControlApiApplicationAdapter {
       durableJobStoreConnected: false
     };
   }
+  async beginStepUp(): Promise<never> { return this.unavailable(); }
+  async verifyStepUp(): Promise<never> { return this.unavailable(); }
   async submitOwnerIntent(): Promise<never> { return this.unavailable(); }
   async listDecisions(): Promise<never> { return this.unavailable(); }
   async getDecision(): Promise<never> { return this.unavailable(); }
@@ -54,5 +57,16 @@ export function resetControlApiAdapter() {
 }
 
 export function getControlApiAdapter() {
-  return installedAdapter ?? unavailableAdapter;
+  if (installedAdapter) return installedAdapter;
+
+  const runtime = process.env.GETDONE_RUNTIME_ENV;
+  if (
+    (runtime === "staging" || runtime === "production")
+    && process.env.DATABASE_URL?.trim()
+  ) {
+    installedAdapter = createPostgresControlApiAdapter(process.env);
+    return installedAdapter;
+  }
+
+  return unavailableAdapter;
 }

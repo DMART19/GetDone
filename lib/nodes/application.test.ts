@@ -20,7 +20,8 @@ const principal: ControlApiPrincipal = {
     companyId: "company-a",
     environment: "development"
   },
-  sessionId: "session-a"
+  sessionId: "session-a",
+  role: "owner"
 };
 
 class FakeCoordinator {

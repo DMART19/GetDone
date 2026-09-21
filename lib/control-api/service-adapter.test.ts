@@ -155,7 +155,7 @@ function adapter(overrides: Partial<ConstructorParameters<typeof ServiceBackedCo
 
   const instance = new ServiceBackedControlApiAdapter({
     auth: auth(),
-    scopes: { resolve: async () => scope },
+    scopes: { resolve: async () => ({ scope, role: "owner" as const }) },
     authorizationEvidence: {
       resolveStepUpProof: async () => createStepUpProof({
         id: "step-up-1",
@@ -203,7 +203,7 @@ function adapter(overrides: Partial<ConstructorParameters<typeof ServiceBackedCo
     },
     health: async () => ({
       service: "getdone-control-api",
-      surfaceVersion: "1.0.0",
+      surfaceVersion: "1.1.0",
       status: "ready",
       authConnected: true,
       persistenceConnected: true,
@@ -230,6 +230,7 @@ describe("ServiceBackedControlApiAdapter", () => {
       actor: { type: "user", id: "user-a" },
       scope,
       sessionId: "session-a",
+      role: "owner",
       stepUpProof: { id: "step-up-1" }
     });
   });
@@ -237,7 +238,10 @@ describe("ServiceBackedControlApiAdapter", () => {
   it("rejects a trusted scope that does not belong to the authenticated session", async () => {
     const { instance } = adapter({
       scopes: {
-        resolve: async () => ({ ...scope, userId: "different-user" })
+        resolve: async () => ({
+          scope: { ...scope, userId: "different-user" },
+          role: "owner" as const
+        })
       }
     });
     await expect(instance.authenticate(new Request("http://localhost"))).rejects.toThrow(/scope is incomplete/i);
@@ -345,4 +349,21 @@ describe("ServiceBackedControlApiAdapter", () => {
     expect(await instance.listVerifications(principal)).toEqual([]);
     expect(await instance.getVerification(principal, "missing")).toBeNull();
   });
+  it("denies privileged Control API mutations to viewer membership", async () => {
+    const { instance } = adapter({
+      scopes: { resolve: async () => ({ scope, role: "viewer" as const }) }
+    });
+    const principal = await instance.authenticate(new Request("http://localhost"));
+    expect(() => instance.mutateDecision(principal, {
+      decisionId: "decision-1",
+      action: "approve",
+      idempotencyKey: "viewer-decision"
+    })).toThrow(/elevated Control API role/i);
+    expect(() => instance.discoverResource(principal, {
+      id: "resource-viewer",
+      type: "compute",
+      idempotencyKey: "viewer-resource"
+    })).toThrow(/elevated Control API role/i);
+  });
+
 });

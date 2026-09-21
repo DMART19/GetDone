@@ -30,7 +30,8 @@ const principal: ControlApiPrincipal = {
     companyId: "company-a",
     environment: "development"
   },
-  sessionId: "session-a"
+  sessionId: "session-a",
+  role: "owner"
 };
 
 const decision = {
@@ -114,9 +115,19 @@ const verification = {
 function fakeAdapter(): ControlApiApplicationAdapter {
   return {
     authenticate: async () => principal,
+    beginStepUp: async () => ({
+      challengeId: "challenge-1",
+      expiresAt: "2099-01-01T00:00:00Z",
+      method: "provider"
+    }),
+    verifyStepUp: async () => ({
+      sessionId: "session-a",
+      userId: "user-a",
+      stepUpAuthenticatedAt: "2026-09-21T04:00:00Z"
+    }),
     health: async () => ({
       service: "getdone-control-api",
-      surfaceVersion: "1.0.0",
+      surfaceVersion: "1.1.0",
       status: "ready",
       authConnected: true,
       persistenceConnected: true,

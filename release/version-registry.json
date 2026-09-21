@@ -1,6 +1,6 @@
 {
   "registrySchemaVersion": "1.6.0",
-  "registryVersion": "2026-09-21.7",
+  "registryVersion": "2026-09-21.8",
   "appVersion": "0.1.0",
   "schemaVersions": {
     "controlApi": {
@@ -168,7 +168,7 @@
       ]
     },
     "controlApiSurface": {
-      "version": "1.0.0",
+      "version": "1.1.0",
       "sourcePath": "lib/control-api/contracts.ts",
       "contractTracked": true,
       "contractSourcePaths": [
@@ -545,7 +545,7 @@
     "sourcePath": "lib/composition/golden-path-harness.ts"
   },
   "controlApi": {
-    "surfaceVersion": "1.0.0",
+    "surfaceVersion": "1.1.0",
     "status": "implemented-unconnected",
     "applicationAdapterStatus": "not-connected",
     "authStatus": "not-connected",

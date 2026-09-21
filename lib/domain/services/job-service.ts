@@ -1,5 +1,5 @@
 import { ControlPlaneError } from "@/lib/control-plane/errors";
-import type { AuthoritativeCommandEnvelope } from "@/lib/control-plane/command-envelope";
+import { commandFingerprint, type AuthoritativeCommandEnvelope } from "@/lib/control-plane/command-envelope";
 import {
   assertAuthorizationConsumption,
   assertAuthorizationGrantEnvelope,
@@ -7,7 +7,9 @@ import {
   type AuthorizationGrant,
   type AuthorizationGrantStore
 } from "@/lib/authorization/grants";
+import { createAuditEvent } from "@/lib/domain/audit";
 import type { ControlPlaneTransactionManager } from "@/lib/domain/control-plane-transaction";
+import { claimIdempotency } from "@/lib/domain/idempotency";
 import {
   executeTransitionCommand,
   type EntityStore,
@@ -40,8 +42,13 @@ export type JobState =
 export interface JobRecord extends StatefulEntity {
   state: JobState;
   taskId: string;
+  dependencyJobIds?: readonly string[];
   workerId?: string;
   attempt: number;
+  maxAttempts?: number;
+  lastRetryAt?: string;
+  lastTimeoutAt?: string;
+  retryReason?: string;
   authorizationGrantId?: string;
   authorizationGrantHash?: string;
   authorizationConsumption?: AuthorizationConsumptionRecord;
@@ -57,11 +64,43 @@ export interface JobRecord extends StatefulEntity {
   failureReason?: string;
 }
 
+export interface JobStore extends EntityStore<JobRecord> {
+  create?(record: JobRecord): Promise<void>;
+}
+
 export interface JobStores {
-  jobs: EntityStore<JobRecord>;
+  jobs: JobStore;
   authorizationGrants?: AuthorizationGrantStore;
   verificationReceipts?: VerificationReceiptStore;
   executionBridge?: JobExecutionBridgeStore;
+}
+
+export interface CreateJobInput {
+  id: string;
+  taskId: string;
+  dependencyJobIds?: readonly string[];
+  maxAttempts?: number;
+  createdAt?: string;
+}
+
+async function assertJobDependenciesReady(store: EntityStore<JobRecord>, current: JobRecord) {
+  for (const dependencyId of current.dependencyJobIds ?? []) {
+    if (dependencyId === current.id) {
+      throw new ControlPlaneError("VALIDATION_FAILED", "Job cannot depend on itself");
+    }
+    const dependency = await store.get(dependencyId);
+    if (
+      !dependency
+      || dependency.portfolioId !== current.portfolioId
+      || dependency.companyId !== current.companyId
+      || dependency.state !== "succeeded"
+    ) {
+      throw new ControlPlaneError(
+        "CONFLICT",
+        `Job dependency is not authoritatively succeeded: ${dependencyId}`
+      );
+    }
+  }
 }
 
 export class JobService {
@@ -69,6 +108,77 @@ export class JobService {
     private readonly transactions: ControlPlaneTransactionManager<JobStores>,
     private readonly now: () => Date = () => new Date()
   ) {}
+
+  async create(input: CreateJobInput, command: AuthoritativeCommandEnvelope) {
+    if (!input.id || !input.taskId) {
+      throw new ControlPlaneError("VALIDATION_FAILED", "Job creation requires id and parent taskId");
+    }
+    const maxAttempts = input.maxAttempts ?? 5;
+    if (!Number.isInteger(maxAttempts) || maxAttempts < 1) {
+      throw new ControlPlaneError("VALIDATION_FAILED", "Job maxAttempts must be a positive integer");
+    }
+    const dependencyJobIds = [...new Set(input.dependencyJobIds ?? [])];
+    if (dependencyJobIds.includes(input.id)) {
+      throw new ControlPlaneError("VALIDATION_FAILED", "Job cannot depend on itself");
+    }
+    const createdAt = input.createdAt ?? this.now().toISOString();
+    const fingerprint = commandFingerprint(command);
+
+    return this.transactions.run(async (transaction) => {
+      const claim = await claimIdempotency<JobRecord>(
+        transaction.idempotency,
+        command.idempotencyKey,
+        fingerprint,
+        new Date(createdAt)
+      );
+      if (claim.state === "COMPLETED" && claim.record.result) return claim.record.result;
+      if (claim.state === "IN_PROGRESS" || claim.state === "FAILED") {
+        throw new ControlPlaneError("CONFLICT", "Job creation is already in progress or previously failed");
+      }
+      const create = transaction.stores.jobs.create;
+      if (!create) {
+        throw new ControlPlaneError("UNAVAILABLE", "Job store does not support authoritative creation");
+      }
+      const record: JobRecord = Object.freeze({
+        id: input.id,
+        portfolioId: command.scope.portfolioId,
+        companyId: command.scope.companyId,
+        state: "created",
+        taskId: input.taskId,
+        dependencyJobIds: Object.freeze(dependencyJobIds),
+        attempt: 0,
+        maxAttempts,
+        verificationEvidenceIds: Object.freeze([]),
+        version: 1,
+        updatedAt: createdAt
+      });
+      await create.call(transaction.stores.jobs, record);
+      await transaction.audit.append(createAuditEvent({
+        correlationId: command.correlationId,
+        eventType: "job.created",
+        actor: command.actor,
+        scope: {
+          userId: command.scope.userId,
+          portfolioId: command.scope.portfolioId,
+          companyId: command.scope.companyId,
+          resourceId: command.scope.resourceId
+        },
+        environment: command.environment,
+        entityType: "job",
+        entityId: record.id,
+        newState: "created",
+        provenance: command.provenance,
+        metadata: {
+          commandId: command.commandId,
+          taskId: record.taskId,
+          dependencyCount: dependencyJobIds.length,
+          maxAttempts
+        }
+      }));
+      await transaction.idempotency.complete(command.idempotencyKey, fingerprint, record, createdAt);
+      return record;
+    });
+  }
 
   queue(
     id: string,
@@ -96,6 +206,7 @@ export class JobService {
       command,
       triggeringEvent: "job-queued",
       patch: async (current, transaction) => {
+        await assertJobDependenciesReady(transaction.stores.jobs, current);
         if (taskConsumption.consumerId !== current.taskId) {
           throw new ControlPlaneError(
             "FORBIDDEN",
@@ -170,6 +281,12 @@ export class JobService {
             "Job cannot be claimed without inherited authoritative Task authorization"
           );
         }
+        if (current.workerId) {
+          throw new ControlPlaneError("CONFLICT", "Job already has an active authoritative worker claim");
+        }
+        if (current.attempt >= (current.maxAttempts ?? 5)) {
+          throw new ControlPlaneError("CONFLICT", "Job attempt limit is exhausted");
+        }
         return { workerId, attempt: current.attempt + 1 };
       },
       metadata: (current) => ({ workerId, attempt: current.attempt + 1 })
@@ -186,6 +303,89 @@ export class JobService {
       command,
       triggeringEvent: "job-claim-released",
       patch: () => ({ workerId: undefined })
+    });
+  }
+
+  retry(
+    id: string,
+    command: AuthoritativeCommandEnvelope,
+    reason: string,
+    retriedAt = this.now().toISOString()
+  ) {
+    if (!reason) throw new ControlPlaneError("VALIDATION_FAILED", "Job retry requires a reason");
+    return executeTransitionCommand({
+      manager: this.transactions,
+      selectStore: (stores) => stores.jobs,
+      entityType: "job",
+      entityId: id,
+      to: "queued",
+      command,
+      triggeringEvent: "job-retried",
+      beforeTransition: async (current, transaction) => {
+        if (!current.authorizationConsumption) {
+          throw new ControlPlaneError("FORBIDDEN", "Job retry requires authoritative Task authorization");
+        }
+        if (current.attempt >= (current.maxAttempts ?? 5)) {
+          throw new ControlPlaneError("CONFLICT", "Job attempt limit is exhausted");
+        }
+        await assertJobDependenciesReady(transaction.stores.jobs, current);
+      },
+      patch: () => ({
+        workerId: undefined,
+        retryReason: reason,
+        lastRetryAt: retriedAt,
+        failureReason: undefined,
+        verificationEvidenceIds: [],
+        verificationReceiptId: undefined,
+        verificationReceiptHash: undefined,
+        verifiedStartFactId: undefined,
+        verifiedStartFactHash: undefined,
+        verifiedRunningPlacementId: undefined,
+        verifiedRunningPlacementHash: undefined,
+        verifiedCompletionFactId: undefined,
+        verifiedCompletionFactHash: undefined
+      }),
+      metadata: () => ({ reason, retriedAt }),
+      now: () => new Date(retriedAt)
+    });
+  }
+
+  recoverTimeout(
+    id: string,
+    command: AuthoritativeCommandEnvelope,
+    timedOutAt = this.now().toISOString()
+  ) {
+    return executeTransitionCommand({
+      manager: this.transactions,
+      selectStore: (stores) => stores.jobs,
+      entityType: "job",
+      entityId: id,
+      to: "queued",
+      command,
+      triggeringEvent: "job-timeout-recovered",
+      beforeTransition: async (current, transaction) => {
+        if (!current.authorizationConsumption) {
+          throw new ControlPlaneError("FORBIDDEN", "Job timeout recovery requires authoritative Task authorization");
+        }
+        if (current.attempt >= (current.maxAttempts ?? 5)) {
+          throw new ControlPlaneError("CONFLICT", "Job attempt limit is exhausted");
+        }
+        await assertJobDependenciesReady(transaction.stores.jobs, current);
+      },
+      patch: () => ({
+        workerId: undefined,
+        retryReason: "execution-timeout",
+        lastTimeoutAt: timedOutAt,
+        lastRetryAt: timedOutAt,
+        verifiedStartFactId: undefined,
+        verifiedStartFactHash: undefined,
+        verifiedRunningPlacementId: undefined,
+        verifiedRunningPlacementHash: undefined,
+        verifiedCompletionFactId: undefined,
+        verifiedCompletionFactHash: undefined
+      }),
+      metadata: () => ({ timedOutAt }),
+      now: () => new Date(timedOutAt)
     });
   }
 

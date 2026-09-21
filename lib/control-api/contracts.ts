@@ -1,5 +1,6 @@
 import type { TrustedActor } from "@/lib/control-plane/request-context";
 import type { StepUpProof } from "@/lib/authorization/proofs";
+import type { StepUpChallenge } from "@/lib/auth/contracts";
 import type { TrustedExecutionScope } from "@/lib/control-plane/trusted-execution-scope";
 import type { AuthoritativeDecision } from "@/lib/domain/decision-service";
 import type { JobRecord } from "@/lib/domain/services/job-service";
@@ -7,12 +8,15 @@ import type { VerificationRequestRecord } from "@/lib/domain/services/verificati
 import type { Resource } from "@/lib/domain/resources";
 import type { ResourceEnrollmentRecord } from "@/lib/resources/enrollment";
 
-export const CONTROL_API_SURFACE_VERSION = "1.0.0";
+export const CONTROL_API_SURFACE_VERSION = "1.1.0";
+
+export type ControlApiRole = "owner" | "admin" | "operator" | "viewer";
 
 export interface ControlApiPrincipal {
   actor: TrustedActor;
   scope: TrustedExecutionScope;
   sessionId: string;
+  role: ControlApiRole;
   /** Server-resolved evidence only. Never accept this proof from request JSON. */
   stepUpProof?: StepUpProof;
 }
@@ -103,6 +107,12 @@ export interface JobResultView {
   failureReason?: string;
 }
 
+export interface StepUpSessionView {
+  sessionId: string;
+  userId: string;
+  stepUpAuthenticatedAt: string;
+}
+
 export interface ControlApiHealth {
   service: "getdone-control-api";
   surfaceVersion: string;
@@ -117,6 +127,12 @@ export interface ControlApiHealth {
 export interface ControlApiApplicationAdapter {
   authenticate(request: Request): Promise<ControlApiPrincipal>;
   health(): Promise<ControlApiHealth>;
+  beginStepUp(request: Request): Promise<StepUpChallenge>;
+  verifyStepUp(
+    request: Request,
+    challengeId: string,
+    response: unknown
+  ): Promise<StepUpSessionView>;
 
   submitOwnerIntent(
     principal: ControlApiPrincipal,

@@ -6,8 +6,13 @@ import {
   type AuthorizationGrant,
   type AuthorizationGrantStore
 } from "@/lib/authorization/grants";
-import type { AuthoritativeCommandEnvelope } from "@/lib/control-plane/command-envelope";
+import {
+  commandFingerprint,
+  type AuthoritativeCommandEnvelope
+} from "@/lib/control-plane/command-envelope";
+import { createAuditEvent } from "@/lib/domain/audit";
 import type { ControlPlaneTransactionManager } from "@/lib/domain/control-plane-transaction";
+import { claimIdempotency } from "@/lib/domain/idempotency";
 import {
   executeTransitionCommand,
   type EntityStore,
@@ -35,6 +40,7 @@ export interface TaskRecord extends StatefulEntity {
   reason: string;
   evidenceIds: readonly string[];
   capabilityRequirements: readonly string[];
+  dependencyTaskIds?: readonly string[];
   authorizationLineage: readonly string[];
   authorizationGrantId?: string;
   authorizationGrantHash?: string;
@@ -43,22 +49,149 @@ export interface TaskRecord extends StatefulEntity {
   verificationReceiptId?: string;
   verificationReceiptHash?: string;
   failureReason?: string;
+  retryCount?: number;
+  maxRetries?: number;
+  lastRetryAt?: string;
+  lastTimeoutAt?: string;
+}
+
+export interface TaskStore extends EntityStore<TaskRecord> {
+  create?(record: TaskRecord): Promise<void>;
 }
 
 export interface TaskStores {
-  tasks: EntityStore<TaskRecord>;
+  tasks: TaskStore;
   authorizationGrants?: AuthorizationGrantStore;
   verificationReceipts?: VerificationReceiptStore;
 }
 
+export interface CreateTaskInput {
+  id: string;
+  reason: string;
+  evidenceIds?: readonly string[];
+  capabilityRequirements: readonly string[];
+  dependencyTaskIds?: readonly string[];
+  maxRetries?: number;
+  createdAt?: string;
+}
+
+async function assertTaskDependenciesReady(
+  store: EntityStore<TaskRecord>,
+  current: TaskRecord
+) {
+  for (const dependencyId of current.dependencyTaskIds ?? []) {
+    if (dependencyId === current.id) {
+      throw new ControlPlaneError("VALIDATION_FAILED", "Task cannot depend on itself");
+    }
+    const dependency = await store.get(dependencyId);
+    if (
+      !dependency
+      || dependency.portfolioId !== current.portfolioId
+      || dependency.companyId !== current.companyId
+      || dependency.state !== "succeeded"
+    ) {
+      throw new ControlPlaneError(
+        "CONFLICT",
+        `Task dependency is not authoritatively succeeded: ${dependencyId}`
+      );
+    }
+  }
+}
+
 export class TaskService {
-  constructor(private readonly transactions: ControlPlaneTransactionManager<TaskStores>) {}
+  constructor(
+    private readonly transactions: ControlPlaneTransactionManager<TaskStores>,
+    private readonly now: () => Date = () => new Date()
+  ) {}
+
+  async create(input: CreateTaskInput, command: AuthoritativeCommandEnvelope) {
+    if (!input.id || !input.reason || input.capabilityRequirements.length === 0) {
+      throw new ControlPlaneError(
+        "VALIDATION_FAILED",
+        "Task creation requires id, reason, and at least one capability"
+      );
+    }
+    if (input.maxRetries !== undefined && (!Number.isInteger(input.maxRetries) || input.maxRetries < 0)) {
+      throw new ControlPlaneError("VALIDATION_FAILED", "Task maxRetries must be a non-negative integer");
+    }
+    const createdAt = input.createdAt ?? this.now().toISOString();
+    const fingerprint = commandFingerprint(command);
+
+    return this.transactions.run(async (transaction) => {
+      const claim = await claimIdempotency<TaskRecord>(
+        transaction.idempotency,
+        command.idempotencyKey,
+        fingerprint,
+        new Date(createdAt)
+      );
+      if (claim.state === "COMPLETED" && claim.record.result) return claim.record.result;
+      if (claim.state === "IN_PROGRESS" || claim.state === "FAILED") {
+        throw new ControlPlaneError("CONFLICT", "Task creation is already in progress or previously failed");
+      }
+      const create = transaction.stores.tasks.create;
+      if (!create) {
+        throw new ControlPlaneError("UNAVAILABLE", "Task store does not support authoritative creation");
+      }
+
+      const dependencyTaskIds = [...new Set(input.dependencyTaskIds ?? [])];
+      if (dependencyTaskIds.includes(input.id)) {
+        throw new ControlPlaneError("VALIDATION_FAILED", "Task cannot depend on itself");
+      }
+
+      const record: TaskRecord = Object.freeze({
+        id: input.id,
+        portfolioId: command.scope.portfolioId,
+        companyId: command.scope.companyId,
+        state: "proposed",
+        reason: input.reason,
+        evidenceIds: Object.freeze([...new Set(input.evidenceIds ?? [])]),
+        capabilityRequirements: Object.freeze([...new Set(input.capabilityRequirements)].sort()),
+        dependencyTaskIds: Object.freeze(dependencyTaskIds),
+        authorizationLineage: Object.freeze([]),
+        verificationEvidenceIds: Object.freeze([]),
+        retryCount: 0,
+        maxRetries: input.maxRetries ?? 3,
+        version: 1,
+        updatedAt: createdAt
+      });
+
+      await create.call(transaction.stores.tasks, record);
+      await transaction.audit.append(createAuditEvent({
+        correlationId: command.correlationId,
+        eventType: "task.proposed",
+        actor: command.actor,
+        scope: {
+          userId: command.scope.userId,
+          portfolioId: command.scope.portfolioId,
+          companyId: command.scope.companyId,
+          resourceId: command.scope.resourceId
+        },
+        environment: command.environment,
+        entityType: "task",
+        entityId: record.id,
+        newState: "proposed",
+        provenance: command.provenance,
+        metadata: {
+          commandId: command.commandId,
+          dependencyCount: dependencyTaskIds.length,
+          maxRetries: record.maxRetries ?? 0
+        }
+      }));
+      await transaction.idempotency.complete(
+        command.idempotencyKey,
+        fingerprint,
+        record,
+        createdAt
+      );
+      return record;
+    });
+  }
 
   authorize(
     id: string,
     command: AuthoritativeCommandEnvelope,
     grant: AuthorizationGrant,
-    consumedAt = new Date().toISOString()
+    consumedAt = this.now().toISOString()
   ) {
     assertAuthorizationGrantEnvelope(grant, command.scope, Date.parse(consumedAt));
 
@@ -126,7 +259,8 @@ export class TaskService {
         authorizationGrantId: grant.id,
         authorizationGrantHash: grant.grantHash,
         authorizationConsumptionHash: consumption.consumptionHash
-      })
+      }),
+      now: this.now
     });
   }
 
@@ -139,15 +273,16 @@ export class TaskService {
       to: "queued",
       command,
       triggeringEvent: "task-queued",
-      patch: (current) => {
+      beforeTransition: async (current, transaction) => {
         if (!current.authorizationConsumption) {
           throw new ControlPlaneError(
             "FORBIDDEN",
             "Task cannot be queued without persisted authorization consumption"
           );
         }
-        return {};
-      }
+        await assertTaskDependenciesReady(transaction.stores.tasks, current);
+      },
+      now: this.now
     });
   }
 
@@ -159,7 +294,86 @@ export class TaskService {
       entityId: id,
       to: "running",
       command,
-      triggeringEvent: "task-started"
+      triggeringEvent: "task-started",
+      now: this.now
+    });
+  }
+
+  retry(
+    id: string,
+    command: AuthoritativeCommandEnvelope,
+    reason: string,
+    retriedAt = this.now().toISOString()
+  ) {
+    if (!reason) throw new ControlPlaneError("VALIDATION_FAILED", "Task retry requires a reason");
+    return executeTransitionCommand({
+      manager: this.transactions,
+      selectStore: (stores) => stores.tasks,
+      entityType: "task",
+      entityId: id,
+      to: "queued",
+      command,
+      triggeringEvent: "task-retried",
+      beforeTransition: async (current, transaction) => {
+        if (!current.authorizationConsumption) {
+          throw new ControlPlaneError("FORBIDDEN", "Task retry requires authoritative authorization consumption");
+        }
+        const retryCount = current.retryCount ?? 0;
+        if (retryCount >= (current.maxRetries ?? 3)) {
+          throw new ControlPlaneError("CONFLICT", "Task retry limit is exhausted");
+        }
+        await assertTaskDependenciesReady(transaction.stores.tasks, current);
+      },
+      patch: (current) => ({
+        retryCount: (current.retryCount ?? 0) + 1,
+        lastRetryAt: retriedAt,
+        failureReason: undefined,
+        verificationEvidenceIds: [],
+        verificationReceiptId: undefined,
+        verificationReceiptHash: undefined
+      }),
+      metadata: (current) => ({
+        reason,
+        retryCount: (current.retryCount ?? 0) + 1
+      }),
+      now: () => new Date(retriedAt)
+    });
+  }
+
+  recoverTimeout(
+    id: string,
+    command: AuthoritativeCommandEnvelope,
+    timedOutAt = this.now().toISOString()
+  ) {
+    return executeTransitionCommand({
+      manager: this.transactions,
+      selectStore: (stores) => stores.tasks,
+      entityType: "task",
+      entityId: id,
+      to: "queued",
+      command,
+      triggeringEvent: "task-timeout-recovered",
+      beforeTransition: async (current, transaction) => {
+        if (!current.authorizationConsumption) {
+          throw new ControlPlaneError("FORBIDDEN", "Task timeout recovery requires authoritative authorization");
+        }
+        const retryCount = current.retryCount ?? 0;
+        if (retryCount >= (current.maxRetries ?? 3)) {
+          throw new ControlPlaneError("CONFLICT", "Task retry limit is exhausted");
+        }
+        await assertTaskDependenciesReady(transaction.stores.tasks, current);
+      },
+      patch: (current) => ({
+        retryCount: (current.retryCount ?? 0) + 1,
+        lastTimeoutAt: timedOutAt,
+        lastRetryAt: timedOutAt,
+        failureReason: undefined
+      }),
+      metadata: (current) => ({
+        retryCount: (current.retryCount ?? 0) + 1,
+        timedOutAt
+      }),
+      now: () => new Date(timedOutAt)
     });
   }
 
@@ -171,7 +385,8 @@ export class TaskService {
       entityId: id,
       to: "verifying",
       command,
-      triggeringEvent: "task-verification-started"
+      triggeringEvent: "task-verification-started",
+      now: this.now
     });
   }
 
@@ -201,6 +416,7 @@ export class TaskService {
         receipt = await requireAuthoritativeVerificationReceipt(store, receiptId, {
           scope: command.scope,
           subject: { type: "task", id },
+          now: this.now().getTime(),
           allowedVerdicts: ["verified"]
         });
       },
@@ -217,7 +433,8 @@ export class TaskService {
           verificationReceiptHash: receipt.receiptHash
         };
       },
-      metadata: () => ({ verificationReceiptId: receiptId })
+      metadata: () => ({ verificationReceiptId: receiptId }),
+      now: this.now
     });
   }
 
@@ -247,6 +464,7 @@ export class TaskService {
         receipt = await requireAuthoritativeVerificationReceipt(store, receiptId, {
           scope: command.scope,
           subject: { type: "task", id },
+          now: this.now().getTime(),
           allowedVerdicts: ["uncertain"]
         });
       },
@@ -263,7 +481,8 @@ export class TaskService {
           verificationReceiptHash: receipt.receiptHash
         };
       },
-      metadata: () => ({ verificationReceiptId: receiptId })
+      metadata: () => ({ verificationReceiptId: receiptId }),
+      now: this.now
     });
   }
 
@@ -287,7 +506,8 @@ export class TaskService {
       to: "failed",
       command,
       triggeringEvent: "task-failed",
-      patch: () => ({ failureReason })
+      patch: () => ({ failureReason }),
+      now: this.now
     });
   }
 
@@ -299,7 +519,8 @@ export class TaskService {
       entityId: id,
       to: "cancelled",
       command,
-      triggeringEvent: "task-cancelled"
+      triggeringEvent: "task-cancelled",
+      now: this.now
     });
   }
 }

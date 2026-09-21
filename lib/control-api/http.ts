@@ -5,6 +5,11 @@ import { readServerRuntimeEnvironment } from "@/lib/control-plane/runtime-enviro
 import { apiFailure, apiSuccess } from "@/lib/control-plane/schemas";
 import { getControlApiAdapter } from "@/lib/control-api/runtime.server";
 
+const stepUpVerifySchema = z.object({
+  challengeId: z.string().min(1).max(200),
+  token: z.string().min(16).max(4096)
+});
+
 const ownerIntentSchema = z.object({
   message: z.string().trim().min(1).max(20_000),
   channel: z.enum(["chat", "api"]).optional()
@@ -110,6 +115,17 @@ async function execute<T>(
 
 export function handleControlHealth() {
   return execute((adapter) => adapter.health());
+}
+
+export function handleBeginStepUp(request: Request) {
+  return execute((adapter) => adapter.beginStepUp(request), { status: 201 });
+}
+
+export function handleVerifyStepUp(request: Request) {
+  return execute(async (adapter) => {
+    const input = await parseJson(request, stepUpVerifySchema, "step-up verification");
+    return adapter.verifyStepUp(request, input.challengeId, { token: input.token });
+  });
 }
 
 export function handleOwnerIntent(request: Request) {

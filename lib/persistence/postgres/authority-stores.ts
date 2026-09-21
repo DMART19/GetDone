@@ -53,6 +53,10 @@ export class PostgresEntityStore<T extends TransitionEntity>
     return result.rows.map((row) => row.payload);
   }
 
+  async create(entity: T): Promise<void> {
+    return this.insert(entity);
+  }
+
   async insert(entity: T): Promise<void> {
     try {
       await this.db.query(

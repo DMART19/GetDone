@@ -1,0 +1,113 @@
+import pg from "pg";
+
+function required(name) {
+  const value = process.env[name]?.trim();
+  if (!value) throw new Error(`${name} is required`);
+  return value;
+}
+
+const requiredMigration = "2026-09-21.5";
+const maxBackupAgeHours = Number(process.env.GETDONE_BACKUP_MAX_AGE_HOURS || "24");
+if (!Number.isFinite(maxBackupAgeHours) || maxBackupAgeHours <= 0) {
+  throw new Error("GETDONE_BACKUP_MAX_AGE_HOURS must be positive");
+}
+
+const pool = new pg.Pool({
+  connectionString: required("DATABASE_URL"),
+  max: 2,
+  application_name: "getdone-production-verifier",
+  ssl: process.env.GETDONE_DB_SSL === "false"
+    ? false
+    : { rejectUnauthorized: true }
+});
+
+const client = await pool.connect();
+try {
+  const version = await client.query("SHOW server_version_num");
+  if (Number(version.rows[0]?.server_version_num) < 160000) {
+    throw new Error("PostgreSQL 16+ is required");
+  }
+
+  const migration = await client.query(
+    "SELECT version FROM getdone_schema_migrations ORDER BY version DESC LIMIT 1"
+  );
+  if (migration.rows[0]?.version !== requiredMigration) {
+    throw new Error(`Database schema is not current; expected ${requiredMigration}`);
+  }
+
+  await client.query("BEGIN ISOLATION LEVEL SERIALIZABLE");
+  try {
+    const isolation = await client.query("SHOW transaction_isolation");
+    if (isolation.rows[0]?.transaction_isolation !== "serializable") {
+      throw new Error("Production transaction isolation is not serializable");
+    }
+    await client.query("CREATE TEMP TABLE getdone_rollback_probe(id integer) ON COMMIT DROP");
+    await client.query("INSERT INTO getdone_rollback_probe(id) VALUES(1)");
+    await client.query("ROLLBACK");
+  } catch (error) {
+    try { await client.query("ROLLBACK"); } catch {}
+    throw error;
+  }
+
+  const rolledBack = await client.query(
+    "SELECT to_regclass('pg_temp.getdone_rollback_probe') AS relation"
+  );
+  if (rolledBack.rows[0]?.relation !== null) {
+    throw new Error("Rollback verification failed");
+  }
+
+  const constraints = await client.query(
+    `SELECT indexname,indexdef FROM pg_indexes
+     WHERE schemaname=current_schema()
+       AND tablename IN ('authorization_consumptions','job_leases','job_runtime_transactions')`
+  );
+  const indexText = constraints.rows.map((row) => row.indexdef).join("\n");
+  for (const requiredFragment of ["authorization_consumptions", "job_leases", "job_runtime_transactions"]) {
+    if (!indexText.includes(requiredFragment)) {
+      throw new Error(`Concurrency/idempotency index verification missing: ${requiredFragment}`);
+    }
+  }
+
+  const backup = await client.query(
+    `SELECT completed_at,verification_hash
+     FROM database_backup_evidence
+     WHERE status='verified'
+     ORDER BY completed_at DESC LIMIT 1`
+  );
+  const latest = backup.rows[0];
+  if (!latest || !/^[a-f0-9]{64}$/i.test(latest.verification_hash)) {
+    throw new Error("No cryptographically verified backup evidence is recorded");
+  }
+  const backupAgeMs = Date.now() - Date.parse(
+    latest.completed_at instanceof Date
+      ? latest.completed_at.toISOString()
+      : String(latest.completed_at)
+  );
+  if (backupAgeMs < 0 || backupAgeMs > maxBackupAgeHours * 60 * 60_000) {
+    throw new Error("Latest verified backup evidence is stale");
+  }
+
+  const audit = await client.query(
+    `SELECT COUNT(*)::int AS count
+     FROM information_schema.columns
+     WHERE table_name='audit_events'
+       AND column_name IN ('id','correlation_id','entity_type','entity_id','occurred_at','payload')`
+  );
+  if (audit.rows[0]?.count !== 6) {
+    throw new Error("Audit ledger schema integrity verification failed");
+  }
+
+  console.log(JSON.stringify({
+    database: "reachable",
+    minimumVersion: "16",
+    migration: requiredMigration,
+    transactionIsolation: "serializable",
+    rollback: "verified",
+    concurrencyConstraints: "verified",
+    auditSchema: "verified",
+    backupFresh: true
+  }, null, 2));
+} finally {
+  client.release();
+  await pool.end();
+}
