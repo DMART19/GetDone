@@ -73,10 +73,10 @@ export interface ServiceBackedControlApiDependencies {
   now?: () => Date;
 }
 
-function assertScopedEntity(
+function assertScopedEntity<T extends { portfolioId: string; companyId: string }>(
   principal: ControlApiPrincipal,
-  entity: { portfolioId: string; companyId: string } | null
-) {
+  entity: T | null
+): T | null {
   if (!entity) return null;
   if (
     entity.portfolioId !== principal.scope.portfolioId
@@ -189,7 +189,7 @@ export class ServiceBackedControlApiAdapter implements ControlApiApplicationAdap
     return assertScopedEntity(principal, await this.deps.resources.get(resourceId));
   }
 
-  enrollResource(principal: ControlApiPrincipal, input: ResourceEnrollmentInput) {
+  discoverResource(principal: ControlApiPrincipal, input: ResourceDiscoveryInput) {
     const correlationId = createCorrelationId();
     const command = createCommandEnvelope({
       commandId: crypto.randomUUID(),
