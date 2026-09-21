@@ -139,6 +139,18 @@ if (failures.length === 0) {
     registry.controlApi.sourcePath,
     "CONTROL_API_SURFACE_VERSION"
   );
+  const nodeDomainVersion = extractStringConst(
+    "lib/nodes/contracts.ts",
+    "NODE_DOMAIN_VERSION"
+  );
+  const nodeAgentProtocolVersion = extractStringConst(
+    "lib/nodes/contracts.ts",
+    "NODE_AGENT_PROTOCOL_VERSION"
+  );
+  const nodeDispatchContractVersion = extractStringConst(
+    "lib/nodes/dispatch-contracts.ts",
+    "NODE_DISPATCH_CONTRACT_VERSION"
+  );
   const openRouterAdapterVersion = extractStringConst(
     registry.adapters.openRouter.sourcePath,
     "OPENROUTER_ADAPTER_VERSION"
@@ -196,6 +208,14 @@ if (failures.length === 0) {
     || registry.schemaVersions.controlApiSurface?.version !== controlApiSurfaceVersion
     || manifest.controlApi?.surfaceVersion !== controlApiSurfaceVersion
     || manifest.controlApi?.sourceSha256 !== fileHash(registry.controlApi.sourcePath)
+    || registry.nodeAgent?.domainVersion !== nodeDomainVersion
+    || registry.nodeAgent?.protocolVersion !== nodeAgentProtocolVersion
+    || registry.nodeAgent?.dispatchContractVersion !== nodeDispatchContractVersion
+    || registry.schemaVersions.nodeDomain?.version !== nodeDomainVersion
+    || registry.schemaVersions.nodeDispatch?.version !== nodeDispatchContractVersion
+    || manifest.nodeAgent?.domainVersion !== nodeDomainVersion
+    || manifest.nodeAgent?.protocolVersion !== nodeAgentProtocolVersion
+    || manifest.nodeAgent?.dispatchContractVersion !== nodeDispatchContractVersion
     || registry.adapters.openRouter?.version !== openRouterAdapterVersion
     || manifest.adapterVersions.openRouter?.version !== openRouterAdapterVersion
     || registry.aiGateway.adapterVersion !== openRouterAdapterVersion
@@ -223,7 +243,12 @@ if (failures.length === 0) {
     || manifest.phase44.deterministicHarnessVersion !== phase44HarnessVersion
     || manifest.phase44.sourceSha256 !== fileHash(registry.phase44.sourcePath)
   ) {
-    fail("Deterministic Phase 4/13/19-21/34-bridge/36-39/44/composition contract/version registry drift detected");
+    fail("Deterministic Phase 4/13/19-21/28.0/34-bridge/36-39/44/composition contract/version registry drift detected");
+  }
+  for (const evidence of manifest.nodeAgent?.sourceEvidence ?? []) {
+    if (evidence.sourceSha256 !== fileHash(evidence.sourcePath)) {
+      fail(`Phase 28.0 node contract source drift: ${evidence.sourcePath}`);
+    }
   }
   for (const evidence of manifest.execution.sourceEvidence ?? []) {
     if (evidence.sourceSha256 !== fileHash(evidence.sourcePath)) {
@@ -287,6 +312,18 @@ if (failures.length === 0) {
     || manifest.policy.engineVersion !== policyEngineVersion
   ) {
     fail("Policy version registry drift detected");
+  }
+
+  if (
+    registry.nodeAgent?.status !== "contract-only"
+    || registry.nodeAgent?.linuxX64 !== "not-connected"
+    || registry.nodeAgent?.linuxArm64 !== "not-connected"
+    || registry.adapters.nodeAgent?.status !== "contract-only"
+    || manifest.nodeAgent?.status !== "contract-only"
+    || manifest.nodeAgent?.linuxX64 !== "not-connected"
+    || manifest.nodeAgent?.linuxArm64 !== "not-connected"
+  ) {
+    fail("Phase 28.0 Node Agent release truth must remain contract-only and unconnected");
   }
 
   if (
@@ -391,6 +428,12 @@ if (failures.length === 0) {
       || environmentState.controlApi.authStatus !== "not-connected"
       || environmentState.controlApi.persistenceStatus !== "not-connected"
       || environmentState.connections.controlApiPersistence !== false
+      || environmentState.connections.resourceAgent !== false
+      || !environmentState.nodeAgent
+      || environmentState.nodeAgent.contractStatus !== "deterministic-contract"
+      || environmentState.nodeAgent.agentRuntimeStatus !== "not-connected"
+      || environmentState.nodeAgent.linuxX64 !== "not-connected"
+      || environmentState.nodeAgent.linuxArm64 !== "not-connected"
       || !environmentState.integrations
       || environmentState.integrations.registryStatus !== "deterministic-contract"
       || environmentState.integrations.adapterStatus !== "not-connected"
@@ -425,7 +468,7 @@ if (failures.length === 0) {
       || environmentState.phase44.deterministicHarnessStatus !== "offline-blocking-suite"
       || environmentState.phase44.productionAcceptanceStatus !== "not-run"
     ) {
-      fail(`Phase 4/13/19-21/34-bridge/36-39/44/composition environment contract/live-state drift: ${name}`);
+      fail(`Phase 4/13/19-21/28.0/34-bridge/36-39/44/composition environment contract/live-state drift: ${name}`);
     }
     if (
       !environmentState.voice
