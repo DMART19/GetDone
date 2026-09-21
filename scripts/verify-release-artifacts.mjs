@@ -98,6 +98,9 @@ if (failures.length === 0) {
   if (manifest.packageLockSha256 !== fileHash("package-lock.json")) {
     fail("Release manifest package-lock hash is stale");
   }
+  if (manifest.ciEvidence?.workflowSha256 !== fileHash(".github/workflows/ci.yml")) {
+    fail("Release manifest CI workflow hash is stale");
+  }
 
   for (const [name, entry] of Object.entries(registry.schemaVersions)) {
     const manifested = manifest.schemaVersions[name];
@@ -331,6 +334,16 @@ if (failures.length === 0) {
       fail(`Manual source drift: ${source.sourcePath}`);
     }
   }
+  for (const evidence of manifest.qualityEvidence ?? []) {
+    if (evidence.sourceSha256 !== fileHash(evidence.sourcePath)) {
+      fail(`Quality evidence drift: ${evidence.sourcePath}`);
+    }
+  }
+  for (const evidence of manifest.securityEvidence ?? []) {
+    if (evidence.sourceSha256 !== fileHash(evidence.sourcePath)) {
+      fail(`Security evidence drift: ${evidence.sourcePath}`);
+    }
+  }
   if (manifest.manuals.generatedOperatingManualSha256 !== sha256(manual)) {
     fail("Generated operating manual hash does not match the release manifest");
   }
@@ -407,14 +420,42 @@ if (failures.length === 0) {
   }
 
   if (process.env.GITHUB_ACTIONS === "true") {
-    const coverageEvidence = (manifest.qualityEvidence ?? []).find(
-      (entry) => entry.sourcePath === "coverage/control-plane-module-coverage.json"
-    );
-    if (
-      !coverageEvidence
-      || coverageEvidence.sourceSha256 !== fileHash("coverage/control-plane-module-coverage.json")
-    ) {
-      fail("GitHub Actions release evidence is missing verified control-plane coverage output");
+    const requiredQualityEvidence = [
+      "coverage/control-plane-module-coverage.json",
+      "coverage/vitest/coverage-summary.json",
+      "test-results/playwright-results.json"
+    ];
+    const requiredSecurityEvidence = [
+      "coverage/security/npm-audit-production.json",
+      "coverage/security/npm-audit-full-critical.json"
+    ];
+    for (const requiredPath of requiredQualityEvidence) {
+      const evidence = (manifest.qualityEvidence ?? []).find((entry) => entry.sourcePath === requiredPath);
+      if (!evidence || evidence.sourceSha256 !== fileHash(requiredPath)) {
+        fail(`GitHub Actions release evidence is missing verified quality output: ${requiredPath}`);
+      }
+    }
+    for (const requiredPath of requiredSecurityEvidence) {
+      const evidence = (manifest.securityEvidence ?? []).find((entry) => entry.sourcePath === requiredPath);
+      if (!evidence || evidence.sourceSha256 !== fileHash(requiredPath)) {
+        fail(`GitHub Actions release evidence is missing verified security output: ${requiredPath}`);
+      }
+    }
+    const expectedChecks = [
+      "dependency-audit",
+      "runtime-verification",
+      "secret-scan",
+      "architecture-integrity",
+      "contract-version-drift",
+      "typecheck",
+      "lint",
+      "vitest-v8-coverage",
+      "control-plane-module-coverage",
+      "production-build",
+      "playwright-desktop-mobile-e2e"
+    ];
+    if (JSON.stringify(manifest.ciEvidence.checksCompletedBeforeGeneration) !== JSON.stringify(expectedChecks)) {
+      fail("Release CI prerequisite ledger is incomplete or reordered");
     }
     if (
       manifest.ciEvidence.provider !== "github-actions"
