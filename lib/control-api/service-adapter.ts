@@ -12,6 +12,10 @@ import {
 import type { DecisionTransactionManager } from "@/lib/domain/decision-transaction";
 import type { JobRecord } from "@/lib/domain/services/job-service";
 import { ResourceRegistryService } from "@/lib/domain/services/resource-registry-service";
+import {
+  ResourceEnrollmentService,
+  type ResourceEnrollmentRecord
+} from "@/lib/resources/enrollment";
 import type { VerificationRequestRecord } from "@/lib/domain/services/verification-service";
 import type { Resource } from "@/lib/domain/resources";
 import type {
@@ -22,7 +26,9 @@ import type {
   JobResultView,
   OwnerIntentInput,
   OwnerIntentRecord,
-  ResourceEnrollmentInput
+  ResourceDiscoveryInput,
+  ResourceEnrollmentActionInput,
+  ResourceEnrollmentStartInput
 } from "@/lib/control-api/contracts";
 
 export interface ControlApiScopeResolver {
@@ -59,6 +65,8 @@ export interface ServiceBackedControlApiDependencies {
   decisionTransactions: DecisionTransactionManager;
   resources: ScopedReadStore<Resource>;
   resourceRegistry: ResourceRegistryService;
+  resourceEnrollments: ScopedReadStore<ResourceEnrollmentRecord>;
+  resourceEnrollmentService: ResourceEnrollmentService;
   jobs: ScopedReadStore<JobRecord>;
   verifications: ScopedReadStore<VerificationRequestRecord>;
   health: () => Promise<ControlApiHealth>;
@@ -212,6 +220,135 @@ export class ServiceBackedControlApiAdapter implements ControlApiApplicationAdap
       architecture: input.architecture,
       discoveredAt: this.now().toISOString()
     }, command);
+  }
+
+  listResourceEnrollments(principal: ControlApiPrincipal) {
+    return this.deps.resourceEnrollments.listByScope(
+      principal.scope.portfolioId,
+      principal.scope.companyId
+    );
+  }
+
+  async getResourceEnrollment(principal: ControlApiPrincipal, enrollmentId: string) {
+    return assertScopedEntity(
+      principal,
+      await this.deps.resourceEnrollments.get(enrollmentId)
+    );
+  }
+
+  startResourceEnrollment(
+    principal: ControlApiPrincipal,
+    input: ResourceEnrollmentStartInput
+  ) {
+    const command = this.enrollmentCommand(
+      principal,
+      input.idempotencyKey,
+      "identify",
+      input.id
+    );
+    return this.deps.resourceEnrollmentService.identify({
+      id: input.id,
+      requestedType: input.requestedType,
+      requestedEnvironments: [principal.scope.environment],
+      ownerActionRequired: input.ownerActionRequired,
+      ownerActionDescription: input.ownerActionDescription,
+      challengeToken: input.challengeToken,
+      challengeIssuedAt: this.now().toISOString(),
+      challengeExpiresAt: input.challengeExpiresAt
+    }, command);
+  }
+
+  advanceResourceEnrollment(
+    principal: ControlApiPrincipal,
+    enrollmentId: string,
+    input: ResourceEnrollmentActionInput
+  ) {
+    const command = this.enrollmentCommand(
+      principal,
+      input.idempotencyKey,
+      input.action,
+      enrollmentId
+    );
+    const requireValue = (value: string | undefined, label: string) => {
+      if (!value) throw new ControlPlaneError("VALIDATION_FAILED", `${label} is required`);
+      return value;
+    };
+
+    switch (input.action) {
+      case "create":
+        return this.deps.resourceEnrollmentService.createEnrollment(enrollmentId, command);
+      case "owner-action":
+        return this.deps.resourceEnrollmentService.recordOwnerAction(
+          enrollmentId,
+          command,
+          requireValue(input.evidenceId, "evidenceId")
+        );
+      case "authenticate":
+        return this.deps.resourceEnrollmentService.authenticate(
+          enrollmentId,
+          command,
+          requireValue(input.challengeToken, "challengeToken"),
+          requireValue(input.evidenceId, "evidenceId"),
+          input.authenticatedAt
+        );
+      case "discover":
+      case "profile":
+      case "validate":
+      case "test":
+        return this.deps.resourceEnrollmentService[input.action](
+          enrollmentId,
+          command,
+          requireValue(input.evidenceId, "evidenceId")
+        );
+      case "register":
+        return this.deps.resourceEnrollmentService.register(
+          enrollmentId,
+          command,
+          requireValue(input.resourceId, "resourceId"),
+          requireValue(input.evidenceId, "evidenceId")
+        );
+      case "ready":
+        return this.deps.resourceEnrollmentService.markReady(enrollmentId, command);
+      case "fail":
+        return this.deps.resourceEnrollmentService.fail(
+          enrollmentId,
+          command,
+          requireValue(input.reason, "reason")
+        );
+      case "cancel":
+        return this.deps.resourceEnrollmentService.cancel(enrollmentId, command);
+      case "expire":
+        return this.deps.resourceEnrollmentService.expire(enrollmentId, command);
+      case "restart":
+        return this.deps.resourceEnrollmentService.restart(
+          enrollmentId,
+          command,
+          requireValue(input.challengeToken, "challengeToken"),
+          requireValue(input.challengeExpiresAt, "challengeExpiresAt"),
+          input.restartedAt
+        );
+    }
+  }
+
+  private enrollmentCommand(
+    principal: ControlApiPrincipal,
+    idempotencyKey: string,
+    action: string,
+    enrollmentId: string
+  ) {
+    return createCommandEnvelope({
+      commandId: crypto.randomUUID(),
+      actor: principal.actor,
+      scope: principal.scope,
+      correlationId: createCorrelationId(),
+      environment: principal.scope.environment,
+      idempotencyKey,
+      provenance: "control-api:resource-enrollment",
+      requestedMutation: {
+        type: `resource-enrollment.${action}`,
+        enrollmentId
+      }
+    });
   }
 
   listJobs(principal: ControlApiPrincipal) {
