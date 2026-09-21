@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "1.3.0",
+  "schemaVersion": "1.4.0",
   "thresholds": {
     "coveredModulePercent": 100,
     "minimumTotalTestCases": 80,
@@ -164,6 +164,31 @@
     {
       "source": "lib/ai-gateway/budget-reservation.ts",
       "test": "lib/ai-gateway/budget-reservation.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/control-api/contracts.ts",
+      "test": "lib/control-api/http.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/control-api/runtime.server.ts",
+      "test": "lib/control-api/http.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/control-api/http.ts",
+      "test": "lib/control-api/http.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/control-api/service-adapter.ts",
+      "test": "lib/control-api/service-adapter.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/ai-gateway/openrouter-adapter.ts",
+      "test": "lib/ai-gateway/openrouter-adapter.test.ts",
       "critical": true
     }
   ]

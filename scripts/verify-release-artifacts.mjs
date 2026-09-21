@@ -98,6 +98,9 @@ if (failures.length === 0) {
   if (manifest.packageLockSha256 !== fileHash("package-lock.json")) {
     fail("Release manifest package-lock hash is stale");
   }
+  if (manifest.ciEvidence?.workflowSha256 !== fileHash(".github/workflows/ci.yml")) {
+    fail("Release manifest CI workflow hash is stale");
+  }
 
   for (const [name, entry] of Object.entries(registry.schemaVersions)) {
     const manifested = manifest.schemaVersions[name];
@@ -131,6 +134,14 @@ if (failures.length === 0) {
   const aiRoutingPolicyContractVersion = extractStringConst(
     registry.aiGateway.sourcePath,
     "AI_ROUTING_POLICY_CONTRACT_VERSION"
+  );
+  const controlApiSurfaceVersion = extractStringConst(
+    registry.controlApi.sourcePath,
+    "CONTROL_API_SURFACE_VERSION"
+  );
+  const openRouterAdapterVersion = extractStringConst(
+    registry.adapters.openRouter.sourcePath,
+    "OPENROUTER_ADAPTER_VERSION"
   );
   const integrationRegistryContractVersion = extractStringConst(
     registry.integrations.sourcePath,
@@ -181,6 +192,14 @@ if (failures.length === 0) {
     || registry.aiGateway.routingPolicyContractVersion !== aiRoutingPolicyContractVersion
     || manifest.aiGateway.contractVersion !== aiGatewayContractVersion
     || manifest.aiGateway.routingPolicyContractVersion !== aiRoutingPolicyContractVersion
+    || registry.controlApi.surfaceVersion !== controlApiSurfaceVersion
+    || registry.schemaVersions.controlApiSurface?.version !== controlApiSurfaceVersion
+    || manifest.controlApi?.surfaceVersion !== controlApiSurfaceVersion
+    || manifest.controlApi?.sourceSha256 !== fileHash(registry.controlApi.sourcePath)
+    || registry.adapters.openRouter?.version !== openRouterAdapterVersion
+    || manifest.adapterVersions.openRouter?.version !== openRouterAdapterVersion
+    || registry.aiGateway.adapterVersion !== openRouterAdapterVersion
+    || manifest.aiGateway.adapterVersion !== openRouterAdapterVersion
     || registry.integrations.registryContractVersion !== integrationRegistryContractVersion
     || manifest.integrations.registryContractVersion !== integrationRegistryContractVersion
     || manifest.integrations.sourceSha256 !== fileHash(registry.integrations.sourcePath)
@@ -289,17 +308,26 @@ if (failures.length === 0) {
 
   if (registry.aiGateway.status === "not-connected") {
     if (
-      registry.aiGateway.adapterVersion !== "UNIMPLEMENTED"
-      || registry.aiGateway.routingPolicyVersion !== "UNCONFIGURED"
+      registry.aiGateway.routingPolicyVersion !== "UNCONFIGURED"
       || registry.adapters.aiGateway?.status !== "contract-only"
+      || registry.adapters.openRouter?.status !== "implemented-unconfigured"
+      || registry.aiGateway.adapterVersion !== registry.adapters.openRouter.version
     ) {
-      fail("Disconnected AI Gateway must retain contract-only adapter state plus UNIMPLEMENTED/UNCONFIGURED live state");
+      fail("Disconnected AI Gateway must expose the implemented OpenRouter adapter while keeping credentials/routing unconfigured");
     }
   } else if (
-    registry.aiGateway.adapterVersion === "UNIMPLEMENTED"
-    || registry.aiGateway.routingPolicyVersion === "UNCONFIGURED"
+    registry.aiGateway.routingPolicyVersion === "UNCONFIGURED"
   ) {
-    fail("Connected AI Gateway cannot retain unimplemented routing/adapter versions");
+    fail("Connected AI Gateway cannot retain an unconfigured routing policy");
+  }
+
+  if (
+    registry.controlApi.status !== "implemented-unconnected"
+    || registry.controlApi.applicationAdapterStatus !== "not-connected"
+    || registry.controlApi.authStatus !== "not-connected"
+    || registry.controlApi.persistenceStatus !== "not-connected"
+  ) {
+    fail("Control API release truth must distinguish implemented surface from unconnected authority adapters");
   }
 
   if (
@@ -331,6 +359,16 @@ if (failures.length === 0) {
       fail(`Manual source drift: ${source.sourcePath}`);
     }
   }
+  for (const evidence of manifest.qualityEvidence ?? []) {
+    if (evidence.sourceSha256 !== fileHash(evidence.sourcePath)) {
+      fail(`Quality evidence drift: ${evidence.sourcePath}`);
+    }
+  }
+  for (const evidence of manifest.securityEvidence ?? []) {
+    if (evidence.sourceSha256 !== fileHash(evidence.sourcePath)) {
+      fail(`Security evidence drift: ${evidence.sourcePath}`);
+    }
+  }
   if (manifest.manuals.generatedOperatingManualSha256 !== sha256(manual)) {
     fail("Generated operating manual hash does not match the release manifest");
   }
@@ -340,7 +378,14 @@ if (failures.length === 0) {
       !environmentState.aiGateway
       || environmentState.aiGateway.contractStatus !== "deterministic-contract"
       || environmentState.aiGateway.adapterStatus !== "not-connected"
+      || environmentState.aiGateway.adapterImplementationStatus !== "implemented-unconfigured"
       || environmentState.connections.aiGateway !== false
+      || !environmentState.controlApi
+      || environmentState.controlApi.surfaceStatus !== "implemented"
+      || environmentState.controlApi.applicationAdapterStatus !== "not-connected"
+      || environmentState.controlApi.authStatus !== "not-connected"
+      || environmentState.controlApi.persistenceStatus !== "not-connected"
+      || environmentState.connections.controlApiPersistence !== false
       || !environmentState.integrations
       || environmentState.integrations.registryStatus !== "deterministic-contract"
       || environmentState.integrations.adapterStatus !== "not-connected"
@@ -407,14 +452,42 @@ if (failures.length === 0) {
   }
 
   if (process.env.GITHUB_ACTIONS === "true") {
-    const coverageEvidence = (manifest.qualityEvidence ?? []).find(
-      (entry) => entry.sourcePath === "coverage/control-plane-module-coverage.json"
-    );
-    if (
-      !coverageEvidence
-      || coverageEvidence.sourceSha256 !== fileHash("coverage/control-plane-module-coverage.json")
-    ) {
-      fail("GitHub Actions release evidence is missing verified control-plane coverage output");
+    const requiredQualityEvidence = [
+      "coverage/control-plane-module-coverage.json",
+      "coverage/vitest/coverage-summary.json",
+      "test-results/playwright-results.json"
+    ];
+    const requiredSecurityEvidence = [
+      "coverage/security/npm-audit-production.json",
+      "coverage/security/npm-audit-full-critical.json"
+    ];
+    for (const requiredPath of requiredQualityEvidence) {
+      const evidence = (manifest.qualityEvidence ?? []).find((entry) => entry.sourcePath === requiredPath);
+      if (!evidence || evidence.sourceSha256 !== fileHash(requiredPath)) {
+        fail(`GitHub Actions release evidence is missing verified quality output: ${requiredPath}`);
+      }
+    }
+    for (const requiredPath of requiredSecurityEvidence) {
+      const evidence = (manifest.securityEvidence ?? []).find((entry) => entry.sourcePath === requiredPath);
+      if (!evidence || evidence.sourceSha256 !== fileHash(requiredPath)) {
+        fail(`GitHub Actions release evidence is missing verified security output: ${requiredPath}`);
+      }
+    }
+    const expectedChecks = [
+      "dependency-audit",
+      "runtime-verification",
+      "secret-scan",
+      "architecture-integrity",
+      "contract-version-drift",
+      "typecheck",
+      "lint",
+      "vitest-v8-coverage",
+      "control-plane-module-coverage",
+      "production-build",
+      "playwright-desktop-mobile-e2e"
+    ];
+    if (JSON.stringify(manifest.ciEvidence.checksCompletedBeforeGeneration) !== JSON.stringify(expectedChecks)) {
+      fail("Release CI prerequisite ledger is incomplete or reordered");
     }
     if (
       manifest.ciEvidence.provider !== "github-actions"

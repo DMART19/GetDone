@@ -15,14 +15,14 @@ The frontend, AI providers, workers, resource agents, callbacks, and infrastruct
 Current code includes:
 
 - iPhone-first Chat / Decisions / Resources owner surface
-- typed Control API envelopes and runtime validation
+- Control API 1.0 HTTP/application-adapter surface for owner intents, Decisions, Resources/discovery, governed Resource Enrollment, Jobs/results, Verification, and health; default runtime fails closed until authoritative auth/persistence adapters are installed
 - trusted execution scope and tenant tampering guards
 - authentication/session/step-up contracts
 - capability registry with runtime input/output schemas
 - Phase 4 deterministic Company Integration Registry with explicit read/write scopes, environment binding, credential-reference-only records, lifecycle transitions, tenant enforcement, and DEVELOPMENT-only mock adapters
-- Phase 13 deterministic AI Gateway with provider-neutral role/requirement/profile contracts, hard eligibility filtering, configuration-driven routing/fallback, budgets/concurrency, atomic budget-reservation contracts, kill switches, response-schema validation, typed terminal failure taxonomy, audit records, and DEVELOPMENT-only mock adapter
+- Phase 13 deterministic AI Gateway with provider-neutral role/requirement/profile contracts, hard eligibility filtering, configuration-driven routing/fallback, budgets/concurrency, atomic budget-reservation contracts, kill switches, response-schema validation, typed terminal failure taxonomy, audit records, DEVELOPMENT-only mock adapter, and an implemented-but-unconfigured OpenRouter adapter with timeout/retry/identity/canary handling
 - Phases 19–21 durable Job Store/lease/recovery contracts, business action adapter SDK/conformance boundary, and software-worker/deployment authorization/evidence contracts
-- architecture dependency-boundary matrix, Resource Fabric internal-module split behind stable public exports, real Vitest V8 statement/branch/function/line coverage thresholds, a separate control-plane module/test-map gate, Playwright desktop/mobile E2E coverage, contract-version drift verification, and deterministic adversarial vectors
+- architecture dependency-boundary matrix, Resource Fabric internal-module split behind stable public exports, real Vitest V8 statement/branch/function/line coverage thresholds, a separate control-plane module/test-map gate, Playwright desktop/mobile E2E coverage, production/full-graph dependency audits, committed-secret scanning, Node-24 Actions, hashed quality/security release evidence, contract-version drift verification, and deterministic adversarial vectors
 - objectives, guardrails, budgets, kill switches, and protected capacity
 - authoritative Goal / Plan / Decision / Approval / Task / Job / Outcome / Event transitions
 - atomic control-plane transaction and idempotency contracts
@@ -60,7 +60,7 @@ The repository does **not** claim production autonomy yet. Canonical acceptance 
 
 - production authentication/session persistence
 - authoritative database transactions, migrations, and RLS
-- live AI Gateway / OpenRouter routing and canaries
+- a real OpenRouter credential plus active AI Gateway routing configuration and a passing live canary
 - durable distributed queue, worker leases, schedules, and crash recovery
 - real business/software action adapters and deployment execution
 - real Resource Fabric agent/hardware enrollment
@@ -88,6 +88,7 @@ Then open `http://localhost:3000`.
 ## Verify
 
 ```bash
+npm run verify:dependencies
 npm run verify:runtime
 npm run verify:secrets
 npm run verify:architecture
@@ -113,6 +114,13 @@ npm run verify:release
 - `/sign-in` — sign-in visual shell
 - `/offline` — explicit offline state
 - `/api/health` — service capability/connection health
+- `/api/control/health` — Control API runtime/connection truth
+- `/api/control/chat` and `/api/control/intents` — owner intent ingestion
+- `/api/control/decisions[/id]` — scoped Decision reads/mutations
+- `/api/control/resources[/id]` — scoped Resource reads plus POST discovery
+- `/api/control/resources/enroll` and `/api/control/resource-enrollments[/id][/actions]` — governed Resource Enrollment
+- `/api/control/jobs[/id][/result]` — scoped Jobs and result truth
+- `/api/control/verifications[/id]` — scoped Verification reads
 - `/api/dev/resources` and `/api/dev/decisions` — development-only seed reads, hard-disabled in production
 
 ## Read before continuing
@@ -133,6 +141,7 @@ Use these as the implementation source of truth:
 - `docs/SOL_PHASE_42_REPORT.md`
 - `docs/SOL_QUALITY_PHASE_4_13_19_21_REPORT.md`
 - `docs/SOL_QUALITY_V8_PLAYWRIGHT_AI_BUDGET_REPORT.md`
+- `docs/SOL_CONTROL_API_OPENROUTER_SECURITY_REPORT.md`
 - `docs/SOL_PHASE_36_39_44_REPORT.md`
 - `docs/SOL_GOLDEN_PATH_JOB_BRIDGE_REPORT.md`
 - `release/version-registry.json`

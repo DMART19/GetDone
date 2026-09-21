@@ -1,53 +1,62 @@
-import { readdir, readFile } from "node:fs/promises";
-import { extname, join, relative } from "node:path";
+import { execFileSync } from "node:child_process";
+import { readFile } from "node:fs/promises";
+import { extname } from "node:path";
 
-const root = process.cwd();
-const allowedExtensions = new Set([".ts", ".tsx", ".js", ".mjs", ".json", ".md", ".yml", ".yaml", ".css"]);
-const ignoredDirectories = new Set([".git", ".next", "node_modules", "coverage"]);
+const allowedExtensions = new Set([
+  ".ts", ".tsx", ".js", ".mjs", ".json", ".md", ".yml", ".yaml",
+  ".css", ".txt", ".sh", ".toml", ".xml"
+]);
 const ignoredFiles = new Set(["package-lock.json"]);
+const explicitlyScannedDotfiles = new Set([".npmrc"]);
 
 const secretPatterns = [
+  { label: "OpenRouter secret key", pattern: /\bsk-or-v1-[A-Za-z0-9_-]{20,}\b/g },
   { label: "OpenAI-style secret key", pattern: /\bsk-[A-Za-z0-9_-]{20,}\b/g },
-  { label: "GitHub personal access token", pattern: /\bgh[pousr]_[A-Za-z0-9]{30,}\b/g },
+  { label: "GitHub personal/access token", pattern: /\bgh[pousr]_[A-Za-z0-9]{30,}\b/g },
   { label: "AWS access key", pattern: /\bAKIA[0-9A-Z]{16}\b/g },
   { label: "Slack token", pattern: /\bxox[baprs]-[A-Za-z0-9-]{10,}\b/g },
-  { label: "Private key block", pattern: /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/g }
+  { label: "Stripe live secret key", pattern: /\bsk_live_[A-Za-z0-9]{16,}\b/g },
+  { label: "Google API key", pattern: /\bAIza[0-9A-Za-z_-]{30,}\b/g },
+  { label: "npm auth token", pattern: /(?:^|\n)\s*\/\/[^\n:]+\/:_authToken\s*=\s*[^\s$][^\s]{15,}/g },
+  { label: "Bearer credential", pattern: /\bBearer\s+[A-Za-z0-9._~+/=-]{24,}\b/g },
+  { label: "Private key block", pattern: /-----BEGIN (?:RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----/g },
+  {
+    label: "Secret-like assignment",
+    pattern: /\b(?:api[_-]?key|secret|client[_-]?secret|password|access[_-]?token|refresh[_-]?token|service[_-]?role[_-]?key)\b\s*[:=]\s*["'][A-Za-z0-9._~+/=-]{20,}["']/gi
+  }
 ];
 
-async function walk(directory) {
-  const entries = await readdir(directory, { withFileTypes: true });
-  const files = [];
+function trackedFiles() {
+  return execFileSync("git", ["ls-files", "-z"], { encoding: "utf8" })
+    .split("\0")
+    .filter(Boolean);
+}
 
-  for (const entry of entries) {
-    if (entry.name.startsWith(".env") && entry.name !== ".env.example") {
-      throw new Error(`Secret-bearing environment file must not be committed: ${relative(root, join(directory, entry.name))}`);
-    }
-
-    if (entry.isDirectory()) {
-      if (!ignoredDirectories.has(entry.name)) files.push(...await walk(join(directory, entry.name)));
-      continue;
-    }
-
-    if (ignoredFiles.has(entry.name) || !allowedExtensions.has(extname(entry.name))) continue;
-    files.push(join(directory, entry.name));
-  }
-
-  return files;
+function shouldScan(file) {
+  if (ignoredFiles.has(file)) return false;
+  if (explicitlyScannedDotfiles.has(file)) return true;
+  return allowedExtensions.has(extname(file));
 }
 
 const findings = [];
-for (const file of await walk(root)) {
+for (const file of trackedFiles()) {
+  if (file.startsWith(".env") && file !== ".env.example") {
+    findings.push(`${file}: committed environment file`);
+    continue;
+  }
+  if (!shouldScan(file)) continue;
+
   const source = await readFile(file, "utf8");
   for (const { label, pattern } of secretPatterns) {
     pattern.lastIndex = 0;
-    if (pattern.test(source)) findings.push(`${relative(root, file)}: ${label}`);
+    if (pattern.test(source)) findings.push(`${file}: ${label}`);
   }
 }
 
 if (findings.length) {
   console.error("Potential committed secrets detected:");
-  findings.forEach((finding) => console.error(`- ${finding}`));
+  for (const finding of [...new Set(findings)].sort()) console.error(`- ${finding}`);
   process.exit(1);
 }
 
-console.log("Secret-pattern scan passed.");
+console.log(`Secret scan passed across ${trackedFiles().length} committed paths.`);

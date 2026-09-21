@@ -6,7 +6,7 @@ import {
 } from "@/lib/security/callback-signature";
 
 describe("callback signature verification", () => {
-  const secret = "server-side-test-secret";
+  const secret = "unit-test-secret";
   const rawBody = JSON.stringify({ event: "resource.health", resourceId: "resource-a" });
   const timestamp = "1790006400";
   const nowMs = Number(timestamp) * 1000;

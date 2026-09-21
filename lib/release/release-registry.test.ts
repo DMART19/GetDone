@@ -17,6 +17,8 @@ import { RESILIENCE_CONTRACT_VERSION } from "@/lib/resources/resilience";
 import { RESOURCE_ADAPTER_SDK_CONTRACT_VERSION } from "@/lib/resources/adapter-sdk";
 import { RESOURCE_POOL_CONTRACT_VERSION } from "@/lib/resources/pools";
 import { PHASE44_DETERMINISTIC_HARNESS_VERSION } from "@/lib/security/phase44-adversarial-harness";
+import { CONTROL_API_SURFACE_VERSION } from "@/lib/control-api/contracts";
+import { OPENROUTER_ADAPTER_VERSION } from "@/lib/ai-gateway/openrouter-adapter";
 
 interface VersionedSource {
   version: string;
@@ -39,6 +41,14 @@ interface ReleaseRegistryShape {
     status: string;
     adapterVersion: string;
     routingPolicyVersion: string;
+  };
+  controlApi: {
+    surfaceVersion: string;
+    status: string;
+    applicationAdapterStatus: string;
+    authStatus: string;
+    persistenceStatus: string;
+    sourcePath: string;
   };
   integrations: {
     registryContractVersion: string;
@@ -101,8 +111,15 @@ interface EnvironmentShape {
   aiGateway: {
     contractStatus: string;
     adapterStatus: string;
+    adapterImplementationStatus: string;
     routingPolicyStatus: string;
     provider: string;
+  };
+  controlApi: {
+    surfaceStatus: string;
+    applicationAdapterStatus: string;
+    authStatus: string;
+    persistenceStatus: string;
   };
   integrations: {
     registryStatus: string;
@@ -160,10 +177,10 @@ const packageJson = readJson<{ version: string }>("package.json");
 
 describe("Phase 41 release/version registry", () => {
   it("binds application policy and machine-readable schema versions", () => {
-    expect(registry.registrySchemaVersion).toBe("1.4.0");
-    expect(registry.environmentManifestSchemaVersion).toBe("1.4.0");
-    expect(environment.manifestSchemaVersion).toBe("1.4.0");
-    expect(registry.schemaVersions.releaseManifest.version).toBe("1.4.0");
+    expect(registry.registrySchemaVersion).toBe("1.5.0");
+    expect(registry.environmentManifestSchemaVersion).toBe("1.5.0");
+    expect(environment.manifestSchemaVersion).toBe("1.5.0");
+    expect(registry.schemaVersions.releaseManifest.version).toBe("1.5.0");
     expect(registry.appVersion).toBe(packageJson.version);
     expect(registry.policy.registryVersion).toBe(CURRENT_POLICY_VERSION);
     expect(registry.policy.engineVersion).toBe(POLICY_ENGINE_VERSION);
@@ -184,15 +201,42 @@ describe("Phase 41 release/version registry", () => {
     }
   });
 
-  it("records deterministic Phase 13 contracts without inventing a live AI provider", () => {
+  it("records the implemented OpenRouter adapter without inventing a live AI connection", () => {
     expect(registry.aiGateway).toMatchObject({
       contractVersion: AI_GATEWAY_CONTRACT_VERSION,
       routingPolicyContractVersion: AI_ROUTING_POLICY_CONTRACT_VERSION,
       status: "not-connected",
-      adapterVersion: "UNIMPLEMENTED",
+      adapterVersion: OPENROUTER_ADAPTER_VERSION,
       routingPolicyVersion: "UNCONFIGURED"
     });
     expect(registry.adapters.aiGateway.status).toBe("contract-only");
+    expect(registry.adapters.openRouter).toMatchObject({
+      status: "implemented-unconfigured",
+      version: OPENROUTER_ADAPTER_VERSION
+    });
+  });
+
+  it("records the Control API surface without claiming auth or persistence connectivity", () => {
+    expect(registry.controlApi).toMatchObject({
+      surfaceVersion: CONTROL_API_SURFACE_VERSION,
+      status: "implemented-unconnected",
+      applicationAdapterStatus: "not-connected",
+      authStatus: "not-connected",
+      persistenceStatus: "not-connected"
+    });
+    for (const state of Object.values(environment.environments)) {
+      expect(state.controlApi).toMatchObject({
+        surfaceStatus: "implemented",
+        applicationAdapterStatus: "not-connected",
+        authStatus: "not-connected",
+        persistenceStatus: "not-connected"
+      });
+      expect(state.aiGateway).toMatchObject({
+        adapterStatus: "not-connected",
+        adapterImplementationStatus: "implemented-unconfigured",
+        provider: "OPENROUTER_UNCONFIGURED"
+      });
+    }
   });
 
   it("records deterministic Phase 4 and Phase 19-21 contracts without live adapters/stores", () => {

@@ -1,6 +1,6 @@
 {
-  "registrySchemaVersion": "1.4.0",
-  "registryVersion": "2026-09-20.8",
+  "registrySchemaVersion": "1.5.0",
+  "registryVersion": "2026-09-21.1",
   "appVersion": "0.1.0",
   "schemaVersions": {
     "controlApi": {
@@ -60,7 +60,7 @@
       "sourcePath": "lib/resources/policy-simulator.ts"
     },
     "releaseManifest": {
-      "version": "1.4.0",
+      "version": "1.5.0",
       "sourcePath": "scripts/generate-release-artifacts.mjs"
     },
     "voiceIntent": {
@@ -166,6 +166,14 @@
       "contractSourcePaths": [
         "lib/ai-gateway/budget-reservation.ts"
       ]
+    },
+    "controlApiSurface": {
+      "version": "1.0.0",
+      "sourcePath": "lib/control-api/contracts.ts",
+      "contractTracked": true,
+      "contractSourcePaths": [
+        "lib/control-api/contracts.ts"
+      ]
     }
   },
   "policy": {
@@ -178,7 +186,7 @@
     "contractVersion": "1.1.0",
     "routingPolicyContractVersion": "1.0.0",
     "status": "not-connected",
-    "adapterVersion": "UNIMPLEMENTED",
+    "adapterVersion": "1.0.0",
     "routingPolicyVersion": "UNCONFIGURED",
     "sourcePath": "lib/ai-gateway/contracts.ts"
   },
@@ -254,6 +262,15 @@
       "contractSourcePaths": [
         "lib/resources/adapter-sdk.ts"
       ]
+    },
+    "openRouter": {
+      "status": "implemented-unconfigured",
+      "version": "1.0.0",
+      "sourcePath": "lib/ai-gateway/openrouter-adapter.ts",
+      "contractTracked": true,
+      "contractSourcePaths": [
+        "lib/ai-gateway/openrouter-adapter.ts"
+      ]
     }
   },
   "environmentManifestPath": "release/environment-manifest.json",
@@ -290,7 +307,14 @@
     "e2e/owner-surface.spec.ts",
     "e2e/pwa-offline.spec.ts",
     "lib/ai-gateway/budget-reservation.test.ts",
-    "docs/SOL_QUALITY_V8_PLAYWRIGHT_AI_BUDGET_REPORT.md"
+    "docs/SOL_QUALITY_V8_PLAYWRIGHT_AI_BUDGET_REPORT.md",
+    "scripts/verify-dependencies.mjs",
+    "scripts/verify-no-secrets.mjs",
+    ".github/dependabot.yml",
+    "lib/control-api/http.test.ts",
+    "lib/control-api/service-adapter.test.ts",
+    "lib/ai-gateway/openrouter-adapter.test.ts",
+    "docs/SOL_CONTROL_API_OPENROUTER_SECURITY_REPORT.md"
   ],
   "manualSourcePaths": [
     "docs/ARCHITECTURE.md",
@@ -302,7 +326,8 @@
     "docs/SOL_QUALITY_PHASE_4_13_19_21_REPORT.md",
     "docs/SOL_PHASE_36_39_44_REPORT.md",
     "docs/SOL_GOLDEN_PATH_JOB_BRIDGE_REPORT.md",
-    "docs/SOL_QUALITY_V8_PLAYWRIGHT_AI_BUDGET_REPORT.md"
+    "docs/SOL_QUALITY_V8_PLAYWRIGHT_AI_BUDGET_REPORT.md",
+    "docs/SOL_CONTROL_API_OPENROUTER_SECURITY_REPORT.md"
   ],
   "generatedArtifacts": {
     "machineManifest": "release/out/release-manifest.json",
@@ -325,7 +350,7 @@
     "credentialHandling": "secure-provider-or-phone-only",
     "sourcePath": "lib/voice/voice-intents.ts"
   },
-  "environmentManifestSchemaVersion": "1.4.0",
+  "environmentManifestSchemaVersion": "1.5.0",
   "integrations": {
     "registryContractVersion": "1.0.0",
     "liveAdaptersStatus": "not-connected",
@@ -375,5 +400,13 @@
     "status": "deterministic-simulation-only",
     "productionExecutionClaimed": false,
     "sourcePath": "lib/composition/golden-path-harness.ts"
+  },
+  "controlApi": {
+    "surfaceVersion": "1.0.0",
+    "status": "implemented-unconnected",
+    "applicationAdapterStatus": "not-connected",
+    "authStatus": "not-connected",
+    "persistenceStatus": "not-connected",
+    "sourcePath": "lib/control-api/contracts.ts"
   }
 }
