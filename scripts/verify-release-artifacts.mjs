@@ -139,6 +139,18 @@ if (failures.length === 0) {
     registry.controlApi.sourcePath,
     "CONTROL_API_SURFACE_VERSION"
   );
+  const nodeDomainVersion = extractStringConst(
+    "lib/nodes/contracts.ts",
+    "NODE_DOMAIN_VERSION"
+  );
+  const nodeAgentProtocolVersion = extractStringConst(
+    "lib/nodes/contracts.ts",
+    "NODE_AGENT_PROTOCOL_VERSION"
+  );
+  const nodeDispatchContractVersion = extractStringConst(
+    "lib/nodes/dispatch-contracts.ts",
+    "NODE_DISPATCH_CONTRACT_VERSION"
+  );
   const openRouterAdapterVersion = extractStringConst(
     registry.adapters.openRouter.sourcePath,
     "OPENROUTER_ADAPTER_VERSION"
@@ -187,6 +199,26 @@ if (failures.length === 0) {
     registry.phase44.sourcePath,
     "PHASE44_DETERMINISTIC_HARNESS_VERSION"
   );
+  if (
+    manifest.nodeAgent?.status !== "contract-only"
+    || manifest.nodeAgent?.domainVersion !== nodeDomainVersion
+    || manifest.nodeAgent?.protocolVersion !== nodeAgentProtocolVersion
+    || manifest.nodeAgent?.dispatchContractVersion !== nodeDispatchContractVersion
+    || manifest.nodeAgent?.linuxX64 !== "not-connected"
+    || manifest.nodeAgent?.linuxArm64 !== "not-connected"
+    || manifest.nodeAgent?.productionReady !== false
+    || registry.nodeAgent?.status !== "contract-only"
+  ) {
+    fail("Phase 28.0 Node Agent release artifact truth drifted or overclaims connectivity");
+  }
+  for (const evidence of manifest.nodeAgent?.sourceEvidence ?? []) {
+    if (
+      !registry.nodeAgent.sourcePaths.includes(evidence.sourcePath)
+      || evidence.sourceSha256 !== fileHash(evidence.sourcePath)
+    ) {
+      fail(`Phase 28.0 node source evidence drift: ${evidence.sourcePath}`);
+    }
+  }
   if (
     registry.aiGateway.contractVersion !== aiGatewayContractVersion
     || registry.aiGateway.routingPolicyContractVersion !== aiRoutingPolicyContractVersion

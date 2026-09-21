@@ -19,6 +19,11 @@ import { RESOURCE_POOL_CONTRACT_VERSION } from "@/lib/resources/pools";
 import { PHASE44_DETERMINISTIC_HARNESS_VERSION } from "@/lib/security/phase44-adversarial-harness";
 import { CONTROL_API_SURFACE_VERSION } from "@/lib/control-api/contracts";
 import { OPENROUTER_ADAPTER_VERSION } from "@/lib/ai-gateway/openrouter-adapter";
+import {
+  NODE_AGENT_PROTOCOL_VERSION,
+  NODE_DOMAIN_VERSION
+} from "@/lib/nodes/contracts";
+import { NODE_DISPATCH_CONTRACT_VERSION } from "@/lib/nodes/dispatch-contracts";
 
 interface VersionedSource {
   version: string;
@@ -55,6 +60,16 @@ interface ReleaseRegistryShape {
     authStatus: string;
     persistenceStatus: string;
     sourcePath: string;
+  };
+  nodeAgent: {
+    status: string;
+    domainVersion: string;
+    protocolVersion: string;
+    dispatchContractVersion: string;
+    linuxX64: string;
+    linuxArm64: string;
+    productionReady: boolean;
+    sourcePaths: string[];
   };
   integrations: {
     registryContractVersion: string;
@@ -142,6 +157,15 @@ interface EnvironmentShape {
     applicationAdapterStatus: string;
     authStatus: string;
     persistenceStatus: string;
+  };
+  nodeAgent: {
+    status: string;
+    domainVersion: string;
+    protocolVersion: string;
+    dispatchContractVersion: string;
+    linuxX64: string;
+    linuxArm64: string;
+    productionReady: boolean;
   };
   integrations: {
     registryStatus: string;
@@ -241,6 +265,38 @@ describe("Phase 41 release/version registry", () => {
       status: "implemented-unconfigured",
       version: OPENROUTER_ADAPTER_VERSION
     });
+  });
+
+  it("records Phase 28.0 contracts without claiming a connected Node Agent", () => {
+    expect(registry.nodeAgent).toMatchObject({
+      status: "contract-only",
+      domainVersion: NODE_DOMAIN_VERSION,
+      protocolVersion: NODE_AGENT_PROTOCOL_VERSION,
+      dispatchContractVersion: NODE_DISPATCH_CONTRACT_VERSION,
+      linuxX64: "not-connected",
+      linuxArm64: "not-connected",
+      productionReady: false
+    });
+    expect(registry.schemaVersions.nodeDomain).toMatchObject({
+      version: NODE_DOMAIN_VERSION,
+      contractTracked: true
+    });
+    expect(registry.schemaVersions.nodeDispatch).toMatchObject({
+      version: NODE_DISPATCH_CONTRACT_VERSION,
+      contractTracked: true
+    });
+    for (const state of Object.values(environment.environments)) {
+      expect(state.connections.resourceAgent).toBe(false);
+      expect(state.nodeAgent).toMatchObject({
+        status: "contract-only",
+        domainVersion: NODE_DOMAIN_VERSION,
+        protocolVersion: NODE_AGENT_PROTOCOL_VERSION,
+        dispatchContractVersion: NODE_DISPATCH_CONTRACT_VERSION,
+        linuxX64: "not-connected",
+        linuxArm64: "not-connected",
+        productionReady: false
+      });
+    }
   });
 
   it("records the Control API surface without claiming auth or persistence connectivity", () => {
