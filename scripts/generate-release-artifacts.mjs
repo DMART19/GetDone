@@ -89,6 +89,14 @@ const aiRoutingPolicyContractVersion = extractStringConst(
   registry.aiGateway.sourcePath,
   "AI_ROUTING_POLICY_CONTRACT_VERSION"
 );
+const controlApiSurfaceVersion = extractStringConst(
+  registry.controlApi.sourcePath,
+  "CONTROL_API_SURFACE_VERSION"
+);
+const openRouterAdapterVersion = extractStringConst(
+  registry.adapters.openRouter.sourcePath,
+  "OPENROUTER_ADAPTER_VERSION"
+);
 const integrationRegistryContractVersion = extractStringConst(
   registry.integrations.sourcePath,
   "INTEGRATION_REGISTRY_CONTRACT_VERSION"
@@ -136,6 +144,10 @@ const phase44HarnessVersion = extractStringConst(
 if (
   registry.aiGateway.contractVersion !== aiGatewayContractVersion
   || registry.aiGateway.routingPolicyContractVersion !== aiRoutingPolicyContractVersion
+  || registry.controlApi.surfaceVersion !== controlApiSurfaceVersion
+  || registry.schemaVersions.controlApiSurface?.version !== controlApiSurfaceVersion
+  || registry.adapters.openRouter?.version !== openRouterAdapterVersion
+  || registry.aiGateway.adapterVersion !== openRouterAdapterVersion
   || registry.integrations.registryContractVersion !== integrationRegistryContractVersion
   || registry.execution.jobRuntimeContractVersion !== jobRuntimeContractVersion
   || registry.execution.businessActionContractVersion !== businessActionContractVersion
@@ -293,7 +305,18 @@ const manualLines = [
   `- Live adapter version: ${registry.aiGateway.adapterVersion}`,
   `- Active model-role routing-policy version: ${registry.aiGateway.routingPolicyVersion}`,
   "",
-  "The deterministic AI Gateway contract/router/budget/audit layer exists, while UNIMPLEMENTED/UNCONFIGURED intentionally records that no live OpenRouter/provider adapter or active routing configuration exists.",
+  "The AI Gateway contract/router/budget/audit layer and OpenRouter adapter implementation exist. OPENROUTER_UNCONFIGURED / UNCONFIGURED records that no credential, canary model, or active routing policy is connected.",
+  "",
+  "## Control API",
+  "",
+  `- Surface version: ${registry.controlApi.surfaceVersion}`,
+  `- Surface status: ${registry.controlApi.status}`,
+  `- Application adapter: ${registry.controlApi.applicationAdapterStatus}`,
+  `- Auth: ${registry.controlApi.authStatus}`,
+  `- Persistence: ${registry.controlApi.persistenceStatus}`,
+  `- Source hash: ${fileHash(registry.controlApi.sourcePath)}`,
+  "",
+  "The HTTP surface is implemented, but no production auth/persistence adapter is implied by these artifacts.",
   "",
   "## Company Integration Registry",
   "",
@@ -385,7 +408,8 @@ const manualLines = [
     `- Voice strong approval allowed: ${value.voice.strongApprovalAllowed ? "yes" : "no"}`,
     `- Voice raw credential input allowed: ${value.voice.rawCredentialInputAllowed ? "yes" : "no"}`,
     `- Voice secure handoff: ${value.voice.secureHandoff}`,
-    `- AI Gateway contract/live adapter: ${value.aiGateway.contractStatus} / ${value.aiGateway.adapterStatus}`,
+    `- AI Gateway contract/live adapter: ${value.aiGateway.contractStatus} / ${value.aiGateway.adapterStatus}; implementation=${value.aiGateway.adapterImplementationStatus}`,
+    `- Control API surface/application adapter: ${value.controlApi.surfaceStatus} / ${value.controlApi.applicationAdapterStatus}`,
     `- Integration registry/live adapter: ${value.integrations.registryStatus} / ${value.integrations.adapterStatus}`,
     `- Durable Job contract/store: ${value.execution.jobRuntimeContractStatus} / ${value.execution.durableJobStoreStatus}`,
     `- Business action adapter: ${value.execution.businessActionAdapterStatus}`,
@@ -475,6 +499,10 @@ const manifestBase = {
   aiGateway: {
     ...registry.aiGateway,
     sourceSha256: fileHash(registry.aiGateway.sourcePath)
+  },
+  controlApi: {
+    ...registry.controlApi,
+    sourceSha256: fileHash(registry.controlApi.sourcePath)
   },
   integrations: {
     ...registry.integrations,
