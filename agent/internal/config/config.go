@@ -104,9 +104,9 @@ func (c Config) Redacted() RedactedConfig {
 	}
 	return RedactedConfig{
 		ControlPlaneURL: c.ControlPlaneURL,
-		StateDir: c.StateDir,
-		LogLevel: c.LogLevel,
-		NodeID: c.NodeID,
+		StateDir:        c.StateDir,
+		LogLevel:        c.LogLevel,
+		NodeID:          c.NodeID,
 		EnrollmentToken: token,
 		ProtocolVersion: c.ProtocolVersion,
 	}
