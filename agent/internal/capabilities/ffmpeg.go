@@ -37,7 +37,7 @@ func (d FFmpegDetector) Validate(ctx context.Context) ValidationResult {
 		return invalid()
 	}
 	return valid(d.Name(), cleanVersion(out), map[string]any{
-		"tool": "ffmpeg",
+		"tool":       "ffmpeg",
 		"validation": "synthetic-frame",
 	})
 }

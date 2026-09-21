@@ -31,7 +31,7 @@ func (d PythonDetector) Validate(ctx context.Context) ValidationResult {
 		return invalid()
 	}
 	return valid(d.Name(), cleanVersion(out), map[string]any{
-		"runtime": "python3",
+		"runtime":  "python3",
 		"isolated": true,
 	})
 }

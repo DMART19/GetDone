@@ -132,7 +132,7 @@ func TestValidationFailureDoesNotBecomeValidated(t *testing.T) {
 		err error
 	}{
 		"ollama --version": success("ollama version 0.12.0"),
-		"ollama list": failure(),
+		"ollama list":      failure(),
 	}}
 	profile, err := NewProfiler(
 		[]Detector{OllamaDetector{Runner: runner}},
@@ -149,10 +149,10 @@ func TestValidationFailureDoesNotBecomeValidated(t *testing.T) {
 func TestSaveProfileUsesProtectedAtomicSnapshot(t *testing.T) {
 	dir := t.TempDir()
 	profile := Profile{
-		NodeID: "node-1",
-		ObservedAt: time.Unix(100, 0).UTC().Format(time.RFC3339),
+		NodeID:       "node-1",
+		ObservedAt:   time.Unix(100, 0).UTC().Format(time.RFC3339),
 		Capabilities: []NodeCapability{},
-		ProfileHash: strings.Repeat("a", 64),
+		ProfileHash:  strings.Repeat("a", 64),
 	}
 	if err := SaveProfile(dir, profile); err != nil {
 		t.Fatal(err)

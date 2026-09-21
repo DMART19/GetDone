@@ -37,7 +37,7 @@ func (d CUDADetector) Validate(ctx context.Context) ValidationResult {
 		return invalid()
 	}
 	return valid(d.Name(), cleanVersion(out), map[string]any{
-		"gpuRuntime": "cuda",
+		"gpuRuntime":      "cuda",
 		"driverValidated": true,
 	})
 }

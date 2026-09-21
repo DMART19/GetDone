@@ -39,7 +39,7 @@ func (d DockerDetector) Validate(ctx context.Context) ValidationResult {
 		return invalid()
 	}
 	return valid(d.Name(), cleanVersion(out), map[string]any{
-		"runtime": "docker",
+		"runtime":    "docker",
 		"validation": "sandboxed-container",
 	})
 }

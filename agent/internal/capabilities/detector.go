@@ -48,8 +48,8 @@ func detected(name, version string, constraints map[string]any) Result {
 		constraints = map[string]any{}
 	}
 	return Result{
-		Detected: true,
-		Version: version,
+		Detected:    true,
+		Version:     version,
 		EvidenceIDs: []string{evidenceID(name, "detected", version)},
 		Constraints: constraints,
 	}
@@ -64,7 +64,7 @@ func valid(name, version string, constraints map[string]any) ValidationResult {
 		constraints = map[string]any{}
 	}
 	return ValidationResult{
-		Validated: true,
+		Validated:   true,
 		EvidenceIDs: []string{evidenceID(name, "validated", version)},
 		Constraints: constraints,
 	}

@@ -23,7 +23,7 @@ func (d ContainerdDetector) Validate(ctx context.Context) ValidationResult {
 		return invalid()
 	}
 	return valid(d.Name(), cleanVersion(out), map[string]any{
-		"runtime": "containerd",
+		"runtime":    "containerd",
 		"validation": "daemon-plugin-probe",
 	})
 }

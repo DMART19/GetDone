@@ -78,14 +78,14 @@ func (p *Profiler) Profile(ctx context.Context, nodeID string) (Profile, error) 
 			validation.EvidenceIDs...,
 		))
 		base := NodeCapability{
-			ID: "node-capability-" + safeCapabilityID(detector.Name()),
-			NodeID: nodeID,
-			Name: detector.Name(),
-			Version: detectedResult.Version,
-			Status: status,
+			ID:          "node-capability-" + safeCapabilityID(detector.Name()),
+			NodeID:      nodeID,
+			Name:        detector.Name(),
+			Version:     detectedResult.Version,
+			Status:      status,
 			EvidenceIDs: evidenceIDs,
 			Constraints: constraints,
-			ObservedAt: observedAt,
+			ObservedAt:  observedAt,
 		}
 		hash, err := protocol.SHA256CanonicalWithoutField(base, "capabilityHash")
 		if err != nil {
@@ -99,8 +99,8 @@ func (p *Profiler) Profile(ctx context.Context, nodeID string) (Profile, error) 
 		return capabilities[i].Name < capabilities[j].Name
 	})
 	profile := Profile{
-		NodeID: nodeID,
-		ObservedAt: observedAt,
+		NodeID:       nodeID,
+		ObservedAt:   observedAt,
 		Capabilities: capabilities,
 	}
 	hash, err := protocol.SHA256CanonicalWithoutField(profile, "profileHash")

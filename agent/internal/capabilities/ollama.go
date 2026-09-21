@@ -23,7 +23,7 @@ func (d OllamaDetector) Validate(ctx context.Context) ValidationResult {
 		return invalid()
 	}
 	return valid(d.Name(), cleanVersion(out), map[string]any{
-		"runtime": "ollama",
+		"runtime":         "ollama",
 		"daemonReachable": true,
 	})
 }
