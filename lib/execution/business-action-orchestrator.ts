@@ -150,7 +150,7 @@ export class BusinessActionExecutionOrchestrator {
       );
     }
 
-    let record = createRecord({
+    const record = createRecord({
       requestId: request.id,
       jobId: request.jobId,
       requestHash,
