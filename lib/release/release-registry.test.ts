@@ -34,7 +34,13 @@ interface ReleaseRegistryShape {
   environmentManifestSchemaVersion: string;
   appVersion: string;
   policy: { registryVersion: string; engineVersion: string };
-  database: { status: string; migrationVersion: string; schemaVersion: string };
+  database: {
+    status: string;
+    engine: string;
+    minimumEngineVersion: string;
+    migrationVersion: string;
+    schemaVersion: string;
+  };
   aiGateway: {
     contractVersion: string;
     routingPolicyContractVersion: string;
@@ -57,13 +63,30 @@ interface ReleaseRegistryShape {
   execution: {
     jobRuntimeContractVersion: string;
     durableJobStoreStatus: string;
+    durableJobStoreVersion: string;
     businessActionContractVersion: string;
+    businessActionOrchestratorStatus: string;
+    businessActionOrchestratorVersion: string;
     businessAdaptersStatus: string;
     softwareWorkerContractVersion: string;
+    softwareWorkerRuntimeStatus: string;
+    softwareWorkerRuntimeVersion: string;
     softwareDeploymentStatus: string;
+    jobExecutionRouterStatus: string;
+    jobExecutionRouterVersion: string;
     jobExecutionBridgeContractVersion: string;
     jobExecutionBridgeStatus: string;
     liveJobExecutionBridgeStoreStatus: string;
+    jobExecutionBridgeStoreImplementationStatus: string;
+    jobExecutionBridgeStoreImplementationStatus: string;
+    persistenceBackend: string;
+  };
+  database: {
+    engine: string;
+    minimumEngineVersion: string;
+    adapterStatus: string;
+    migrationVersion: string;
+    schemaVersion: string;
   };
   composition: {
     goldenPathHarnessVersion: string;
@@ -129,8 +152,12 @@ interface EnvironmentShape {
   execution: {
     jobRuntimeContractStatus: string;
     durableJobStoreStatus: string;
+    durableJobStoreImplementationStatus: string;
+    businessActionOrchestratorStatus: string;
     businessActionAdapterStatus: string;
+    softwareWorkerRuntimeStatus: string;
     softwareDeploymentStatus: string;
+    jobExecutionRouterStatus: string;
     jobExecutionBridgeStatus: string;
     liveJobExecutionBridgeStoreStatus: string;
   };
@@ -177,10 +204,10 @@ const packageJson = readJson<{ version: string }>("package.json");
 
 describe("Phase 41 release/version registry", () => {
   it("binds application policy and machine-readable schema versions", () => {
-    expect(registry.registrySchemaVersion).toBe("1.5.0");
-    expect(registry.environmentManifestSchemaVersion).toBe("1.5.0");
-    expect(environment.manifestSchemaVersion).toBe("1.5.0");
-    expect(registry.schemaVersions.releaseManifest.version).toBe("1.5.0");
+    expect(registry.registrySchemaVersion).toBe("1.6.0");
+    expect(registry.environmentManifestSchemaVersion).toBe("1.6.0");
+    expect(environment.manifestSchemaVersion).toBe("1.6.0");
+    expect(registry.schemaVersions.releaseManifest.version).toBe("1.6.0");
     expect(registry.appVersion).toBe(packageJson.version);
     expect(registry.policy.registryVersion).toBe(CURRENT_POLICY_VERSION);
     expect(registry.policy.engineVersion).toBe(POLICY_ENGINE_VERSION);
@@ -239,21 +266,30 @@ describe("Phase 41 release/version registry", () => {
     }
   });
 
-  it("records deterministic Phase 4 and Phase 19-21 contracts without live adapters/stores", () => {
+  it("records Phase 4 contracts plus implemented-but-unconnected production execution runtimes", () => {
     expect(registry.integrations).toMatchObject({
       registryContractVersion: INTEGRATION_REGISTRY_CONTRACT_VERSION,
       liveAdaptersStatus: "not-connected"
     });
     expect(registry.execution).toMatchObject({
       jobRuntimeContractVersion: JOB_RUNTIME_CONTRACT_VERSION,
-      durableJobStoreStatus: "not-connected",
+      durableJobStoreStatus: "implemented-unconnected",
+      durableJobStoreVersion: "1.0.0",
       businessActionContractVersion: BUSINESS_ACTION_ADAPTER_CONTRACT_VERSION,
+      businessActionOrchestratorStatus: "implemented",
+      businessActionOrchestratorVersion: "1.0.0",
       businessAdaptersStatus: "not-connected",
       softwareWorkerContractVersion: SOFTWARE_WORKER_CONTRACT_VERSION,
+      softwareWorkerRuntimeStatus: "implemented",
+      softwareWorkerRuntimeVersion: "1.0.0",
       softwareDeploymentStatus: "not-connected",
+      jobExecutionRouterStatus: "implemented",
+      jobExecutionRouterVersion: "1.0.0",
       jobExecutionBridgeContractVersion: JOB_EXECUTION_BRIDGE_CONTRACT_VERSION,
       jobExecutionBridgeStatus: "deterministic-contract",
-      liveJobExecutionBridgeStoreStatus: "not-connected"
+      liveJobExecutionBridgeStoreStatus: "not-connected",
+      jobExecutionBridgeStoreImplementationStatus: "implemented-unconnected",
+      persistenceBackend: "postgresql"
     });
     expect(registry.composition).toMatchObject({
       goldenPathHarnessVersion: "1.0.0",
@@ -289,10 +325,35 @@ describe("Phase 41 release/version registry", () => {
     });
   });
 
-  it("records the exact absence of database migrations instead of inventing schema state", () => {
-    expect(registry.database.status).toBe("not-connected");
-    expect(registry.database.migrationVersion).toBe("UNIMPLEMENTED");
-    expect(registry.database.schemaVersion).toBe("UNIMPLEMENTED");
+  it("records PostgreSQL persistence implementation without claiming a live database", () => {
+    expect(registry.database).toMatchObject({
+      status: "implemented-unconnected",
+      engine: "postgresql",
+      minimumEngineVersion: "16",
+      migrationVersion: "2026-09-21.1",
+      schemaVersion: "1.0.0"
+    });
+    for (const state of Object.values(environment.environments)) {
+      expect(state.connections.database).toBe(false);
+      expect(state.database).toMatchObject({
+        engine: "postgresql",
+        minimumEngineVersion: "16",
+        adapterStatus: "implemented-unconnected",
+        migrationVersion: "2026-09-21.1",
+        schemaVersion: "1.0.0"
+      });
+      expect(state.execution).toMatchObject({
+        durableJobStoreStatus: "not-connected",
+        durableJobStoreImplementationStatus: "implemented-unconnected",
+        businessActionOrchestratorStatus: "implemented",
+        businessActionAdapterStatus: "not-connected",
+        softwareWorkerRuntimeStatus: "implemented",
+        softwareDeploymentStatus: "not-connected",
+        jobExecutionRouterStatus: "implemented",
+        jobExecutionBridgeStoreImplementationStatus: "implemented-unconnected",
+        liveJobExecutionBridgeStoreStatus: "not-connected"
+      });
+    }
   });
 
   it("preserves Phase 42 voice authority and live-adapter absence", () => {
