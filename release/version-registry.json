@@ -1,6 +1,6 @@
 {
-  "registrySchemaVersion": "1.6.0",
-  "registryVersion": "2026-09-21.2",
+  "registrySchemaVersion": "1.7.0",
+  "registryVersion": "2026-09-21.3",
   "appVersion": "0.1.0",
   "schemaVersions": {
     "controlApi": {
@@ -60,7 +60,7 @@
       "sourcePath": "lib/resources/policy-simulator.ts"
     },
     "releaseManifest": {
-      "version": "1.6.0",
+      "version": "1.7.0",
       "sourcePath": "scripts/generate-release-artifacts.mjs"
     },
     "voiceIntent": {
@@ -194,6 +194,22 @@
     "jobExecutionRouter": {
       "version": "1.0.0",
       "sourcePath": "lib/execution/job-execution-router.ts"
+    },
+    "nodeDomain": {
+      "version": "1.0.0",
+      "sourcePath": "lib/nodes/contracts.ts",
+      "contractTracked": true,
+      "contractSourcePaths": [
+        "lib/nodes/contracts.ts"
+      ]
+    },
+    "nodeDispatch": {
+      "version": "1.0.0",
+      "sourcePath": "lib/nodes/dispatch-contracts.ts",
+      "contractTracked": true,
+      "contractSourcePaths": [
+        "lib/nodes/dispatch-contracts.ts"
+      ]
     }
   },
   "policy": {
@@ -316,6 +332,19 @@
       "status": "implemented",
       "version": "1.0.0",
       "sourcePath": "lib/execution/job-execution-router.ts"
+    },
+    "nodeAgent": {
+      "status": "contract-only",
+      "version": "1.0.0",
+      "sourcePath": "lib/nodes/contracts.ts",
+      "contractTracked": true,
+      "contractSourcePaths": [
+        "lib/nodes/contracts.ts",
+        "lib/nodes/dispatch-contracts.ts",
+        "lib/nodes/enrollment.ts",
+        "lib/nodes/schemas.ts",
+        "lib/nodes/hashes.ts"
+      ]
     }
   },
   "environmentManifestPath": "release/environment-manifest.json",
@@ -373,7 +402,16 @@
     "lib/execution/software-worker-runtime.test.ts",
     "lib/execution/job-execution-router.test.ts",
     "lib/persistence/postgres/postgres-adapters.test.ts",
-    "docs/SOL_POSTGRES_JOB_EXECUTION_RUNTIME_REPORT.md"
+    "docs/SOL_POSTGRES_JOB_EXECUTION_RUNTIME_REPORT.md",
+    "lib/nodes/contracts.ts",
+    "lib/nodes/dispatch-contracts.ts",
+    "lib/nodes/enrollment.ts",
+    "lib/nodes/schemas.ts",
+    "lib/nodes/hashes.ts",
+    "lib/nodes/contracts.test.ts",
+    "lib/nodes/schemas.test.ts",
+    "lib/nodes/hashes.test.ts",
+    "lib/nodes/enrollment.test.ts"
   ],
   "manualSourcePaths": [
     "docs/ARCHITECTURE.md",
@@ -413,7 +451,7 @@
     "credentialHandling": "secure-provider-or-phone-only",
     "sourcePath": "lib/voice/voice-intents.ts"
   },
-  "environmentManifestSchemaVersion": "1.6.0",
+  "environmentManifestSchemaVersion": "1.7.0",
   "integrations": {
     "registryContractVersion": "1.0.0",
     "liveAdaptersStatus": "not-connected",
@@ -485,5 +523,20 @@
     "authStatus": "not-connected",
     "persistenceStatus": "not-connected",
     "sourcePath": "lib/control-api/contracts.ts"
+  },
+  "nodeAgent": {
+    "status": "contract-only",
+    "domainVersion": "1.0.0",
+    "protocolVersion": "1.0.0",
+    "dispatchContractVersion": "1.0.0",
+    "linuxX64": "not-connected",
+    "linuxArm64": "not-connected",
+    "sourcePaths": [
+      "lib/nodes/contracts.ts",
+      "lib/nodes/dispatch-contracts.ts",
+      "lib/nodes/enrollment.ts",
+      "lib/nodes/schemas.ts",
+      "lib/nodes/hashes.ts"
+    ]
   }
 }
