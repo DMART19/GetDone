@@ -180,7 +180,7 @@ for (const required of ["blockingKillSwitches", "profile-not-validated", "struct
 
 const openRouterAdapter = read("lib/ai-gateway/openrouter-adapter.ts");
 for (const required of [
-  'OPENROUTER_ADAPTER_VERSION = "1.1.0"',
+  'OPENROUTER_ADAPTER_VERSION = "1.2.0"',
   'OPENROUTER_DEFAULT_BASE_URL = "https://openrouter.ai/api/v1"',
   "AbortSignal.timeout",
   "retryableStatus",
