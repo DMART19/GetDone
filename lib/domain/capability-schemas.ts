@@ -51,6 +51,33 @@ export const EmailSendResultSchema = z.object({
   acceptedAt: isoDateTime
 }).strict();
 
+export const WebhookSendInputSchema = z.object({
+  companyId,
+  operation: id,
+  payload: z.record(z.unknown())
+}).strict();
+
+export const WebhookSendResultSchema = z.object({
+  providerOperationId: z.string().min(1).max(500),
+  responseStatus: z.number().int().min(200).max(299),
+  responseBodyHash: z.string().regex(/^[a-f0-9]{64}$/),
+  observedAt: isoDateTime
+}).strict();
+
+export const SlackMessageSendInputSchema = z.object({
+  companyId,
+  channelId: z.string().min(1).max(200),
+  text: z.string().min(1).max(40_000),
+  threadTs: z.string().regex(/^\d+\.\d+$/).optional()
+}).strict();
+
+export const SlackMessageSendResultSchema = z.object({
+  channelId: z.string().min(1).max(200),
+  messageTs: z.string().regex(/^\d+\.\d+$/),
+  providerReference: z.string().min(1).max(500),
+  acceptedAt: isoDateTime
+}).strict();
+
 export const RepositoryInspectInputSchema = z.object({
   companyId,
   repository,
@@ -240,6 +267,14 @@ export const capabilitySchemaRegistry = {
   "email.send": {
     input: EmailSendInputSchema,
     output: EmailSendResultSchema
+  },
+  "webhook.send": {
+    input: WebhookSendInputSchema,
+    output: WebhookSendResultSchema
+  },
+  "slack.message.send": {
+    input: SlackMessageSendInputSchema,
+    output: SlackMessageSendResultSchema
   },
   "repository.inspect": {
     input: RepositoryInspectInputSchema,

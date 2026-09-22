@@ -56,8 +56,8 @@ export interface AIReasoningGateway {
   }): Promise<AIInvocationResult<ProposalModelOutput>>;
 }
 
-export interface AuthorizedHttpActionRuntime {
-  enqueueAuthorizedHttpAction(
+export interface AuthorizedBusinessActionRuntime {
+  enqueueAuthorizedBusinessAction(
     job: JobRecord,
     request: AuthorizedBusinessActionRequest
   ): Promise<unknown>;
@@ -75,7 +75,7 @@ function assertProposal(proposal: ProposedBusinessAction) {
 export class MvpBusinessWorkflow {
   constructor(
     private readonly ai: AIReasoningGateway,
-    private readonly runtime: AuthorizedHttpActionRuntime,
+    private readonly runtime: AuthorizedBusinessActionRuntime,
     private readonly now: () => Date = () => new Date()
   ) {}
 
@@ -162,7 +162,7 @@ export class MvpBusinessWorkflow {
         "AI proposal cannot execute without an authoritative Decision/Grant/Task/Job chain"
       );
     }
-    return this.runtime.enqueueAuthorizedHttpAction(input.job, input.request);
+    return this.runtime.enqueueAuthorizedBusinessAction(input.job, input.request);
   }
 
   ownerResult(jobId: string, taskId: string) {

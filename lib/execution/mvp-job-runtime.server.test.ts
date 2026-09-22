@@ -107,8 +107,8 @@ describe("MVP capability-dispatched Job runtime", () => {
       {} as unknown as ConstructorParameters<typeof MvpJobRuntime>[2],
       jobs as ConstructorParameters<typeof MvpJobRuntime>[3]
     );
-    await expect(runtime.enqueueAuthorizedHttpAction(job, action("raspberryPi5")))
-      .rejects.toThrow(/authoritative queued Job/i);
+    await expect(runtime.enqueueAuthorizedBusinessAction(job, action("raspberryPi5")))
+      .rejects.toThrow(/Capability is unavailable/i);
     await expect(runtime.enqueueAuthorizedHttpAction(
       job,
       { ...action(), authorizationConsumptionHash: "forged" }

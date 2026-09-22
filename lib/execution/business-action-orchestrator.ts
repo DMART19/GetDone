@@ -6,6 +6,7 @@ import {
   assertBusinessActionStatus,
   type AuthorizedBusinessActionRequest,
   type BusinessActionAdapter,
+  type BusinessActionRetryClass,
   type BusinessActionStatus
 } from "@/lib/execution/adapters/business-action";
 import { createVerificationEvidence, type VerificationEvidence } from "@/lib/verification/verification";
@@ -39,6 +40,7 @@ export interface BusinessActionExecutionRecord {
   output?: unknown;
   outputHash?: string;
   retryable: boolean;
+  retryClass?: BusinessActionRetryClass;
   updatedAt: string;
   recordHash: string;
 }
@@ -162,11 +164,12 @@ export class BusinessActionExecutionOrchestrator {
       providerOperationId: result.providerOperationId,
       state: result.status === "accepted" ? "accepted" : result.status,
       adapterResultHash: result.resultHash,
-      output: result.status === "completed"
-        ? validateCapabilityOutput(request.capability, result.output)
-        : undefined,
+      output: result.output === undefined
+        ? undefined
+        : validateCapabilityOutput(request.capability, result.output),
       outputHash: result.outputHash,
       retryable: result.retryable,
+      retryClass: result.retryClass,
       updatedAt: result.observedAt
     });
     await this.store.save(record, existing?.recordHash);

@@ -6,10 +6,7 @@ import { validateCapabilityInput } from "@/lib/domain/capabilities";
 import type { JobRecord } from "@/lib/domain/services/job-service";
 import type { AuthorizedBusinessActionRequest } from "@/lib/execution/adapters/business-action";
 import { StaticBusinessActionAdapterRegistry } from "@/lib/execution/adapters/business-action-registry";
-import {
-  ConfiguredHttpActionAdapter,
-  readConfiguredHttpOperationsFromEnv
-} from "@/lib/execution/adapters/configured-http-action";
+import { createOrdinaryBusinessActionBindingsFromEnv } from "@/lib/execution/adapters/ordinary-integration-registry";
 import { BusinessActionExecutionOrchestrator } from "@/lib/execution/business-action-orchestrator";
 import { getDurableJobEngineFromEnv } from "@/lib/execution/durable-job-engine.server";
 import {
@@ -33,7 +30,7 @@ export class MvpJobRuntime {
     private readonly now: () => Date = () => new Date()
   ) {}
 
-  async enqueueAuthorizedHttpAction(job: JobRecord, request: AuthorizedBusinessActionRequest) {
+  async enqueueAuthorizedBusinessAction(job: JobRecord, request: AuthorizedBusinessActionRequest) {
     const authoritative = await this.jobs.get(job.id);
     if (
       !authoritative
@@ -42,7 +39,6 @@ export class MvpJobRuntime {
       || authoritative.id !== request.jobId
       || authoritative.portfolioId !== request.scope.portfolioId
       || authoritative.companyId !== request.scope.companyId
-      || request.capability !== "http.request"
       || !authoritative.authorizationGrantId
       || !authoritative.authorizationGrantHash
       || !authoritative.authorizationConsumption
@@ -84,6 +80,13 @@ export class MvpJobRuntime {
     }));
   }
 
+  async enqueueAuthorizedHttpAction(job: JobRecord, request: AuthorizedBusinessActionRequest) {
+    if (request.capability !== "http.request") {
+      throw new ControlPlaneError("FORBIDDEN", "HTTP compatibility entrypoint only accepts http.request");
+    }
+    return this.enqueueAuthorizedBusinessAction(job, request);
+  }
+
   runOnce() {
     return this.engine.runOnce(this.handler);
   }
@@ -114,12 +117,8 @@ export function getMvpJobRuntimeFromEnv(
 ) {
   if (installed) return installed;
   const database = getPostgresRuntimeFromEnv(env).database;
-  const adapter = new ConfiguredHttpActionAdapter(
-    readConfiguredHttpOperationsFromEnv(env),
-    { env }
-  );
   const business = new BusinessActionExecutionOrchestrator(
-    new StaticBusinessActionAdapterRegistry([{ capability: "http.request", adapter }]),
+    new StaticBusinessActionAdapterRegistry(createOrdinaryBusinessActionBindingsFromEnv(env)),
     new PostgresBusinessActionExecutionStore(database)
   );
   const specs = new PostgresJobExecutionSpecStore(database);

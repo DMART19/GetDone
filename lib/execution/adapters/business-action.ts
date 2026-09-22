@@ -2,7 +2,17 @@ import { ControlPlaneError } from "@/lib/control-plane/errors";
 import { sha256Hex } from "@/lib/control-plane/canonical-hash";
 import type { TrustedExecutionScope } from "@/lib/control-plane/trusted-execution-scope";
 
-export const BUSINESS_ACTION_ADAPTER_CONTRACT_VERSION = "1.2.0";
+export const BUSINESS_ACTION_ADAPTER_CONTRACT_VERSION = "1.3.0";
+
+export type BusinessActionRetryClass =
+  | "none"
+  | "transport"
+  | "timeout"
+  | "rate-limit"
+  | "provider-4xx"
+  | "provider-5xx"
+  | "malformed-response"
+  | "verification-pending";
 
 export interface AuthorizedBusinessActionRequest {
   id: string;
@@ -28,6 +38,7 @@ export interface BusinessActionAdapterResult {
   output?: unknown;
   outputHash?: string;
   retryable: boolean;
+  retryClass?: BusinessActionRetryClass;
   observedAt: string;
   jobStateMutationApplied: false;
   resultHash: string;
@@ -106,6 +117,12 @@ export function createBusinessActionAdapterResult(
       "Accepted adapter result requires a provider operation ID"
     );
   }
+  if (input.retryClass === "none" && input.retryable) {
+    throw new ControlPlaneError(
+      "VALIDATION_FAILED",
+      "retryClass none cannot be marked retryable"
+    );
+  }
   if (input.status === "completed" && input.output === undefined) {
     throw new ControlPlaneError(
       "VALIDATION_FAILED",
@@ -128,10 +145,8 @@ export function assertBusinessActionAdapterResult(result: BusinessActionAdapterR
     || result.source !== "business-action-adapter"
     || result.jobStateMutationApplied !== false
     || (result.status === "accepted" && !result.providerOperationId)
-    || (result.status === "completed" && (
-      result.output === undefined
-      || result.outputHash !== sha256Hex(result.output)
-    ))
+    || (result.output !== undefined && result.outputHash !== sha256Hex(result.output))
+    || (result.status === "completed" && result.output === undefined)
   ) {
     throw new ControlPlaneError(
       "FORBIDDEN",

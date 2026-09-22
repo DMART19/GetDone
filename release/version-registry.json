@@ -1,6 +1,6 @@
 {
   "registrySchemaVersion": "1.6.0",
-  "registryVersion": "2026-09-21.8",
+  "registryVersion": "2026-09-22.1",
   "appVersion": "0.1.0",
   "schemaVersions": {
     "controlApi": {
@@ -275,7 +275,7 @@
     },
     "businessAction": {
       "status": "contract-only",
-      "version": "1.2.0",
+      "version": "1.3.0",
       "sourcePath": "lib/execution/adapters/business-action.ts",
       "contractTracked": true,
       "contractSourcePaths": [
@@ -338,7 +338,7 @@
     },
     "configuredHttpAction": {
       "status": "implemented-unconfigured",
-      "version": "1.0.0",
+      "version": "1.2.0",
       "sourcePath": "lib/execution/adapters/configured-http-action.ts"
     },
     "postgresPersistence": {
@@ -365,6 +365,21 @@
       "status": "implemented",
       "version": "1.0.0",
       "sourcePath": "lib/execution/job-execution-router.ts"
+    },
+    "configuredWebhookAction": {
+      "status": "implemented-unconfigured",
+      "version": "1.0.0",
+      "sourcePath": "lib/execution/adapters/configured-webhook-action.ts"
+    },
+    "gmailBusinessAction": {
+      "status": "implemented-unconfigured",
+      "version": "1.0.0",
+      "sourcePath": "lib/execution/adapters/gmail-action.ts"
+    },
+    "slackBusinessAction": {
+      "status": "implemented-unconfigured",
+      "version": "1.0.0",
+      "sourcePath": "lib/execution/adapters/slack-action.ts"
     }
   },
   "environmentManifestPath": "release/environment-manifest.json",
@@ -458,7 +473,10 @@
     "lib/persistence/postgres/worker-runtime-stores.ts",
     "migrations/2026-09-22.3_durable_worker.sql",
     "Dockerfile.worker",
-    "lib/execution/persistent-job-worker.server.test.ts"
+    "lib/execution/persistent-job-worker.server.test.ts",
+    "lib/execution/adapters/ordinary-integration-adapters.test.ts",
+    "lib/execution/ordinary-integration-pipeline.test.ts",
+    "docs/SOL_ORDINARY_INTEGRATIONS_REPORT.md"
   ],
   "manualSourcePaths": [
     "docs/ARCHITECTURE.md",
@@ -472,7 +490,8 @@
     "docs/SOL_GOLDEN_PATH_JOB_BRIDGE_REPORT.md",
     "docs/SOL_QUALITY_V8_PLAYWRIGHT_AI_BUDGET_REPORT.md",
     "docs/SOL_CONTROL_API_OPENROUTER_SECURITY_REPORT.md",
-    "docs/SOL_POSTGRES_JOB_EXECUTION_RUNTIME_REPORT.md"
+    "docs/SOL_POSTGRES_JOB_EXECUTION_RUNTIME_REPORT.md",
+    "docs/SOL_ORDINARY_INTEGRATIONS_REPORT.md"
   ],
   "generatedArtifacts": {
     "machineManifest": "release/out/release-manifest.json",
@@ -502,12 +521,13 @@
   "integrations": {
     "registryContractVersion": "1.0.0",
     "liveAdaptersStatus": "not-connected",
-    "sourcePath": "lib/integrations/contracts.ts"
+    "sourcePath": "lib/integrations/contracts.ts",
+    "adapterImplementationStatus": "implemented-unconfigured"
   },
   "execution": {
     "jobRuntimeContractVersion": "1.1.0",
     "durableJobStoreStatus": "implemented-unconnected",
-    "businessActionContractVersion": "1.2.0",
+    "businessActionContractVersion": "1.3.0",
     "businessAdaptersStatus": "implemented-unconfigured",
     "softwareWorkerContractVersion": "1.1.0",
     "softwareDeploymentStatus": "not-connected",

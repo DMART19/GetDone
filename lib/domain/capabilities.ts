@@ -73,6 +73,44 @@ export const capabilityRegistry: readonly CapabilityDefinition[] = [
     authorityBindings: { companyId: true }
   },
   {
+    name: "webhook.send",
+    description: "Send an authorized server-configured webhook operation",
+    access: "write",
+    sensitivity: "customer",
+    productionEffect: true,
+    reversible: false,
+    risk: "medium",
+    blastRadius: "single-object",
+    approval: "approval",
+    adapterBinding: "business.webhook",
+    rateLimitPerMinute: 60,
+    enabled: true,
+    inputSchema: capabilitySchemaRegistry["webhook.send"].input,
+    outputSchema: capabilitySchemaRegistry["webhook.send"].output,
+    costModel: "provider",
+    schemaVersion: "1.0.0",
+    authorityBindings: { companyId: true, environment: true }
+  },
+  {
+    name: "slack.message.send",
+    description: "Send an authorized Slack message",
+    access: "write",
+    sensitivity: "customer",
+    productionEffect: true,
+    reversible: true,
+    risk: "medium",
+    blastRadius: "single-object",
+    approval: "approval",
+    adapterBinding: "business.slack",
+    rateLimitPerMinute: 60,
+    enabled: true,
+    inputSchema: capabilitySchemaRegistry["slack.message.send"].input,
+    outputSchema: capabilitySchemaRegistry["slack.message.send"].output,
+    costModel: "provider",
+    schemaVersion: "1.0.0",
+    authorityBindings: { companyId: true, environment: true }
+  },
+  {
     name: "repository.inspect",
     description: "Read repository metadata and code",
     access: "read",
@@ -264,7 +302,7 @@ export const capabilityRegistry: readonly CapabilityDefinition[] = [
   }
 ];
 
-export const CAPABILITY_REGISTRY_VERSION = "2026-09-22.1";
+export const CAPABILITY_REGISTRY_VERSION = "2026-09-22.2";
 
 function stableRegistryManifest() {
   return capabilityRegistry.map((capability) => ({
