@@ -230,7 +230,7 @@ export class ConfiguredWebhookActionAdapter implements BusinessActionAdapter {
     const rawOperationId = response.headers.get("x-provider-operation-id")
       ?? `webhook:${operation.name}:${request.id}`;
     const externalId = assertProviderOperationId(rawOperationId);
-    const providerOperationId = externalId.startsWith("webhook:")
+    const providerOperationId = externalId.startsWith(`webhook:${operation.name}:`)
       ? externalId
       : `webhook:${operation.name}:${externalId}`;
     const output = {
