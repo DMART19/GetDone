@@ -6,7 +6,7 @@ import type {
 import { ControlPlaneError } from "@/lib/control-plane/errors";
 import { OPENROUTER_CANARY_MODEL_ID } from "@/lib/ai-gateway/production-config";
 
-export const OPENROUTER_ADAPTER_VERSION = "1.1.0";
+export const OPENROUTER_ADAPTER_VERSION = "1.2.0";
 export const OPENROUTER_DEFAULT_BASE_URL = "https://openrouter.ai/api/v1";
 
 type FetchLike = typeof fetch;
