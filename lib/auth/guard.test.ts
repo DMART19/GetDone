@@ -19,7 +19,15 @@ function adapter(value: AuthSession | null): AuthAdapter {
     async getSession() { return value; },
     async revokeSession() {},
     async beginStepUp() {
-      return { challengeId: "challenge-1", expiresAt: new Date(now + 60_000).toISOString(), method: "passkey" };
+      return {
+        challengeId: "00000000-0000-4000-8000-000000000003",
+        expiresAt: new Date(now + 60_000).toISOString(),
+        method: "passkey",
+        challenge: "dGVzdC1jaGFsbGVuZ2U",
+        rpId: "getdone.test",
+        allowCredentialIds: ["Y3JlZGVudGlhbC0x"],
+        userVerification: "required"
+      };
     },
     async verifyStepUp() { return session(); }
   };
