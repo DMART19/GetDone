@@ -8,6 +8,18 @@ import {
 
 export type CredentialReference = `env:${string}`;
 
+export const ORDINARY_INTEGRATION_RETRY_TAXONOMY: readonly BusinessActionRetryClass[] = Object.freeze([
+  "none",
+  "transport",
+  "timeout",
+  "rate-limit",
+  "provider-4xx",
+  "provider-5xx",
+  "malformed-response",
+  "verification-pending"
+]);
+
+
 export interface BusinessActionAdapterDeclaration {
   capability: string;
   provider: string;
