@@ -475,6 +475,16 @@ describe("Phase 41 release/version registry", () => {
   });
 
   it("records PostgreSQL persistence implementation without claiming a live database", () => {
+    expect(registry.controlApi).toMatchObject({
+      status: "implemented-unconnected",
+      authStatus: "implemented-unconnected",
+      persistenceStatus: "not-connected"
+    });
+    for (const state of Object.values(environment.environments)) {
+      expect(state.connections.auth).toBe(false);
+      expect(state.controlApi.authStatus).toBe("implemented-unconnected");
+    }
+
     expect(registry.database).toMatchObject({
       status: "implemented-unconnected",
       engine: "postgresql",
