@@ -457,7 +457,8 @@
     "lib/execution/persistent-job-worker.server.ts",
     "lib/persistence/postgres/worker-runtime-stores.ts",
     "migrations/2026-09-22.3_durable_worker.sql",
-    "Dockerfile.worker"
+    "Dockerfile.worker",
+    "lib/execution/persistent-job-worker.server.test.ts"
   ],
   "manualSourcePaths": [
     "docs/ARCHITECTURE.md",
