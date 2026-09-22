@@ -42,7 +42,7 @@ describe("real MVP business workflow composition", () => {
       })
     };
     const runtime = {
-      enqueueAuthorizedHttpAction: async (job: JobRecord) => { enqueued.push(job); return { status: "enqueued" }; },
+      enqueueAuthorizedBusinessAction: async (job: JobRecord) => { enqueued.push(job); return { status: "enqueued" }; },
       ownerView: async () => ({ status: "succeeded" })
     };
     const workflow = new MvpBusinessWorkflow(ai, runtime, () => new Date("2026-09-22T12:00:00Z"));
@@ -104,7 +104,7 @@ describe("real MVP business workflow composition", () => {
 
   it("rejects tampered proposals and Jobs without authoritative grants", async () => {
     const workflow = new MvpBusinessWorkflow({ invoke: async () => { throw new Error("unused"); } }, {
-      enqueueAuthorizedHttpAction: async () => undefined,
+      enqueueAuthorizedBusinessAction: async () => undefined,
       ownerView: async () => undefined
     });
     const proposal = {
