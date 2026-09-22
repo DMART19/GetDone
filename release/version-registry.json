@@ -520,8 +520,9 @@
   "environmentManifestSchemaVersion": "1.6.0",
   "integrations": {
     "registryContractVersion": "1.0.0",
-    "liveAdaptersStatus": "implemented-unconfigured",
-    "sourcePath": "lib/integrations/contracts.ts"
+    "liveAdaptersStatus": "not-connected",
+    "sourcePath": "lib/integrations/contracts.ts",
+    "adapterImplementationStatus": "implemented-unconfigured"
   },
   "execution": {
     "jobRuntimeContractVersion": "1.1.0",
