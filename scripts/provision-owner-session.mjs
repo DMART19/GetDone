@@ -13,11 +13,29 @@ const organizationId = required("GETDONE_OWNER_ORGANIZATION_ID");
 const portfolioId = required("GETDONE_OWNER_PORTFOLIO_ID");
 const companyId = required("GETDONE_OWNER_COMPANY_ID");
 const sessionToken = required("GETDONE_OWNER_SESSION_TOKEN");
-const stepUpToken = required("GETDONE_OWNER_STEP_UP_TOKEN");
+const credentialId = required("GETDONE_OWNER_PASSKEY_CREDENTIAL_ID");
+const publicKeyPem = Buffer.from(
+  required("GETDONE_OWNER_PASSKEY_PUBLIC_KEY_PEM_B64"),
+  "base64"
+).toString("utf8");
+const passkeyAlgorithm = process.env.GETDONE_OWNER_PASSKEY_ALGORITHM?.trim() || "ES256";
+if (passkeyAlgorithm !== "ES256" && passkeyAlgorithm !== "RS256") {
+  throw new Error("GETDONE_OWNER_PASSKEY_ALGORITHM must be ES256 or RS256");
+}
+const userHandle = process.env.GETDONE_OWNER_PASSKEY_USER_HANDLE?.trim() || null;
 const organizationName = process.env.GETDONE_OWNER_ORGANIZATION_NAME?.trim() || organizationId;
+const companyName = process.env.GETDONE_OWNER_COMPANY_NAME?.trim() || companyId;
 const portfolioName = process.env.GETDONE_OWNER_PORTFOLIO_NAME?.trim() || portfolioId;
 const ttlHours = Number(process.env.GETDONE_OWNER_SESSION_TTL_HOURS || "24");
-if (!Number.isFinite(ttlHours) || ttlHours <= 0) throw new Error("GETDONE_OWNER_SESSION_TTL_HOURS must be positive");
+if (!Number.isFinite(ttlHours) || ttlHours <= 0) {
+  throw new Error("GETDONE_OWNER_SESSION_TTL_HOURS must be positive");
+}
+
+try {
+  crypto.createPublicKey(publicKeyPem);
+} catch {
+  throw new Error("GETDONE_OWNER_PASSKEY_PUBLIC_KEY_PEM_B64 must decode to a valid public key");
+}
 
 const hash = (value) => crypto.createHash("sha256").update(value).digest("hex");
 const now = new Date();
@@ -45,6 +63,13 @@ try {
     [organizationId, organizationName]
   );
   await client.query(
+    `INSERT INTO companies(id,organization_id,name)
+     VALUES($1,$2,$3)
+     ON CONFLICT (id) DO UPDATE
+       SET organization_id=EXCLUDED.organization_id,name=EXCLUDED.name`,
+    [companyId, organizationId, companyName]
+  );
+  await client.query(
     `INSERT INTO portfolios(id,organization_id,company_id,name)
      VALUES($1,$2,$3,$4)
      ON CONFLICT (id) DO UPDATE
@@ -60,6 +85,12 @@ try {
     [userId, organizationId]
   );
   await client.query(
+    `INSERT INTO company_memberships(user_id,company_id,role,status)
+     VALUES($1,$2,'owner','active')
+     ON CONFLICT (user_id,company_id) DO UPDATE SET role='owner',status='active'`,
+    [userId, companyId]
+  );
+  await client.query(
     `INSERT INTO portfolio_memberships(user_id,portfolio_id,company_id,role,status)
      VALUES($1,$2,$3,'owner','active')
      ON CONFLICT (user_id,portfolio_id)
@@ -67,11 +98,17 @@ try {
     [userId, portfolioId, companyId]
   );
   await client.query(
-    `INSERT INTO auth_step_up_credentials(user_id,secret_hash)
-     VALUES($1,$2)
-     ON CONFLICT (user_id)
-     DO UPDATE SET secret_hash=EXCLUDED.secret_hash,rotated_at=now()`,
-    [userId, hash(stepUpToken)]
+    `INSERT INTO auth_webauthn_credentials
+      (credential_id,user_id,user_handle,public_key_pem,algorithm,sign_count)
+     VALUES($1,$2,$3,$4,$5,0)
+     ON CONFLICT (credential_id)
+     DO UPDATE SET user_id=EXCLUDED.user_id,
+                   user_handle=EXCLUDED.user_handle,
+                   public_key_pem=EXCLUDED.public_key_pem,
+                   algorithm=EXCLUDED.algorithm,
+                   sign_count=0,
+                   revoked_at=NULL`,
+    [credentialId, userId, userHandle, publicKeyPem, passkeyAlgorithm]
   );
   await client.query(
     `INSERT INTO auth_sessions
@@ -91,8 +128,10 @@ try {
     sessionId,
     userId,
     organizationId,
-    portfolioId,
     companyId,
+    portfolioId,
+    credentialId,
+    passkeyAlgorithm,
     expiresAt: expiresAt.toISOString()
   }, null, 2));
 } catch (error) {
