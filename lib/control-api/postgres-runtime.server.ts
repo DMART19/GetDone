@@ -148,7 +148,9 @@ export function createPostgresControlApiAdapter(
             "job_leases",
             "job_runtime_transactions",
             "job_execution_specs",
-            "job_execution_outcomes"
+            "job_execution_outcomes",
+            "job_worker_instances",
+            "business_action_verification_evidence"
           ])
         ]);
 
