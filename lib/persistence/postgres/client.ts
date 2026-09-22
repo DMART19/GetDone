@@ -54,14 +54,18 @@ export class PostgresDatabase implements PostgresTransactionalDatabase {
       ssl: config.ssl === false ? false : { rejectUnauthorized: true }
     };
     this.pool = new Pool(poolConfig);
-    this.pool.on("error", (error) => {
+    const logConnectionError = (error: unknown, source: "pool" | "client") => {
       const code = (
         error
         && typeof error === "object"
         && "code" in error
         && typeof (error as { code?: unknown }).code === "string"
       ) ? (error as { code: string }).code : "UNKNOWN";
-      console.error("PostgreSQL pool idle connection error", { code });
+      console.error("PostgreSQL connection error", { source, code });
+    };
+    this.pool.on("error", (error) => logConnectionError(error, "pool"));
+    this.pool.on("connect", (client) => {
+      client.on("error", (error) => logConnectionError(error, "client"));
     });
   }
 
