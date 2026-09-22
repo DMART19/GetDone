@@ -17,6 +17,7 @@ import {
   interpolateOperationUrl,
   readBoundedResponseBody,
   resolveCredentialReference,
+  ORDINARY_INTEGRATION_RETRY_TAXONOMY,
   type BusinessActionAdapterDeclaration
 } from "@/lib/execution/adapters/ordinary-integration-framework";
 
@@ -170,10 +171,7 @@ export class ConfiguredHttpActionAdapter implements BusinessActionAdapter {
     minimumScopes: Object.freeze([]),
     timeoutMs: Object.freeze({ min: 100, max: 120_000 }),
     idempotency: "required",
-    retryTaxonomy: Object.freeze([
-      "none", "transport", "timeout", "rate-limit", "provider-4xx",
-      "provider-5xx", "malformed-response", "verification-pending"
-    ]),
+    retryTaxonomy: ORDINARY_INTEGRATION_RETRY_TAXONOMY,
     providerOperationId: "required",
     statusResume: "supported",
     maxResponseBytes: 5_000_000,
