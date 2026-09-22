@@ -64,7 +64,7 @@ describe("configured HTTP business action", () => {
     const result = assertBusinessActionAdapterResult(await adapter.execute(request()));
     expect(result).toMatchObject({
       status: "completed",
-      providerOperationId: "provider-op-1",
+      providerOperationId: "http:crm.contact.sync:provider-op-1",
       retryable: false,
       output: {
         providerOperationId: "provider-op-1",
@@ -77,6 +77,50 @@ describe("configured HTTP business action", () => {
     expect(headers.authorization).toBe("Bearer server-only-token");
     expect(headers["idempotency-key"]).toBe("idempotency-1");
     expect(JSON.parse(String(captured?.body))).not.toHaveProperty("url");
+  });
+
+  it("requires independent verification before completing consequential HTTPS work", async () => {
+    let calls = 0;
+    const adapter = new ConfiguredHttpActionAdapter([{
+      name: "crm.contact.sync",
+      companyId: "company-a",
+      environment: "development",
+      url: "https://api.example.com/actions/contact-sync",
+      consequential: true,
+      verification: {
+        url: "https://api.example.com/actions/status/{providerOperationId}"
+      }
+    }], {
+      fetchImpl: async (_url, init) => {
+        calls += 1;
+        return init?.method === "POST"
+          ? new Response("accepted", {
+              status: 202,
+              headers: { "x-provider-operation-id": "provider-op-2" }
+            })
+          : new Response("verified", { status: 200 });
+      },
+      now: () => new Date("2026-09-22T12:00:00Z")
+    });
+    const accepted = await adapter.execute(request());
+    expect(accepted).toMatchObject({
+      status: "accepted",
+      providerOperationId: "http:crm.contact.sync:provider-op-2"
+    });
+    const verified = await adapter.status({
+      requestId: accepted.requestId,
+      providerOperationId: accepted.providerOperationId!
+    });
+    expect(verified.state).toBe("completed");
+    expect(calls).toBe(2);
+
+    expect(() => new ConfiguredHttpActionAdapter([{
+      name: "unsafe",
+      companyId: "company-a",
+      environment: "production",
+      url: "https://api.example.com/action",
+      consequential: true
+    }])).toThrow(/independent verification/i);
   });
 
   it("fails closed for unconfigured operations and rejects target injection", async () => {
