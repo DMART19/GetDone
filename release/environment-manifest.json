@@ -85,7 +85,7 @@
       "controlApi": {
         "surfaceStatus": "implemented",
         "applicationAdapterStatus": "not-connected",
-        "authStatus": "not-connected",
+        "authStatus": "implemented-unconnected",
         "persistenceStatus": "not-connected"
       },
       "database": {
@@ -209,7 +209,7 @@
       "controlApi": {
         "surfaceStatus": "implemented",
         "applicationAdapterStatus": "not-connected",
-        "authStatus": "not-connected",
+        "authStatus": "implemented-unconnected",
         "persistenceStatus": "not-connected"
       },
       "database": {
@@ -333,7 +333,7 @@
       "controlApi": {
         "surfaceStatus": "implemented",
         "applicationAdapterStatus": "not-connected",
-        "authStatus": "not-connected",
+        "authStatus": "implemented-unconnected",
         "persistenceStatus": "not-connected"
       },
       "database": {
