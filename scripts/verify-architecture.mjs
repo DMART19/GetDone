@@ -435,7 +435,9 @@ for (const required of [
   "jobStateMutationApplied: false",
   "sha256Hex(request.input) !== request.inputHash",
   "assertBusinessActionStatus",
-  "Production business actions require a scoped credential lease reference"
+  "Production business actions require a scoped credential lease reference",
+  "BusinessActionRetryClass",
+  "retryClass?: BusinessActionRetryClass"
 ]) {
   if (!businessAdapter.includes(required)) fail(`Phase 20 adapter authority guard missing: ${required}`);
 }
@@ -1118,6 +1120,7 @@ if (
 if (
   releaseRegistry.integrations.registryContractVersion !== "1.0.0"
   || releaseRegistry.integrations.liveAdaptersStatus !== "not-connected"
+  || releaseRegistry.integrations.adapterImplementationStatus !== "implemented-unconfigured"
 ) {
   fail("Phase 4 release state drifted");
 }
@@ -1125,9 +1128,14 @@ if (
   releaseRegistry.execution.jobRuntimeContractVersion !== "1.1.0"
   || releaseRegistry.execution.durableJobStoreStatus !== "implemented-unconnected"
   || releaseRegistry.execution.durableJobStoreVersion !== "1.0.0"
-  || releaseRegistry.execution.businessActionContractVersion !== "1.2.0"
+  || releaseRegistry.execution.businessActionContractVersion !== "1.3.0"
   || releaseRegistry.execution.businessActionOrchestratorStatus !== "implemented"
   || releaseRegistry.execution.businessAdaptersStatus !== "implemented-unconfigured"
+  || releaseRegistry.adapters?.businessAction?.version !== "1.3.0"
+  || releaseRegistry.adapters?.configuredHttpAction?.version !== "1.1.0"
+  || releaseRegistry.adapters?.configuredWebhookAction?.status !== "implemented-unconfigured"
+  || releaseRegistry.adapters?.gmailBusinessAction?.status !== "implemented-unconfigured"
+  || releaseRegistry.adapters?.slackBusinessAction?.status !== "implemented-unconfigured"
   || releaseRegistry.execution.softwareWorkerContractVersion !== "1.1.0"
   || releaseRegistry.execution.softwareWorkerRuntimeStatus !== "implemented"
   || releaseRegistry.execution.softwareDeploymentStatus !== "not-connected"
