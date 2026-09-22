@@ -4,7 +4,7 @@ import {
   readPostgresConfigFromEnv
 } from "@/lib/persistence/postgres/client";
 
-export const REQUIRED_POSTGRES_MIGRATION = "2026-09-22.3";
+export const REQUIRED_POSTGRES_MIGRATION = "2026-09-22.4";
 
 export interface PostgresRuntimeHealth {
   connected: boolean;
