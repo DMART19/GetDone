@@ -556,7 +556,7 @@
     "surfaceVersion": "1.1.0",
     "status": "implemented-unconnected",
     "applicationAdapterStatus": "not-connected",
-    "authStatus": "not-connected",
+    "authStatus": "implemented-unconnected",
     "persistenceStatus": "not-connected",
     "sourcePath": "lib/control-api/contracts.ts"
   },
