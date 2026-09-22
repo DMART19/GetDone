@@ -72,6 +72,15 @@ function validateConfiguration(configuration: SlackProviderConfiguration) {
   if (baseUrl.protocol !== "https:" || baseUrl.username || baseUrl.password || baseUrl.hash) {
     throw new ControlPlaneError("VALIDATION_FAILED", "Slack base URL must be credential-free HTTPS");
   }
+  if (
+    configuration.environment === "production"
+    && configuration.verificationMode === "provider-acceptance-only"
+  ) {
+    throw new ControlPlaneError(
+      "VALIDATION_FAILED",
+      "Slack production actions require provider-object verification"
+    );
+  }
   const maxResponseBytes = configuration.maxResponseBytes ?? 256_000;
   if (!Number.isInteger(maxResponseBytes) || maxResponseBytes < 1 || maxResponseBytes > 1_000_000) {
     throw new ControlPlaneError("VALIDATION_FAILED", "Slack maxResponseBytes must be 1-1000000");
