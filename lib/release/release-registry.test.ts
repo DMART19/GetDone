@@ -433,7 +433,7 @@ describe("Phase 41 release/version registry", () => {
       softwareWorkerRuntimeVersion: "1.0.0",
       softwareDeploymentStatus: "not-connected",
       jobExecutionRouterStatus: "implemented",
-      jobExecutionRouterVersion: "1.0.0",
+      jobExecutionRouterVersion: "1.1.0",
       jobExecutionBridgeContractVersion: JOB_EXECUTION_BRIDGE_CONTRACT_VERSION,
       jobExecutionBridgeStatus: "deterministic-contract",
       liveJobExecutionBridgeStoreStatus: "not-connected",
