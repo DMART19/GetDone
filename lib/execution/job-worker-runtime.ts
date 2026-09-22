@@ -186,6 +186,17 @@ export class DurableJobWorker {
       }
     }
 
+    const postExecution = await this.store.getRuntimeSnapshot(candidate.envelope.jobId);
+    if (postExecution?.state === "cancelled") {
+      return {
+        jobId: candidate.envelope.jobId,
+        outcome: {
+          kind: "cancelled",
+          reason: postExecution.cancelledReason ?? "Job was cancelled during execution"
+        }
+      };
+    }
+
     if (outcome.kind === "succeeded") {
       const receipt = await this.store.release({
         lease,
