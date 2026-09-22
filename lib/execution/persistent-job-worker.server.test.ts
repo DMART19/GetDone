@@ -96,7 +96,6 @@ describe("PersistentJobWorkerService", () => {
 
   it("backs off after transient runtime failure and can stop cleanly", async () => {
     let calls = 0;
-    let service!: PersistentJobWorkerService;
     const runtime = {
       recoverExpired: async () => {
         calls += 1;
@@ -108,7 +107,7 @@ describe("PersistentJobWorkerService", () => {
     const instances = new MemoryWorkerInstanceStore();
     const sleeps: number[] = [];
 
-    service = new PersistentJobWorkerService(
+    const service = new PersistentJobWorkerService(
       runtime as never,
       instances as never,
       {
