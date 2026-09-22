@@ -44,6 +44,8 @@ describe("configured HTTP business action", () => {
     let captured: RequestInit | undefined;
     const adapter = new ConfiguredHttpActionAdapter([{
       name: "crm.contact.sync",
+      companyId: "company-a",
+      environment: "development",
       url: "https://api.example.com/actions/contact-sync",
       authorizationEnv: "CRM_ACTION_TOKEN"
     }], {
@@ -80,6 +82,8 @@ describe("configured HTTP business action", () => {
   it("fails closed for unconfigured operations and rejects target injection", async () => {
     const adapter = new ConfiguredHttpActionAdapter([{
       name: "crm.contact.sync",
+      companyId: "company-a",
+      environment: "development",
       url: "https://api.example.com/actions/contact-sync"
     }]);
     const injected = {
@@ -123,6 +127,8 @@ describe("configured HTTP business action", () => {
 
     const adapter = new ConfiguredHttpActionAdapter([{
       name: "crm.contact.sync",
+      companyId: "company-a",
+      environment: "development",
       url: "https://api.example.com/actions/contact-sync",
       maxResponseBytes: 5
     }], {
@@ -136,6 +142,8 @@ describe("configured HTTP business action", () => {
   it("converts retryable HTTP failures into durable-worker retry outcomes", async () => {
     const adapter = new ConfiguredHttpActionAdapter([{
       name: "crm.contact.sync",
+      companyId: "company-a",
+      environment: "development",
       url: "https://api.example.com/actions/contact-sync"
     }], { fetchImpl: async () => new Response("down", { status: 503 }) });
     const result = await adapter.execute(request());
@@ -145,6 +153,8 @@ describe("configured HTTP business action", () => {
   it("records a verified terminal business-action result without granting adapter authority", async () => {
     const adapter = new ConfiguredHttpActionAdapter([{
       name: "crm.contact.sync",
+      companyId: "company-a",
+      environment: "development",
       url: "https://api.example.com/actions/contact-sync"
     }], {
       fetchImpl: async () => new Response("ok", { status: 200 }),
@@ -171,6 +181,8 @@ describe("configured HTTP business action", () => {
   it("routes by capability and never by a Raspberry Pi or other machine name", async () => {
     const adapter = new ConfiguredHttpActionAdapter([{
       name: "crm.contact.sync",
+      companyId: "company-a",
+      environment: "development",
       url: "https://api.example.com/actions/contact-sync"
     }]);
     const registry = new StaticBusinessActionAdapterRegistry([
@@ -184,12 +196,16 @@ describe("configured HTTP business action", () => {
     expect(readConfiguredHttpOperationsFromEnv({
       GETDONE_HTTP_ACTIONS_JSON: JSON.stringify([{
         name: "crm.contact.sync",
+        companyId: "company-a",
+        environment: "development",
         url: "https://api.example.com/action",
         authorizationEnv: "CRM_ACTION_TOKEN"
       }])
     })).toHaveLength(1);
     expect(() => new ConfiguredHttpActionAdapter([{
       name: "bad",
+      companyId: "company-a",
+      environment: "development",
       url: "https://user:secret@example.com/action"
     }])).toThrow(/credentials/i);
   });
