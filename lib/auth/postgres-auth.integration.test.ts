@@ -101,6 +101,16 @@ describeIntegration("production auth + WebAuthn persistence", () => {
     format: "pem"
   }).toString();
   const credentialId = "Y3JlZGVudGlhbC1h";
+  let authToken = "";
+  let signedInSessionId = "";
+
+  async function nextCounter() {
+    const result = await pool.query<{ sign_count: string | number }>(
+      "SELECT sign_count FROM auth_webauthn_credentials WHERE credential_id=$1",
+      [credentialId]
+    );
+    return Number(result.rows[0]?.sign_count ?? 0) + 1;
+  }
 
   beforeAll(async () => {
     process.env.GETDONE_RUNTIME_ENV = "production";
@@ -218,6 +228,16 @@ describeIntegration("production auth + WebAuthn persistence", () => {
       token: "token-revoked",
       revokedAt: new Date().toISOString()
     });
+
+    const config = readWebAuthnServerConfig(process.env);
+    const signIn = new PostgresPasskeySignInService(database, config);
+    const challenge = await signIn.begin("user-a");
+    const result = await signIn.verify(
+      challenge.challengeId,
+      assertionFor(challenge, credentialId, passkey.privateKey, 1)
+    );
+    authToken = result.token;
+    signedInSessionId = result.session.sessionId;
   }, 30_000);
 
   afterAll(async () => {
@@ -226,31 +246,16 @@ describeIntegration("production auth + WebAuthn persistence", () => {
   });
 
   it("signs in with a cryptographically verified passkey and survives a new adapter instance", async () => {
-    const config = readWebAuthnServerConfig(process.env);
-    const service = new PostgresPasskeySignInService(database, config);
-
-    const challenge = await service.begin("user-a");
-    const result = await service.verify(
-      challenge.challengeId,
-      assertionFor(challenge, credentialId, passkey.privateKey, 1)
-    );
-
-    expect(result.session).toMatchObject({
-      userId: "user-a"
-    });
-    expect(result.token).toBeTruthy();
-
+    expect(authToken).toBeTruthy();
     const restartedAdapter = new PostgresAuthAdapter(database, {
       rpId,
       allowedOrigins: [origin]
     });
-    const persisted = await restartedAdapter.getSession(request(result.token));
+    const persisted = await restartedAdapter.getSession(request(authToken));
     expect(persisted).toMatchObject({
-      sessionId: result.session.sessionId,
+      sessionId: signedInSessionId,
       userId: "user-a"
     });
-
-    (globalThis as typeof globalThis & { __authToken?: string }).__authToken = result.token;
   });
 
   it("rejects expired and revoked persisted sessions", async () => {
@@ -279,16 +284,14 @@ describeIntegration("production auth + WebAuthn persistence", () => {
     await expect(resolver.resolve(revoked.session, request("token-d")))
       .rejects.toThrow(/no active membership/i);
 
-    const token = (globalThis as typeof globalThis & { __authToken?: string }).__authToken!;
-    const own = await authorizeRequest(adapter, request(token));
-    await expect(resolver.resolve(own.session, request(token, "portfolio-b")))
+    const own = await authorizeRequest(adapter, request(authToken));
+    await expect(resolver.resolve(own.session, request(authToken, "portfolio-b")))
       .rejects.toThrow(/no active membership/i);
   });
 
   it("requires fresh passkey step-up for a strong approval, then accepts it", async () => {
-    const token = (globalThis as typeof globalThis & { __authToken?: string }).__authToken!;
     const adapter = createPostgresControlApiAdapter(process.env);
-    const req = request(token);
+    const req = request(authToken);
     const before = await adapter.authenticate(req);
 
     await expect(adapter.mutateDecision(before, {
@@ -301,7 +304,7 @@ describeIntegration("production auth + WebAuthn persistence", () => {
     const elevated = await adapter.verifyStepUp(
       req,
       challenge.challengeId,
-      assertionFor(challenge, credentialId, passkey.privateKey, 2)
+      assertionFor(challenge, credentialId, passkey.privateKey, await nextCounter())
     );
     expect(elevated.stepUpAuthenticatedAt).toBeTruthy();
 
@@ -316,12 +319,16 @@ describeIntegration("production auth + WebAuthn persistence", () => {
   });
 
   it("rejects replayed, expired, and stolen step-up challenges", async () => {
-    const token = (globalThis as typeof globalThis & { __authToken?: string }).__authToken!;
     const adapter = createPostgresControlApiAdapter(process.env);
-    const req = request(token);
+    const req = request(authToken);
 
     const replay = await adapter.beginStepUp(req);
-    const replayAssertion = assertionFor(replay, credentialId, passkey.privateKey, 3);
+    const replayAssertion = assertionFor(
+      replay,
+      credentialId,
+      passkey.privateKey,
+      await nextCounter()
+    );
     await adapter.verifyStepUp(req, replay.challengeId, replayAssertion);
     await expect(adapter.verifyStepUp(req, replay.challengeId, replayAssertion))
       .rejects.toThrow(/invalid or expired|already consumed/i);
@@ -334,14 +341,14 @@ describeIntegration("production auth + WebAuthn persistence", () => {
     await expect(adapter.verifyStepUp(
       req,
       expired.challengeId,
-      assertionFor(expired, credentialId, passkey.privateKey, 4)
+      assertionFor(expired, credentialId, passkey.privateKey, await nextCounter())
     )).rejects.toThrow(/invalid or expired/i);
 
     const stolen = await adapter.beginStepUp(req);
     await expect(adapter.verifyStepUp(
       request("token-b"),
       stolen.challengeId,
-      assertionFor(stolen, credentialId, passkey.privateKey, 4)
+      assertionFor(stolen, credentialId, passkey.privateKey, await nextCounter())
     )).rejects.toThrow(/different session/i);
   });
 });
