@@ -18,7 +18,7 @@ function positiveInt(value: string | undefined, fallback: number, name: string) 
   return parsed;
 }
 
-function parseOrigins(value: string | undefined) {
+function parseOrigins(value: string | undefined, rpId: string) {
   if (!value?.trim()) {
     throw new ControlPlaneError("UNAVAILABLE", "GETDONE_WEBAUTHN_ORIGINS is required");
   }
@@ -58,6 +58,12 @@ function parseOrigins(value: string | undefined) {
         "WebAuthn origins must be exact HTTPS origins (localhost may use HTTP)"
       );
     }
+    if (url.hostname !== rpId && !url.hostname.endsWith(`.${rpId}`)) {
+      throw new ControlPlaneError(
+        "UNAVAILABLE",
+        "WebAuthn origin hostname must match or be a subdomain of the RP ID"
+      );
+    }
   }
   return Object.freeze(normalized);
 }
@@ -71,7 +77,7 @@ export function readWebAuthnServerConfig(
   }
   return Object.freeze({
     rpId,
-    allowedOrigins: parseOrigins(env.GETDONE_WEBAUTHN_ORIGINS),
+    allowedOrigins: parseOrigins(env.GETDONE_WEBAUTHN_ORIGINS, rpId),
     cookieName: env.GETDONE_AUTH_COOKIE_NAME?.trim() || "getdone_session",
     stepUpTtlSeconds: positiveInt(
       env.GETDONE_STEP_UP_TTL_SECONDS,
