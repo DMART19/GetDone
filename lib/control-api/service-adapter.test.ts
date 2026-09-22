@@ -31,9 +31,13 @@ function auth(): AuthAdapter {
     getSession: async () => session,
     revokeSession: async () => undefined,
     beginStepUp: async () => ({
-      challengeId: "challenge",
+      challengeId: "00000000-0000-4000-8000-000000000001",
       expiresAt: "2099-01-01T00:00:00Z",
-      method: "passkey"
+      method: "passkey",
+      challenge: "dGVzdC1jaGFsbGVuZ2U",
+      rpId: "getdone.test",
+      allowCredentialIds: ["Y3JlZGVudGlhbC0x"],
+      userVerification: "required"
     }),
     verifyStepUp: async () => session
   };
