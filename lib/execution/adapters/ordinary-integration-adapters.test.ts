@@ -54,14 +54,14 @@ describe("ordinary integration adapters", () => {
       companyId: "company-a",
       environment: "production",
       credentialRef: "env:GMAIL_TOKEN",
-      verificationMode: "provider-acceptance-only"
+      verificationMode: "provider-object-read"
     }], { env: { GMAIL_TOKEN: "secret" } });
     const slack = new SlackBusinessActionAdapter([{
       id: "slack-primary",
       companyId: "company-a",
       environment: "production",
       credentialRef: "env:SLACK_TOKEN",
-      verificationMode: "provider-acceptance-only"
+      verificationMode: "provider-object-read"
     }], { env: { SLACK_TOKEN: "secret" } });
 
     for (const adapter of [http, webhook, gmail, slack]) {
@@ -130,7 +130,7 @@ describe("ordinary integration adapters", () => {
       companyId: "company-a",
       environment: "production",
       credentialRef: "env:GMAIL_TOKEN",
-      verificationMode: "provider-acceptance-only",
+      verificationMode: "provider-object-read",
       baseUrl: "https://gmail.example.test/"
     }], {
       env: { GMAIL_TOKEN: "secret" },
@@ -155,7 +155,7 @@ describe("ordinary integration adapters", () => {
       companyId: "company-a",
       environment: "production",
       credentialRef: "env:SLACK_TOKEN",
-      verificationMode: "provider-acceptance-only",
+      verificationMode: "provider-object-read",
       baseUrl: "https://slack.example.test/api/"
     }], {
       env: { SLACK_TOKEN: "secret" },
