@@ -6,7 +6,7 @@ function required(name) {
   return value;
 }
 
-const requiredMigration = "2026-09-22.3";
+const requiredMigration = "2026-09-22.4";
 const maxBackupAgeHours = Number(process.env.GETDONE_BACKUP_MAX_AGE_HOURS || "24");
 if (!Number.isFinite(maxBackupAgeHours) || maxBackupAgeHours <= 0) {
   throw new Error("GETDONE_BACKUP_MAX_AGE_HOURS must be positive");
@@ -97,6 +97,41 @@ try {
     throw new Error("Durable worker persistence schema verification failed");
   }
 
+  const aiSchema = await client.query(
+    `SELECT COUNT(*)::int AS count
+     FROM unnest(ARRAY[
+       'ai_call_audits',
+       'ai_usage_records',
+       'ai_gateway_runtime_configs',
+       'ai_gateway_canary_runs'
+     ]::text[]) AS required(name)
+     WHERE to_regclass(required.name) IS NOT NULL`
+  );
+  if (aiSchema.rows[0]?.count !== 4) {
+    throw new Error("AI Gateway persistence schema verification failed");
+  }
+
+  const aiColumns = await client.query(
+    `SELECT table_name,column_name
+     FROM information_schema.columns
+     WHERE table_schema=current_schema()
+       AND (
+         (table_name='ai_call_audits' AND column_name IN (
+           'routing_policy_version','selected_profile_id','actual_profile_id',
+           'gateway_id','provider_id','model_id','fallback_used','fallback_reason',
+           'latency_ms','input_tokens','output_tokens','failure_class'
+         ))
+         OR
+         (table_name='ai_usage_records' AND column_name IN (
+           'correlation_id','portfolio_id','company_id','environment',
+           'latency_ms','failure_class'
+         ))
+       )`
+  );
+  if (aiColumns.rows.length !== 18) {
+    throw new Error("AI Gateway explicit audit/usage columns verification failed");
+  }
+
   const backup = await client.query(
     `SELECT completed_at,verification_hash
      FROM database_backup_evidence
@@ -136,6 +171,7 @@ try {
     auditSchema: "verified",
     authSchema: "verified",
     durableWorkerSchema: "verified",
+    aiGatewaySchema: "verified",
     backupFresh: true
   }, null, 2));
 } finally {

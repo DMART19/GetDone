@@ -353,8 +353,8 @@ if (failures.length === 0) {
     registry.database.status !== "implemented-unconnected"
     || registry.database.engine !== "postgresql"
     || registry.database.minimumEngineVersion !== "16"
-    || registry.database.migrationVersion !== "2026-09-22.3"
-    || registry.database.schemaVersion !== "1.3.0"
+    || registry.database.migrationVersion !== "2026-09-22.4"
+    || registry.database.schemaVersion !== "1.4.0"
     || manifest.database.status !== registry.database.status
     || manifest.database.engine !== registry.database.engine
     || manifest.database.migrationVersion !== registry.database.migrationVersion
@@ -365,14 +365,14 @@ if (failures.length === 0) {
     fail("PostgreSQL persistence implementation/version release truth drifted");
   }
 
-  if (registry.aiGateway.status === "runtime-wired-unconnected") {
+  if (registry.aiGateway.status === "runtime-configured-unconnected") {
     if (
-      registry.aiGateway.routingPolicyVersion !== "UNCONFIGURED"
+      registry.aiGateway.routingPolicyVersion !== "2026-09-22.1"
       || registry.adapters.aiGateway?.status !== "contract-only"
-      || registry.adapters.openRouter?.status !== "implemented-unconfigured"
+      || registry.adapters.openRouter?.status !== "implemented-configured-unconnected"
       || registry.aiGateway.adapterVersion !== registry.adapters.openRouter.version
     ) {
-      fail("Disconnected AI Gateway must expose the implemented OpenRouter adapter while keeping credentials/routing unconfigured");
+      fail("Disconnected AI Gateway must expose configured OpenRouter routing without claiming live environment connectivity");
     }
   } else if (
     registry.aiGateway.routingPolicyVersion === "UNCONFIGURED"
@@ -448,7 +448,7 @@ if (failures.length === 0) {
       !environmentState.aiGateway
       || environmentState.aiGateway.contractStatus !== "deterministic-contract"
       || environmentState.aiGateway.adapterStatus !== "not-connected"
-      || environmentState.aiGateway.adapterImplementationStatus !== "implemented-unconfigured"
+      || environmentState.aiGateway.adapterImplementationStatus !== "implemented-configured-unconnected"
       || environmentState.connections.aiGateway !== false
       || !environmentState.controlApi
       || environmentState.controlApi.surfaceStatus !== "implemented"

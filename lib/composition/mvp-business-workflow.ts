@@ -108,7 +108,7 @@ export class MvpBusinessWorkflow {
         }
       },
       payload: {
-        instruction: "Propose one configured business operation. Do not approve or execute it.",
+        instruction: "Return only a JSON object with keys summary, reason, operation, and payload. Propose one configured business operation. Do not approve, authorize, invoke tools, or execute anything.",
         detection: input.detection
       },
       outputSchema: proposalSchema,

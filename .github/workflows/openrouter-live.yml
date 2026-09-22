@@ -1,0 +1,73 @@
+name: OpenRouter Live Acceptance
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "lib/ai-gateway/**"
+      - "lib/composition/mvp-business-workflow.ts"
+      - "lib/persistence/postgres/ai-audit-store.ts"
+      - "migrations/**"
+      - ".github/workflows/openrouter-live.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: openrouter-live-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  live-openrouter:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+      NPM_CONFIG_IGNORE_SCRIPTS: "true"
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+      GETDONE_DB_SSL: "false"
+      GETDONE_RUNTIME_ENV: staging
+      GETDONE_DATA_MODE: authoritative
+      GETDONE_OPENROUTER_LIVE: "true"
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      OPENROUTER_BASE_URL: https://openrouter.ai/api/v1
+      OPENROUTER_TIMEOUT_MS: "20000"
+      OPENROUTER_MAX_RETRIES: "2"
+      OPENROUTER_RETRY_BASE_DELAY_MS: "250"
+      OPENROUTER_CANARY_ENABLED: "true"
+      OPENROUTER_CANARY_MODEL: openai/gpt-5.6-luna
+      OPENROUTER_APP_TITLE: GetDone
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - name: Require server-side OpenRouter secret
+        shell: bash
+        run: |
+          if [ -z "$OPENROUTER_API_KEY" ]; then
+            echo "::error::OPENROUTER_API_KEY repository/environment secret is required for live OpenRouter acceptance."
+            exit 1
+          fi
+      - name: Install dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Apply PostgreSQL migrations
+        run: npm run db:migrate
+      - name: Run real OpenRouter proposal and canary acceptance
+        run: npx vitest run lib/composition/openrouter-live.integration.test.ts

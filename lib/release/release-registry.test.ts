@@ -299,13 +299,13 @@ describe("Phase 41 release/version registry", () => {
     expect(registry.aiGateway).toMatchObject({
       contractVersion: AI_GATEWAY_CONTRACT_VERSION,
       routingPolicyContractVersion: AI_ROUTING_POLICY_CONTRACT_VERSION,
-      status: "runtime-wired-unconnected",
+      status: "runtime-configured-unconnected",
       adapterVersion: OPENROUTER_ADAPTER_VERSION,
-      routingPolicyVersion: "UNCONFIGURED"
+      routingPolicyVersion: "2026-09-22.1"
     });
     expect(registry.adapters.aiGateway.status).toBe("contract-only");
     expect(registry.adapters.openRouter).toMatchObject({
-      status: "implemented-unconfigured",
+      status: "implemented-configured-unconnected",
       version: OPENROUTER_ADAPTER_VERSION
     });
     expect(registry.adapters.configuredHttpAction).toMatchObject({
@@ -409,8 +409,8 @@ describe("Phase 41 release/version registry", () => {
       });
       expect(state.aiGateway).toMatchObject({
         adapterStatus: "not-connected",
-        adapterImplementationStatus: "implemented-unconfigured",
-        provider: "OPENROUTER_UNCONFIGURED"
+        adapterImplementationStatus: "implemented-configured-unconnected",
+        provider: "OPENROUTER"
       });
     }
   });
@@ -491,8 +491,8 @@ describe("Phase 41 release/version registry", () => {
       status: "implemented-unconnected",
       engine: "postgresql",
       minimumEngineVersion: "16",
-      migrationVersion: "2026-09-22.3",
-      schemaVersion: "1.3.0"
+      migrationVersion: "2026-09-22.4",
+      schemaVersion: "1.4.0"
     });
     for (const state of Object.values(environment.environments)) {
       expect(state.connections.database).toBe(false);
@@ -500,8 +500,8 @@ describe("Phase 41 release/version registry", () => {
         engine: "postgresql",
         minimumEngineVersion: "16",
         adapterStatus: "implemented-unconnected",
-        migrationVersion: "2026-09-22.3",
-        schemaVersion: "1.3.0"
+        migrationVersion: "2026-09-22.4",
+        schemaVersion: "1.4.0"
       });
       expect(state.execution).toMatchObject({
         durableJobStoreStatus: "not-connected",

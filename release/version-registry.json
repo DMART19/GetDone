@@ -238,6 +238,10 @@
     "persistentJobWorkerService": {
       "version": "1.0.0",
       "sourcePath": "lib/execution/persistent-job-worker.server.ts"
+    },
+    "aiGatewayProductionConfig": {
+      "version": "2026-09-22.1",
+      "sourcePath": "lib/ai-gateway/production-config.ts"
     }
   },
   "policy": {
@@ -249,9 +253,9 @@
   "aiGateway": {
     "contractVersion": "1.2.0",
     "routingPolicyContractVersion": "1.0.0",
-    "status": "runtime-wired-unconnected",
-    "adapterVersion": "1.1.0",
-    "routingPolicyVersion": "UNCONFIGURED",
+    "status": "runtime-configured-unconnected",
+    "adapterVersion": "1.2.0",
+    "routingPolicyVersion": "2026-09-22.1",
     "sourcePath": "lib/ai-gateway/contracts.ts"
   },
   "adapters": {
@@ -328,8 +332,8 @@
       ]
     },
     "openRouter": {
-      "status": "implemented-unconfigured",
-      "version": "1.1.0",
+      "status": "implemented-configured-unconnected",
+      "version": "1.2.0",
       "sourcePath": "lib/ai-gateway/openrouter-adapter.ts",
       "contractTracked": true,
       "contractSourcePaths": [
@@ -458,7 +462,15 @@
     "lib/persistence/postgres/worker-runtime-stores.ts",
     "migrations/2026-09-22.3_durable_worker.sql",
     "Dockerfile.worker",
-    "lib/execution/persistent-job-worker.server.test.ts"
+    "lib/execution/persistent-job-worker.server.test.ts",
+    "lib/ai-gateway/production-config.ts",
+    "lib/ai-gateway/canary.server.ts",
+    "app/api/internal/ai/canary/route.ts",
+    "lib/composition/openrouter-live.integration.test.ts",
+    "migrations/2026-09-22.4_openrouter_live.sql",
+    ".github/workflows/openrouter-live.yml",
+    "lib/ai-gateway/canary.server.test.ts",
+    "lib/persistence/postgres/ai-audit-store.test.ts"
   ],
   "manualSourcePaths": [
     "docs/ARCHITECTURE.md",
@@ -472,7 +484,8 @@
     "docs/SOL_GOLDEN_PATH_JOB_BRIDGE_REPORT.md",
     "docs/SOL_QUALITY_V8_PLAYWRIGHT_AI_BUDGET_REPORT.md",
     "docs/SOL_CONTROL_API_OPENROUTER_SECURITY_REPORT.md",
-    "docs/SOL_POSTGRES_JOB_EXECUTION_RUNTIME_REPORT.md"
+    "docs/SOL_POSTGRES_JOB_EXECUTION_RUNTIME_REPORT.md",
+    "docs/OPENROUTER_PRODUCTION_RUNBOOK.md"
   ],
   "generatedArtifacts": {
     "machineManifest": "release/out/release-manifest.json",
@@ -482,9 +495,9 @@
     "status": "implemented-unconnected",
     "engine": "postgresql",
     "minimumEngineVersion": "16",
-    "migrationVersion": "2026-09-22.3",
-    "schemaVersion": "1.3.0",
-    "sourcePath": "migrations/2026-09-22.3_durable_worker.sql",
+    "migrationVersion": "2026-09-22.4",
+    "schemaVersion": "1.4.0",
+    "sourcePath": "migrations/2026-09-22.4_openrouter_live.sql",
     "adapterSourcePath": "lib/persistence/postgres/client.ts"
   },
   "voice": {
