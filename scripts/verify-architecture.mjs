@@ -1132,7 +1132,7 @@ if (
   || releaseRegistry.execution.businessActionOrchestratorStatus !== "implemented"
   || releaseRegistry.execution.businessAdaptersStatus !== "implemented-unconfigured"
   || releaseRegistry.adapters?.businessAction?.version !== "1.3.0"
-  || releaseRegistry.adapters?.configuredHttpAction?.version !== "1.1.0"
+  || releaseRegistry.adapters?.configuredHttpAction?.version !== "1.2.0"
   || releaseRegistry.adapters?.configuredWebhookAction?.status !== "implemented-unconfigured"
   || releaseRegistry.adapters?.gmailBusinessAction?.status !== "implemented-unconfigured"
   || releaseRegistry.adapters?.slackBusinessAction?.status !== "implemented-unconfigured"
