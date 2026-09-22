@@ -4,13 +4,10 @@ import type {
   AIAdapterResponse
 } from "@/lib/ai-gateway/contracts";
 import { ControlPlaneError } from "@/lib/control-plane/errors";
-import {
-  OPENROUTER_APPROVED_BASE_URL,
-  OPENROUTER_CANARY_MODEL_ID
-} from "@/lib/ai-gateway/production-config";
+import { OPENROUTER_CANARY_MODEL_ID } from "@/lib/ai-gateway/production-config";
 
 export const OPENROUTER_ADAPTER_VERSION = "1.1.0";
-export const OPENROUTER_DEFAULT_BASE_URL = OPENROUTER_APPROVED_BASE_URL;
+export const OPENROUTER_DEFAULT_BASE_URL = "https://openrouter.ai/api/v1";
 
 type FetchLike = typeof fetch;
 type Sleep = (milliseconds: number) => Promise<void>;
