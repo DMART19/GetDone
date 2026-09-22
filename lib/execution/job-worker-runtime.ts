@@ -188,12 +188,13 @@ export class DurableJobWorker {
 
     const postExecution = await this.store.getRuntimeSnapshot(candidate.envelope.jobId);
     if (postExecution?.state === "cancelled") {
+      const cancelledOutcome: JobExecutionOutcome = {
+        kind: "cancelled",
+        reason: postExecution.cancelledReason ?? "Job was cancelled during execution"
+      };
       return {
         jobId: candidate.envelope.jobId,
-        outcome: {
-          kind: "cancelled",
-          reason: postExecution.cancelledReason ?? "Job was cancelled during execution"
-        }
+        outcome: cancelledOutcome
       };
     }
 
