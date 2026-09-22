@@ -479,8 +479,8 @@ describe("Phase 41 release/version registry", () => {
       status: "implemented-unconnected",
       engine: "postgresql",
       minimumEngineVersion: "16",
-      migrationVersion: "2026-09-22.1",
-      schemaVersion: "1.1.0"
+      migrationVersion: "2026-09-22.2",
+      schemaVersion: "1.2.0"
     });
     for (const state of Object.values(environment.environments)) {
       expect(state.connections.database).toBe(false);
@@ -488,8 +488,8 @@ describe("Phase 41 release/version registry", () => {
         engine: "postgresql",
         minimumEngineVersion: "16",
         adapterStatus: "implemented-unconnected",
-        migrationVersion: "2026-09-22.1",
-        schemaVersion: "1.1.0"
+        migrationVersion: "2026-09-22.2",
+        schemaVersion: "1.2.0"
       });
       expect(state.execution).toMatchObject({
         durableJobStoreStatus: "not-connected",
