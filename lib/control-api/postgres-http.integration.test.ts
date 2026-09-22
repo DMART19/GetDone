@@ -136,6 +136,8 @@ describeIntegration("PostgreSQL-backed Control API HTTP acceptance", () => {
     process.env.GETDONE_RUNTIME_ENV = "staging";
     process.env.GETDONE_DATA_MODE = "authoritative";
     process.env.GETDONE_DB_SSL = process.env.GETDONE_DB_SSL ?? "false";
+    process.env.GETDONE_WEBAUTHN_RP_ID = "localhost";
+    process.env.GETDONE_WEBAUTHN_ORIGINS = "http://localhost";
 
     resetControlApiAdapter();
     await resetPostgresRuntimeForTests();
@@ -143,12 +145,16 @@ describeIntegration("PostgreSQL-backed Control API HTTP acceptance", () => {
     await pool.query(
       `TRUNCATE
         owner_intents,
+        auth_sign_in_challenges,
         auth_step_up_challenges,
+        auth_webauthn_credentials,
         auth_step_up_credentials,
         auth_sessions,
         portfolio_memberships,
+        company_memberships,
         organization_memberships,
         portfolios,
+        companies,
         organizations,
         auth_users,
         control_plane_entities,
@@ -165,12 +171,20 @@ describeIntegration("PostgreSQL-backed Control API HTTP acceptance", () => {
       `INSERT INTO organizations(id,name) VALUES('org-a','GetDone Integration')`
     );
     await pool.query(
+      `INSERT INTO companies(id,organization_id,name)
+       VALUES('company-a','org-a','Company A')`
+    );
+    await pool.query(
       `INSERT INTO portfolios(id,organization_id,company_id,name)
        VALUES('portfolio-a','org-a','company-a','Portfolio A')`
     );
     await pool.query(
       `INSERT INTO organization_memberships(user_id,organization_id,role,status)
        VALUES('user-a','org-a','owner','active')`
+    );
+    await pool.query(
+      `INSERT INTO company_memberships(user_id,company_id,role,status)
+       VALUES('user-a','company-a','owner','active')`
     );
     await pool.query(
       `INSERT INTO portfolio_memberships(user_id,portfolio_id,company_id,role,status)
