@@ -338,7 +338,7 @@
     },
     "configuredHttpAction": {
       "status": "implemented-unconfigured",
-      "version": "1.1.0",
+      "version": "1.2.0",
       "sourcePath": "lib/execution/adapters/configured-http-action.ts"
     },
     "postgresPersistence": {
