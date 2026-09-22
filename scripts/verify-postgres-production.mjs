@@ -6,7 +6,7 @@ function required(name) {
   return value;
 }
 
-const requiredMigration = "2026-09-22.2";
+const requiredMigration = "2026-09-22.3";
 const maxBackupAgeHours = Number(process.env.GETDONE_BACKUP_MAX_AGE_HOURS || "24");
 if (!Number.isFinite(maxBackupAgeHours) || maxBackupAgeHours <= 0) {
   throw new Error("GETDONE_BACKUP_MAX_AGE_HOURS must be positive");
@@ -85,6 +85,18 @@ try {
     throw new Error("Production auth persistence schema verification failed");
   }
 
+  const workerSchema = await client.query(
+    `SELECT COUNT(*)::int AS count
+     FROM unnest(ARRAY[
+       'job_worker_instances',
+       'business_action_verification_evidence'
+     ]::text[]) AS required(name)
+     WHERE to_regclass(required.name) IS NOT NULL`
+  );
+  if (workerSchema.rows[0]?.count !== 2) {
+    throw new Error("Durable worker persistence schema verification failed");
+  }
+
   const backup = await client.query(
     `SELECT completed_at,verification_hash
      FROM database_backup_evidence
@@ -123,6 +135,7 @@ try {
     concurrencyConstraints: "verified",
     auditSchema: "verified",
     authSchema: "verified",
+    durableWorkerSchema: "verified",
     backupFresh: true
   }, null, 2));
 } finally {
