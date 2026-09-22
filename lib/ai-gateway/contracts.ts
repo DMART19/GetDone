@@ -2,7 +2,7 @@ import type { ZodType } from "zod";
 import type { TrustedExecutionScope } from "@/lib/control-plane/trusted-execution-scope";
 import type { ResourceDataClass } from "@/lib/resources/policy";
 
-export const AI_GATEWAY_CONTRACT_VERSION = "1.1.0";
+export const AI_GATEWAY_CONTRACT_VERSION = "1.2.0";
 export const AI_ROUTING_POLICY_CONTRACT_VERSION = "1.0.0";
 
 export type AIRole =
@@ -126,6 +126,8 @@ export interface AIAdapterResponse {
   output: unknown;
   inputTokens: number;
   outputTokens: number;
+  /** Provider-reported charge when available. The gateway computes a profile-rate fallback otherwise. */
+  providerCostCents?: number;
   latencyMs: number;
   observedAt: string;
 }
@@ -155,10 +157,38 @@ export interface AICallAuditRecord {
   inputTokens?: number;
   outputTokens?: number;
   estimatedCostCents: number;
+  actualCostCents: number;
   validationStatus: "not-called" | "valid" | "invalid" | "failed";
   failureClass?: string;
   recordedAt: string;
   auditHash: string;
+}
+
+export interface AIUsageRecord {
+  requestId: string;
+  correlationId: string;
+  portfolioId: string;
+  companyId: string;
+  environment: TrustedExecutionScope["environment"];
+  attempt: number;
+  profileId: string;
+  gatewayId: string;
+  providerId: string;
+  modelId: string;
+  inputTokens: number;
+  outputTokens: number;
+  estimatedCostCents: number;
+  actualCostCents: number;
+  latencyMs: number;
+  outcome: "valid" | "schema-invalid" | "identity-mismatch" | "failed";
+  failureClass?: string;
+  recordedAt: string;
+  usageHash: string;
+}
+
+export interface AICallAuditStore {
+  appendAudit(record: AICallAuditRecord): Promise<void>;
+  appendUsage(record: AIUsageRecord): Promise<void>;
 }
 
 export interface AIInvocationSuccess<T> {

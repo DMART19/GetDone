@@ -1,5 +1,6 @@
 import { sha256Hex } from "@/lib/control-plane/canonical-hash";
 import { ControlPlaneError } from "@/lib/control-plane/errors";
+import { assertTrustedExecutionScopeEqual } from "@/lib/control-plane/trusted-execution-scope";
 import type { AuthorizedBusinessActionRequest } from "@/lib/execution/adapters/business-action";
 import type { BusinessActionExecutionOrchestrator } from "@/lib/execution/business-action-orchestrator";
 import type {
@@ -87,7 +88,7 @@ export class RoutedJobExecutionHandler implements DurableJobExecutionHandler {
   constructor(
     private readonly specs: JobExecutionSpecStore,
     private readonly business: BusinessActionExecutionOrchestrator,
-    private readonly software: SoftwareWorkerRuntime
+    private readonly software?: SoftwareWorkerRuntime
   ) {}
 
   async execute(context: DurableJobExecutionContext): Promise<JobExecutionOutcome> {
@@ -99,7 +100,20 @@ export class RoutedJobExecutionHandler implements DurableJobExecutionHandler {
 
     switch (spec.kind) {
       case "business-action": {
-        if (spec.request.jobId !== context.envelope.jobId) {
+        try {
+          assertTrustedExecutionScopeEqual(spec.request.scope, context.envelope.scope, {
+            requireSameResource: Boolean(
+              spec.request.scope.resourceId || context.envelope.scope.resourceId
+            )
+          });
+        } catch {
+          return { kind: "dead-letter", reason: "Business action scope lineage mismatch" };
+        }
+        if (
+          spec.request.jobId !== context.envelope.jobId
+          || spec.request.authorizationConsumptionHash
+            !== context.envelope.authorizationConsumptionHash
+        ) {
           return { kind: "dead-letter", reason: "Business action Job lineage mismatch" };
         }
         const result = await this.business.execute(spec.request);
@@ -123,18 +137,21 @@ export class RoutedJobExecutionHandler implements DurableJobExecutionHandler {
         }
       }
       case "software-prepare": {
+        if (!this.software) return { kind: "dead-letter", reason: "Software executor is not installed" };
         const runtime = await this.software.prepare(spec.plan);
         return runtime.pipeline.state === "awaiting-production-approval"
           ? { kind: "succeeded" }
           : { kind: "retry", reason: `Software preparation paused at ${runtime.pipeline.state}` };
       }
       case "software-deploy": {
+        if (!this.software) return { kind: "dead-letter", reason: "Software executor is not installed" };
         const result = await this.software.deployProduction(spec.plan, spec.promotion);
         return result.runtime.pipeline.state === "post-deploy-verifying"
           ? { kind: "succeeded" }
           : { kind: "retry", reason: "Software deployment did not reach verification handoff" };
       }
       case "software-verify": {
+        if (!this.software) return { kind: "dead-letter", reason: "Software executor is not installed" };
         const runtime = await this.software.completeProductionVerification(
           spec.plan,
           spec.verification
@@ -144,6 +161,7 @@ export class RoutedJobExecutionHandler implements DurableJobExecutionHandler {
           : { kind: "dead-letter", reason: "Software verification failed to establish success" };
       }
       case "software-rollback": {
+        if (!this.software) return { kind: "dead-letter", reason: "Software executor is not installed" };
         const runtime = await this.software.rollback(spec.plan);
         return runtime.pipeline.state === "rolled-back"
           ? { kind: "succeeded" }

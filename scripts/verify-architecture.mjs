@@ -155,7 +155,7 @@ const aiContracts = read("lib/ai-gateway/contracts.ts");
 const aiGateway = read("lib/ai-gateway/gateway.ts");
 const aiRouter = read("lib/ai-gateway/router.ts");
 for (const required of [
-  'AI_GATEWAY_CONTRACT_VERSION = "1.1.0"',
+  'AI_GATEWAY_CONTRACT_VERSION = "1.2.0"',
   '"DETERMINISTIC"',
   '"HIGH_REASONING"',
   '"CODING"',
@@ -1037,13 +1037,14 @@ if (
   fail("Phase 41 registry app/environment binding drifted");
 }
 if (
-  releaseRegistry.aiGateway.status !== "not-connected"
+  releaseRegistry.aiGateway.status !== "runtime-wired-unconnected"
   || releaseRegistry.aiGateway.adapterVersion !== "1.0.0"
-  || releaseRegistry.aiGateway.contractVersion !== "1.1.0"
+  || releaseRegistry.aiGateway.contractVersion !== "1.2.0"
   || releaseRegistry.aiGateway.routingPolicyContractVersion !== "1.0.0"
   || releaseRegistry.aiGateway.routingPolicyVersion !== "UNCONFIGURED"
   || releaseRegistry.adapters?.openRouter?.status !== "implemented-unconfigured"
   || releaseRegistry.adapters?.openRouter?.version !== "1.0.0"
+  || releaseRegistry.adapters?.configuredHttpAction?.status !== "implemented-unconfigured"
 ) {
   fail("Phase 13 release state must expose the implemented OpenRouter adapter without claiming live routing/connectivity");
 }
@@ -1097,17 +1098,17 @@ if (
 if (
   releaseRegistry.schemaVersions?.aiBudgetReservation?.version !== "1.0.0"
   || releaseRegistry.schemaVersions?.aiBudgetReservation?.contractTracked !== true
-  || releaseRegistry.adapters?.aiGateway?.version !== "1.1.0"
+  || releaseRegistry.adapters?.aiGateway?.version !== "1.2.0"
 ) {
-  fail("Atomic AI budget reservation / AI Gateway 1.1 release binding drifted");
+  fail("Atomic AI budget reservation / AI Gateway 1.2 release binding drifted");
 }
 
 if (
   releaseRegistry.database?.status !== "implemented-unconnected"
   || releaseRegistry.database?.engine !== "postgresql"
   || releaseRegistry.database?.minimumEngineVersion !== "16"
-  || releaseRegistry.database?.migrationVersion !== "2026-09-21.1"
-  || releaseRegistry.database?.schemaVersion !== "1.0.0"
+  || releaseRegistry.database?.migrationVersion !== "2026-09-22.1"
+  || releaseRegistry.database?.schemaVersion !== "1.1.0"
   || releaseRegistry.adapters?.postgresPersistence?.status !== "implemented-unconnected"
   || releaseRegistry.adapters?.durableJobStore?.status !== "implemented-unconnected"
 ) {
@@ -1124,9 +1125,9 @@ if (
   releaseRegistry.execution.jobRuntimeContractVersion !== "1.1.0"
   || releaseRegistry.execution.durableJobStoreStatus !== "implemented-unconnected"
   || releaseRegistry.execution.durableJobStoreVersion !== "1.0.0"
-  || releaseRegistry.execution.businessActionContractVersion !== "1.1.0"
+  || releaseRegistry.execution.businessActionContractVersion !== "1.2.0"
   || releaseRegistry.execution.businessActionOrchestratorStatus !== "implemented"
-  || releaseRegistry.execution.businessAdaptersStatus !== "not-connected"
+  || releaseRegistry.execution.businessAdaptersStatus !== "implemented-unconfigured"
   || releaseRegistry.execution.softwareWorkerContractVersion !== "1.1.0"
   || releaseRegistry.execution.softwareWorkerRuntimeStatus !== "implemented"
   || releaseRegistry.execution.softwareDeploymentStatus !== "not-connected"

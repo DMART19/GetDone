@@ -2,7 +2,7 @@ import { ControlPlaneError } from "@/lib/control-plane/errors";
 import { sha256Hex } from "@/lib/control-plane/canonical-hash";
 import type { TrustedExecutionScope } from "@/lib/control-plane/trusted-execution-scope";
 
-export const BUSINESS_ACTION_ADAPTER_CONTRACT_VERSION = "1.1.0";
+export const BUSINESS_ACTION_ADAPTER_CONTRACT_VERSION = "1.2.0";
 
 export interface AuthorizedBusinessActionRequest {
   id: string;
@@ -23,8 +23,10 @@ export interface BusinessActionAdapterResult {
   requestId: string;
   adapterId: string;
   adapterVersion: string;
-  status: "accepted" | "rejected" | "failed";
+  status: "accepted" | "completed" | "rejected" | "failed";
   providerOperationId?: string;
+  output?: unknown;
+  outputHash?: string;
   retryable: boolean;
   observedAt: string;
   jobStateMutationApplied: false;
@@ -96,7 +98,7 @@ export function assertAuthorizedBusinessActionRequest(request: AuthorizedBusines
 }
 
 export function createBusinessActionAdapterResult(
-  input: Omit<BusinessActionAdapterResult, "jobStateMutationApplied" | "resultHash">
+  input: Omit<BusinessActionAdapterResult, "jobStateMutationApplied" | "resultHash" | "outputHash">
 ): BusinessActionAdapterResult {
   if (input.status === "accepted" && !input.providerOperationId) {
     throw new ControlPlaneError(
@@ -104,9 +106,16 @@ export function createBusinessActionAdapterResult(
       "Accepted adapter result requires a provider operation ID"
     );
   }
+  if (input.status === "completed" && input.output === undefined) {
+    throw new ControlPlaneError(
+      "VALIDATION_FAILED",
+      "Completed adapter result requires typed output"
+    );
+  }
   assertTimestamp(input.observedAt, "business action observedAt");
   const base = {
     ...input,
+    outputHash: input.output === undefined ? undefined : sha256Hex(input.output),
     jobStateMutationApplied: false as const
   };
   return Object.freeze({ ...base, resultHash: sha256Hex(base) });
@@ -119,6 +128,10 @@ export function assertBusinessActionAdapterResult(result: BusinessActionAdapterR
     || result.source !== "business-action-adapter"
     || result.jobStateMutationApplied !== false
     || (result.status === "accepted" && !result.providerOperationId)
+    || (result.status === "completed" && (
+      result.output === undefined
+      || result.outputHash !== sha256Hex(result.output)
+    ))
   ) {
     throw new ControlPlaneError(
       "FORBIDDEN",

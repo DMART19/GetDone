@@ -44,6 +44,8 @@ interface OpenRouterChatResponse {
   usage?: {
     prompt_tokens?: number;
     completion_tokens?: number;
+    /** OpenRouter reports cost in USD when usage accounting is enabled. */
+    cost?: number;
   };
 }
 
@@ -311,6 +313,11 @@ export class OpenRouterAIGatewayAdapter implements AIGatewayAdapter {
       output,
       inputTokens: response.usage?.prompt_tokens ?? 0,
       outputTokens: response.usage?.completion_tokens ?? 0,
+      providerCostCents: typeof response.usage?.cost === "number"
+        && Number.isFinite(response.usage.cost)
+        && response.usage.cost >= 0
+        ? Number((response.usage.cost * 100).toFixed(6))
+        : undefined,
       latencyMs: Math.max(0, Date.now() - startedAt),
       observedAt: this.now().toISOString()
     };

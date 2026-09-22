@@ -9,6 +9,7 @@ import {
   type BusinessActionStatus
 } from "@/lib/execution/adapters/business-action";
 import { createVerificationEvidence, type VerificationEvidence } from "@/lib/verification/verification";
+import { validateCapabilityOutput } from "@/lib/domain/capabilities";
 
 export const BUSINESS_ACTION_ORCHESTRATOR_VERSION = "1.0.0";
 
@@ -35,6 +36,8 @@ export interface BusinessActionExecutionRecord {
   state: BusinessActionExecutionState;
   adapterResultHash: string;
   latestStatusHash?: string;
+  output?: unknown;
+  outputHash?: string;
   retryable: boolean;
   updatedAt: string;
   recordHash: string;
@@ -159,6 +162,10 @@ export class BusinessActionExecutionOrchestrator {
       providerOperationId: result.providerOperationId,
       state: result.status === "accepted" ? "accepted" : result.status,
       adapterResultHash: result.resultHash,
+      output: result.status === "completed"
+        ? validateCapabilityOutput(request.capability, result.output)
+        : undefined,
+      outputHash: result.outputHash,
       retryable: result.retryable,
       updatedAt: result.observedAt
     });

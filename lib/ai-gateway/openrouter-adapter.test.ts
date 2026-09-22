@@ -68,7 +68,7 @@ describe("OpenRouterAIGatewayAdapter", () => {
             id: "gen-1",
             model: "openai/gpt-5.4",
             choices: [{ message: { content: "hello" } }],
-            usage: { prompt_tokens: 12, completion_tokens: 3 }
+            usage: { prompt_tokens: 12, completion_tokens: 3, cost: 0.012 }
           });
         },
         now: () => new Date("2026-09-21T04:00:00Z")
@@ -84,6 +84,7 @@ describe("OpenRouterAIGatewayAdapter", () => {
       output: "hello",
       inputTokens: 12,
       outputTokens: 3,
+      providerCostCents: 1.2,
       observedAt: "2026-09-21T04:00:00.000Z"
     });
     const headers = captured?.headers as Record<string, string>;

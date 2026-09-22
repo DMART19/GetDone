@@ -72,7 +72,7 @@
       ]
     },
     "aiGatewayContract": {
-      "version": "1.1.0",
+      "version": "1.2.0",
       "sourcePath": "lib/ai-gateway/contracts.ts",
       "contractTracked": true,
       "contractSourcePaths": [
@@ -243,9 +243,9 @@
     "engineSourcePath": "lib/planning/policy-engine.ts"
   },
   "aiGateway": {
-    "contractVersion": "1.1.0",
+    "contractVersion": "1.2.0",
     "routingPolicyContractVersion": "1.0.0",
-    "status": "not-connected",
+    "status": "runtime-wired-unconnected",
     "adapterVersion": "1.0.0",
     "routingPolicyVersion": "UNCONFIGURED",
     "sourcePath": "lib/ai-gateway/contracts.ts"
@@ -271,7 +271,7 @@
     },
     "businessAction": {
       "status": "contract-only",
-      "version": "1.1.0",
+      "version": "1.2.0",
       "sourcePath": "lib/execution/adapters/business-action.ts",
       "contractTracked": true,
       "contractSourcePaths": [
@@ -280,7 +280,7 @@
     },
     "aiGateway": {
       "status": "contract-only",
-      "version": "1.1.0",
+      "version": "1.2.0",
       "sourcePath": "lib/ai-gateway/contracts.ts",
       "contractTracked": true,
       "contractSourcePaths": [
@@ -331,6 +331,11 @@
       "contractSourcePaths": [
         "lib/ai-gateway/openrouter-adapter.ts"
       ]
+    },
+    "configuredHttpAction": {
+      "status": "implemented-unconfigured",
+      "version": "1.0.0",
+      "sourcePath": "lib/execution/adapters/configured-http-action.ts"
     },
     "postgresPersistence": {
       "status": "implemented-unconnected",
@@ -463,9 +468,9 @@
     "status": "implemented-unconnected",
     "engine": "postgresql",
     "minimumEngineVersion": "16",
-    "migrationVersion": "2026-09-21.1",
-    "schemaVersion": "1.0.0",
-    "sourcePath": "migrations/2026-09-21.1_authority_runtime.sql",
+    "migrationVersion": "2026-09-22.1",
+    "schemaVersion": "1.1.0",
+    "sourcePath": "migrations/2026-09-22.1_ai_gateway_business_execution.sql",
     "adapterSourcePath": "lib/persistence/postgres/client.ts"
   },
   "voice": {
@@ -488,8 +493,8 @@
   "execution": {
     "jobRuntimeContractVersion": "1.1.0",
     "durableJobStoreStatus": "implemented-unconnected",
-    "businessActionContractVersion": "1.1.0",
-    "businessAdaptersStatus": "not-connected",
+    "businessActionContractVersion": "1.2.0",
+    "businessAdaptersStatus": "implemented-unconfigured",
     "softwareWorkerContractVersion": "1.1.0",
     "softwareDeploymentStatus": "not-connected",
     "sourcePaths": [
@@ -542,7 +547,10 @@
     "goldenPathHarnessVersion": "1.1.0",
     "status": "deterministic-simulation-only",
     "productionExecutionClaimed": false,
-    "sourcePath": "lib/composition/golden-path-harness.ts"
+    "sourcePath": "lib/composition/golden-path-harness.ts",
+    "mvpBusinessWorkflowVersion": "1.0.0",
+    "mvpBusinessWorkflowStatus": "implemented-unconfigured",
+    "mvpBusinessWorkflowSourcePath": "lib/composition/mvp-business-workflow.ts"
   },
   "controlApi": {
     "surfaceVersion": "1.1.0",

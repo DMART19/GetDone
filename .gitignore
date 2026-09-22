@@ -8,3 +8,5 @@ coverage/
 .DS_Store
 *.log
 release/out/\n
+*.tsbuildinfo
+test-results/

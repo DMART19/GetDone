@@ -185,10 +185,86 @@ export const capabilityRegistry: readonly CapabilityDefinition[] = [
     costModel: "none",
     schemaVersion: "1.0.0",
     authorityBindings: { companyId: true, resourceId: true }
+  },
+  {
+    name: "http.request",
+    description: "Execute a configured HTTPS business operation",
+    access: "write",
+    sensitivity: "customer",
+    productionEffect: true,
+    reversible: false,
+    risk: "medium",
+    blastRadius: "single-object",
+    approval: "approval",
+    adapterBinding: "executor.http",
+    rateLimitPerMinute: 60,
+    enabled: true,
+    inputSchema: capabilitySchemaRegistry["http.request"].input,
+    outputSchema: capabilitySchemaRegistry["http.request"].output,
+    costModel: "provider",
+    schemaVersion: "1.0.0",
+    authorityBindings: { companyId: true, environment: true }
+  },
+  {
+    name: "browser.execution",
+    description: "Execute an authorized browser workflow on an eligible executor",
+    access: "write",
+    sensitivity: "customer",
+    productionEffect: true,
+    reversible: false,
+    risk: "high",
+    blastRadius: "single-object",
+    approval: "approval",
+    adapterBinding: "executor.browser",
+    rateLimitPerMinute: 20,
+    enabled: true,
+    inputSchema: capabilitySchemaRegistry["browser.execution"].input,
+    outputSchema: capabilitySchemaRegistry["browser.execution"].output,
+    costModel: "metered",
+    schemaVersion: "1.0.0",
+    authorityBindings: { companyId: true, environment: true }
+  },
+  {
+    name: "code.execution",
+    description: "Execute bounded authorized code on an eligible executor",
+    access: "write",
+    sensitivity: "internal",
+    productionEffect: false,
+    reversible: true,
+    risk: "high",
+    blastRadius: "single-object",
+    approval: "approval",
+    adapterBinding: "executor.code",
+    rateLimitPerMinute: 20,
+    enabled: true,
+    inputSchema: capabilitySchemaRegistry["code.execution"].input,
+    outputSchema: capabilitySchemaRegistry["code.execution"].output,
+    costModel: "metered",
+    schemaVersion: "1.0.0",
+    authorityBindings: { companyId: true, environment: true }
+  },
+  {
+    name: "scheduled.worker",
+    description: "Schedule an authorized operation on an eligible durable worker",
+    access: "write",
+    sensitivity: "internal",
+    productionEffect: true,
+    reversible: true,
+    risk: "medium",
+    blastRadius: "single-object",
+    approval: "approval",
+    adapterBinding: "executor.scheduled",
+    rateLimitPerMinute: 60,
+    enabled: true,
+    inputSchema: capabilitySchemaRegistry["scheduled.worker"].input,
+    outputSchema: capabilitySchemaRegistry["scheduled.worker"].output,
+    costModel: "metered",
+    schemaVersion: "1.0.0",
+    authorityBindings: { companyId: true, environment: true }
   }
 ];
 
-export const CAPABILITY_REGISTRY_VERSION = "2026-09-20.1";
+export const CAPABILITY_REGISTRY_VERSION = "2026-09-22.1";
 
 function stableRegistryManifest() {
   return capabilityRegistry.map((capability) => ({

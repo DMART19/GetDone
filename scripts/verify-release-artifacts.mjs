@@ -353,8 +353,8 @@ if (failures.length === 0) {
     registry.database.status !== "implemented-unconnected"
     || registry.database.engine !== "postgresql"
     || registry.database.minimumEngineVersion !== "16"
-    || registry.database.migrationVersion !== "2026-09-21.1"
-    || registry.database.schemaVersion !== "1.0.0"
+    || registry.database.migrationVersion !== "2026-09-22.1"
+    || registry.database.schemaVersion !== "1.1.0"
     || manifest.database.status !== registry.database.status
     || manifest.database.engine !== registry.database.engine
     || manifest.database.migrationVersion !== registry.database.migrationVersion
@@ -365,7 +365,7 @@ if (failures.length === 0) {
     fail("PostgreSQL persistence implementation/version release truth drifted");
   }
 
-  if (registry.aiGateway.status === "not-connected") {
+  if (registry.aiGateway.status === "runtime-wired-unconnected") {
     if (
       registry.aiGateway.routingPolicyVersion !== "UNCONFIGURED"
       || registry.adapters.aiGateway?.status !== "contract-only"
@@ -394,7 +394,9 @@ if (failures.length === 0) {
     || registry.execution.durableJobStoreStatus !== "implemented-unconnected"
     || registry.execution.durableJobStoreVersion !== "1.0.0"
     || registry.execution.businessActionOrchestratorStatus !== "implemented"
-    || registry.execution.businessAdaptersStatus !== "not-connected"
+    || registry.execution.businessAdaptersStatus !== "implemented-unconfigured"
+    || registry.adapters.configuredHttpAction?.status !== "implemented-unconfigured"
+    || registry.composition.mvpBusinessWorkflowStatus !== "implemented-unconfigured"
     || registry.execution.softwareWorkerRuntimeStatus !== "implemented"
     || registry.execution.softwareDeploymentStatus !== "not-connected"
     || registry.execution.jobExecutionRouterStatus !== "implemented"
