@@ -100,4 +100,8 @@ CREATE INDEX IF NOT EXISTS node_agent_sessions_active_idx
   ON node_agent_sessions(node_id, expires_at DESC)
   WHERE revoked_at IS NULL;
 
+INSERT INTO getdone_schema_migrations(version)
+VALUES ('2026-09-21.2')
+ON CONFLICT (version) DO NOTHING;
+
 COMMIT;

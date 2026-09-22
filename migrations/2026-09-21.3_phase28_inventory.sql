@@ -19,4 +19,8 @@ CREATE INDEX IF NOT EXISTS node_inventory_latest_idx
 CREATE INDEX IF NOT EXISTS node_inventory_scope_idx
   ON node_inventory_snapshots(portfolio_id, company_id, discovered_at DESC);
 
+INSERT INTO getdone_schema_migrations(version)
+VALUES ('2026-09-21.3')
+ON CONFLICT (version) DO NOTHING;
+
 COMMIT;

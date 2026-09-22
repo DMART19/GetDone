@@ -28,7 +28,8 @@
     "db:migrate": "node scripts/migrate-postgres.mjs",
     "db:verify-production": "node scripts/verify-postgres-production.mjs",
     "db:record-backup": "node scripts/record-postgres-backup-evidence.mjs",
-    "auth:provision-owner": "node scripts/provision-owner-session.mjs"
+    "auth:provision-owner": "node scripts/provision-owner-session.mjs",
+    "db:test-integration": "node scripts/test-postgres-integration.mjs"
   },
   "dependencies": {
     "lucide-react": "0.468.0",
