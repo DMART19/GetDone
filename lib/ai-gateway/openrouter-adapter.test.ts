@@ -9,7 +9,7 @@ const profile: ModelProfile = {
   id: "openrouter-standard",
   gatewayId: "openrouter",
   providerId: "openrouter",
-  modelId: "openai/gpt-5.4",
+  modelId: "openai/gpt-5.6-luna",
   enabled: true,
   validationStatus: "validated",
   roles: ["STANDARD"],
@@ -23,7 +23,7 @@ const profile: ModelProfile = {
   latencyClass: "standard",
   inputCostPerMillionTokensCents: 100,
   outputCostPerMillionTokensCents: 200,
-  profileVersion: "1.0.0"
+  profileVersion: "2026-09-22.1"
 };
 
 function adapterRequest(input: unknown, structured = false): AIAdapterRequest {
@@ -66,7 +66,7 @@ describe("OpenRouterAIGatewayAdapter", () => {
           captured = init;
           return response({
             id: "gen-1",
-            model: "openai/gpt-5.4",
+            model: "openai/gpt-5.6-luna",
             choices: [{ message: { content: "hello" } }],
             usage: { prompt_tokens: 12, completion_tokens: 3, cost: 0.012 }
           });
@@ -80,7 +80,7 @@ describe("OpenRouterAIGatewayAdapter", () => {
       profileId: profile.id,
       gatewayId: "openrouter",
       providerId: "openrouter",
-      modelId: "openai/gpt-5.4",
+      modelId: "openai/gpt-5.6-luna",
       output: "hello",
       inputTokens: 12,
       outputTokens: 3,
@@ -90,6 +90,12 @@ describe("OpenRouterAIGatewayAdapter", () => {
     const headers = captured?.headers as Record<string, string>;
     expect(headers.authorization).toBe("Bearer test-key");
     expect(headers["x-openrouter-metadata"]).toBe("enabled");
+    const body = JSON.parse(String(captured?.body));
+    expect(body).toMatchObject({
+      model: "openai/gpt-5.6-luna",
+      usage: { include: true },
+      provider: { data_collection: "deny", allow_fallbacks: true }
+    });
   });
 
   it("parses structured JSON content for gateway schema validation", async () => {
@@ -97,7 +103,7 @@ describe("OpenRouterAIGatewayAdapter", () => {
       { apiKey: "test-key", maxRetries: 0 },
       {
         fetchImpl: async () => response({
-          model: "openai/gpt-5.4",
+          model: "openai/gpt-5.6-luna",
           choices: [{ message: { content: "{\"answer\":\"ok\"}" } }],
           usage: { prompt_tokens: 1, completion_tokens: 1 }
         })
@@ -117,7 +123,7 @@ describe("OpenRouterAIGatewayAdapter", () => {
           calls += 1;
           if (calls === 1) return response({ error: "rate" }, 429, { "retry-after": "1" });
           return response({
-            model: "openai/gpt-5.4",
+            model: "openai/gpt-5.6-luna",
             choices: [{ message: { content: "ok" } }]
           });
         },
@@ -154,7 +160,7 @@ describe("OpenRouterAIGatewayAdapter", () => {
           calls += 1;
           if (calls === 1) throw new DOMException("timed out", "TimeoutError");
           return response({
-            model: "openai/gpt-5.4",
+            model: "openai/gpt-5.6-luna",
             choices: [{ message: { content: "recovered" } }]
           });
         },
@@ -179,11 +185,60 @@ describe("OpenRouterAIGatewayAdapter", () => {
     expect(result.modelId).toBe("unexpected/provider-model");
   });
 
-  it("validates canary configuration without requiring a live key in tests", () => {
+  it("uses a concrete live canary model by default in authoritative environments", () => {
+    expect(readOpenRouterConfigFromEnv({
+      GETDONE_RUNTIME_ENV: "production",
+      OPENROUTER_API_KEY: "test-key"
+    })).toMatchObject({
+      baseUrl: "https://openrouter.ai/api/v1",
+      timeoutMs: 20_000,
+      maxRetries: 2,
+      retryBaseDelayMs: 250,
+      canary: {
+        enabled: true,
+        modelId: "openai/gpt-5.6-luna"
+      }
+    });
+
     expect(() => readOpenRouterConfigFromEnv({
+      GETDONE_RUNTIME_ENV: "development",
       OPENROUTER_API_KEY: "test-key",
       OPENROUTER_CANARY_ENABLED: "true"
     })).toThrow(/CANARY_MODEL/);
+  });
+
+  it("rejects OpenRouter URLs outside the approved API endpoints", () => {
+    expect(() => new OpenRouterAIGatewayAdapter({
+      apiKey: "test-key",
+      baseUrl: "https://openrouter.ai/other"
+    })).toThrow(/approved \/api\/v1 endpoint/i);
+    expect(() => new OpenRouterAIGatewayAdapter({
+      apiKey: "test-key",
+      baseUrl: "https://example.com/api/v1"
+    })).toThrow(/approved \/api\/v1 endpoint/i);
+  });
+
+  it("retries HTTP 500 and succeeds without changing the requested model", async () => {
+    let calls = 0;
+    const adapter = new OpenRouterAIGatewayAdapter(
+      { apiKey: "test-key", maxRetries: 1, retryBaseDelayMs: 0 },
+      {
+        fetchImpl: async () => {
+          calls += 1;
+          if (calls === 1) return response({ error: "upstream" }, 500);
+          return response({
+            model: "openai/gpt-5.6-luna",
+            choices: [{ message: { content: "ok" } }]
+          });
+        },
+        sleep: async () => undefined
+      }
+    );
+    await expect(adapter.invoke(adapterRequest("x"))).resolves.toMatchObject({
+      modelId: "openai/gpt-5.6-luna",
+      output: "ok"
+    });
+    expect(calls).toBe(2);
   });
 
   it("runs a concrete-model canary and rejects model identity drift", async () => {
@@ -191,11 +246,11 @@ describe("OpenRouterAIGatewayAdapter", () => {
       {
         apiKey: "test-key",
         maxRetries: 0,
-        canary: { enabled: true, modelId: "openai/gpt-5.4" }
+        canary: { enabled: true, modelId: "openai/gpt-5.6-luna" }
       },
       {
         fetchImpl: async () => response({
-          model: "openai/gpt-5.4",
+          model: "openai/gpt-5.6-luna",
           choices: [{ message: { content: "GETDONE_CANARY_OK" } }]
         }),
         now: () => new Date("2026-09-21T04:00:00Z")
@@ -204,14 +259,14 @@ describe("OpenRouterAIGatewayAdapter", () => {
     await expect(adapter.runCanary()).resolves.toMatchObject({
       enabled: true,
       ok: true,
-      modelId: "openai/gpt-5.4"
+      modelId: "openai/gpt-5.6-luna"
     });
 
     const mismatch = new OpenRouterAIGatewayAdapter(
       {
         apiKey: "test-key",
         maxRetries: 0,
-        canary: { enabled: true, modelId: "openai/gpt-5.4" }
+        canary: { enabled: true, modelId: "openai/gpt-5.6-luna" }
       },
       {
         fetchImpl: async () => response({
