@@ -100,6 +100,39 @@ describe("configured HTTP business action", () => {
       .rejects.toThrow(/not configured/i);
   });
 
+  it("stream-limits chunked responses before buffering the full body", async () => {
+    let cancelled = false;
+    const chunks = [
+      new TextEncoder().encode("abc"),
+      new TextEncoder().encode("def"),
+      new TextEncoder().encode("should-not-be-buffered")
+    ];
+    let index = 0;
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        if (index >= chunks.length) {
+          controller.close();
+          return;
+        }
+        controller.enqueue(chunks[index++]);
+      },
+      cancel() {
+        cancelled = true;
+      }
+    }, { highWaterMark: 0 });
+
+    const adapter = new ConfiguredHttpActionAdapter([{
+      name: "crm.contact.sync",
+      url: "https://api.example.com/actions/contact-sync",
+      maxResponseBytes: 5
+    }], {
+      fetchImpl: async () => new Response(body, { status: 200 })
+    });
+
+    await expect(adapter.execute(request())).rejects.toThrow(/size limit/i);
+    expect(cancelled).toBe(true);
+  });
+
   it("converts retryable HTTP failures into durable-worker retry outcomes", async () => {
     const adapter = new ConfiguredHttpActionAdapter([{
       name: "crm.contact.sync",
