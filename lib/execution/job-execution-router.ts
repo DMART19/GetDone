@@ -1,6 +1,7 @@
 import { sha256Hex } from "@/lib/control-plane/canonical-hash";
 import { ControlPlaneError } from "@/lib/control-plane/errors";
 import { assertTrustedExecutionScopeEqual } from "@/lib/control-plane/trusted-execution-scope";
+import type { JobRecord } from "@/lib/domain/services/job-service";
 import type { AuthorizedBusinessActionRequest } from "@/lib/execution/adapters/business-action";
 import type { BusinessActionExecutionOrchestrator } from "@/lib/execution/business-action-orchestrator";
 import type {
@@ -14,13 +15,16 @@ import type {
   SoftwareWorkerPlan
 } from "@/lib/execution/software-worker";
 import type { SoftwareWorkerRuntime } from "@/lib/execution/software-worker-runtime";
+import type { JobVerificationEvidenceStore } from "@/lib/persistence/postgres/worker-runtime-stores";
 
-export const JOB_EXECUTION_ROUTER_VERSION = "1.0.0";
+export const JOB_EXECUTION_ROUTER_VERSION = "1.1.0";
 
 export type JobExecutionSpec =
   | {
       kind: "business-action";
       jobId: string;
+      authoritativeJobVersion: number;
+      authoritativeJobHash: string;
       request: AuthorizedBusinessActionRequest;
     }
   | {
@@ -58,6 +62,10 @@ export interface JobExecutionSpecStore {
   put(record: PersistedJobExecutionSpec): Promise<void>;
 }
 
+export interface AuthoritativeJobReadStore {
+  get(jobId: string): Promise<JobRecord | null>;
+}
+
 export function createPersistedJobExecutionSpec(
   spec: JobExecutionSpec,
   createdAt = new Date().toISOString()
@@ -88,8 +96,94 @@ export class RoutedJobExecutionHandler implements DurableJobExecutionHandler {
   constructor(
     private readonly specs: JobExecutionSpecStore,
     private readonly business: BusinessActionExecutionOrchestrator,
-    private readonly software?: SoftwareWorkerRuntime
+    private readonly software?: SoftwareWorkerRuntime,
+    private readonly authority?: {
+      jobs: AuthoritativeJobReadStore;
+      verificationEvidence: JobVerificationEvidenceStore;
+    }
   ) {}
+
+  private async validateBusinessAuthority(
+    context: DurableJobExecutionContext,
+    spec: Extract<JobExecutionSpec, { kind: "business-action" }>
+  ): Promise<JobExecutionOutcome | null> {
+    if (!this.authority) {
+      return { kind: "dead-letter", reason: "Authoritative Job execution stores are not installed" };
+    }
+
+    let authoritative: JobRecord | null;
+    try {
+      authoritative = await this.authority.jobs.get(context.envelope.jobId);
+    } catch (error) {
+      return {
+        kind: "retry",
+        reason: error instanceof Error
+          ? `Authoritative Job re-read failed: ${error.message}`
+          : "Authoritative Job re-read failed"
+      };
+    }
+
+    if (!authoritative) {
+      return { kind: "dead-letter", reason: "Authoritative Job was not found before execution" };
+    }
+    if (authoritative.state === "cancelled") {
+      return { kind: "cancelled", reason: "Authoritative Job was cancelled before execution" };
+    }
+    if (authoritative.state !== "queued") {
+      return {
+        kind: "dead-letter",
+        reason: `Authoritative Job is not executable from state ${authoritative.state}`
+      };
+    }
+    if (
+      authoritative.version !== spec.authoritativeJobVersion
+      || sha256Hex(authoritative) !== spec.authoritativeJobHash
+    ) {
+      return { kind: "dead-letter", reason: "Authoritative Job snapshot is stale" };
+    }
+
+    try {
+      assertTrustedExecutionScopeEqual(spec.request.scope, context.envelope.scope, {
+        requireSameResource: Boolean(
+          spec.request.scope.resourceId || context.envelope.scope.resourceId
+        )
+      });
+      if (authoritative.authorizationConsumption) {
+        assertTrustedExecutionScopeEqual(
+          authoritative.authorizationConsumption.scope,
+          context.envelope.scope,
+          {
+            requireSameResource: Boolean(
+              authoritative.authorizationConsumption.scope.resourceId
+              || context.envelope.scope.resourceId
+            )
+          }
+        );
+      }
+    } catch {
+      return { kind: "dead-letter", reason: "Business action scope lineage mismatch" };
+    }
+
+    if (
+      authoritative.taskId !== context.envelope.taskId
+      || spec.request.jobId !== context.envelope.jobId
+      || spec.request.authorizationConsumptionHash
+        !== context.envelope.authorizationConsumptionHash
+      || !authoritative.authorizationGrantId
+      || !authoritative.authorizationGrantHash
+      || !authoritative.authorizationConsumption
+      || authoritative.authorizationConsumption.consumerType !== "task"
+      || authoritative.authorizationConsumption.consumerId !== authoritative.taskId
+      || authoritative.authorizationConsumption.grantId !== authoritative.authorizationGrantId
+      || authoritative.authorizationConsumption.grantHash !== authoritative.authorizationGrantHash
+      || authoritative.authorizationConsumption.consumptionHash
+        !== context.envelope.authorizationConsumptionHash
+    ) {
+      return { kind: "dead-letter", reason: "Business action Job/authorization lineage mismatch" };
+    }
+
+    return null;
+  }
 
   async execute(context: DurableJobExecutionContext): Promise<JobExecutionOutcome> {
     const persisted = await this.specs.get(context.envelope.jobId);
@@ -100,25 +194,26 @@ export class RoutedJobExecutionHandler implements DurableJobExecutionHandler {
 
     switch (spec.kind) {
       case "business-action": {
-        try {
-          assertTrustedExecutionScopeEqual(spec.request.scope, context.envelope.scope, {
-            requireSameResource: Boolean(
-              spec.request.scope.resourceId || context.envelope.scope.resourceId
-            )
-          });
-        } catch {
-          return { kind: "dead-letter", reason: "Business action scope lineage mismatch" };
-        }
-        if (
-          spec.request.jobId !== context.envelope.jobId
-          || spec.request.authorizationConsumptionHash
-            !== context.envelope.authorizationConsumptionHash
-        ) {
-          return { kind: "dead-letter", reason: "Business action Job lineage mismatch" };
-        }
+        const authorityFailure = await this.validateBusinessAuthority(context, spec);
+        if (authorityFailure) return authorityFailure;
+
         const result = await this.business.execute(spec.request);
+        if (result.verificationEvidence) {
+          await this.authority!.verificationEvidence.put(
+            spec.jobId,
+            spec.request.id,
+            result.verificationEvidence
+          );
+        }
+
         switch (result.record.state) {
           case "completed":
+            if (!result.verificationEvidence) {
+              return {
+                kind: "dead-letter",
+                reason: "Completed business action did not produce verification evidence"
+              };
+            }
             return { kind: "succeeded" };
           case "cancelled":
             return { kind: "cancelled", reason: "Provider operation was cancelled" };
