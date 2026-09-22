@@ -118,15 +118,23 @@ export class DurableJobWorker {
     candidate: DurableJobCandidate,
     handler: DurableJobExecutionHandler
   ) {
-    const claim = await this.store.claimAtomic({
-      jobId: candidate.envelope.jobId,
-      workerId: this.config.workerId,
-      now: this.now().toISOString(),
-      leaseSeconds: this.leaseSeconds,
-      expectedJobVersion: candidate.version,
-      expectedJobHash: candidate.stateHash,
-      idempotencyKey: `claim:${candidate.envelope.jobId}:${candidate.version}:${this.config.workerId}`
-    });
+    let claim;
+    try {
+      claim = await this.store.claimAtomic({
+        jobId: candidate.envelope.jobId,
+        workerId: this.config.workerId,
+        now: this.now().toISOString(),
+        leaseSeconds: this.leaseSeconds,
+        expectedJobVersion: candidate.version,
+        expectedJobHash: candidate.stateHash,
+        idempotencyKey: `claim:${candidate.envelope.jobId}:${candidate.version}:${this.config.workerId}`
+      });
+    } catch (error) {
+      if (error instanceof ControlPlaneError && error.code === "CONFLICT") {
+        return null;
+      }
+      throw error;
+    }
     if (!claim) return null;
 
     let lease = claim.lease;
