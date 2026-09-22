@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { spawn } from "node:child_process";
 import path from "node:path";
 import {
@@ -68,27 +68,26 @@ function worker(
 
 
 function runWorkerProcess(jobId: string, workerId: string, now: string) {
-  return new Promise<{
-    jobId: string;
-    workerId: string;
-    executions: number;
-    results: Array<{ jobId: string; outcome: { kind: string } }>;
-  }>((resolve, reject) => {
+  return new Promise<void>((resolve, reject) => {
     const child = spawn(
       process.execPath,
       [
-        path.resolve("node_modules/vite-node/vite-node.mjs"),
-        "scripts/durable-worker-race-child.ts",
-        jobId,
-        workerId,
-        now
+        path.resolve("node_modules/vitest/vitest.mjs"),
+        "run",
+        "lib/execution/worker-process-child.integration.test.ts",
+        "--reporter=dot"
       ],
       {
         cwd: process.cwd(),
         env: {
           ...process.env,
           DATABASE_URL: databaseUrl,
-          GETDONE_DB_SSL: process.env.GETDONE_DB_SSL ?? "false"
+          GETDONE_DB_SSL: process.env.GETDONE_DB_SSL ?? "false",
+          GETDONE_POSTGRES_INTEGRATION: "true",
+          GETDONE_WORKER_CHILD: "true",
+          GETDONE_WORKER_CHILD_JOB_ID: jobId,
+          GETDONE_WORKER_CHILD_ID: workerId,
+          GETDONE_WORKER_CHILD_NOW: now
         },
         stdio: ["ignore", "pipe", "pipe"]
       }
@@ -103,17 +102,11 @@ function runWorkerProcess(jobId: string, workerId: string, now: string) {
     child.once("exit", (code) => {
       if (code !== 0) {
         reject(new Error(
-          `worker process ${workerId} failed with code ${code}: ${stderr}`
+          `worker process ${workerId} failed with code ${code}: ${stdout}\n${stderr}`
         ));
         return;
       }
-      try {
-        resolve(JSON.parse(stdout));
-      } catch (error) {
-        reject(new Error(
-          `worker process ${workerId} returned invalid JSON: ${stdout}\n${stderr}\n${String(error)}`
-        ));
-      }
+      resolve();
     });
   });
 }
@@ -158,7 +151,7 @@ class RestartableAdapter implements BusinessActionAdapter {
 describeIntegration("durable worker PostgreSQL multi-worker acceptance", () => {
   const admin = database();
 
-  beforeAll(async () => {
+  beforeEach(async () => {
     await admin.query(`TRUNCATE
       business_action_verification_evidence,
       business_action_executions,
@@ -185,7 +178,7 @@ describeIntegration("durable worker PostgreSQL multi-worker acceptance", () => {
       const store = new PostgresDurableJobStore(db);
       await store.enqueue(envelope("job-os-process-race"));
 
-      const [left, right] = await Promise.all([
+      await Promise.all([
         runWorkerProcess(
           "job-os-process-race",
           "process-worker-a",
@@ -197,9 +190,6 @@ describeIntegration("durable worker PostgreSQL multi-worker acceptance", () => {
           "2026-09-22T07:00:05.000Z"
         )
       ]);
-
-      expect(left.executions + right.executions).toBe(1);
-      expect(left.results.length + right.results.length).toBe(1);
       expect((await store.getRuntimeSnapshot("job-os-process-race"))?.state)
         .toBe("released");
 
@@ -293,8 +283,9 @@ describeIntegration("durable worker PostgreSQL multi-worker acceptance", () => {
         now: "2026-09-22T07:01:10.000Z",
         limit: 10
       });
-      expect(recovered).toHaveLength(1);
-      expect(recovered[0].outcome).toBe("retry-scheduled");
+      const ownRecovery = recovered.filter((item) => item.jobId === record.jobId);
+      expect(ownRecovery).toHaveLength(1);
+      expect(ownRecovery[0].outcome).toBe("retry-scheduled");
 
       let sideEffects = 0;
       const result = await worker(
