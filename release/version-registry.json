@@ -254,7 +254,7 @@
     "contractVersion": "1.2.0",
     "routingPolicyContractVersion": "1.0.0",
     "status": "runtime-configured-unconnected",
-    "adapterVersion": "1.1.0",
+    "adapterVersion": "1.2.0",
     "routingPolicyVersion": "2026-09-22.1",
     "sourcePath": "lib/ai-gateway/contracts.ts"
   },
@@ -333,7 +333,7 @@
     },
     "openRouter": {
       "status": "implemented-configured-unconnected",
-      "version": "1.1.0",
+      "version": "1.2.0",
       "sourcePath": "lib/ai-gateway/openrouter-adapter.ts",
       "contractTracked": true,
       "contractSourcePaths": [
