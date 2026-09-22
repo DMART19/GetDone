@@ -1,5 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { MvpBusinessWorkflow } from "@/lib/composition/mvp-business-workflow";
+import { sha256Hex } from "@/lib/control-plane/canonical-hash";
+import type { JobRecord } from "@/lib/domain/services/job-service";
 import {
   getAIGatewayFromEnv,
   resetAIGatewayRuntimeForTests
@@ -73,12 +75,14 @@ describeLive("live OpenRouter governed proposal acceptance", () => {
 
   it("returns a structured proposal, persists complete usage/audit data, and applies no authority", async () => {
     let enqueueCalls = 0;
+    const enqueuedJobs: string[] = [];
     const workflow = new MvpBusinessWorkflow(
       getAIGatewayFromEnv(liveEnv()),
       {
-        enqueueAuthorizedHttpAction: async () => {
+        enqueueAuthorizedHttpAction: async (job) => {
           enqueueCalls += 1;
-          throw new Error("AI proposal must never dispatch directly");
+          enqueuedJobs.push(job.id);
+          return { status: "enqueued" };
         },
         ownerView: async () => null
       },
@@ -109,6 +113,52 @@ describeLive("live OpenRouter governed proposal acceptance", () => {
     expect(proposal.reason.length).toBeGreaterThan(0);
     expect(proposal.input.operation.length).toBeGreaterThan(0);
     expect(enqueueCalls).toBe(0);
+
+    const consumption = {
+      id: "live-consumption-1",
+      grantId: "live-grant-1",
+      grantHash: "live-grant-hash",
+      consumerType: "task" as const,
+      consumerId: "live-task-1",
+      scope,
+      planHash: "live-plan-hash",
+      stepHash: "live-step-hash",
+      consumedAt: "2026-09-22T14:30:01.000Z",
+      consumptionHash: "live-consumption-hash"
+    };
+    const job: JobRecord = {
+      id: "live-job-1",
+      portfolioId: scope.portfolioId,
+      companyId: scope.companyId,
+      state: "queued",
+      taskId: "live-task-1",
+      attempt: 0,
+      maxAttempts: 5,
+      authorizationGrantId: consumption.grantId,
+      authorizationGrantHash: consumption.grantHash,
+      authorizationConsumption: consumption,
+      verificationEvidenceIds: [],
+      version: 2,
+      updatedAt: "2026-09-22T14:30:01.000Z"
+    };
+    await workflow.enqueueAfterAuthoritativeDecision({
+      proposal,
+      job,
+      request: {
+        id: "live-action-1",
+        jobId: job.id,
+        scope,
+        capability: "http.request",
+        input: proposal.input,
+        inputHash: sha256Hex(proposal.input),
+        authorizationConsumptionHash: consumption.consumptionHash,
+        idempotencyKey: "live-action-1",
+        timeoutMs: 10_000,
+        attempt: 1
+      }
+    });
+    expect(enqueueCalls).toBe(1);
+    expect(enqueuedJobs).toEqual(["live-job-1"]);
 
     const audit = await db.query<{
       validation_status: string;
