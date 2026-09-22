@@ -3,15 +3,24 @@ import { sha256Hex } from "@/lib/control-plane/canonical-hash";
 import { ControlPlaneError } from "@/lib/control-plane/errors";
 import { validateCapabilityInput } from "@/lib/domain/capabilities";
 import {
-  assertAuthorizedBusinessActionRequest,
   createBusinessActionAdapterResult,
   type AuthorizedBusinessActionRequest,
   type BusinessActionAdapter,
   type BusinessActionStatus
 } from "@/lib/execution/adapters/business-action";
+import {
+  assertAdapterRequest,
+  assertCredentialReference,
+  assertProviderOperationId,
+  classifyHttpFailure,
+  readBoundedResponseBody,
+  resolveCredentialReference,
+  type BusinessActionAdapterDeclaration
+} from "@/lib/execution/adapters/ordinary-integration-framework";
 
-export const CONFIGURED_HTTP_ACTION_ADAPTER_VERSION = "1.0.0";
+export const CONFIGURED_HTTP_ACTION_ADAPTER_VERSION = "1.1.0";
 
+const environmentSchema = z.enum(["development", "staging", "production"]);
 const inputSchema = z.object({
   companyId: z.string().min(1),
   operation: z.string().min(1),
@@ -20,9 +29,14 @@ const inputSchema = z.object({
 
 export interface ConfiguredHttpOperation {
   name: string;
+  companyId: string;
+  environment: z.infer<typeof environmentSchema>;
   url: string;
+  credentialRef?: string;
+  /** @deprecated use credentialRef=env:VARIABLE */
   authorizationEnv?: string;
   authorizationScheme?: "Bearer" | "Basic";
+  minimumScopes?: readonly string[];
   maxResponseBytes?: number;
 }
 
@@ -37,11 +51,15 @@ function validateOperation(operation: ConfiguredHttpOperation, allowInsecureDeve
   if (!/^[A-Za-z0-9._:-]+$/.test(operation.name)) {
     throw new ControlPlaneError("VALIDATION_FAILED", "HTTP operation name is invalid");
   }
+  if (!operation.companyId.trim()) {
+    throw new ControlPlaneError("VALIDATION_FAILED", "HTTP operation companyId is required");
+  }
   const url = new URL(operation.url);
   if (url.username || url.password || url.hash) {
     throw new ControlPlaneError("VALIDATION_FAILED", "HTTP operation URL cannot contain credentials or fragments");
   }
   const localDevelopment = allowInsecureDevelopment
+    && operation.environment === "development"
     && url.protocol === "http:"
     && ["127.0.0.1", "localhost", "::1"].includes(url.hostname);
   if (url.protocol !== "https:" && !localDevelopment) {
@@ -51,55 +69,44 @@ function validateOperation(operation: ConfiguredHttpOperation, allowInsecureDeve
   if (!Number.isInteger(maxResponseBytes) || maxResponseBytes < 1 || maxResponseBytes > 5_000_000) {
     throw new ControlPlaneError("VALIDATION_FAILED", "HTTP maxResponseBytes must be from 1 to 5000000");
   }
+  if (operation.credentialRef) assertCredentialReference(operation.credentialRef, "HTTP credential reference");
   if (operation.authorizationEnv && !/^[A-Z][A-Z0-9_]*$/.test(operation.authorizationEnv)) {
     throw new ControlPlaneError("VALIDATION_FAILED", "HTTP authorizationEnv must be an environment variable name");
   }
-  return Object.freeze({ ...operation, url: url.toString(), maxResponseBytes });
-}
-
-async function boundedBody(response: Response, limit: number) {
-  const contentLength = response.headers.get("content-length");
-  if (contentLength !== null) {
-    const length = Number(contentLength);
-    if (Number.isFinite(length) && length > limit) {
-      await response.body?.cancel();
-      throw new ControlPlaneError("UNAVAILABLE", "HTTP action response exceeds configured size limit");
-    }
+  if (operation.credentialRef && operation.authorizationEnv) {
+    throw new ControlPlaneError("VALIDATION_FAILED", "Configure only one HTTP credential reference mechanism");
   }
-
-  if (!response.body) return "";
-
-  const reader = response.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let totalBytes = 0;
-
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      totalBytes += value.byteLength;
-      if (totalBytes > limit) {
-        await reader.cancel();
-        throw new ControlPlaneError("UNAVAILABLE", "HTTP action response exceeds configured size limit");
-      }
-      chunks.push(value);
-    }
-  } finally {
-    reader.releaseLock();
-  }
-
-  const bytes = new Uint8Array(totalBytes);
-  let offset = 0;
-  for (const chunk of chunks) {
-    bytes.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  return new TextDecoder().decode(bytes);
+  return Object.freeze({
+    ...operation,
+    url: url.toString(),
+    minimumScopes: Object.freeze([...(operation.minimumScopes ?? [])]),
+    maxResponseBytes
+  });
 }
 
 export class ConfiguredHttpActionAdapter implements BusinessActionAdapter {
   readonly id = "configured-http-action";
   readonly version = CONFIGURED_HTTP_ACTION_ADAPTER_VERSION;
+  readonly declaration: BusinessActionAdapterDeclaration = Object.freeze({
+    capability: "http.request",
+    provider: "configured-https",
+    credentialMode: "credential-reference",
+    minimumScopes: Object.freeze([]),
+    timeoutMs: Object.freeze({ min: 100, max: 120_000 }),
+    idempotency: "required",
+    retryTaxonomy: Object.freeze([
+      "none", "transport", "timeout", "rate-limit", "provider-4xx",
+      "provider-5xx", "malformed-response", "verification-pending"
+    ]),
+    providerOperationId: "required",
+    statusResume: "not-supported",
+    maxResponseBytes: 5_000_000,
+    auditEvidence: "hashed-provider-evidence",
+    verificationStrategy: "provider-acceptance-only",
+    cancellation: "not-supported",
+    tenantEnvironmentBinding: true,
+    truthSemantics: "provider-acceptance-is-not-business-truth"
+  });
 
   private readonly operations: ReadonlyMap<string, ReturnType<typeof validateOperation>>;
   private readonly fetchImpl: typeof fetch;
@@ -124,17 +131,24 @@ export class ConfiguredHttpActionAdapter implements BusinessActionAdapter {
   }
 
   async execute(request: AuthorizedBusinessActionRequest) {
-    assertAuthorizedBusinessActionRequest(request);
-    if (request.capability !== "http.request") {
-      throw new ControlPlaneError("FORBIDDEN", "Configured HTTP adapter only accepts http.request");
-    }
     const input = inputSchema.parse(validateCapabilityInput("http.request", request.input));
-    if (input.companyId !== request.scope.companyId) {
-      throw new ControlPlaneError("FORBIDDEN", "HTTP action company does not match authoritative Job scope");
-    }
     const operation = this.operations.get(input.operation);
     if (!operation) {
       throw new ControlPlaneError("POLICY_BLOCKED", `HTTP operation is not configured: ${input.operation}`);
+    }
+    assertAdapterRequest(request, this.declaration, operation);
+    if (input.companyId !== request.scope.companyId) {
+      throw new ControlPlaneError("FORBIDDEN", "HTTP action company does not match authoritative Job scope");
+    }
+
+    let credential: string | undefined;
+    if (operation.credentialRef) {
+      credential = resolveCredentialReference(operation.credentialRef, this.env, "HTTP credential");
+    } else if (operation.authorizationEnv) {
+      credential = this.env[operation.authorizationEnv]?.trim();
+      if (!credential) {
+        throw new ControlPlaneError("UNAVAILABLE", `Credential is unavailable for HTTP operation ${operation.name}`);
+      }
     }
 
     const headers: Record<string, string> = {
@@ -143,11 +157,7 @@ export class ConfiguredHttpActionAdapter implements BusinessActionAdapter {
       "x-getdone-job-id": request.jobId,
       "x-getdone-request-id": request.id
     };
-    if (operation.authorizationEnv) {
-      const credential = this.env[operation.authorizationEnv]?.trim();
-      if (!credential) {
-        throw new ControlPlaneError("UNAVAILABLE", `Credential is unavailable for HTTP operation ${operation.name}`);
-      }
+    if (credential) {
       headers.authorization = `${operation.authorizationScheme ?? "Bearer"} ${credential}`;
     }
 
@@ -173,28 +183,30 @@ export class ConfiguredHttpActionAdapter implements BusinessActionAdapter {
         adapterVersion: this.version,
         status: "failed",
         retryable: true,
+        retryClass: "transport",
         observedAt: this.now().toISOString()
       });
     }
 
     const observedAt = this.now().toISOString();
-    const body = await boundedBody(response, operation.maxResponseBytes);
+    const body = await readBoundedResponseBody(response, operation.maxResponseBytes);
     if (!response.ok) {
+      const failure = classifyHttpFailure(response.status);
       return createBusinessActionAdapterResult({
         source: "business-action-adapter",
         requestId: request.id,
         adapterId: this.id,
         adapterVersion: this.version,
-        status: response.status >= 400 && response.status < 500 && ![408, 425, 429].includes(response.status)
-          ? "rejected"
-          : "failed",
-        retryable: response.status === 408 || response.status === 425 || response.status === 429 || response.status >= 500,
+        status: failure.resultStatus,
+        retryable: failure.retryable,
+        retryClass: failure.retryClass,
         observedAt
       });
     }
 
-    const providerOperationId = response.headers.get("x-provider-operation-id")
-      || `http:${request.id}`;
+    const providerOperationId = assertProviderOperationId(
+      response.headers.get("x-provider-operation-id") || `http:${request.id}`
+    );
     return createBusinessActionAdapterResult({
       source: "business-action-adapter",
       requestId: request.id,
@@ -209,6 +221,7 @@ export class ConfiguredHttpActionAdapter implements BusinessActionAdapter {
         observedAt
       },
       retryable: false,
+      retryClass: "none",
       observedAt
     });
   }
@@ -232,9 +245,13 @@ export function readConfiguredHttpOperationsFromEnv(
   }
   return z.array(z.object({
     name: z.string().min(1),
+    companyId: z.string().min(1),
+    environment: environmentSchema,
     url: z.string().url(),
+    credentialRef: z.string().optional(),
     authorizationEnv: z.string().optional(),
     authorizationScheme: z.enum(["Bearer", "Basic"]).optional(),
+    minimumScopes: z.array(z.string().min(1)).optional(),
     maxResponseBytes: z.number().int().optional()
   }).strict()).min(1).parse(parsed) as readonly ConfiguredHttpOperation[];
 }
