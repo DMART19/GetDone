@@ -468,7 +468,9 @@
     "app/api/internal/ai/canary/route.ts",
     "lib/ai-gateway/openrouter-live.integration.test.ts",
     "migrations/2026-09-22.4_openrouter_live.sql",
-    ".github/workflows/openrouter-live.yml"
+    ".github/workflows/openrouter-live.yml",
+    "lib/ai-gateway/canary.server.test.ts",
+    "lib/persistence/postgres/ai-audit-store.test.ts"
   ],
   "manualSourcePaths": [
     "docs/ARCHITECTURE.md",
@@ -482,7 +484,8 @@
     "docs/SOL_GOLDEN_PATH_JOB_BRIDGE_REPORT.md",
     "docs/SOL_QUALITY_V8_PLAYWRIGHT_AI_BUDGET_REPORT.md",
     "docs/SOL_CONTROL_API_OPENROUTER_SECURITY_REPORT.md",
-    "docs/SOL_POSTGRES_JOB_EXECUTION_RUNTIME_REPORT.md"
+    "docs/SOL_POSTGRES_JOB_EXECUTION_RUNTIME_REPORT.md",
+    "docs/OPENROUTER_PRODUCTION_RUNBOOK.md"
   ],
   "generatedArtifacts": {
     "machineManifest": "release/out/release-manifest.json",
