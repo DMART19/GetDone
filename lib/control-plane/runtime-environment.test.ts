@@ -43,11 +43,16 @@ describe("server-authoritative runtime environment", () => {
     expect(developmentApiAllowed(input)).toBe(false);
   });
 
-  it("requires the explicit development seed data mode", () => {
+  it("requires both the development runtime and explicit development seed data mode", () => {
     expect(developmentSeedAllowed({
       runtimeEnvironment: "development",
       nodeEnvironment: "development",
       dataMode: "authoritative"
+    })).toBe(false);
+    expect(developmentSeedAllowed({
+      runtimeEnvironment: "staging",
+      nodeEnvironment: "development",
+      dataMode: "development-seed"
     })).toBe(false);
   });
 });
