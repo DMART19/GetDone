@@ -39,7 +39,6 @@ function liveEnv() {
     GETDONE_RUNTIME_ENV: "staging",
     GETDONE_DATA_MODE: "authoritative",
     GETDONE_DB_SSL: process.env.GETDONE_DB_SSL ?? "false",
-    OPENROUTER_BASE_URL: "https://openrouter.ai/api/v1",
     OPENROUTER_TIMEOUT_MS: "20000",
     OPENROUTER_MAX_RETRIES: "2",
     OPENROUTER_RETRY_BASE_DELAY_MS: "250",
