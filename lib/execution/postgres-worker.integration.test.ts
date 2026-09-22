@@ -1,5 +1,4 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createHash } from "node:crypto";
 import {
   createBusinessActionAdapterResult,
   createBusinessActionStatus,
@@ -135,9 +134,9 @@ describeIntegration("durable worker PostgreSQL multi-worker acceptance", () => {
 
       let executions = 0;
       const handler = {
-        execute: async () => {
+        execute: async (context: { heartbeat(): Promise<void> }) => {
           executions += 1;
-          await new Promise((resolve) => setTimeout(resolve, 25));
+          await context.heartbeat();
           return { kind: "succeeded" as const };
         }
       };
@@ -156,6 +155,11 @@ describeIntegration("durable worker PostgreSQL multi-worker acceptance", () => {
          WHERE job_id='job-claim-race' AND operation='claim'`
       );
       expect(Number(claims.rows[0].count)).toBe(1);
+      const heartbeats = await admin.query<{ count: string }>(
+        `SELECT count(*)::text AS count FROM job_runtime_transactions
+         WHERE job_id='job-claim-race' AND operation='heartbeat'`
+      );
+      expect(Number(heartbeats.rows[0].count)).toBe(1);
     } finally {
       await dbA.close();
       await dbB.close();
