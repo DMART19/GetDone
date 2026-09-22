@@ -72,6 +72,13 @@ jobs:
           NEXT_PUBLIC_APP_ENV: staging
           GETDONE_POSTGRES_INTEGRATION: "true"
 
+      - name: Run durable worker failure acceptance
+        run: npx vitest run lib/execution/postgres-worker.integration.test.ts
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+          GETDONE_DB_SSL: "false"
+          GETDONE_POSTGRES_INTEGRATION: "true"
+
       - name: Run production auth and WebAuthn acceptance
         run: npx vitest run lib/auth/postgres-auth.integration.test.ts
         env:
