@@ -1037,12 +1037,12 @@ if (
   fail("Phase 41 registry app/environment binding drifted");
 }
 if (
-  releaseRegistry.aiGateway.status !== "runtime-wired-unconnected"
+  releaseRegistry.aiGateway.status !== "runtime-configured-unconnected"
   || releaseRegistry.aiGateway.adapterVersion !== "1.1.0"
   || releaseRegistry.aiGateway.contractVersion !== "1.2.0"
   || releaseRegistry.aiGateway.routingPolicyContractVersion !== "1.0.0"
-  || releaseRegistry.aiGateway.routingPolicyVersion !== "UNCONFIGURED"
-  || releaseRegistry.adapters?.openRouter?.status !== "implemented-unconfigured"
+  || releaseRegistry.aiGateway.routingPolicyVersion !== "2026-09-22.1"
+  || releaseRegistry.adapters?.openRouter?.status !== "implemented-configured-unconnected"
   || releaseRegistry.adapters?.openRouter?.version !== "1.1.0"
   || releaseRegistry.adapters?.configuredHttpAction?.status !== "implemented-unconfigured"
 ) {
@@ -1107,8 +1107,8 @@ if (
   releaseRegistry.database?.status !== "implemented-unconnected"
   || releaseRegistry.database?.engine !== "postgresql"
   || releaseRegistry.database?.minimumEngineVersion !== "16"
-  || releaseRegistry.database?.migrationVersion !== "2026-09-22.3"
-  || releaseRegistry.database?.schemaVersion !== "1.3.0"
+  || releaseRegistry.database?.migrationVersion !== "2026-09-22.4"
+  || releaseRegistry.database?.schemaVersion !== "1.4.0"
   || releaseRegistry.adapters?.postgresPersistence?.status !== "implemented-unconnected"
   || releaseRegistry.adapters?.durableJobStore?.status !== "implemented-unconnected"
 ) {
@@ -1210,8 +1210,8 @@ for (const [name, state] of Object.entries(releaseEnvironment.environments ?? {}
     ||     state.connections?.aiGateway !== false
     || state.aiGateway?.contractStatus !== "deterministic-contract"
     || state.aiGateway?.adapterStatus !== "not-connected"
-    || state.aiGateway?.adapterImplementationStatus !== "implemented-unconfigured"
-    || state.aiGateway?.provider !== "OPENROUTER_UNCONFIGURED"
+    || state.aiGateway?.adapterImplementationStatus !== "implemented-configured-unconnected"
+    || state.aiGateway?.provider !== "OPENROUTER"
     || state.connections?.controlApiPersistence !== false
     || state.controlApi?.surfaceStatus !== "implemented"
     || state.controlApi?.applicationAdapterStatus !== "not-connected"
@@ -1234,8 +1234,8 @@ for (const [name, state] of Object.entries(releaseEnvironment.environments ?? {}
     || state.connections?.database !== false
     || state.database?.engine !== "postgresql"
     || state.database?.adapterStatus !== "implemented-unconnected"
-    || state.database?.migrationVersion !== "2026-09-22.3"
-    || state.database?.schemaVersion !== "1.3.0"
+    || state.database?.migrationVersion !== "2026-09-22.4"
+    || state.database?.schemaVersion !== "1.4.0"
     || state.composition?.goldenPathHarnessStatus !== "deterministic-simulation-only"
     || state.composition?.productionExecutionClaimed !== false
     || state.resourceFabric?.storageFabricContractStatus !== "deterministic-contract"
