@@ -53,7 +53,7 @@ function service(
 }
 
 async function execute<T>(
-  operation: () => Promise<{ data: T; headers?: HeadersInit }>,
+  operation: () => Promise<{ data: T; headers?: Record<string, string> }>,
   status = 200
 ) {
   const correlationId = createCorrelationId();
