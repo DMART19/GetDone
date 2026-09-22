@@ -157,7 +157,7 @@ export class ServiceBackedControlApiAdapter implements ControlApiApplicationAdap
 
   async verifyStepUp(request: Request, challengeId: string, response: unknown) {
     const { session: current } = await authorizeRequest(this.deps.auth, request, "session");
-    const elevated = await this.deps.auth.verifyStepUp(challengeId, response);
+    const elevated = await this.deps.auth.verifyStepUp(current, challengeId, response);
     if (elevated.sessionId !== current.sessionId || elevated.userId !== current.userId) {
       throw new ControlPlaneError("FORBIDDEN", "Step-up challenge belongs to a different session");
     }
