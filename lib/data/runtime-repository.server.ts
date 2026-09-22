@@ -13,7 +13,6 @@ import {
 } from "@/lib/data/repository";
 import type {
   Decision,
-  DecisionCategory,
   DecisionPriority,
   Resource
 } from "@/lib/types";
@@ -223,7 +222,8 @@ const controlApiOwnerRepository: OwnerReadRepository = {
     }
   },
   async getResourceSummary(): Promise<OwnerResourceSummary> {
-    const resources = await this.listResources();
+    const resources = (await controlGet<AuthoritativeResource[]>("/api/control/resources"))
+      .map(toResource);
     const degraded = resources.some(
       (resource) => resource.health === "degraded" || resource.health === "offline"
     );
