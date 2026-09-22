@@ -335,7 +335,10 @@ describeIntegration("production auth + WebAuthn persistence", () => {
 
     const expired = await adapter.beginStepUp(req);
     await pool.query(
-      "UPDATE auth_step_up_challenges SET expires_at=now() - interval '1 second' WHERE challenge_id=$1",
+      `UPDATE auth_step_up_challenges
+       SET issued_at=now() - interval '10 minutes',
+           expires_at=now() - interval '1 second'
+       WHERE challenge_id=$1`,
       [expired.challengeId]
     );
     await expect(adapter.verifyStepUp(
