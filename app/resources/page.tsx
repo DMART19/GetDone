@@ -4,12 +4,15 @@ import { AppHeader } from "@/components/app-header";
 import { AppShell } from "@/components/app-shell";
 import { DevelopmentBadge } from "@/components/dev-badge";
 import { ResourceFilters } from "@/components/resource-filters";
-import { developmentOwnerRepository } from "@/lib/data/repository";
+import { getOwnerReadRepository } from "@/lib/data/runtime-repository.server";
+
+export const dynamic = "force-dynamic";
 
 export default async function ResourcesPage() {
+  const repository = await getOwnerReadRepository();
   const [resourceSummary, resources] = await Promise.all([
-    developmentOwnerRepository.getResourceSummary(),
-    developmentOwnerRepository.listResources()
+    repository.getResourceSummary(),
+    repository.listResources()
   ]);
 
   return (

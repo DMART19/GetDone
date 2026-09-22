@@ -3,12 +3,21 @@ import { developmentSeedAllowed } from "@/lib/control-plane/runtime-environment"
 import { decisions, getDecision, getResource, resourceSummary, resources } from "@/lib/mock-data";
 import type { Decision, Resource } from "@/lib/types";
 
+export interface OwnerResourceSummary {
+  health: string;
+  resourceCount: number;
+  capacity: number;
+  monthlySpend: string;
+  monthlyChange: string;
+  ownedSavings: string;
+}
+
 export interface OwnerReadRepository {
   listDecisions(): Promise<readonly Decision[]>;
   getDecision(id: string): Promise<Decision | null>;
   listResources(): Promise<readonly Resource[]>;
   getResource(id: string): Promise<Resource | null>;
-  getResourceSummary(): Promise<typeof resourceSummary>;
+  getResourceSummary(): Promise<OwnerResourceSummary>;
 }
 
 function assertDevelopmentSeedAllowed() {
@@ -20,7 +29,7 @@ function assertDevelopmentSeedAllowed() {
   if (!allowed) {
     throw new ControlPlaneError(
       "UNAVAILABLE",
-      "Development seed data is disabled outside the development/staging runtime"
+      "Development seed data is disabled outside the explicit development runtime"
     );
   }
 }

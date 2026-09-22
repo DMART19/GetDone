@@ -104,24 +104,68 @@ export function createPostgresControlApiAdapter(
     verifications,
     health: async () => {
       const health = await runtime.health();
-      const persistenceReady = health.connected && health.schemaCurrent;
+      const schemaReady = health.connected && health.schemaCurrent;
+
+      const requiredRelationsReady = async (relations: readonly string[]) => {
+        if (!schemaReady) return false;
+        const result = await db.query<{ ready: boolean }>(
+          `SELECT COALESCE(bool_and(to_regclass(name) IS NOT NULL), false) AS ready
+           FROM unnest($1::text[]) AS required(name)`,
+          [relations]
+        );
+        return result.rows[0]?.ready === true;
+      };
+
+      const [coreRelationsReady, authRelationsReady, durableRelationsReady] =
+        await Promise.all([
+          requiredRelationsReady([
+            "control_plane_entities",
+            "idempotency_records",
+            "audit_events",
+            "owner_intents",
+            "verification_receipts"
+          ]),
+          requiredRelationsReady([
+            "auth_users",
+            "auth_sessions",
+            "organizations",
+            "portfolios",
+            "organization_memberships",
+            "portfolio_memberships"
+          ]),
+          requiredRelationsReady([
+            "job_runtime_state",
+            "job_leases",
+            "job_runtime_transactions",
+            "job_execution_specs",
+            "job_execution_outcomes"
+          ])
+        ]);
+
+      const persistenceConnected = schemaReady && coreRelationsReady;
+      const authConnected = persistenceConnected && authRelationsReady;
+      const durableJobStoreConnected = persistenceConnected && durableRelationsReady;
+
       return {
         service: "getdone-control-api",
         surfaceVersion: "1.1.0",
-        status: !persistenceReady
+        status: !persistenceConnected || !authConnected
           ? "unavailable"
           : health.backupFresh
             ? "ready"
             : "degraded",
-        authConnected: persistenceReady,
-        persistenceConnected: persistenceReady,
+        authConnected,
+        persistenceConnected,
         aiGatewayAdapterInstalled: isAIGatewayConfigured(env),
-        durableJobStoreConnected: persistenceReady,
+        durableJobStoreConnected,
         details: {
           schemaCurrent: health.schemaCurrent,
           latestMigration: health.latestMigration ?? null,
           backupFresh: health.backupFresh,
-          latestVerifiedBackupAt: health.latestVerifiedBackupAt ?? null
+          latestVerifiedBackupAt: health.latestVerifiedBackupAt ?? null,
+          coreRelationsReady,
+          authRelationsReady,
+          durableRelationsReady
         }
       };
     }

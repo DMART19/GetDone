@@ -55,3 +55,19 @@ jobs:
         env:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
           GETDONE_DB_SSL: "false"
+
+      - name: Migrate Control API integration database
+        run: npm run db:migrate
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+          GETDONE_DB_SSL: "false"
+
+      - name: Run PostgreSQL-backed Control API acceptance
+        run: npx vitest run lib/control-api/postgres-http.integration.test.ts
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+          GETDONE_DB_SSL: "false"
+          GETDONE_RUNTIME_ENV: staging
+          GETDONE_DATA_MODE: authoritative
+          NEXT_PUBLIC_APP_ENV: staging
+          GETDONE_POSTGRES_INTEGRATION: "true"

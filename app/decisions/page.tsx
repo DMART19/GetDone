@@ -2,10 +2,13 @@ import { AppHeader } from "@/components/app-header";
 import { AppShell } from "@/components/app-shell";
 import { DecisionFilters } from "@/components/decision-filters";
 import { DevelopmentBadge } from "@/components/dev-badge";
-import { developmentOwnerRepository } from "@/lib/data/repository";
+import { getOwnerReadRepository } from "@/lib/data/runtime-repository.server";
+
+export const dynamic = "force-dynamic";
 
 export default async function DecisionsPage() {
-  const decisions = await developmentOwnerRepository.listDecisions();
+  const repository = await getOwnerReadRepository();
+  const decisions = await repository.listDecisions();
   const attention = decisions.filter((decision) => decision.priority === "high" && decision.status === "pending").length;
 
   return (

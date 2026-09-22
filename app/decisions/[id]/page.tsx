@@ -4,16 +4,14 @@ import { BackHeader } from "@/components/back-header";
 import { DecisionActions } from "@/components/decision-actions";
 import { DevelopmentBadge } from "@/components/dev-badge";
 import { PriorityPill } from "@/components/status";
-import { developmentOwnerRepository } from "@/lib/data/repository";
+import { getOwnerReadRepository } from "@/lib/data/runtime-repository.server";
 
-export async function generateStaticParams() {
-  const decisions = await developmentOwnerRepository.listDecisions();
-  return decisions.map((decision) => ({ id: decision.id }));
-}
+export const dynamic = "force-dynamic";
 
 export default async function DecisionDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const decision = await developmentOwnerRepository.getDecision(id);
+  const repository = await getOwnerReadRepository();
+  const decision = await repository.getDecision(id);
   if (!decision) notFound();
 
   return (
@@ -26,7 +24,7 @@ export default async function DecisionDetailPage({ params }: { params: Promise<{
         <p className="lead">{decision.subtitle}</p>
         <article className="detail-card"><span>Why this is here</span><p>{decision.rationale}</p></article>
         <article className="detail-card"><span>Expected impact</span><ul>{decision.impact.map((item) => <li key={item}>{item}</li>)}</ul></article>
-        <DecisionActions />
+        <DecisionActions decisionId={decision.id} initialStatus={decision.status} />
       </section>
     </AppShell>
   );

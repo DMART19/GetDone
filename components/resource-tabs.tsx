@@ -50,21 +50,21 @@ export function ResourceTabs({ resource }: { resource: Resource }) {
       {tab === "Usage" ? (
         <div className="tab-panel">
           <strong>{resource.workloads.utilization}% utilization</strong>
-          <p>Development preview only. Deep telemetry is intentionally deferred.</p>
+          <p>Live utilization is unavailable until authenticated resource telemetry is connected.</p>
         </div>
       ) : null}
 
       {tab === "Cost" ? (
         <div className="tab-panel">
           <strong>{resource.metrics.at(-1)?.value ?? "Not available"}</strong>
-          <p>Seeded effective-cost preview. No billing system is connected.</p>
+          <p>Authoritative billing/usage reconciliation is not connected yet.</p>
         </div>
       ) : null}
 
       {tab === "Health" ? (
         <div className="tab-panel">
           <strong>{resource.health.toUpperCase()}</strong>
-          <p>Health is development seed data, not live resource telemetry.</p>
+          <p>Health reflects the current owner read model; live resource telemetry is connected separately.</p>
         </div>
       ) : null}
     </>

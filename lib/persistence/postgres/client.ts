@@ -72,6 +72,19 @@ export class PostgresDatabase implements PostgresTransactionalDatabase {
       return result;
     } catch (error) {
       try { await client.query("ROLLBACK"); } catch {}
+      const code = (
+        error
+        && typeof error === "object"
+        && "code" in error
+        && typeof (error as { code?: unknown }).code === "string"
+      ) ? (error as { code: string }).code : undefined;
+      if (code === "40001" || code === "40P01") {
+        throw new ControlPlaneError(
+          "CONFLICT",
+          "Concurrent PostgreSQL transaction conflicted; retry with the same idempotency key",
+          { details: { postgresCode: code } }
+        );
+      }
       throw error;
     } finally {
       client.release();

@@ -6,16 +6,14 @@ import { DevelopmentBadge } from "@/components/dev-badge";
 import { ResourceIcon } from "@/components/resource-icon";
 import { ResourceTabs } from "@/components/resource-tabs";
 import { HealthStatus } from "@/components/status";
-import { developmentOwnerRepository } from "@/lib/data/repository";
+import { getOwnerReadRepository } from "@/lib/data/runtime-repository.server";
 
-export async function generateStaticParams() {
-  const resources = await developmentOwnerRepository.listResources();
-  return resources.map((resource) => ({ id: resource.id }));
-}
+export const dynamic = "force-dynamic";
 
 export default async function ResourceDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const resource = await developmentOwnerRepository.getResource(id);
+  const repository = await getOwnerReadRepository();
+  const resource = await repository.getResource(id);
   if (!resource) notFound();
 
   return (

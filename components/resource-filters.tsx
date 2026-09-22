@@ -21,7 +21,7 @@ export function ResourceFilters({ resources }: { resources: Resource[] }) {
         ))}
       </div>
       <div className="resource-list">
-        {visible.length ? visible.map((resource) => <ResourceRow key={resource.id} resource={resource} />) : <div className="empty-state">No {filter} resources in development seed data.</div>}
+        {visible.length ? visible.map((resource) => <ResourceRow key={resource.id} resource={resource} />) : <div className="empty-state">No {filter} resources are available.</div>}
       </div>
     </>
   );
