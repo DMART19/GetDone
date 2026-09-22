@@ -6,8 +6,17 @@ import { apiFailure, apiSuccess } from "@/lib/control-plane/schemas";
 import { getControlApiAdapter } from "@/lib/control-api/runtime.server";
 
 const stepUpVerifySchema = z.object({
-  challengeId: z.string().min(1).max(200),
-  token: z.string().min(16).max(4096)
+  challengeId: z.string().uuid(),
+  credential: z.object({
+    id: z.string().min(1).max(2048),
+    type: z.literal("public-key").optional(),
+    response: z.object({
+      clientDataJSON: z.string().min(1).max(32_768),
+      authenticatorData: z.string().min(1).max(8_192),
+      signature: z.string().min(1).max(8_192),
+      userHandle: z.string().max(4096).nullable().optional()
+    })
+  })
 });
 
 const ownerIntentSchema = z.object({
@@ -124,7 +133,7 @@ export function handleBeginStepUp(request: Request) {
 export function handleVerifyStepUp(request: Request) {
   return execute(async (adapter) => {
     const input = await parseJson(request, stepUpVerifySchema, "step-up verification");
-    return adapter.verifyStepUp(request, input.challengeId, { token: input.token });
+    return adapter.verifyStepUp(request, input.challengeId, input.credential);
   });
 }
 
