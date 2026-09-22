@@ -176,6 +176,62 @@ export const ResourceHealthSummarySchema = z.object({
   }).strict()).max(100)
 }).strict();
 
+export const HttpRequestInputSchema = z.object({
+  companyId,
+  operation: id,
+  payload: z.record(z.unknown())
+}).strict();
+
+export const HttpRequestResultSchema = z.object({
+  providerOperationId: z.string().min(1).max(500),
+  responseStatus: z.number().int().min(200).max(299),
+  responseBodyHash: z.string().regex(/^[a-f0-9]{64}$/),
+  observedAt: isoDateTime
+}).strict();
+
+export const BrowserExecutionInputSchema = z.object({
+  companyId,
+  instruction: z.string().min(1).max(20_000),
+  allowedOrigins: z.array(z.string().url()).min(1).max(20),
+  timeoutSeconds: z.number().int().positive().max(900)
+}).strict();
+
+export const BrowserExecutionResultSchema = z.object({
+  executionId: id,
+  status: z.enum(["succeeded", "failed", "cancelled"]),
+  artifactRefs: z.array(z.string().min(1).max(1024)).max(100).default([]),
+  observedAt: isoDateTime
+}).strict();
+
+export const CodeExecutionInputSchema = z.object({
+  companyId,
+  runtime: z.enum(["node", "python", "shell"]),
+  entrypoint: z.string().min(1).max(1024),
+  input: z.record(z.unknown()).default({}),
+  timeoutSeconds: z.number().int().positive().max(900)
+}).strict();
+
+export const CodeExecutionResultSchema = z.object({
+  executionId: id,
+  status: z.enum(["succeeded", "failed", "cancelled"]),
+  exitCode: z.number().int(),
+  outputHash: z.string().regex(/^[a-f0-9]{64}$/),
+  observedAt: isoDateTime
+}).strict();
+
+export const ScheduledWorkerInputSchema = z.object({
+  companyId,
+  operation: id,
+  scheduledAt: isoDateTime,
+  payload: z.record(z.unknown())
+}).strict();
+
+export const ScheduledWorkerResultSchema = z.object({
+  scheduleId: id,
+  status: z.enum(["scheduled", "executed", "cancelled", "failed"]),
+  observedAt: isoDateTime
+}).strict();
+
 export const capabilitySchemaRegistry = {
   "revenue.read": {
     input: RevenueReadInputSchema,
@@ -208,6 +264,22 @@ export const capabilitySchemaRegistry = {
   "resource.health.read": {
     input: ResourceHealthReadInputSchema,
     output: ResourceHealthSummarySchema
+  },
+  "http.request": {
+    input: HttpRequestInputSchema,
+    output: HttpRequestResultSchema
+  },
+  "browser.execution": {
+    input: BrowserExecutionInputSchema,
+    output: BrowserExecutionResultSchema
+  },
+  "code.execution": {
+    input: CodeExecutionInputSchema,
+    output: CodeExecutionResultSchema
+  },
+  "scheduled.worker": {
+    input: ScheduledWorkerInputSchema,
+    output: ScheduledWorkerResultSchema
   }
 } as const;
 

@@ -1,4 +1,5 @@
 import { PostgresAuthAdapter } from "@/lib/auth/postgres-adapter";
+import { isAIGatewayConfigured } from "@/lib/ai-gateway/runtime.server";
 import { parseAuthoritativeRuntimeEnvironment } from "@/lib/control-plane/runtime-environment";
 import { ServiceBackedControlApiAdapter } from "@/lib/control-api/service-adapter";
 import {
@@ -114,7 +115,7 @@ export function createPostgresControlApiAdapter(
             : "degraded",
         authConnected: persistenceReady,
         persistenceConnected: persistenceReady,
-        aiGatewayAdapterInstalled: false,
+        aiGatewayAdapterInstalled: isAIGatewayConfigured(env),
         durableJobStoreConnected: persistenceReady,
         details: {
           schemaCurrent: health.schemaCurrent,
@@ -126,4 +127,3 @@ export function createPostgresControlApiAdapter(
     }
   });
 }
-

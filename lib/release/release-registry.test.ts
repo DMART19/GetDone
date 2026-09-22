@@ -297,7 +297,7 @@ describe("Phase 41 release/version registry", () => {
     expect(registry.aiGateway).toMatchObject({
       contractVersion: AI_GATEWAY_CONTRACT_VERSION,
       routingPolicyContractVersion: AI_ROUTING_POLICY_CONTRACT_VERSION,
-      status: "not-connected",
+      status: "runtime-wired-unconnected",
       adapterVersion: OPENROUTER_ADAPTER_VERSION,
       routingPolicyVersion: "UNCONFIGURED"
     });
@@ -305,6 +305,10 @@ describe("Phase 41 release/version registry", () => {
     expect(registry.adapters.openRouter).toMatchObject({
       status: "implemented-unconfigured",
       version: OPENROUTER_ADAPTER_VERSION
+    });
+    expect(registry.adapters.configuredHttpAction).toMatchObject({
+      status: "implemented-unconfigured",
+      version: "1.0.0"
     });
   });
 
@@ -421,7 +425,7 @@ describe("Phase 41 release/version registry", () => {
       businessActionContractVersion: BUSINESS_ACTION_ADAPTER_CONTRACT_VERSION,
       businessActionOrchestratorStatus: "implemented",
       businessActionOrchestratorVersion: "1.0.0",
-      businessAdaptersStatus: "not-connected",
+      businessAdaptersStatus: "implemented-unconfigured",
       softwareWorkerContractVersion: SOFTWARE_WORKER_CONTRACT_VERSION,
       softwareWorkerRuntimeStatus: "implemented",
       softwareWorkerRuntimeVersion: "1.0.0",
@@ -438,7 +442,9 @@ describe("Phase 41 release/version registry", () => {
       goldenPathHarnessVersion: "1.1.0",
       status: "deterministic-simulation-only",
       productionExecutionClaimed: false,
-      sourcePath: "lib/composition/golden-path-harness.ts"
+      sourcePath: "lib/composition/golden-path-harness.ts",
+      mvpBusinessWorkflowVersion: "1.0.0",
+      mvpBusinessWorkflowStatus: "implemented-unconfigured"
     });
   });
 
@@ -473,8 +479,8 @@ describe("Phase 41 release/version registry", () => {
       status: "implemented-unconnected",
       engine: "postgresql",
       minimumEngineVersion: "16",
-      migrationVersion: "2026-09-21.1",
-      schemaVersion: "1.0.0"
+      migrationVersion: "2026-09-22.1",
+      schemaVersion: "1.1.0"
     });
     for (const state of Object.values(environment.environments)) {
       expect(state.connections.database).toBe(false);

@@ -6,7 +6,7 @@ function required(name) {
   return value;
 }
 
-const requiredMigration = "2026-09-21.5";
+const requiredMigration = "2026-09-22.1";
 const maxBackupAgeHours = Number(process.env.GETDONE_BACKUP_MAX_AGE_HOURS || "24");
 if (!Number.isFinite(maxBackupAgeHours) || maxBackupAgeHours <= 0) {
   throw new Error("GETDONE_BACKUP_MAX_AGE_HOURS must be positive");

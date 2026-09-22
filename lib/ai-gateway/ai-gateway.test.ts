@@ -1,6 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
-import type { AIRequestEnvelope, ModelProfile, ModelRoutePolicy } from "@/lib/ai-gateway/contracts";
+import type {
+  AIAdapterRequest,
+  AICallAuditRecord,
+  AIRequestEnvelope,
+  AIUsageRecord,
+  ModelProfile,
+  ModelRoutePolicy
+} from "@/lib/ai-gateway/contracts";
 import { AIGateway } from "@/lib/ai-gateway/gateway";
 import { DevelopmentMockAIGatewayAdapter } from "@/lib/ai-gateway/development-mock-adapter";
 import {
@@ -261,6 +268,76 @@ describe("Phase 13 deterministic AI Gateway", () => {
       now: "2026-09-20T22:00:00Z"
     });
     expect(result).toMatchObject({ kind: "unavailable", reason: "MODEL_CALL_FAILED" });
+  });
+
+  it("routes across gateway adapters and durably records every fallback attempt and cost", async () => {
+    const primary = {
+      id: "primary-gateway",
+      version: "1.0.0",
+      async invoke(call: AIAdapterRequest) {
+        return {
+          profileId: call.profile.id,
+          gatewayId: "primary-gateway",
+          providerId: "primary-provider",
+          modelId: call.profile.modelId,
+          output: { malformed: true },
+          inputTokens: 20,
+          outputTokens: 5,
+          providerCostCents: 0.75,
+          latencyMs: 10,
+          observedAt: "2026-09-20T22:00:00Z"
+        };
+      }
+    };
+    const fallback = {
+      id: "fallback-gateway",
+      version: "1.0.0",
+      async invoke(call: AIAdapterRequest) {
+        return {
+          profileId: call.profile.id,
+          gatewayId: "fallback-gateway",
+          providerId: "fallback-provider",
+          modelId: call.profile.modelId,
+          output: { answer: "ok" },
+          inputTokens: 10,
+          outputTokens: 2,
+          providerCostCents: 0.25,
+          latencyMs: 5,
+          observedAt: "2026-09-20T22:00:00Z"
+        };
+      }
+    };
+    const profiles: ModelProfile[] = [
+      { ...baseProfile, id: "primary", gatewayId: "primary-gateway", providerId: "primary-provider" },
+      { ...secondProfile, id: "fallback", gatewayId: "fallback-gateway", providerId: "fallback-provider" }
+    ];
+    const usages: AIUsageRecord[] = [];
+    const audits: AICallAuditRecord[] = [];
+    const gateway = new AIGateway(
+      profiles,
+      { version: "multi", routes: { STANDARD: ["primary", "fallback"] } },
+      [primary, fallback],
+      {
+        appendUsage: async (record) => { usages.push(record); },
+        appendAudit: async (record) => { audits.push(record); }
+      }
+    );
+    const result = await gateway.invoke({
+      request: request(),
+      payload: { prompt: "x" },
+      outputSchema: z.object({ answer: z.string() }),
+      budget,
+      now: "2026-09-20T22:00:00Z"
+    });
+    expect(result).toMatchObject({
+      kind: "success",
+      audit: { fallbackUsed: true, actualCostCents: 1 }
+    });
+    expect(usages).toMatchObject([
+      { attempt: 1, outcome: "schema-invalid", actualCostCents: 0.75 },
+      { attempt: 2, outcome: "valid", actualCostCents: 0.25 }
+    ]);
+    expect(audits).toHaveLength(1);
   });
 
   it("exercises the full hard-eligibility rejection surface and route integrity checks", () => {
