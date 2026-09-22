@@ -2,6 +2,11 @@ import { z } from "zod";
 import { AIGateway } from "@/lib/ai-gateway/gateway";
 import type { ModelProfile, ModelRoutePolicy } from "@/lib/ai-gateway/contracts";
 import {
+  AI_GATEWAY_PRODUCTION_CONFIG_VERSION,
+  PRODUCTION_MODEL_PROFILES,
+  PRODUCTION_MODEL_ROUTING_POLICY
+} from "@/lib/ai-gateway/production-config";
+import {
   OpenRouterAIGatewayAdapter,
   readOpenRouterConfigFromEnv
 } from "@/lib/ai-gateway/openrouter-adapter";
@@ -42,16 +47,33 @@ function parseJson(value: string | undefined, label: string) {
   }
 }
 
-export function readAIGatewayRuntimeConfig(
-  env: Readonly<Record<string, string | undefined>> = process.env
-): { profiles: readonly ModelProfile[]; policy: ModelRoutePolicy } {
-  const profiles = z.array(profileSchema).min(1).parse(
-    parseJson(env.GETDONE_AI_MODEL_PROFILES_JSON, "GETDONE_AI_MODEL_PROFILES_JSON")
-  ) as ModelProfile[];
-  const policy = policySchema.parse(
-    parseJson(env.GETDONE_AI_ROUTING_POLICY_JSON, "GETDONE_AI_ROUTING_POLICY_JSON")
-  ) as ModelRoutePolicy;
+function validateConfig(
+  profiles: readonly ModelProfile[],
+  policy: ModelRoutePolicy,
+  requireProductionVersion: boolean
+) {
   const ids = new Set(profiles.map((profile) => profile.id));
+  if (ids.size !== profiles.length) {
+    throw new ControlPlaneError("VALIDATION_FAILED", "AI model profile IDs must be unique");
+  }
+
+  if (requireProductionVersion) {
+    if (policy.version !== AI_GATEWAY_PRODUCTION_CONFIG_VERSION) {
+      throw new ControlPlaneError(
+        "FORBIDDEN",
+        `AI routing configuration is stale; expected ${AI_GATEWAY_PRODUCTION_CONFIG_VERSION}`
+      );
+    }
+    for (const profile of profiles) {
+      if (profile.profileVersion !== AI_GATEWAY_PRODUCTION_CONFIG_VERSION) {
+        throw new ControlPlaneError(
+          "FORBIDDEN",
+          `AI model profile ${profile.id} is stale for routing policy ${policy.version}`
+        );
+      }
+    }
+  }
+
   for (const route of Object.values(policy.routes)) {
     for (const profileId of route ?? []) {
       if (!ids.has(profileId)) {
@@ -62,17 +84,57 @@ export function readAIGatewayRuntimeConfig(
       }
     }
   }
-  return { profiles: Object.freeze(profiles), policy: Object.freeze(policy) };
+
+  return {
+    profiles: Object.freeze([...profiles]),
+    policy: Object.freeze(policy)
+  };
+}
+
+export function readAIGatewayRuntimeConfig(
+  env: Readonly<Record<string, string | undefined>> = process.env
+): { profiles: readonly ModelProfile[]; policy: ModelRoutePolicy } {
+  const runtime = env.GETDONE_RUNTIME_ENV?.trim();
+  const authoritative = runtime === "staging" || runtime === "production";
+  const hasProfileOverride = Boolean(env.GETDONE_AI_MODEL_PROFILES_JSON?.trim());
+  const hasPolicyOverride = Boolean(env.GETDONE_AI_ROUTING_POLICY_JSON?.trim());
+
+  if (authoritative && !hasProfileOverride && !hasPolicyOverride) {
+    return validateConfig(
+      PRODUCTION_MODEL_PROFILES,
+      PRODUCTION_MODEL_ROUTING_POLICY,
+      true
+    );
+  }
+
+  if (hasProfileOverride !== hasPolicyOverride) {
+    throw new ControlPlaneError(
+      "VALIDATION_FAILED",
+      "AI profile and routing policy overrides must be supplied together"
+    );
+  }
+
+  const profiles = z.array(profileSchema).min(1).parse(
+    parseJson(env.GETDONE_AI_MODEL_PROFILES_JSON, "GETDONE_AI_MODEL_PROFILES_JSON")
+  ) as ModelProfile[];
+  const policy = policySchema.parse(
+    parseJson(env.GETDONE_AI_ROUTING_POLICY_JSON, "GETDONE_AI_ROUTING_POLICY_JSON")
+  ) as ModelRoutePolicy;
+
+  return validateConfig(profiles, policy, authoritative);
 }
 
 export function isAIGatewayConfigured(
   env: Readonly<Record<string, string | undefined>> = process.env
 ) {
-  return Boolean(
-    env.OPENROUTER_API_KEY?.trim()
-    && env.GETDONE_AI_MODEL_PROFILES_JSON?.trim()
-    && env.GETDONE_AI_ROUTING_POLICY_JSON?.trim()
-  );
+  if (!env.OPENROUTER_API_KEY?.trim()) return false;
+  try {
+    readAIGatewayRuntimeConfig(env);
+    readOpenRouterConfigFromEnv(env);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 let installed: AIGateway | null = null;
