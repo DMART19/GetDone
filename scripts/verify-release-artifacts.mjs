@@ -353,8 +353,8 @@ if (failures.length === 0) {
     registry.database.status !== "implemented-unconnected"
     || registry.database.engine !== "postgresql"
     || registry.database.minimumEngineVersion !== "16"
-    || registry.database.migrationVersion !== "2026-09-22.1"
-    || registry.database.schemaVersion !== "1.1.0"
+    || registry.database.migrationVersion !== "2026-09-22.2"
+    || registry.database.schemaVersion !== "1.2.0"
     || manifest.database.status !== registry.database.status
     || manifest.database.engine !== registry.database.engine
     || manifest.database.migrationVersion !== registry.database.migrationVersion
@@ -383,7 +383,7 @@ if (failures.length === 0) {
   if (
     registry.controlApi.status !== "implemented-unconnected"
     || registry.controlApi.applicationAdapterStatus !== "not-connected"
-    || registry.controlApi.authStatus !== "not-connected"
+    || registry.controlApi.authStatus !== "implemented-unconnected"
     || registry.controlApi.persistenceStatus !== "not-connected"
   ) {
     fail("Control API release truth must distinguish implemented surface from unconnected authority adapters");
@@ -450,7 +450,7 @@ if (failures.length === 0) {
       || !environmentState.controlApi
       || environmentState.controlApi.surfaceStatus !== "implemented"
       || environmentState.controlApi.applicationAdapterStatus !== "not-connected"
-      || environmentState.controlApi.authStatus !== "not-connected"
+      || environmentState.controlApi.authStatus !== "implemented-unconnected"
       || environmentState.controlApi.persistenceStatus !== "not-connected"
       || environmentState.connections.controlApiPersistence !== false
       || !environmentState.integrations
