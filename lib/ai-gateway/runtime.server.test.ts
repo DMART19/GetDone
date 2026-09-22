@@ -1,11 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { readAIGatewayRuntimeConfig, isAIGatewayConfigured } from "@/lib/ai-gateway/runtime.server";
+import {
+  readAIGatewayRuntimeConfig,
+  isAIGatewayConfigured
+} from "@/lib/ai-gateway/runtime.server";
+import {
+  AI_GATEWAY_PRODUCTION_CONFIG_VERSION
+} from "@/lib/ai-gateway/production-config";
 
-const profile = {
+const developmentProfile = {
   id: "standard",
   gatewayId: "openrouter",
   providerId: "openrouter",
-  modelId: "openai/gpt-5.4",
+  modelId: "openai/gpt-5.6-luna",
   enabled: true,
   validationStatus: "validated",
   roles: ["STANDARD"],
@@ -14,36 +20,81 @@ const profile = {
   supportsStructuredOutput: true,
   maxContextTokens: 128000,
   allowedDataClasses: ["PUBLIC", "INTERNAL"],
-  allowedEnvironments: ["staging", "production"],
+  allowedEnvironments: ["development"],
   health: "healthy",
   latencyClass: "standard",
-  inputCostPerMillionTokensCents: 100,
-  outputCostPerMillionTokensCents: 200,
-  profileVersion: "1.0.0"
+  inputCostPerMillionTokensCents: 20,
+  outputCostPerMillionTokensCents: 120,
+  profileVersion: "dev-1"
 };
 
 describe("AI Gateway production runtime configuration", () => {
-  it("loads validated model profiles and role routes from server-only configuration", () => {
+  it("uses the versioned production OpenRouter profiles and route policy by default", () => {
     const env = {
+      GETDONE_RUNTIME_ENV: "production",
+      OPENROUTER_API_KEY: "server-key"
+    };
+    expect(isAIGatewayConfigured(env)).toBe(true);
+    expect(readAIGatewayRuntimeConfig(env)).toMatchObject({
+      profiles: [
+        { id: "openrouter-luna", modelId: "openai/gpt-5.6-luna" },
+        { id: "openrouter-sol", modelId: "openai/gpt-5.6-sol" }
+      ],
+      policy: {
+        version: AI_GATEWAY_PRODUCTION_CONFIG_VERSION,
+        routes: {
+          STANDARD: ["openrouter-luna", "openrouter-sol"],
+          HIGH_REASONING: ["openrouter-sol"],
+          CODING: ["openrouter-sol"]
+        }
+      }
+    });
+  });
+
+  it("still permits explicit development-only profile/routing configuration", () => {
+    const env = {
+      GETDONE_RUNTIME_ENV: "development",
       OPENROUTER_API_KEY: "server-key",
-      GETDONE_AI_MODEL_PROFILES_JSON: JSON.stringify([profile]),
+      GETDONE_AI_MODEL_PROFILES_JSON: JSON.stringify([developmentProfile]),
       GETDONE_AI_ROUTING_POLICY_JSON: JSON.stringify({
-        version: "1.0.0",
+        version: "dev-1",
         routes: { STANDARD: ["standard"] }
       })
     };
     expect(isAIGatewayConfigured(env)).toBe(true);
     expect(readAIGatewayRuntimeConfig(env)).toMatchObject({
-      profiles: [{ id: "standard", modelId: "openai/gpt-5.4" }],
-      policy: { routes: { STANDARD: ["standard"] } }
+      profiles: [{ id: "standard", modelId: "openai/gpt-5.6-luna" }],
+      policy: { version: "dev-1", routes: { STANDARD: ["standard"] } }
     });
   });
 
-  it("rejects routing policy references that are not validated profiles", () => {
+  it("rejects stale production routing/profile overrides", () => {
+    const stale = {
+      ...developmentProfile,
+      allowedEnvironments: ["production"],
+      profileVersion: "old"
+    };
     expect(() => readAIGatewayRuntimeConfig({
-      GETDONE_AI_MODEL_PROFILES_JSON: JSON.stringify([profile]),
+      GETDONE_RUNTIME_ENV: "production",
+      GETDONE_AI_MODEL_PROFILES_JSON: JSON.stringify([stale]),
       GETDONE_AI_ROUTING_POLICY_JSON: JSON.stringify({
-        version: "1.0.0",
+        version: "old",
+        routes: { STANDARD: ["standard"] }
+      })
+    })).toThrow(/stale/i);
+  });
+
+  it("rejects partial overrides and unknown route profile references", () => {
+    expect(() => readAIGatewayRuntimeConfig({
+      GETDONE_RUNTIME_ENV: "development",
+      GETDONE_AI_MODEL_PROFILES_JSON: JSON.stringify([developmentProfile])
+    })).toThrow(/supplied together/i);
+
+    expect(() => readAIGatewayRuntimeConfig({
+      GETDONE_RUNTIME_ENV: "development",
+      GETDONE_AI_MODEL_PROFILES_JSON: JSON.stringify([developmentProfile]),
+      GETDONE_AI_ROUTING_POLICY_JSON: JSON.stringify({
+        version: "dev-1",
         routes: { STANDARD: ["missing"] }
       })
     })).toThrow(/unknown profile/i);
