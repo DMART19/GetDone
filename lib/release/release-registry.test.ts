@@ -395,14 +395,14 @@ describe("Phase 41 release/version registry", () => {
       surfaceVersion: CONTROL_API_SURFACE_VERSION,
       status: "implemented-unconnected",
       applicationAdapterStatus: "not-connected",
-      authStatus: "not-connected",
+      authStatus: "implemented-unconnected",
       persistenceStatus: "not-connected"
     });
     for (const state of Object.values(environment.environments)) {
       expect(state.controlApi).toMatchObject({
         surfaceStatus: "implemented",
         applicationAdapterStatus: "not-connected",
-        authStatus: "not-connected",
+        authStatus: "implemented-unconnected",
         persistenceStatus: "not-connected"
       });
       expect(state.aiGateway).toMatchObject({
