@@ -353,8 +353,8 @@ if (failures.length === 0) {
     registry.database.status !== "implemented-unconnected"
     || registry.database.engine !== "postgresql"
     || registry.database.minimumEngineVersion !== "16"
-    || registry.database.migrationVersion !== "2026-09-22.2"
-    || registry.database.schemaVersion !== "1.2.0"
+    || registry.database.migrationVersion !== "2026-09-22.3"
+    || registry.database.schemaVersion !== "1.3.0"
     || manifest.database.status !== registry.database.status
     || manifest.database.engine !== registry.database.engine
     || manifest.database.migrationVersion !== registry.database.migrationVersion
@@ -400,6 +400,9 @@ if (failures.length === 0) {
     || registry.execution.softwareWorkerRuntimeStatus !== "implemented"
     || registry.execution.softwareDeploymentStatus !== "not-connected"
     || registry.execution.jobExecutionRouterStatus !== "implemented"
+    || registry.execution.jobExecutionRouterVersion !== "1.1.0"
+    || registry.execution.persistentWorkerServiceStatus !== "implemented-unconnected"
+    || registry.execution.persistentWorkerServiceVersion !== "1.0.0"
     || registry.execution.jobExecutionBridgeStatus !== "deterministic-contract"
     || registry.execution.jobExecutionBridgeStoreImplementationStatus !== "implemented-unconnected"
     || registry.execution.liveJobExecutionBridgeStoreStatus !== "not-connected"
@@ -465,6 +468,7 @@ if (failures.length === 0) {
       || environmentState.execution.softwareWorkerRuntimeStatus !== "implemented"
       || environmentState.execution.softwareDeploymentStatus !== "not-connected"
       || environmentState.execution.jobExecutionRouterStatus !== "implemented"
+      || environmentState.execution.persistentWorkerServiceStatus !== "implemented-unconnected"
       || environmentState.execution.jobExecutionBridgeStatus !== "deterministic-contract"
       || environmentState.execution.jobExecutionBridgeStoreImplementationStatus !== "implemented-unconnected"
       || environmentState.execution.liveJobExecutionBridgeStoreStatus !== "not-connected"
