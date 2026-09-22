@@ -145,10 +145,8 @@ export function assertBusinessActionAdapterResult(result: BusinessActionAdapterR
     || result.source !== "business-action-adapter"
     || result.jobStateMutationApplied !== false
     || (result.status === "accepted" && !result.providerOperationId)
-    || (result.status === "completed" && (
-      result.output === undefined
-      || result.outputHash !== sha256Hex(result.output)
-    ))
+    || (result.output !== undefined && result.outputHash !== sha256Hex(result.output))
+    || (result.status === "completed" && result.output === undefined)
   ) {
     throw new ControlPlaneError(
       "FORBIDDEN",
