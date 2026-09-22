@@ -43,10 +43,23 @@ const sessionRow = {
   step_up_authenticated_at: null
 };
 
+const session = {
+  sessionId: "session-a",
+  userId: "owner-a",
+  issuedAt: "2026-09-21T22:00:00Z",
+  expiresAt: "2099-01-01T00:00:00Z",
+  authenticatedAt: "2026-09-21T22:00:00Z"
+};
+
+const config = {
+  rpId: "getdone.test",
+  allowedOrigins: ["https://getdone.test"]
+};
+
 describe("PostgresAuthAdapter", () => {
   it("resolves opaque bearer and cookie sessions by hash rather than raw credential", async () => {
     const bearerDb = new ScriptedDatabase([{ rows: [sessionRow] }]);
-    const bearer = await new PostgresAuthAdapter(bearerDb).getSession(
+    const bearer = await new PostgresAuthAdapter(bearerDb, config).getSession(
       new Request("https://getdone.test", {
         headers: { authorization: "Bearer fixture-session" }
       })
@@ -56,7 +69,7 @@ describe("PostgresAuthAdapter", () => {
     expect(bearerDb.calls[0].values?.[0]).not.toBe("fixture-session");
 
     const cookieDb = new ScriptedDatabase([{ rows: [sessionRow] }]);
-    await new PostgresAuthAdapter(cookieDb).getSession(
+    await new PostgresAuthAdapter(cookieDb, config).getSession(
       new Request("https://getdone.test", {
         headers: { cookie: "other=x; getdone_session=cookie-token" }
       })
@@ -64,79 +77,74 @@ describe("PostgresAuthAdapter", () => {
     expect(cookieDb.calls[0].values?.[0]).toBe(sha256Hex("cookie-token"));
   });
 
-  it("fails closed with no production session token and revokes persisted sessions", async () => {
+  it("fails closed with no session token and revokes persisted sessions", async () => {
     const empty = new ScriptedDatabase([]);
-    expect(await new PostgresAuthAdapter(empty).getSession(
+    expect(await new PostgresAuthAdapter(empty, config).getSession(
       new Request("https://getdone.test")
     )).toBeNull();
     expect(empty.calls).toHaveLength(0);
 
     const revokeDb = new ScriptedDatabase([{ rowCount: 1 }]);
-    await new PostgresAuthAdapter(revokeDb).revokeSession("session-a");
+    await new PostgresAuthAdapter(revokeDb, config).revokeSession("session-a");
     expect(revokeDb.calls[0].text).toContain("UPDATE auth_sessions");
   });
 
-  it("creates persisted step-up challenges and rejects missing verification tokens", async () => {
-    const db = new ScriptedDatabase([{ rowCount: 1 }]);
-    const auth = new PostgresAuthAdapter(db, { stepUpTtlSeconds: 60 });
-    const challenge = await auth.beginStepUp({
-      sessionId: "session-a",
-      userId: "owner-a",
-      issuedAt: "2026-09-21T22:00:00Z",
-      expiresAt: "2099-01-01T00:00:00Z",
-      authenticatedAt: "2026-09-21T22:00:00Z"
-    });
-
-    expect(challenge.method).toBe("provider");
-    expect(db.calls[0].text).toContain("INSERT INTO auth_step_up_challenges");
-    await expect(auth.verifyStepUp(challenge.challengeId, {}))
-      .rejects.toThrow(/step-up token is required/i);
-  });
-
-  it("consumes a valid session-bound step-up credential exactly through locked DB state", async () => {
-    const challenge = {
-      challenge_id: "challenge-a",
-      session_id: "session-a",
-      issued_at: "2026-09-21T22:00:00Z",
-      expires_at: "2099-01-01T00:00:00Z",
-      consumed_at: null
-    };
+  it("creates persisted WebAuthn challenges scoped to active user credentials", async () => {
     const db = new ScriptedDatabase([
-      { rows: [challenge] },
-      { rows: [sessionRow] },
-      { rows: [{ secret_hash: sha256Hex("fixture-step-up") }] },
-      { rowCount: 1 },
+      { rows: [{ credential_id: "Y3JlZC1h" }] },
       { rowCount: 1 }
     ]);
-    const elevated = await new PostgresAuthAdapter(db).verifyStepUp(
-      challenge.challenge_id,
-      { token: "fixture-step-up" }
-    );
+    const auth = new PostgresAuthAdapter(db, {
+      ...config,
+      stepUpTtlSeconds: 60
+    });
+    const challenge = await auth.beginStepUp(session);
 
-    expect(elevated.stepUpAuthenticatedAt).toBeTruthy();
-    expect(db.calls[0].text).toContain("FOR UPDATE");
-    expect(db.calls[1].text).toContain("FOR UPDATE OF s");
-    expect(db.calls.some((call) => call.text.includes("consumed_at"))).toBe(true);
+    expect(challenge).toMatchObject({
+      method: "passkey",
+      rpId: "getdone.test",
+      allowCredentialIds: ["Y3JlZC1h"],
+      userVerification: "required"
+    });
+    expect(challenge.challenge.length).toBeGreaterThan(20);
+    expect(db.calls[1].text).toContain("challenge_hash");
+    expect(db.calls[1].text).toContain("credential_ids");
+    expect(JSON.stringify(db.calls[1].values)).not.toContain(challenge.challenge);
   });
 
-  it("rejects invalid persisted step-up credentials", async () => {
-    const db = new ScriptedDatabase([
-      {
-        rows: [{
-          challenge_id: "challenge-a",
-          session_id: "session-a",
-          issued_at: "2026-09-21T22:00:00Z",
-          expires_at: "2099-01-01T00:00:00Z",
-          consumed_at: null
-        }]
-      },
-      { rows: [sessionRow] },
-      { rows: [{ secret_hash: sha256Hex("fixture-other") }] }
-    ]);
+  it("requires an enrolled passkey before beginning step-up", async () => {
+    const db = new ScriptedDatabase([{ rows: [] }]);
+    await expect(new PostgresAuthAdapter(db, config).beginStepUp(session))
+      .rejects.toThrow(/No active passkey/i);
+  });
 
-    await expect(new PostgresAuthAdapter(db).verifyStepUp(
+  it("rejects a stolen challenge bound to another persisted session before consuming it", async () => {
+    const db = new ScriptedDatabase([{
+      rows: [{
+        challenge_id: "challenge-a",
+        session_id: "session-other",
+        challenge_hash: "a".repeat(64),
+        rp_id: "getdone.test",
+        allowed_origins: ["https://getdone.test"],
+        require_user_verification: true,
+        credential_ids: ["Y3JlZC1h"],
+        issued_at: "2026-09-21T22:00:00Z",
+        expires_at: "2099-01-01T00:00:00Z",
+        consumed_at: null
+      }]
+    }]);
+    await expect(new PostgresAuthAdapter(db, config).verifyStepUp(
+      session,
       "challenge-a",
-      { token: "fixture-wrong" }
-    )).rejects.toThrow(/credential is invalid/i);
+      {
+        id: "Y3JlZC1h",
+        response: {
+          clientDataJSON: "AA",
+          authenticatorData: "AA",
+          signature: "AA"
+        }
+      }
+    )).rejects.toThrow(/different session/i);
+    expect(db.calls.some((call) => call.text.includes("SET consumed_at"))).toBe(false);
   });
 });

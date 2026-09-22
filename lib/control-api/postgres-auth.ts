@@ -34,12 +34,17 @@ export class PostgresControlApiScopeResolver implements ControlApiScopeResolver 
     const result = await this.db.query<MembershipRow>(
       `SELECT pm.portfolio_id,pm.company_id,pm.role
        FROM portfolio_memberships pm
-       JOIN portfolios p ON p.id=pm.portfolio_id
+       JOIN portfolios p ON p.id=pm.portfolio_id AND p.company_id=pm.company_id
        JOIN organization_memberships om
          ON om.organization_id=p.organization_id AND om.user_id=pm.user_id
+       JOIN company_memberships cm
+         ON cm.company_id=pm.company_id AND cm.user_id=pm.user_id
+       JOIN companies c
+         ON c.id=pm.company_id AND c.organization_id=p.organization_id
        WHERE pm.user_id=$1
          AND pm.status='active'
          AND om.status='active'
+         AND cm.status='active'
          ${portfolioFilter}
        ORDER BY pm.portfolio_id`,
       values

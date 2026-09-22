@@ -395,14 +395,14 @@ describe("Phase 41 release/version registry", () => {
       surfaceVersion: CONTROL_API_SURFACE_VERSION,
       status: "implemented-unconnected",
       applicationAdapterStatus: "not-connected",
-      authStatus: "not-connected",
+      authStatus: "implemented-unconnected",
       persistenceStatus: "not-connected"
     });
     for (const state of Object.values(environment.environments)) {
       expect(state.controlApi).toMatchObject({
         surfaceStatus: "implemented",
         applicationAdapterStatus: "not-connected",
-        authStatus: "not-connected",
+        authStatus: "implemented-unconnected",
         persistenceStatus: "not-connected"
       });
       expect(state.aiGateway).toMatchObject({
@@ -475,12 +475,22 @@ describe("Phase 41 release/version registry", () => {
   });
 
   it("records PostgreSQL persistence implementation without claiming a live database", () => {
+    expect(registry.controlApi).toMatchObject({
+      status: "implemented-unconnected",
+      authStatus: "implemented-unconnected",
+      persistenceStatus: "not-connected"
+    });
+    for (const state of Object.values(environment.environments)) {
+      expect(state.connections.auth).toBe(false);
+      expect(state.controlApi.authStatus).toBe("implemented-unconnected");
+    }
+
     expect(registry.database).toMatchObject({
       status: "implemented-unconnected",
       engine: "postgresql",
       minimumEngineVersion: "16",
-      migrationVersion: "2026-09-22.1",
-      schemaVersion: "1.1.0"
+      migrationVersion: "2026-09-22.2",
+      schemaVersion: "1.2.0"
     });
     for (const state of Object.values(environment.environments)) {
       expect(state.connections.database).toBe(false);
@@ -488,8 +498,8 @@ describe("Phase 41 release/version registry", () => {
         engine: "postgresql",
         minimumEngineVersion: "16",
         adapterStatus: "implemented-unconnected",
-        migrationVersion: "2026-09-22.1",
-        schemaVersion: "1.1.0"
+        migrationVersion: "2026-09-22.2",
+        schemaVersion: "1.2.0"
       });
       expect(state.execution).toMatchObject({
         durableJobStoreStatus: "not-connected",

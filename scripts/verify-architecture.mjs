@@ -1089,7 +1089,7 @@ if (
   releaseRegistry.controlApi?.surfaceVersion !== "1.1.0"
   || releaseRegistry.controlApi?.status !== "implemented-unconnected"
   || releaseRegistry.controlApi?.applicationAdapterStatus !== "not-connected"
-  || releaseRegistry.controlApi?.authStatus !== "not-connected"
+  || releaseRegistry.controlApi?.authStatus !== "implemented-unconnected"
   || releaseRegistry.controlApi?.persistenceStatus !== "not-connected"
   || releaseRegistry.schemaVersions?.controlApiSurface?.version !== "1.1.0"
 ) {
@@ -1107,8 +1107,8 @@ if (
   releaseRegistry.database?.status !== "implemented-unconnected"
   || releaseRegistry.database?.engine !== "postgresql"
   || releaseRegistry.database?.minimumEngineVersion !== "16"
-  || releaseRegistry.database?.migrationVersion !== "2026-09-22.1"
-  || releaseRegistry.database?.schemaVersion !== "1.1.0"
+  || releaseRegistry.database?.migrationVersion !== "2026-09-22.2"
+  || releaseRegistry.database?.schemaVersion !== "1.2.0"
   || releaseRegistry.adapters?.postgresPersistence?.status !== "implemented-unconnected"
   || releaseRegistry.adapters?.durableJobStore?.status !== "implemented-unconnected"
 ) {
@@ -1212,7 +1212,8 @@ for (const [name, state] of Object.entries(releaseEnvironment.environments ?? {}
     || state.connections?.controlApiPersistence !== false
     || state.controlApi?.surfaceStatus !== "implemented"
     || state.controlApi?.applicationAdapterStatus !== "not-connected"
-    || state.controlApi?.authStatus !== "not-connected"
+    || state.connections?.auth !== false
+    || state.controlApi?.authStatus !== "implemented-unconnected"
     || state.controlApi?.persistenceStatus !== "not-connected"
     || state.integrations?.registryStatus !== "deterministic-contract"
     || state.execution?.jobRuntimeContractStatus !== "deterministic-contract"
@@ -1229,6 +1230,8 @@ for (const [name, state] of Object.entries(releaseEnvironment.environments ?? {}
     || state.connections?.database !== false
     || state.database?.engine !== "postgresql"
     || state.database?.adapterStatus !== "implemented-unconnected"
+    || state.database?.migrationVersion !== "2026-09-22.2"
+    || state.database?.schemaVersion !== "1.2.0"
     || state.composition?.goldenPathHarnessStatus !== "deterministic-simulation-only"
     || state.composition?.productionExecutionClaimed !== false
     || state.resourceFabric?.storageFabricContractStatus !== "deterministic-contract"

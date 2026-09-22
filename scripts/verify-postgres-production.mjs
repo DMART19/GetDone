@@ -6,7 +6,7 @@ function required(name) {
   return value;
 }
 
-const requiredMigration = "2026-09-22.1";
+const requiredMigration = "2026-09-22.2";
 const maxBackupAgeHours = Number(process.env.GETDONE_BACKUP_MAX_AGE_HOURS || "24");
 if (!Number.isFinite(maxBackupAgeHours) || maxBackupAgeHours <= 0) {
   throw new Error("GETDONE_BACKUP_MAX_AGE_HOURS must be positive");
@@ -68,6 +68,23 @@ try {
     }
   }
 
+
+  const authSchema = await client.query(
+    `SELECT COUNT(*)::int AS count
+     FROM unnest(ARRAY[
+       'companies',
+       'company_memberships',
+       'auth_sessions',
+       'auth_webauthn_credentials',
+       'auth_step_up_challenges',
+       'auth_sign_in_challenges'
+     ]::text[]) AS required(name)
+     WHERE to_regclass(required.name) IS NOT NULL`
+  );
+  if (authSchema.rows[0]?.count !== 6) {
+    throw new Error("Production auth persistence schema verification failed");
+  }
+
   const backup = await client.query(
     `SELECT completed_at,verification_hash
      FROM database_backup_evidence
@@ -105,6 +122,7 @@ try {
     rollback: "verified",
     concurrencyConstraints: "verified",
     auditSchema: "verified",
+    authSchema: "verified",
     backupFresh: true
   }, null, 2));
 } finally {

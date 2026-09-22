@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
 import { Brand } from "@/components/brand";
+import { PasskeySignIn } from "@/components/passkey-sign-in";
+
+export const dynamic = "force-dynamic";
 
 export default function SignInPage() {
   return (
@@ -8,13 +11,13 @@ export default function SignInPage() {
       <section className="sign-in-page">
         <Brand />
         <p>Less work. More life.</p>
-        <form className="sign-in-card">
-          <label>Email<input type="email" placeholder="you@example.com" autoComplete="email" /></label>
-          <label>Password<input type="password" placeholder="••••••••" autoComplete="current-password" /></label>
-          <button type="button" className="primary-action">Sign in preview</button>
-          <small>Authentication is intentionally not implemented in Phase 1.</small>
-        </form>
-        <Link href="/">Continue to development shell</Link>
+        <div className="sign-in-card">
+          <PasskeySignIn />
+          <small>
+            Your passkey proves identity. Portfolio and company authority are resolved separately from server-side memberships.
+          </small>
+        </div>
+        <Link href="/">Back to GetDone</Link>
       </section>
     </AppShell>
   );

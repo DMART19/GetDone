@@ -85,15 +85,15 @@
       "controlApi": {
         "surfaceStatus": "implemented",
         "applicationAdapterStatus": "not-connected",
-        "authStatus": "not-connected",
+        "authStatus": "implemented-unconnected",
         "persistenceStatus": "not-connected"
       },
       "database": {
         "engine": "postgresql",
         "minimumEngineVersion": "16",
         "adapterStatus": "implemented-unconnected",
-        "migrationVersion": "2026-09-22.1",
-        "schemaVersion": "1.1.0"
+        "migrationVersion": "2026-09-22.2",
+        "schemaVersion": "1.2.0"
       },
       "nodeAgent": {
         "status": "implemented-development-only",
@@ -209,15 +209,15 @@
       "controlApi": {
         "surfaceStatus": "implemented",
         "applicationAdapterStatus": "not-connected",
-        "authStatus": "not-connected",
+        "authStatus": "implemented-unconnected",
         "persistenceStatus": "not-connected"
       },
       "database": {
         "engine": "postgresql",
         "minimumEngineVersion": "16",
         "adapterStatus": "implemented-unconnected",
-        "migrationVersion": "2026-09-22.1",
-        "schemaVersion": "1.1.0"
+        "migrationVersion": "2026-09-22.2",
+        "schemaVersion": "1.2.0"
       },
       "nodeAgent": {
         "status": "implemented-development-only",
@@ -333,15 +333,15 @@
       "controlApi": {
         "surfaceStatus": "implemented",
         "applicationAdapterStatus": "not-connected",
-        "authStatus": "not-connected",
+        "authStatus": "implemented-unconnected",
         "persistenceStatus": "not-connected"
       },
       "database": {
         "engine": "postgresql",
         "minimumEngineVersion": "16",
         "adapterStatus": "implemented-unconnected",
-        "migrationVersion": "2026-09-22.1",
-        "schemaVersion": "1.1.0"
+        "migrationVersion": "2026-09-22.2",
+        "schemaVersion": "1.2.0"
       },
       "nodeAgent": {
         "status": "implemented-development-only",

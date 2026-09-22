@@ -444,7 +444,11 @@
     "lib/persistence/postgres/node-capability-store.test.ts",
     "agent/internal/capabilities/detectors_test.go",
     "lib/nodes/capability-catalog.test.ts",
-    "lib/domain/resources.test.ts"
+    "lib/domain/resources.test.ts",
+    "lib/auth/webauthn.test.ts",
+    "lib/auth/webauthn-config.test.ts",
+    "lib/auth/postgres-auth.integration.test.ts",
+    ".github/workflows/postgres-integration.yml"
   ],
   "manualSourcePaths": [
     "docs/ARCHITECTURE.md",
@@ -468,9 +472,9 @@
     "status": "implemented-unconnected",
     "engine": "postgresql",
     "minimumEngineVersion": "16",
-    "migrationVersion": "2026-09-22.1",
-    "schemaVersion": "1.1.0",
-    "sourcePath": "migrations/2026-09-22.1_ai_gateway_business_execution.sql",
+    "migrationVersion": "2026-09-22.2",
+    "schemaVersion": "1.2.0",
+    "sourcePath": "migrations/2026-09-22.2_auth_webauthn.sql",
     "adapterSourcePath": "lib/persistence/postgres/client.ts"
   },
   "voice": {
@@ -556,7 +560,7 @@
     "surfaceVersion": "1.1.0",
     "status": "implemented-unconnected",
     "applicationAdapterStatus": "not-connected",
-    "authStatus": "not-connected",
+    "authStatus": "implemented-unconnected",
     "persistenceStatus": "not-connected",
     "sourcePath": "lib/control-api/contracts.ts"
   },

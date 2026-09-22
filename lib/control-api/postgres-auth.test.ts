@@ -57,6 +57,7 @@ describe("Postgres Control API authority resolution", () => {
       role: "owner"
     });
     expect(db.calls[0].text).toContain("organization_memberships");
+    expect(db.calls[0].text).toContain("company_memberships");
     expect(db.calls[0].text).toContain("pm.status='active'");
     expect(db.calls[0].values).toEqual(["owner-a", "portfolio-a"]);
   });

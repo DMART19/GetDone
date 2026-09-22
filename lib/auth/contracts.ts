@@ -11,14 +11,22 @@ export interface AuthSession {
 export interface StepUpChallenge {
   challengeId: string;
   expiresAt: string;
-  method: "passkey" | "provider";
+  method: "passkey";
+  challenge: string;
+  rpId: string;
+  allowCredentialIds: readonly string[];
+  userVerification: "required";
 }
 
 export interface AuthAdapter {
   getSession(request: Request): Promise<AuthSession | null>;
   revokeSession(sessionId: string): Promise<void>;
   beginStepUp(session: AuthSession): Promise<StepUpChallenge>;
-  verifyStepUp(challengeId: string, response: unknown): Promise<AuthSession>;
+  verifyStepUp(
+    session: AuthSession,
+    challengeId: string,
+    response: unknown
+  ): Promise<AuthSession>;
 }
 
 export interface PasskeyDescriptor {
