@@ -21,6 +21,7 @@ import { planOwnerNotification } from "@/lib/mobile/notifications";
 import { PostgresBusinessActionExecutionStore } from "@/lib/persistence/postgres/execution-stores";
 import { PostgresJobExecutionSpecStore } from "@/lib/persistence/postgres/job-execution-spec-store";
 import { PostgresEntityStore } from "@/lib/persistence/postgres/authority-stores";
+import { PostgresJobVerificationEvidenceStore } from "@/lib/persistence/postgres/worker-runtime-stores";
 import { getPostgresRuntimeFromEnv } from "@/lib/persistence/postgres/runtime.server";
 
 export class MvpJobRuntime {
@@ -66,6 +67,8 @@ export class MvpJobRuntime {
     const spec = createPersistedJobExecutionSpec({
       kind: "business-action",
       jobId: authoritative.id,
+      authoritativeJobVersion: authoritative.version,
+      authoritativeJobHash: sha256Hex(authoritative),
       request
     }, createdAt);
     await this.specs.put(spec);
@@ -83,6 +86,10 @@ export class MvpJobRuntime {
 
   runOnce() {
     return this.engine.runOnce(this.handler);
+  }
+
+  recoverExpired(limit?: number) {
+    return this.engine.recoverExpired(limit);
   }
 
   async ownerView(jobId: string, taskId: string) {
@@ -120,7 +127,15 @@ export function getMvpJobRuntimeFromEnv(
   installed = new MvpJobRuntime(
     getDurableJobEngineFromEnv(env),
     specs,
-    new RoutedJobExecutionHandler(specs, business),
+    new RoutedJobExecutionHandler(
+      specs,
+      business,
+      undefined,
+      {
+        jobs,
+        verificationEvidence: new PostgresJobVerificationEvidenceStore(database)
+      }
+    ),
     jobs
   );
   return installed;
