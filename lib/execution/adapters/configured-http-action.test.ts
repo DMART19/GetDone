@@ -67,7 +67,7 @@ describe("configured HTTP business action", () => {
       providerOperationId: "http:crm.contact.sync:provider-op-1",
       retryable: false,
       output: {
-        providerOperationId: "provider-op-1",
+        providerOperationId: "http:crm.contact.sync:provider-op-1",
         responseStatus: 200,
         observedAt: "2026-09-22T12:00:00.000Z"
       }
