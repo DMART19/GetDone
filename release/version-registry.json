@@ -466,7 +466,7 @@
     "lib/ai-gateway/production-config.ts",
     "lib/ai-gateway/canary.server.ts",
     "app/api/internal/ai/canary/route.ts",
-    "lib/ai-gateway/openrouter-live.integration.test.ts",
+    "lib/composition/openrouter-live.integration.test.ts",
     "migrations/2026-09-22.4_openrouter_live.sql",
     ".github/workflows/openrouter-live.yml",
     "lib/ai-gateway/canary.server.test.ts",
