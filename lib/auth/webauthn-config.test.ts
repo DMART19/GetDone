@@ -35,11 +35,11 @@ describe("WebAuthn server configuration", () => {
   it("rejects missing or malformed RP configuration", () => {
     expect(() => readWebAuthnServerConfig({
       GETDONE_WEBAUTHN_ORIGINS: "https://getdone.test"
-    })).toThrow(/RP ID is required/i);
+    })).toThrow(/RP_ID is required/i);
     expect(() => readWebAuthnServerConfig({
       GETDONE_WEBAUTHN_RP_ID: "bad rp",
       GETDONE_WEBAUTHN_ORIGINS: "https://getdone.test"
-    })).toThrow(/RP ID is required/i);
+    })).toThrow(/RP_ID is required/i);
   });
 
   it("rejects missing, empty, malformed, or invalid origin configuration", () => {
