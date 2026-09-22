@@ -207,6 +207,18 @@ describe("Phase 13 deterministic AI Gateway", () => {
       budget: { ...budget, activeConcurrentCalls: 4 },
       now: "2026-09-20T22:00:00Z"
     })).rejects.toThrow(/concurrency/i);
+
+    await expect(gateway.invoke({
+      request: request(),
+      payload: {},
+      outputSchema: z.object({ answer: z.string() }),
+      budget: {
+        ...budget,
+        companyRemainingCents: 0,
+        portfolioRemainingCents: 0
+      },
+      now: "2026-09-20T22:00:00Z"
+    })).rejects.toThrow(/budget ceiling/i);
   });
   it("returns SCHEMA_INVALID when the final eligible model returns malformed output", async () => {
     const adapter = new DevelopmentMockAIGatewayAdapter(() => ({ malformed: true }));
