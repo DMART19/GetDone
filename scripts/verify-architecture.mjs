@@ -1038,12 +1038,12 @@ if (
 }
 if (
   releaseRegistry.aiGateway.status !== "runtime-configured-unconnected"
-  || releaseRegistry.aiGateway.adapterVersion !== "1.1.0"
+  || releaseRegistry.aiGateway.adapterVersion !== "1.2.0"
   || releaseRegistry.aiGateway.contractVersion !== "1.2.0"
   || releaseRegistry.aiGateway.routingPolicyContractVersion !== "1.0.0"
   || releaseRegistry.aiGateway.routingPolicyVersion !== "2026-09-22.1"
   || releaseRegistry.adapters?.openRouter?.status !== "implemented-configured-unconnected"
-  || releaseRegistry.adapters?.openRouter?.version !== "1.1.0"
+  || releaseRegistry.adapters?.openRouter?.version !== "1.2.0"
   || releaseRegistry.adapters?.configuredHttpAction?.status !== "implemented-unconfigured"
 ) {
   fail("Phase 13 release state must expose the implemented OpenRouter adapter without claiming live routing/connectivity");
