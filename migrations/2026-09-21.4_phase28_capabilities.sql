@@ -44,4 +44,8 @@ CREATE TABLE IF NOT EXISTS node_capability_history (
 CREATE INDEX IF NOT EXISTS node_capability_history_node_idx
   ON node_capability_history(node_id, capability_name, observed_at DESC);
 
+INSERT INTO getdone_schema_migrations(version)
+VALUES ('2026-09-21.4')
+ON CONFLICT (version) DO NOTHING;
+
 COMMIT;
