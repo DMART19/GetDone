@@ -58,13 +58,41 @@ function validateOperation(operation: ConfiguredHttpOperation, allowInsecureDeve
 }
 
 async function boundedBody(response: Response, limit: number) {
-  const length = Number(response.headers.get("content-length"));
-  if (Number.isFinite(length) && length > limit) {
-    throw new ControlPlaneError("UNAVAILABLE", "HTTP action response exceeds configured size limit");
+  const contentLength = response.headers.get("content-length");
+  if (contentLength !== null) {
+    const length = Number(contentLength);
+    if (Number.isFinite(length) && length > limit) {
+      await response.body?.cancel();
+      throw new ControlPlaneError("UNAVAILABLE", "HTTP action response exceeds configured size limit");
+    }
   }
-  const bytes = new Uint8Array(await response.arrayBuffer());
-  if (bytes.byteLength > limit) {
-    throw new ControlPlaneError("UNAVAILABLE", "HTTP action response exceeds configured size limit");
+
+  if (!response.body) return "";
+
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let totalBytes = 0;
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      totalBytes += value.byteLength;
+      if (totalBytes > limit) {
+        await reader.cancel();
+        throw new ControlPlaneError("UNAVAILABLE", "HTTP action response exceeds configured size limit");
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  const bytes = new Uint8Array(totalBytes);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
   }
   return new TextDecoder().decode(bytes);
 }
