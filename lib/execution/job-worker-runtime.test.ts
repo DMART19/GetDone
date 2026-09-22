@@ -265,6 +265,31 @@ describe("DurableJobWorker", () => {
     expect(store.state).toBe("dead-lettered");
   });
 
+  it("does not release over an owner cancellation that races execution", async () => {
+    const store = new FakeWorkStore();
+    const results = await worker(store).runOnce({
+      execute: async (context) => {
+        await store.cancel({
+          jobId: context.envelope.jobId,
+          reason: "owner cancelled during execution",
+          cancelledAt: "2026-09-21T04:00:10Z",
+          expectedJobVersion: context.runtimeVersion(),
+          expectedJobHash: context.runtimeHash(),
+          idempotencyKey: "cancel-race"
+        });
+        return { kind: "succeeded" };
+      }
+    });
+    expect(results).toEqual([{
+      jobId: "job-1",
+      outcome: {
+        kind: "cancelled",
+        reason: "Job was cancelled during execution"
+      }
+    }]);
+    expect(store.state).toBe("cancelled");
+  });
+
   it("persists cancellation through the durable store", async () => {
     const store = new FakeWorkStore();
     await worker(store).runOnce({

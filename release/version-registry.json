@@ -192,7 +192,7 @@
       "sourcePath": "lib/execution/software-worker-runtime.ts"
     },
     "jobExecutionRouter": {
-      "version": "1.0.0",
+      "version": "1.1.0",
       "sourcePath": "lib/execution/job-execution-router.ts"
     },
     "nodeDomain": {
@@ -234,6 +234,10 @@
     "nodeCapabilityBridge": {
       "version": "1.0.0",
       "sourcePath": "lib/nodes/capability-bridge.ts"
+    },
+    "persistentJobWorkerService": {
+      "version": "1.0.0",
+      "sourcePath": "lib/execution/persistent-job-worker.server.ts"
     }
   },
   "policy": {
@@ -448,7 +452,13 @@
     "lib/auth/webauthn.test.ts",
     "lib/auth/webauthn-config.test.ts",
     "lib/auth/postgres-auth.integration.test.ts",
-    ".github/workflows/postgres-integration.yml"
+    ".github/workflows/postgres-integration.yml",
+    "lib/execution/postgres-worker.integration.test.ts",
+    "lib/execution/persistent-job-worker.server.ts",
+    "lib/persistence/postgres/worker-runtime-stores.ts",
+    "migrations/2026-09-22.3_durable_worker.sql",
+    "Dockerfile.worker",
+    "lib/execution/persistent-job-worker.server.test.ts"
   ],
   "manualSourcePaths": [
     "docs/ARCHITECTURE.md",
@@ -472,9 +482,9 @@
     "status": "implemented-unconnected",
     "engine": "postgresql",
     "minimumEngineVersion": "16",
-    "migrationVersion": "2026-09-22.2",
-    "schemaVersion": "1.2.0",
-    "sourcePath": "migrations/2026-09-22.2_auth_webauthn.sql",
+    "migrationVersion": "2026-09-22.3",
+    "schemaVersion": "1.3.0",
+    "sourcePath": "migrations/2026-09-22.3_durable_worker.sql",
     "adapterSourcePath": "lib/persistence/postgres/client.ts"
   },
   "voice": {
@@ -510,7 +520,12 @@
       "lib/execution/business-action-orchestrator.ts",
       "lib/execution/software-worker-runtime.ts",
       "lib/execution/job-execution-router.ts",
-      "lib/persistence/postgres/job-store.ts"
+      "lib/persistence/postgres/job-store.ts",
+      "lib/execution/persistent-job-worker.server.ts",
+      "lib/persistence/postgres/worker-runtime-stores.ts",
+      "instrumentation.ts",
+      "middleware.ts",
+      "Dockerfile.worker"
     ],
     "jobExecutionBridgeContractVersion": "1.0.0",
     "jobExecutionBridgeStatus": "deterministic-contract",
@@ -521,9 +536,11 @@
     "softwareWorkerRuntimeStatus": "implemented",
     "softwareWorkerRuntimeVersion": "1.0.0",
     "jobExecutionRouterStatus": "implemented",
-    "jobExecutionRouterVersion": "1.0.0",
+    "jobExecutionRouterVersion": "1.1.0",
     "jobExecutionBridgeStoreImplementationStatus": "implemented-unconnected",
-    "persistenceBackend": "postgresql"
+    "persistenceBackend": "postgresql",
+    "persistentWorkerServiceStatus": "implemented-unconnected",
+    "persistentWorkerServiceVersion": "1.0.0"
   },
   "resourceFabric": {
     "storageFabricContractVersion": "1.1.0",

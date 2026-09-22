@@ -59,7 +59,7 @@ Current required migration sequence:
 4. `2026-09-21.4`
 5. `2026-09-21.5`
 6. `2026-09-22.1`
-7. `2026-09-22.2`
+7. `2026-09-22.2`\n8. `2026-09-22.3`
 
 Verify:
 
@@ -69,7 +69,7 @@ FROM getdone_schema_migrations
 ORDER BY version;
 ```
 
-The latest row must be `2026-09-22.2`.
+The latest row must be `2026-09-22.3`.
 
 ## 3. Backup and restore acceptance
 
@@ -111,7 +111,7 @@ npm run db:verify-production
 The verifier must pass all of the following against the live target:
 
 - PostgreSQL 16+;
-- latest migration `2026-09-22.2`;
+- latest migration `2026-09-22.3`;
 - SERIALIZABLE transaction isolation;
 - rollback behavior;
 - authorization-consumption concurrency/index enforcement;
@@ -125,7 +125,7 @@ The verifier must pass all of the following against the live target:
 The repository's `PostgreSQL Integration` workflow runs a real PostgreSQL 16 service and must pass:
 
 - migration from an empty database;
-- upgrade from `2026-09-22.1` to `2026-09-22.2`;
+- upgrade from `2026-09-22.2` to `2026-09-22.3`;
 - production-verifier execution;
 - concurrent authorization-consumption writes;
 - concurrent active Job lease writes;

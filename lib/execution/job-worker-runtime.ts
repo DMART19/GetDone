@@ -118,15 +118,23 @@ export class DurableJobWorker {
     candidate: DurableJobCandidate,
     handler: DurableJobExecutionHandler
   ) {
-    const claim = await this.store.claimAtomic({
-      jobId: candidate.envelope.jobId,
-      workerId: this.config.workerId,
-      now: this.now().toISOString(),
-      leaseSeconds: this.leaseSeconds,
-      expectedJobVersion: candidate.version,
-      expectedJobHash: candidate.stateHash,
-      idempotencyKey: `claim:${candidate.envelope.jobId}:${candidate.version}:${this.config.workerId}`
-    });
+    let claim;
+    try {
+      claim = await this.store.claimAtomic({
+        jobId: candidate.envelope.jobId,
+        workerId: this.config.workerId,
+        now: this.now().toISOString(),
+        leaseSeconds: this.leaseSeconds,
+        expectedJobVersion: candidate.version,
+        expectedJobHash: candidate.stateHash,
+        idempotencyKey: `claim:${candidate.envelope.jobId}:${candidate.version}:${this.config.workerId}`
+      });
+    } catch (error) {
+      if (error instanceof ControlPlaneError && error.code === "CONFLICT") {
+        return null;
+      }
+      throw error;
+    }
     if (!claim) return null;
 
     let lease = claim.lease;
@@ -184,6 +192,18 @@ export class DurableJobWorker {
       while (heartbeatBusy) {
         await new Promise((resolve) => setTimeout(resolve, 1));
       }
+    }
+
+    const postExecution = await this.store.getRuntimeSnapshot(candidate.envelope.jobId);
+    if (postExecution?.state === "cancelled") {
+      const cancelledOutcome: JobExecutionOutcome = {
+        kind: "cancelled",
+        reason: postExecution.cancelledReason ?? "Job was cancelled during execution"
+      };
+      return {
+        jobId: candidate.envelope.jobId,
+        outcome: cancelledOutcome
+      };
     }
 
     if (outcome.kind === "succeeded") {
