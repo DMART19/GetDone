@@ -1,4 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { spawn } from "node:child_process";
+import path from "node:path";
 import {
   createBusinessActionAdapterResult,
   createBusinessActionStatus,
@@ -64,6 +66,58 @@ function worker(
   );
 }
 
+
+function runWorkerProcess(jobId: string, workerId: string, now: string) {
+  return new Promise<{
+    jobId: string;
+    workerId: string;
+    executions: number;
+    results: Array<{ jobId: string; outcome: { kind: string } }>;
+  }>((resolve, reject) => {
+    const child = spawn(
+      process.execPath,
+      [
+        path.resolve("node_modules/vite-node/vite-node.mjs"),
+        "scripts/durable-worker-race-child.ts",
+        jobId,
+        workerId,
+        now
+      ],
+      {
+        cwd: process.cwd(),
+        env: {
+          ...process.env,
+          DATABASE_URL: databaseUrl,
+          GETDONE_DB_SSL: process.env.GETDONE_DB_SSL ?? "false"
+        },
+        stdio: ["ignore", "pipe", "pipe"]
+      }
+    );
+    let stdout = "";
+    let stderr = "";
+    child.stdout.setEncoding("utf8");
+    child.stderr.setEncoding("utf8");
+    child.stdout.on("data", (chunk) => { stdout += chunk; });
+    child.stderr.on("data", (chunk) => { stderr += chunk; });
+    child.once("error", reject);
+    child.once("exit", (code) => {
+      if (code !== 0) {
+        reject(new Error(
+          `worker process ${workerId} failed with code ${code}: ${stderr}`
+        ));
+        return;
+      }
+      try {
+        resolve(JSON.parse(stdout));
+      } catch (error) {
+        reject(new Error(
+          `worker process ${workerId} returned invalid JSON: ${stdout}\n${stderr}\n${String(error)}`
+        ));
+      }
+    });
+  });
+}
+
 class RestartableAdapter implements BusinessActionAdapter {
   readonly id = "restartable-provider";
   readonly version = "1.0.0";
@@ -122,6 +176,51 @@ describeIntegration("durable worker PostgreSQL multi-worker acceptance", () => {
 
   afterAll(async () => {
     await admin.close();
+  });
+
+
+  it("uses two real OS worker processes and permits only one claim", async () => {
+    const db = database();
+    try {
+      const store = new PostgresDurableJobStore(db);
+      await store.enqueue(envelope("job-os-process-race"));
+
+      const [left, right] = await Promise.all([
+        runWorkerProcess(
+          "job-os-process-race",
+          "process-worker-a",
+          "2026-09-22T07:00:05.000Z"
+        ),
+        runWorkerProcess(
+          "job-os-process-race",
+          "process-worker-b",
+          "2026-09-22T07:00:05.000Z"
+        )
+      ]);
+
+      expect(left.executions + right.executions).toBe(1);
+      expect(left.results.length + right.results.length).toBe(1);
+      expect((await store.getRuntimeSnapshot("job-os-process-race"))?.state)
+        .toBe("released");
+
+      const lineage = await admin.query<{ operation: string; count: string }>(
+        `SELECT operation,count(*)::text AS count
+         FROM job_runtime_transactions
+         WHERE job_id='job-os-process-race'
+           AND operation IN ('claim','heartbeat','release')
+         GROUP BY operation
+         ORDER BY operation`
+      );
+      expect(Object.fromEntries(
+        lineage.rows.map((row) => [row.operation, Number(row.count)])
+      )).toEqual({
+        claim: 1,
+        heartbeat: 1,
+        release: 1
+      });
+    } finally {
+      await db.close();
+    }
   });
 
   it("allows only one of two independent workers to claim and execute the same Job", async () => {
