@@ -4,9 +4,13 @@ import type {
   AIAdapterResponse
 } from "@/lib/ai-gateway/contracts";
 import { ControlPlaneError } from "@/lib/control-plane/errors";
+import {
+  OPENROUTER_APPROVED_BASE_URL,
+  OPENROUTER_CANARY_MODEL_ID
+} from "@/lib/ai-gateway/production-config";
 
 export const OPENROUTER_ADAPTER_VERSION = "1.1.0";
-export const OPENROUTER_DEFAULT_BASE_URL = "https://openrouter.ai/api/v1";
+export const OPENROUTER_DEFAULT_BASE_URL = OPENROUTER_APPROVED_BASE_URL;
 
 type FetchLike = typeof fetch;
 type Sleep = (milliseconds: number) => Promise<void>;
@@ -57,14 +61,18 @@ function requireApiKey(value: string) {
 }
 
 function validateBaseUrl(value: string) {
-  const url = new URL(value);
-  if (url.protocol !== "https:") {
-    throw new ControlPlaneError("VALIDATION_FAILED", "OpenRouter base URL must use HTTPS");
+  const normalized = value.trim().replace(/\/$/, "");
+  const approved = new Set([
+    "https://openrouter.ai/api/v1",
+    "https://eu.openrouter.ai/api/v1"
+  ]);
+  if (!approved.has(normalized)) {
+    throw new ControlPlaneError(
+      "VALIDATION_FAILED",
+      "OpenRouter base URL must be an approved /api/v1 endpoint"
+    );
   }
-  if (url.hostname !== "openrouter.ai" && url.hostname !== "eu.openrouter.ai") {
-    throw new ControlPlaneError("VALIDATION_FAILED", "OpenRouter base URL must use an approved OpenRouter host");
-  }
-  return url.toString().replace(/\/$/, "");
+  return normalized;
 }
 
 function normalizeInteger(
@@ -157,11 +165,24 @@ function retryAfterMs(response: Response) {
 export function readOpenRouterConfigFromEnv(
   env: Readonly<Record<string, string | undefined>> = process.env
 ): OpenRouterAdapterConfig {
-  const enabled = env.OPENROUTER_CANARY_ENABLED === "true";
-  const timeout = env.OPENROUTER_TIMEOUT_MS ? Number(env.OPENROUTER_TIMEOUT_MS) : undefined;
-  const retries = env.OPENROUTER_MAX_RETRIES ? Number(env.OPENROUTER_MAX_RETRIES) : undefined;
+  const runtime = env.GETDONE_RUNTIME_ENV?.trim();
+  const authoritative = runtime === "staging" || runtime === "production";
+  const enabled = env.OPENROUTER_CANARY_ENABLED === undefined
+    ? authoritative
+    : env.OPENROUTER_CANARY_ENABLED === "true";
+  const timeout = env.OPENROUTER_TIMEOUT_MS
+    ? Number(env.OPENROUTER_TIMEOUT_MS)
+    : authoritative ? 20_000 : undefined;
+  const retries = env.OPENROUTER_MAX_RETRIES
+    ? Number(env.OPENROUTER_MAX_RETRIES)
+    : authoritative ? 2 : undefined;
+  const retryBaseDelayMs = env.OPENROUTER_RETRY_BASE_DELAY_MS
+    ? Number(env.OPENROUTER_RETRY_BASE_DELAY_MS)
+    : authoritative ? 250 : undefined;
+  const canaryModel = env.OPENROUTER_CANARY_MODEL?.trim()
+    || (authoritative ? OPENROUTER_CANARY_MODEL_ID : undefined);
 
-  if (enabled && !env.OPENROUTER_CANARY_MODEL?.trim()) {
+  if (enabled && !canaryModel) {
     throw new ControlPlaneError(
       "VALIDATION_FAILED",
       "OPENROUTER_CANARY_MODEL is required when OPENROUTER_CANARY_ENABLED=true"
@@ -173,11 +194,12 @@ export function readOpenRouterConfigFromEnv(
     baseUrl: env.OPENROUTER_BASE_URL ?? OPENROUTER_DEFAULT_BASE_URL,
     timeoutMs: timeout,
     maxRetries: retries,
+    retryBaseDelayMs,
     httpReferer: env.OPENROUTER_HTTP_REFERER,
     appTitle: env.OPENROUTER_APP_TITLE ?? "GetDone",
     canary: {
       enabled,
-      modelId: env.OPENROUTER_CANARY_MODEL
+      modelId: canaryModel
     }
   };
 }
@@ -285,6 +307,11 @@ export class OpenRouterAIGatewayAdapter implements AIGatewayAdapter {
     const response = await this.request({
       ...payload,
       model: request.profile.modelId,
+      usage: { include: true },
+      provider: {
+        data_collection: "deny",
+        allow_fallbacks: true
+      },
       max_completion_tokens: request.requirements.expectedOutputTokens,
       ...(request.requirements.requiresStructuredOutput
         ? { response_format: { type: "json_object" } }
@@ -341,6 +368,11 @@ export class OpenRouterAIGatewayAdapter implements AIGatewayAdapter {
     const startedAt = Date.now();
     const response = await this.request({
       model: modelId,
+      usage: { include: true },
+      provider: {
+        data_collection: "deny",
+        allow_fallbacks: true
+      },
       messages: [{ role: "user", content: "Reply with exactly: GETDONE_CANARY_OK" }],
       max_completion_tokens: 16,
       temperature: 0
