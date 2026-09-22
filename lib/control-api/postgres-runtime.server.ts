@@ -1,4 +1,5 @@
 import { PostgresAuthAdapter } from "@/lib/auth/postgres-adapter";
+import { readWebAuthnServerConfig } from "@/lib/auth/webauthn-config";
 import { isAIGatewayConfigured } from "@/lib/ai-gateway/runtime.server";
 import { parseAuthoritativeRuntimeEnvironment } from "@/lib/control-plane/runtime-environment";
 import { ServiceBackedControlApiAdapter } from "@/lib/control-api/service-adapter";
@@ -38,6 +39,7 @@ export function createPostgresControlApiAdapter(
 
   const runtime = getPostgresRuntimeFromEnv(env);
   const db = runtime.database;
+  const webAuthn = readWebAuthnServerConfig(env);
 
   const decisions = new PostgresEntityStore<AuthoritativeDecision>(db, "decision");
   const resources = new PostgresEntityStore<Resource>(db, "resource");
@@ -89,7 +91,10 @@ export function createPostgresControlApiAdapter(
 
   return new ServiceBackedControlApiAdapter({
     auth: new PostgresAuthAdapter(db, {
-      cookieName: env.GETDONE_AUTH_COOKIE_NAME || "getdone_session"
+      cookieName: webAuthn.cookieName,
+      stepUpTtlSeconds: webAuthn.stepUpTtlSeconds,
+      rpId: webAuthn.rpId,
+      allowedOrigins: webAuthn.allowedOrigins
     }),
     scopes: new PostgresControlApiScopeResolver(db, environment),
     authorizationEvidence: new SessionStepUpEvidenceResolver(),
@@ -129,9 +134,14 @@ export function createPostgresControlApiAdapter(
             "auth_users",
             "auth_sessions",
             "organizations",
+            "companies",
             "portfolios",
             "organization_memberships",
-            "portfolio_memberships"
+            "company_memberships",
+            "portfolio_memberships",
+            "auth_webauthn_credentials",
+            "auth_step_up_challenges",
+            "auth_sign_in_challenges"
           ]),
           requiredRelationsReady([
             "job_runtime_state",
