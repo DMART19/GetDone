@@ -70,4 +70,4 @@ jobs:
       - name: Apply PostgreSQL migrations
         run: npm run db:migrate
       - name: Run real OpenRouter proposal and canary acceptance
-        run: npx vitest run lib/ai-gateway/openrouter-live.integration.test.ts
+        run: npx vitest run lib/composition/openrouter-live.integration.test.ts
