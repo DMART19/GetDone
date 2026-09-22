@@ -63,7 +63,12 @@ export function ChatComposer() {
           aria-label="Message GetDone"
           disabled={submitting}
         />
-        <button className="send-button" aria-label="Send message" type="submit" disabled={submitting}>
+        <button
+          className="send-button"
+          aria-label={authoritativeRuntime() ? "Send message" : "Send preview message"}
+          type="submit"
+          disabled={submitting}
+        >
           <ArrowUp size={20} />
         </button>
       </form>
