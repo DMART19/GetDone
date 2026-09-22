@@ -5,7 +5,7 @@ import {
   type KeyObject
 } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import pg from "pg";
+import { PostgresDatabase } from "@/lib/persistence/postgres/client";
 import { PostgresAuthAdapter } from "@/lib/auth/postgres-adapter";
 import { PostgresPasskeySignInService } from "@/lib/auth/postgres-sign-in";
 import { authorizeRequest } from "@/lib/auth/guard";
@@ -65,7 +65,7 @@ function request(token: string, portfolioId = "portfolio-a") {
 }
 
 async function insertSession(
-  pool: pg.Pool,
+  pool: PostgresDatabase["pool"],
   input: {
     sessionId: string;
     userId: string;
@@ -89,13 +89,12 @@ async function insertSession(
 }
 
 describeIntegration("production auth + WebAuthn persistence", () => {
-  const pool = new pg.Pool({
+  const database = new PostgresDatabase({
     connectionString: databaseUrl,
-    max: 8,
-    ssl: process.env.GETDONE_DB_SSL === "false"
-      ? false
-      : { rejectUnauthorized: true }
+    maxConnections: 8,
+    ssl: process.env.GETDONE_DB_SSL !== "false"
   });
+  const pool = database.pool;
   const passkey = generateKeyPairSync("ec", { namedCurve: "prime256v1" });
   const publicKeyPem = passkey.publicKey.export({
     type: "spki",
@@ -223,31 +222,12 @@ describeIntegration("production auth + WebAuthn persistence", () => {
 
   afterAll(async () => {
     await resetPostgresRuntimeForTests();
-    await pool.end();
+    await database.close();
   });
 
   it("signs in with a cryptographically verified passkey and survives a new adapter instance", async () => {
     const config = readWebAuthnServerConfig(process.env);
-    const service = new PostgresPasskeySignInService(
-      {
-        query: (...args) => pool.query(args[0] as string, args[1] as unknown[]),
-        transaction: async (operation) => {
-          const client = await pool.connect();
-          try {
-            await client.query("BEGIN ISOLATION LEVEL SERIALIZABLE");
-            const result = await operation(client);
-            await client.query("COMMIT");
-            return result;
-          } catch (error) {
-            try { await client.query("ROLLBACK"); } catch {}
-            throw error;
-          } finally {
-            client.release();
-          }
-        }
-      },
-      config
-    );
+    const service = new PostgresPasskeySignInService(database, config);
 
     const challenge = await service.begin("user-a");
     const result = await service.verify(
@@ -260,16 +240,10 @@ describeIntegration("production auth + WebAuthn persistence", () => {
     });
     expect(result.token).toBeTruthy();
 
-    const restartedAdapter = new PostgresAuthAdapter(
-      {
-        query: (...args) => pool.query(args[0] as string, args[1] as unknown[]),
-        transaction: async () => { throw new Error("not used"); }
-      },
-      {
-        rpId,
-        allowedOrigins: [origin]
-      }
-    );
+    const restartedAdapter = new PostgresAuthAdapter(database, {
+      rpId,
+      allowedOrigins: [origin]
+    });
     const persisted = await restartedAdapter.getSession(request(result.token));
     expect(persisted).toMatchObject({
       sessionId: result.session.sessionId,
@@ -280,13 +254,10 @@ describeIntegration("production auth + WebAuthn persistence", () => {
   });
 
   it("rejects expired and revoked persisted sessions", async () => {
-    const adapter = new PostgresAuthAdapter(
-      {
-        query: (...args) => pool.query(args[0] as string, args[1] as unknown[]),
-        transaction: async () => { throw new Error("not used"); }
-      },
-      { rpId, allowedOrigins: [origin] }
-    );
+    const adapter = new PostgresAuthAdapter(database, {
+      rpId,
+      allowedOrigins: [origin]
+    });
     await expect(authorizeRequest(adapter, request("token-expired")))
       .rejects.toThrow(/active session/i);
     await expect(authorizeRequest(adapter, request("token-revoked")))
@@ -294,17 +265,11 @@ describeIntegration("production auth + WebAuthn persistence", () => {
   });
 
   it("rejects missing membership, revoked company membership, and cross-company token reuse", async () => {
-    const resolver = new PostgresControlApiScopeResolver(
-      { query: (...args) => pool.query(args[0] as string, args[1] as unknown[]) },
-      "production"
-    );
-    const adapter = new PostgresAuthAdapter(
-      {
-        query: (...args) => pool.query(args[0] as string, args[1] as unknown[]),
-        transaction: async () => { throw new Error("not used"); }
-      },
-      { rpId, allowedOrigins: [origin] }
-    );
+    const resolver = new PostgresControlApiScopeResolver(database, "production");
+    const adapter = new PostgresAuthAdapter(database, {
+      rpId,
+      allowedOrigins: [origin]
+    });
 
     const missing = await authorizeRequest(adapter, request("token-c"));
     await expect(resolver.resolve(missing.session, request("token-c")))
