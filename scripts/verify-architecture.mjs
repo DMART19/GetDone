@@ -352,7 +352,7 @@ for (const required of [
   if (!softwareWorkerRuntime.includes(required)) fail(`Software worker runtime invariant missing: ${required}`);
 }
 for (const required of [
-  'JOB_EXECUTION_ROUTER_VERSION = "1.0.0"',
+  'JOB_EXECUTION_ROUTER_VERSION = "1.1.0"',
   "createPersistedJobExecutionSpec",
   "business-action",
   "software-prepare",
@@ -1107,8 +1107,8 @@ if (
   releaseRegistry.database?.status !== "implemented-unconnected"
   || releaseRegistry.database?.engine !== "postgresql"
   || releaseRegistry.database?.minimumEngineVersion !== "16"
-  || releaseRegistry.database?.migrationVersion !== "2026-09-22.2"
-  || releaseRegistry.database?.schemaVersion !== "1.2.0"
+  || releaseRegistry.database?.migrationVersion !== "2026-09-22.3"
+  || releaseRegistry.database?.schemaVersion !== "1.3.0"
   || releaseRegistry.adapters?.postgresPersistence?.status !== "implemented-unconnected"
   || releaseRegistry.adapters?.durableJobStore?.status !== "implemented-unconnected"
 ) {
@@ -1132,6 +1132,9 @@ if (
   || releaseRegistry.execution.softwareWorkerRuntimeStatus !== "implemented"
   || releaseRegistry.execution.softwareDeploymentStatus !== "not-connected"
   || releaseRegistry.execution.jobExecutionRouterStatus !== "implemented"
+  || releaseRegistry.execution.jobExecutionRouterVersion !== "1.1.0"
+  || releaseRegistry.execution.persistentWorkerServiceStatus !== "implemented-unconnected"
+  || releaseRegistry.execution.persistentWorkerServiceVersion !== "1.0.0"
   || releaseRegistry.execution.jobExecutionBridgeContractVersion !== "1.0.0"
   || releaseRegistry.execution.jobExecutionBridgeStatus !== "deterministic-contract"
   || releaseRegistry.execution.jobExecutionBridgeStoreImplementationStatus !== "implemented-unconnected"
@@ -1224,14 +1227,15 @@ for (const [name, state] of Object.entries(releaseEnvironment.environments ?? {}
     || state.execution?.softwareWorkerRuntimeStatus !== "implemented"
     || state.execution?.softwareDeploymentStatus !== "not-connected"
     || state.execution?.jobExecutionRouterStatus !== "implemented"
+    || state.execution?.persistentWorkerServiceStatus !== "implemented-unconnected"
     || state.execution?.jobExecutionBridgeStatus !== "deterministic-contract"
     || state.execution?.jobExecutionBridgeStoreImplementationStatus !== "implemented-unconnected"
     || state.execution?.liveJobExecutionBridgeStoreStatus !== "not-connected"
     || state.connections?.database !== false
     || state.database?.engine !== "postgresql"
     || state.database?.adapterStatus !== "implemented-unconnected"
-    || state.database?.migrationVersion !== "2026-09-22.2"
-    || state.database?.schemaVersion !== "1.2.0"
+    || state.database?.migrationVersion !== "2026-09-22.3"
+    || state.database?.schemaVersion !== "1.3.0"
     || state.composition?.goldenPathHarnessStatus !== "deterministic-simulation-only"
     || state.composition?.productionExecutionClaimed !== false
     || state.resourceFabric?.storageFabricContractStatus !== "deterministic-contract"
