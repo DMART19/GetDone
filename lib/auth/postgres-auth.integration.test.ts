@@ -77,7 +77,7 @@ async function insertSession(
   await pool.query(
     `INSERT INTO auth_sessions
       (session_id,user_id,token_hash,issued_at,expires_at,revoked_at,authenticated_at)
-     VALUES($1,$2,$3,now() - interval '1 minute',$4,$5,now() - interval '1 minute')`,
+     VALUES($1,$2,$3,now() - interval '2 hours',$4,$5,now() - interval '2 hours')`,
     [
       input.sessionId,
       input.userId,
