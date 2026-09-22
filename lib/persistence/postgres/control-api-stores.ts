@@ -1,4 +1,7 @@
+import { sha256Hex } from "@/lib/control-plane/canonical-hash";
 import { ControlPlaneError } from "@/lib/control-plane/errors";
+import { createAuditEvent } from "@/lib/domain/audit";
+import { claimIdempotency } from "@/lib/domain/idempotency";
 import type { OwnerIntentRecord } from "@/lib/control-api/contracts";
 import type { OwnerIntentStore } from "@/lib/control-api/service-adapter";
 import type {
@@ -16,43 +19,111 @@ import type {
   ResourceEnrollmentReadinessRecord,
   ResourceEnrollmentReadinessStore
 } from "@/lib/resources/enrollment";
-import type { SqlQueryable } from "@/lib/persistence/postgres/client";
-import { PostgresEntityStore } from "@/lib/persistence/postgres/authority-stores";
+import type {
+  PostgresTransactionalDatabase,
+  SqlQueryable
+} from "@/lib/persistence/postgres/client";
+import {
+  PostgresAuditLedger,
+  PostgresEntityStore,
+  PostgresIdempotencyStore
+} from "@/lib/persistence/postgres/authority-stores";
 
 export class PostgresOwnerIntentStore implements OwnerIntentStore {
-  constructor(private readonly db: SqlQueryable) {}
+  constructor(private readonly db: PostgresTransactionalDatabase) {}
 
   async create(record: OwnerIntentRecord, idempotencyKey: string) {
-    const inserted = await this.db.query(
-      `INSERT INTO owner_intents
-        (id,portfolio_id,company_id,user_id,idempotency_key,received_at,payload)
-       VALUES($1,$2,$3,$4,$5,$6,$7::jsonb)
-       ON CONFLICT (portfolio_id,company_id,idempotency_key) DO NOTHING`,
-      [
-        record.id,
-        record.portfolioId,
-        record.companyId,
-        record.userId,
-        idempotencyKey,
-        record.receivedAt,
-        JSON.stringify(record)
-      ]
-    );
-    if (inserted.rowCount === 1) return record;
+    const fingerprint = sha256Hex(JSON.stringify({
+      portfolioId: record.portfolioId,
+      companyId: record.companyId,
+      userId: record.userId,
+      message: record.message,
+      channel: record.channel
+    }));
 
-    const existing = await this.db.query<{ payload: OwnerIntentRecord }>(
-      `SELECT payload FROM owner_intents
-       WHERE portfolio_id=$1 AND company_id=$2 AND idempotency_key=$3`,
-      [record.portfolioId, record.companyId, idempotencyKey]
-    );
-    const prior = existing.rows[0]?.payload;
-    if (
-      prior
-      && prior.userId === record.userId
-      && prior.message === record.message
-      && prior.channel === record.channel
-    ) return prior;
-    throw new ControlPlaneError("IDEMPOTENCY_CONFLICT", "Owner intent idempotency key conflicts with prior content");
+    return this.db.transaction(async (client) => {
+      const idempotency = new PostgresIdempotencyStore(client);
+      const claim = await claimIdempotency<OwnerIntentRecord>(
+        idempotency,
+        idempotencyKey,
+        fingerprint,
+        new Date(record.receivedAt)
+      );
+
+      if (claim.state === "COMPLETED" && claim.record.result) {
+        return claim.record.result;
+      }
+      if (claim.state === "IN_PROGRESS" || claim.state === "FAILED") {
+        throw new ControlPlaneError(
+          "CONFLICT",
+          "Owner intent request is already in progress or previously failed"
+        );
+      }
+
+      const inserted = await client.query(
+        `INSERT INTO owner_intents
+          (id,portfolio_id,company_id,user_id,idempotency_key,received_at,payload)
+         VALUES($1,$2,$3,$4,$5,$6,$7::jsonb)
+         ON CONFLICT (portfolio_id,company_id,idempotency_key) DO NOTHING`,
+        [
+          record.id,
+          record.portfolioId,
+          record.companyId,
+          record.userId,
+          idempotencyKey,
+          record.receivedAt,
+          JSON.stringify(record)
+        ]
+      );
+
+      let persisted = record;
+      if (inserted.rowCount !== 1) {
+        const existing = await client.query<{ payload: OwnerIntentRecord }>(
+          `SELECT payload FROM owner_intents
+           WHERE portfolio_id=$1 AND company_id=$2 AND idempotency_key=$3`,
+          [record.portfolioId, record.companyId, idempotencyKey]
+        );
+        const prior = existing.rows[0]?.payload;
+        if (
+          !prior
+          || prior.userId !== record.userId
+          || prior.message !== record.message
+          || prior.channel !== record.channel
+        ) {
+          throw new ControlPlaneError(
+            "IDEMPOTENCY_CONFLICT",
+            "Owner intent idempotency key conflicts with prior content"
+          );
+        }
+        persisted = prior;
+      }
+
+      await new PostgresAuditLedger(client).append(createAuditEvent({
+        correlationId: `owner-intent:${persisted.id}`,
+        eventType: "owner-intent.accepted",
+        actor: { type: "user", id: persisted.userId },
+        scope: {
+          userId: persisted.userId,
+          portfolioId: persisted.portfolioId,
+          companyId: persisted.companyId
+        },
+        environment: persisted.environment,
+        entityType: "owner-intent",
+        entityId: persisted.id,
+        newState: "accepted",
+        provenance: "control-api:owner-intent",
+        metadata: { idempotencyKey }
+      }));
+
+      await idempotency.complete(
+        idempotencyKey,
+        fingerprint,
+        persisted,
+        persisted.receivedAt
+      );
+
+      return persisted;
+    });
   }
 }
 
