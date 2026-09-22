@@ -20,7 +20,7 @@ export function parseAuthoritativeRuntimeEnvironment(value: string | undefined):
 
 export function developmentSeedAllowed(input: RuntimeEnvironmentInput) {
   const runtime = parseAuthoritativeRuntimeEnvironment(input.runtimeEnvironment);
-  return runtime !== "production" && input.dataMode === "development-seed";
+  return runtime === "development" && input.dataMode === "development-seed";
 }
 
 export function developmentApiAllowed(input: RuntimeEnvironmentInput) {
