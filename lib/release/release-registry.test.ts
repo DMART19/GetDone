@@ -20,6 +20,9 @@ import { PHASE44_DETERMINISTIC_HARNESS_VERSION } from "@/lib/security/phase44-ad
 import { CONTROL_API_SURFACE_VERSION } from "@/lib/control-api/contracts";
 import { OPENROUTER_ADAPTER_VERSION } from "@/lib/ai-gateway/openrouter-adapter";
 import { CONFIGURED_HTTP_ACTION_ADAPTER_VERSION } from "@/lib/execution/adapters/configured-http-action";
+import { CONFIGURED_WEBHOOK_ACTION_ADAPTER_VERSION } from "@/lib/execution/adapters/configured-webhook-action";
+import { GMAIL_BUSINESS_ACTION_ADAPTER_VERSION } from "@/lib/execution/adapters/gmail-action";
+import { SLACK_BUSINESS_ACTION_ADAPTER_VERSION } from "@/lib/execution/adapters/slack-action";
 import {
   NODE_AGENT_PROTOCOL_VERSION,
   NODE_DOMAIN_VERSION
@@ -96,6 +99,7 @@ interface ReleaseRegistryShape {
   integrations: {
     registryContractVersion: string;
     liveAdaptersStatus: string;
+    adapterImplementationStatus: string;
   };
   execution: {
     jobRuntimeContractVersion: string;
@@ -419,7 +423,24 @@ describe("Phase 41 release/version registry", () => {
   it("records Phase 4 contracts plus implemented-but-unconnected production execution runtimes", () => {
     expect(registry.integrations).toMatchObject({
       registryContractVersion: INTEGRATION_REGISTRY_CONTRACT_VERSION,
-      liveAdaptersStatus: "not-connected"
+      liveAdaptersStatus: "not-connected",
+      adapterImplementationStatus: "implemented-unconfigured"
+    });
+    expect(registry.adapters.configuredHttpAction).toMatchObject({
+      status: "implemented-unconfigured",
+      version: CONFIGURED_HTTP_ACTION_ADAPTER_VERSION
+    });
+    expect(registry.adapters.configuredWebhookAction).toMatchObject({
+      status: "implemented-unconfigured",
+      version: CONFIGURED_WEBHOOK_ACTION_ADAPTER_VERSION
+    });
+    expect(registry.adapters.gmailBusinessAction).toMatchObject({
+      status: "implemented-unconfigured",
+      version: GMAIL_BUSINESS_ACTION_ADAPTER_VERSION
+    });
+    expect(registry.adapters.slackBusinessAction).toMatchObject({
+      status: "implemented-unconfigured",
+      version: SLACK_BUSINESS_ACTION_ADAPTER_VERSION
     });
     expect(registry.execution).toMatchObject({
       jobRuntimeContractVersion: JOB_RUNTIME_CONTRACT_VERSION,
