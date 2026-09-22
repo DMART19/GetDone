@@ -19,6 +19,7 @@ import { RESOURCE_POOL_CONTRACT_VERSION } from "@/lib/resources/pools";
 import { PHASE44_DETERMINISTIC_HARNESS_VERSION } from "@/lib/security/phase44-adversarial-harness";
 import { CONTROL_API_SURFACE_VERSION } from "@/lib/control-api/contracts";
 import { OPENROUTER_ADAPTER_VERSION } from "@/lib/ai-gateway/openrouter-adapter";
+import { CONFIGURED_HTTP_ACTION_ADAPTER_VERSION } from "@/lib/execution/adapters/configured-http-action";
 import {
   NODE_AGENT_PROTOCOL_VERSION,
   NODE_DOMAIN_VERSION
@@ -310,7 +311,7 @@ describe("Phase 41 release/version registry", () => {
     });
     expect(registry.adapters.configuredHttpAction).toMatchObject({
       status: "implemented-unconfigured",
-      version: "1.0.0"
+      version: CONFIGURED_HTTP_ACTION_ADAPTER_VERSION
     });
   });
 
