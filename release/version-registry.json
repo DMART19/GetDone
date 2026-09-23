@@ -1,6 +1,6 @@
 {
   "registrySchemaVersion": "1.6.0",
-  "registryVersion": "2026-09-23.1",
+  "registryVersion": "2026-09-23.2",
   "appVersion": "0.1.0",
   "schemaVersions": {
     "controlApi": {
@@ -488,7 +488,11 @@
     "app/api/control/ai/health/route.ts",
     "lib/execution/worker-crash-restart.integration.test.ts",
     "lib/execution/worker-crash-acceptance-child.ts",
-    "docs/SOL_WORKER_CRASH_RESTART_ACCEPTANCE.md"
+    "docs/SOL_WORKER_CRASH_RESTART_ACCEPTANCE.md",
+    "lib/execution/provider-concurrency.server.ts",
+    "lib/execution/queue-backpressure-postgres.integration.test.ts",
+    "migrations/2026-09-23.2_queue_backpressure.sql",
+    "docs/SOL_QUEUE_BACKPRESSURE_ACCEPTANCE.md"
   ],
   "manualSourcePaths": [
     "docs/ARCHITECTURE.md",
@@ -505,7 +509,8 @@
     "docs/SOL_POSTGRES_JOB_EXECUTION_RUNTIME_REPORT.md",
     "docs/SOL_ORDINARY_INTEGRATIONS_REPORT.md",
     "docs/SOL_OPENROUTER_STAGING_ACCEPTANCE.md",
-    "docs/SOL_WORKER_CRASH_RESTART_ACCEPTANCE.md"
+    "docs/SOL_WORKER_CRASH_RESTART_ACCEPTANCE.md",
+    "docs/SOL_QUEUE_BACKPRESSURE_ACCEPTANCE.md"
   ],
   "generatedArtifacts": {
     "machineManifest": "release/out/release-manifest.json",
@@ -515,9 +520,9 @@
     "status": "implemented-unconnected",
     "engine": "postgresql",
     "minimumEngineVersion": "16",
-    "migrationVersion": "2026-09-23.1",
-    "schemaVersion": "1.4.0",
-    "sourcePath": "migrations/2026-09-23.1_tenant_rls.sql",
+    "migrationVersion": "2026-09-23.2",
+    "schemaVersion": "1.5.0",
+    "sourcePath": "migrations/2026-09-23.2_queue_backpressure.sql",
     "adapterSourcePath": "lib/persistence/postgres/client.ts"
   },
   "voice": {
