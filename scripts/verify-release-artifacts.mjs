@@ -355,6 +355,8 @@ if (failures.length === 0) {
     || registry.database.minimumEngineVersion !== "16"
     || registry.database.migrationVersion !== "2026-09-23.1"
     || registry.database.schemaVersion !== "1.4.0"
+    || registry.schemaVersions.postgresPersistence?.version !== "1.1.0"
+    || registry.adapters.postgresPersistence?.version !== "1.1.0"
     || manifest.database.status !== registry.database.status
     || manifest.database.engine !== registry.database.engine
     || manifest.database.migrationVersion !== registry.database.migrationVersion
