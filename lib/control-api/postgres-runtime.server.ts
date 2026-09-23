@@ -163,7 +163,7 @@ export function createPostgresControlApiAdapter(
 
       return {
         service: "getdone-control-api",
-        surfaceVersion: "1.1.0",
+        surfaceVersion: "1.2.0",
         status: !persistenceConnected || !authConnected
           ? "unavailable"
           : health.backupFresh
