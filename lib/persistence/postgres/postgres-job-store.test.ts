@@ -110,7 +110,7 @@ describe("PostgresDurableJobStore", () => {
     ]);
     await expect(new PostgresDurableJobStore(globalDb, {
       maxQueueDepth: 5,
-      maxCompanyQueueDepth: 5
+      maxCompanyQueueDepth: 4
     }).enqueue(envelope)).rejects.toMatchObject({
       code: "UNAVAILABLE",
       details: { reason: "QUEUE_SATURATED", scope: "global", limit: 5 }
