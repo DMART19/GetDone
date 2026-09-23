@@ -74,6 +74,10 @@ export interface ServiceBackedControlApiDependencies {
   jobs: ScopedReadStore<JobRecord>;
   verifications: ScopedReadStore<VerificationRequestRecord>;
   health: () => Promise<ControlApiHealth>;
+  tenantScopeRunner?: <T>(
+    scope: TrustedExecutionScope,
+    operation: () => Promise<T> | T
+  ) => Promise<T>;
   now?: () => Date;
 }
 
@@ -119,6 +123,16 @@ export class ServiceBackedControlApiAdapter implements ControlApiApplicationAdap
 
   constructor(private readonly deps: ServiceBackedControlApiDependencies) {
     this.now = deps.now ?? (() => new Date());
+  }
+
+  private scoped<T>(
+    principal: ControlApiPrincipal,
+    operation: () => Promise<T> | T
+  ): Promise<T> {
+    const runner = this.deps.tenantScopeRunner;
+    return runner
+      ? runner(principal.scope, operation)
+      : Promise.resolve(operation());
   }
 
   async authenticate(request: Request): Promise<ControlApiPrincipal> {
@@ -176,75 +190,84 @@ export class ServiceBackedControlApiAdapter implements ControlApiApplicationAdap
     input: OwnerIntentInput,
     idempotencyKey: string
   ) {
-    requireRole(principal, ["owner"], "Owner intent submission");
-    const record: OwnerIntentRecord = Object.freeze({
-      id: crypto.randomUUID(),
-      portfolioId: principal.scope.portfolioId,
-      companyId: principal.scope.companyId,
-      environment: principal.scope.environment,
-      userId: principal.scope.userId,
-      message: input.message,
-      channel: input.channel ?? "chat",
-      status: "accepted",
-      receivedAt: this.now().toISOString()
+    return this.scoped(principal, async () => {
+      requireRole(principal, ["owner"], "Owner intent submission");
+      const record: OwnerIntentRecord = Object.freeze({
+        id: crypto.randomUUID(),
+        portfolioId: principal.scope.portfolioId,
+        companyId: principal.scope.companyId,
+        environment: principal.scope.environment,
+        userId: principal.scope.userId,
+        message: input.message,
+        channel: input.channel ?? "chat",
+        status: "accepted",
+        receivedAt: this.now().toISOString()
+      });
+      return this.deps.intents.create(record, idempotencyKey);
     });
-    return this.deps.intents.create(record, idempotencyKey);
   }
 
   listDecisions(principal: ControlApiPrincipal) {
-    return this.deps.decisions.listByScope(
+    return this.scoped(principal, () => this.deps.decisions.listByScope(
       principal.scope.portfolioId,
       principal.scope.companyId
-    );
+    ));
   }
 
   async getDecision(principal: ControlApiPrincipal, decisionId: string) {
-    return assertScopedEntity(principal, await this.deps.decisions.get(decisionId));
+    return this.scoped(principal, async () =>
+      assertScopedEntity(principal, await this.deps.decisions.get(decisionId))
+    );
   }
 
   mutateDecision(principal: ControlApiPrincipal, input: DecisionMutationInput) {
-    requireRole(principal, ["owner", "admin"], "Decision mutation");
-    const correlationId = createCorrelationId();
-    const command = createCommandEnvelope({
-      commandId: crypto.randomUUID(),
-      actor: principal.actor,
-      scope: principal.scope,
-      correlationId,
-      environment: principal.scope.environment,
-      idempotencyKey: input.idempotencyKey,
-      provenance: "control-api:decision-mutation",
-      requestedMutation: {
-        type: "decision.resolve" as const,
-        decisionId: input.decisionId,
-        action: input.action
-      }
-    });
+    return this.scoped(principal, () => {
+      requireRole(principal, ["owner", "admin"], "Decision mutation");
+      const correlationId = createCorrelationId();
+      const command = createCommandEnvelope({
+        commandId: crypto.randomUUID(),
+        actor: principal.actor,
+        scope: principal.scope,
+        correlationId,
+        environment: principal.scope.environment,
+        idempotencyKey: input.idempotencyKey,
+        provenance: "control-api:decision-mutation",
+        requestedMutation: {
+          type: "decision.resolve" as const,
+          decisionId: input.decisionId,
+          action: input.action
+        }
+      });
 
-    return resolveDecision({
-      command,
-      transactionManager: this.deps.decisionTransactions,
-      decisionId: input.decisionId,
-      action: input.action,
-      stepUpProof: principal.stepUpProof,
-      now: this.now
+      return resolveDecision({
+        command,
+        transactionManager: this.deps.decisionTransactions,
+        decisionId: input.decisionId,
+        action: input.action,
+        stepUpProof: principal.stepUpProof,
+        now: this.now
+      });
     });
   }
 
   listResources(principal: ControlApiPrincipal) {
-    return this.deps.resources.listByScope(
+    return this.scoped(principal, () => this.deps.resources.listByScope(
       principal.scope.portfolioId,
       principal.scope.companyId
-    );
+    ));
   }
 
   async getResource(principal: ControlApiPrincipal, resourceId: string) {
-    return assertScopedEntity(principal, await this.deps.resources.get(resourceId));
+    return this.scoped(principal, async () =>
+      assertScopedEntity(principal, await this.deps.resources.get(resourceId))
+    );
   }
 
   discoverResource(principal: ControlApiPrincipal, input: ResourceDiscoveryInput) {
-    requireRole(principal, ["owner", "admin"], "Resource discovery");
-    const correlationId = createCorrelationId();
-    const command = createCommandEnvelope({
+    return this.scoped(principal, () => {
+      requireRole(principal, ["owner", "admin"], "Resource discovery");
+      const correlationId = createCorrelationId();
+      const command = createCommandEnvelope({
       commandId: crypto.randomUUID(),
       actor: principal.actor,
       scope: principal.scope,
@@ -258,7 +281,7 @@ export class ServiceBackedControlApiAdapter implements ControlApiApplicationAdap
       }
     });
 
-    return this.deps.resourceRegistry.discover({
+      return this.deps.resourceRegistry.discover({
       id: input.id,
       type: input.type,
       providerId: input.providerId,
@@ -272,35 +295,37 @@ export class ServiceBackedControlApiAdapter implements ControlApiApplicationAdap
       region: input.region,
       architecture: input.architecture,
       discoveredAt: this.now().toISOString()
-    }, command);
+      }, command);
+    });
   }
 
   listResourceEnrollments(principal: ControlApiPrincipal) {
-    return this.deps.resourceEnrollments.listByScope(
+    return this.scoped(principal, () => this.deps.resourceEnrollments.listByScope(
       principal.scope.portfolioId,
       principal.scope.companyId
-    );
+    ));
   }
 
   async getResourceEnrollment(principal: ControlApiPrincipal, enrollmentId: string) {
-    return assertScopedEntity(
+    return this.scoped(principal, async () => assertScopedEntity(
       principal,
       await this.deps.resourceEnrollments.get(enrollmentId)
-    );
+    ));
   }
 
   startResourceEnrollment(
     principal: ControlApiPrincipal,
     input: ResourceEnrollmentStartInput
   ) {
-    requireRole(principal, ["owner", "admin"], "Resource enrollment");
+    return this.scoped(principal, () => {
+      requireRole(principal, ["owner", "admin"], "Resource enrollment");
     const command = this.enrollmentCommand(
       principal,
       input.idempotencyKey,
       "identify",
       input.id
     );
-    return this.deps.resourceEnrollmentService.identify({
+      return this.deps.resourceEnrollmentService.identify({
       id: input.id,
       requestedType: input.requestedType,
       requestedEnvironments: [principal.scope.environment],
@@ -309,7 +334,8 @@ export class ServiceBackedControlApiAdapter implements ControlApiApplicationAdap
       challengeToken: input.challengeToken,
       challengeIssuedAt: this.now().toISOString(),
       challengeExpiresAt: input.challengeExpiresAt
-    }, command);
+      }, command);
+    });
   }
 
   advanceResourceEnrollment(
@@ -317,7 +343,8 @@ export class ServiceBackedControlApiAdapter implements ControlApiApplicationAdap
     enrollmentId: string,
     input: ResourceEnrollmentActionInput
   ) {
-    requireRole(principal, ["owner", "admin"], "Resource enrollment mutation");
+    return this.scoped(principal, () => {
+      requireRole(principal, ["owner", "admin"], "Resource enrollment mutation");
     const command = this.enrollmentCommand(
       principal,
       input.idempotencyKey,
@@ -382,7 +409,8 @@ export class ServiceBackedControlApiAdapter implements ControlApiApplicationAdap
           requireValue(input.challengeExpiresAt, "challengeExpiresAt"),
           input.restartedAt
         );
-    }
+      }
+    });
   }
 
   private enrollmentCommand(
@@ -407,33 +435,37 @@ export class ServiceBackedControlApiAdapter implements ControlApiApplicationAdap
   }
 
   listJobs(principal: ControlApiPrincipal) {
-    return this.deps.jobs.listByScope(
+    return this.scoped(principal, () => this.deps.jobs.listByScope(
       principal.scope.portfolioId,
       principal.scope.companyId
-    );
+    ));
   }
 
   async getJob(principal: ControlApiPrincipal, jobId: string) {
-    return assertScopedEntity(principal, await this.deps.jobs.get(jobId));
+    return this.scoped(principal, async () =>
+      assertScopedEntity(principal, await this.deps.jobs.get(jobId))
+    );
   }
 
   async getJobResult(principal: ControlApiPrincipal, jobId: string): Promise<JobResultView | null> {
-    const job = await this.getJob(principal, jobId);
-    if (!job) return null;
-    return toJobResultView(job);
+    return this.scoped(principal, async () => {
+      const job = assertScopedEntity(principal, await this.deps.jobs.get(jobId));
+      if (!job) return null;
+      return toJobResultView(job);
+    });
   }
 
   listVerifications(principal: ControlApiPrincipal) {
-    return this.deps.verifications.listByScope(
+    return this.scoped(principal, () => this.deps.verifications.listByScope(
       principal.scope.portfolioId,
       principal.scope.companyId
-    );
+    ));
   }
 
   async getVerification(principal: ControlApiPrincipal, verificationId: string) {
-    return assertScopedEntity(
+    return this.scoped(principal, async () => assertScopedEntity(
       principal,
       await this.deps.verifications.get(verificationId)
-    );
+    ));
   }
 }
