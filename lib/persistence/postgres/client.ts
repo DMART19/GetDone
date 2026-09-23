@@ -123,7 +123,7 @@ export class PostgresDatabase implements PostgresTransactionalDatabase {
       }
       return client;
     } catch (error) {
-      client.release();
+      await this.releaseRuntimeClient(client);
       throw error;
     }
   }
@@ -139,6 +139,14 @@ export class PostgresDatabase implements PostgresTransactionalDatabase {
     );
   }
 
+  private async releaseRuntimeClient(client: PoolClient) {
+    try {
+      if (this.runtimeRole) await client.query("RESET ROLE");
+    } finally {
+      await this.releaseRuntimeClient(client);
+    }
+  }
+
   async query<R extends QueryResultRow = QueryResultRow>(
     text: string,
     values?: readonly unknown[]
@@ -149,7 +157,7 @@ export class PostgresDatabase implements PostgresTransactionalDatabase {
       try {
         return await client.query<R>(text, values as unknown[]);
       } finally {
-        client.release();
+        await this.releaseRuntimeClient(client);
       }
     }
 
@@ -163,7 +171,7 @@ export class PostgresDatabase implements PostgresTransactionalDatabase {
       try { await client.query("ROLLBACK"); } catch {}
       throw error;
     } finally {
-      client.release();
+      await this.releaseRuntimeClient(client);
     }
   }
 
@@ -192,7 +200,7 @@ export class PostgresDatabase implements PostgresTransactionalDatabase {
       }
       throw error;
     } finally {
-      client.release();
+      await this.releaseRuntimeClient(client);
     }
   }
 
@@ -209,7 +217,7 @@ export class PostgresDatabase implements PostgresTransactionalDatabase {
       try { await client.query("ROLLBACK"); } catch {}
       throw error;
     } finally {
-      client.release();
+      await this.releaseRuntimeClient(client);
     }
   }
 
