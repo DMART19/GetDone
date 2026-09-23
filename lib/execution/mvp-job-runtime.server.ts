@@ -98,13 +98,7 @@ export class MvpJobRuntime {
   }
 
   runOnce() {
-    return this.engine.runOnce({
-      execute: (context) =>
-        runWithPostgresTenantScope(
-          context.envelope.scope,
-          () => this.handler.execute(context)
-        )
-    });
+    return this.engine.runOnce(this.handler);
   }
 
   recoverExpired(limit?: number) {
