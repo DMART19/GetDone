@@ -57,6 +57,7 @@ async function body(response: Response) {
 
 describe("dead-letter operator HTTP boundary", () => {
   beforeEach(() => {
+    process.env.GETDONE_RUNTIME_ENV = "staging";
     vi.clearAllMocks();
     mocks.authenticate.mockResolvedValue(principal);
     mocks.list.mockResolvedValue([]);
