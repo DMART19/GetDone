@@ -8,6 +8,10 @@ import type { AuthorizedBusinessActionRequest } from "@/lib/execution/adapters/b
 import { StaticBusinessActionAdapterRegistry } from "@/lib/execution/adapters/business-action-registry";
 import { createOrdinaryBusinessActionBindingsFromEnv } from "@/lib/execution/adapters/ordinary-integration-registry";
 import { BusinessActionExecutionOrchestrator } from "@/lib/execution/business-action-orchestrator";
+import {
+  PostgresProviderConcurrencyGate,
+  readProviderConcurrencyConfigFromEnv
+} from "@/lib/execution/provider-concurrency.server";
 import { getDurableJobEngineFromEnv } from "@/lib/execution/durable-job-engine.server";
 import {
   createPersistedJobExecutionSpec,
@@ -129,7 +133,13 @@ export function getMvpJobRuntimeFromEnv(
   const database = getPostgresRuntimeFromEnv(env).database;
   const business = new BusinessActionExecutionOrchestrator(
     new StaticBusinessActionAdapterRegistry(createOrdinaryBusinessActionBindingsFromEnv(env)),
-    new PostgresBusinessActionExecutionStore(database)
+    new PostgresBusinessActionExecutionStore(database),
+    {
+      providerConcurrencyGate: new PostgresProviderConcurrencyGate(
+        database,
+        readProviderConcurrencyConfigFromEnv(env)
+      )
+    }
   );
   const specs = new PostgresJobExecutionSpecStore(database);
   const jobs = new PostgresEntityStore<JobRecord>(database, "job");
