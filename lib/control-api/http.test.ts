@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { ControlApiApplicationAdapter, ControlApiPrincipal } from "@/lib/control-api/contracts";
 import {
   handleControlHealth,
+  handleAIGatewayHealth,
   handleDiscoverResource,
   handleAdvanceResourceEnrollment,
   handleGetDecision,
@@ -131,12 +132,31 @@ function fakeAdapter(): ControlApiApplicationAdapter {
     }),
     health: async () => ({
       service: "getdone-control-api",
-      surfaceVersion: "1.1.0",
+      surfaceVersion: "1.2.0",
       status: "ready",
       authConnected: true,
       persistenceConnected: true,
       aiGatewayAdapterInstalled: true,
       durableJobStoreConnected: true
+    }),
+    getAIGatewayHealth: async () => ({
+      configured: true,
+      routingPolicyVersion: "policy-1",
+      lastSuccessfulCanaryAt: "2026-09-21T03:55:00Z",
+      primaryAvailability: "available",
+      fallbackAvailability: "available",
+      recentErrorClass: "MODEL_CALL_FAILED",
+      budget: {
+        state: "healthy",
+        period: "2026-09",
+        companyRemainingCents: 90,
+        portfolioRemainingCents: 900,
+        activeConcurrentCalls: 1,
+        concurrencyLimit: 4,
+        snapshotAt: "2026-09-21T03:59:00Z",
+        expiresAt: "2026-09-21T04:10:00Z"
+      },
+      checkedAt: "2026-09-21T04:00:00Z"
     }),
     submitOwnerIntent: async (_principal, input) => ({
       id: "intent-1",
@@ -208,6 +228,28 @@ describe("Control API HTTP surface", () => {
       environment: "development",
       data: { service: "getdone-control-api", status: "ready" }
     });
+  });
+
+  it("serves authenticated owner-safe AI Gateway health without secret/model fields", async () => {
+    const response = await handleAIGatewayHealth(
+      new Request("http://localhost/api/control/ai-gateway/health")
+    );
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    const body = await json(response);
+    expect(body).toMatchObject({
+      ok: true,
+      data: {
+        configured: true,
+        routingPolicyVersion: "policy-1",
+        primaryAvailability: "available",
+        fallbackAvailability: "available",
+        recentErrorClass: "MODEL_CALL_FAILED",
+        budget: { state: "healthy" }
+      }
+    });
+    const serialized = JSON.stringify(body);
+    expect(serialized).not.toMatch(/api[_-]?key|credential|modelId|model_id|openai\//i);
   });
 
   it("defaults to fail-closed unavailable runtime when no adapter is installed", async () => {
