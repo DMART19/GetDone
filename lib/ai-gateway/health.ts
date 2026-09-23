@@ -3,10 +3,6 @@ import type {
   ModelProfile,
   ModelRoutePolicy
 } from "@/lib/ai-gateway/contracts";
-import {
-  isAIGatewayConfigured,
-  readAIGatewayRuntimeConfig
-} from "@/lib/ai-gateway/runtime.server";
 import type { TrustedExecutionScope } from "@/lib/control-plane/trusted-execution-scope";
 
 export type AIGatewayAvailability = "available" | "unavailable" | "not-configured";
@@ -89,7 +85,12 @@ export function buildOwnerSafeAIGatewayHealth(input: {
   const env = input.env ?? process.env;
   const checkedAt = input.checkedAt ?? new Date();
 
-  if (!isAIGatewayConfigured(env)) {
+  const configured = Boolean(
+    env.OPENROUTER_API_KEY?.trim()
+    && env.GETDONE_AI_MODEL_PROFILES_JSON?.trim()
+    && env.GETDONE_AI_ROUTING_POLICY_JSON?.trim()
+  );
+  if (!configured) {
     return Object.freeze({
       configured: false,
       routingPolicyVersion: null,
@@ -105,7 +106,33 @@ export function buildOwnerSafeAIGatewayHealth(input: {
   let profiles: readonly ModelProfile[];
   let policy: ModelRoutePolicy;
   try {
-    ({ profiles, policy } = readAIGatewayRuntimeConfig(env));
+    const rawProfiles = JSON.parse(env.GETDONE_AI_MODEL_PROFILES_JSON!);
+    const rawPolicy = JSON.parse(env.GETDONE_AI_ROUTING_POLICY_JSON!);
+    if (
+      !Array.isArray(rawProfiles)
+      || rawProfiles.length === 0
+      || rawProfiles.some((profile) =>
+        !profile
+        || typeof profile !== "object"
+        || typeof profile.id !== "string"
+        || typeof profile.enabled !== "boolean"
+        || !["validated", "unvalidated", "failed"].includes(profile.validationStatus)
+        || !["healthy", "degraded", "disabled"].includes(profile.health)
+        || !Array.isArray(profile.allowedEnvironments)
+      )
+      || !rawPolicy
+      || typeof rawPolicy !== "object"
+      || typeof rawPolicy.version !== "string"
+      || !rawPolicy.routes
+      || typeof rawPolicy.routes !== "object"
+      || Object.values(rawPolicy.routes).some((route) =>
+        !Array.isArray(route) || route.some((value) => typeof value !== "string")
+      )
+    ) {
+      throw new Error("invalid AI health configuration");
+    }
+    profiles = rawProfiles as ModelProfile[];
+    policy = rawPolicy as ModelRoutePolicy;
   } catch {
     return Object.freeze({
       configured: false,
