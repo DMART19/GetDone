@@ -4,7 +4,7 @@ import {
   readPostgresConfigFromEnv
 } from "@/lib/persistence/postgres/client";
 
-export const REQUIRED_POSTGRES_MIGRATION = "2026-09-23.1";
+export const REQUIRED_POSTGRES_MIGRATION = "2026-09-23.2";
 
 export const REQUIRED_POSTGRES_RELATIONS = Object.freeze([
   "getdone_schema_migrations",
@@ -43,7 +43,10 @@ export const REQUIRED_POSTGRES_RELATIONS = Object.freeze([
   "owner_intents",
   "job_execution_outcomes",
   "job_worker_instances",
-  "business_action_verification_evidence"
+  "business_action_verification_evidence",
+  "ai_gateway_canary_events",
+  "ai_budget_health_snapshots",
+  "ai_call_audits"
 ] as const);
 
 export const REQUIRED_POSTGRES_INDEXES = Object.freeze([
@@ -54,7 +57,9 @@ export const REQUIRED_POSTGRES_INDEXES = Object.freeze([
   "job_leases_expiry_idx",
   "job_worker_instances_status_idx",
   "business_action_verification_scope_idx",
-  "business_action_executions_job_idx"
+  "business_action_executions_job_idx",
+  "ai_gateway_canary_environment_observed_idx",
+  "ai_budget_health_scope_recorded_idx"
 ] as const);
 
 export const REQUIRED_POSTGRES_RLS_RELATIONS = Object.freeze([
@@ -71,7 +76,9 @@ export const REQUIRED_POSTGRES_RLS_RELATIONS = Object.freeze([
   "owner_intents",
   "resource_evidence",
   "business_action_executions",
-  "business_action_verification_evidence"
+  "business_action_verification_evidence",
+  "ai_budget_health_snapshots",
+  "ai_call_audits"
 ] as const);
 
 export interface PostgresRuntimeHealth {
