@@ -292,6 +292,52 @@ function validateWorkerConfiguration() {
       fail("WORKER_CONFIG", "GETDONE_JOB_WORKER_ID is malformed");
     }
   }
+
+  const positiveWorkerIntegers = [
+    ["GETDONE_JOB_BATCH_SIZE", 10],
+    ["GETDONE_JOB_CONCURRENCY", 4],
+    ["GETDONE_JOB_QUEUE_DEPTH_LIMIT", 1000],
+    ["GETDONE_JOB_COMPANY_QUEUE_DEPTH_LIMIT", 250],
+    ["GETDONE_PROVIDER_CONCURRENCY_LIMIT", 4],
+    ["GETDONE_PROVIDER_CONCURRENCY_LEASE_SECONDS", 120]
+  ];
+  const parsed = new Map();
+  for (const [name, fallback] of positiveWorkerIntegers) {
+    const value = Number(env[name] || fallback);
+    parsed.set(name, value);
+    if (!Number.isInteger(value) || value < 1) {
+      fail("WORKER_BACKPRESSURE_CONFIG", `${name} must be a positive integer`);
+    }
+  }
+  if (
+    Number(parsed.get("GETDONE_JOB_CONCURRENCY"))
+    > Number(parsed.get("GETDONE_JOB_BATCH_SIZE"))
+  ) {
+    fail(
+      "WORKER_BACKPRESSURE_CONFIG",
+      "GETDONE_JOB_CONCURRENCY must not exceed GETDONE_JOB_BATCH_SIZE"
+    );
+  }
+
+  const rawProviderLimits = env.GETDONE_PROVIDER_CONCURRENCY_LIMITS_JSON?.trim();
+  if (rawProviderLimits) {
+    try {
+      const limits = JSON.parse(rawProviderLimits);
+      if (!limits || typeof limits !== "object" || Array.isArray(limits)) {
+        throw new Error("not-object");
+      }
+      for (const [providerKey, limit] of Object.entries(limits)) {
+        if (!providerKey.trim() || !Number.isInteger(Number(limit)) || Number(limit) < 1) {
+          throw new Error("invalid-entry");
+        }
+      }
+    } catch {
+      fail(
+        "WORKER_BACKPRESSURE_CONFIG",
+        "GETDONE_PROVIDER_CONCURRENCY_LIMITS_JSON must map provider IDs to positive integer limits"
+      );
+    }
+  }
 }
 
 function validateAiRouting() {
