@@ -33,8 +33,11 @@ export class DurableJobEngine {
     return this.store.enqueue(envelope);
   }
 
-  runOnce(handler: DurableJobExecutionHandler) {
-    return this.worker.runOnce(handler);
+  runOnce(
+    handler: DurableJobExecutionHandler,
+    options: { shouldStop?: () => boolean } = {}
+  ) {
+    return this.worker.runOnce(handler, options);
   }
 
   recoverExpired(limit?: number) {

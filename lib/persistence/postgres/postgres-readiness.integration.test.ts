@@ -102,7 +102,7 @@ integrationDescribe("production PostgreSQL startup readiness", () => {
   afterAll(async () => {
     if (testPool) await testPool.end();
     if (adminPool) {
-      await adminPool.query(`DROP DATABASE IF EXISTS ${quoteIdentifier(databaseName)} WITH (FORCE)`);
+      await adminPool.query(`DROP DATABASE IF EXISTS ${quoteIdentifier(databaseName)}`);
       await adminPool.end();
     }
   });

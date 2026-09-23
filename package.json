@@ -32,7 +32,9 @@
     "db:test-integration": "node scripts/test-postgres-integration.mjs",
     "production:bootstrap": "node scripts/bootstrap-production.mjs",
     "verify:production-runtime": "node scripts/verify-production-runtime.mjs",
-    "ai:accept-staging": "vitest run lib/ai-gateway/openrouter-staging.acceptance.test.ts"
+    "ai:accept-staging": "vitest run lib/ai-gateway/openrouter-staging.acceptance.test.ts",
+    "build:worker": "tsc -p tsconfig.worker.json",
+    "start:worker": "node --require ./scripts/register-worker-alias.cjs dist-worker/lib/execution/job-worker-entry.js"
   },
   "dependencies": {
     "lucide-react": "0.468.0",

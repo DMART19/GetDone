@@ -299,6 +299,26 @@ describe("DurableJobWorker", () => {
     expect(store.state).toBe("cancelled");
   });
 
+  it("stops claiming additional candidates after drain is requested", async () => {
+    const store = new FakeWorkStore();
+    const first = (await store.listReady())[0]!;
+    store.listReady = async () => [first, first];
+
+    let draining = false;
+    const results = await worker(store).runOnce({
+      execute: async () => {
+        draining = true;
+        return { kind: "succeeded" };
+      }
+    }, {
+      shouldStop: () => draining
+    });
+
+    expect(results).toHaveLength(1);
+    expect(store.attempt).toBe(1);
+    expect(store.state).toBe("released");
+  });
+
   it("delegates expired-lease recovery and validates worker configuration", async () => {
     const store = new FakeWorkStore();
     expect(await worker(store).recoverExpired()).toEqual([]);
