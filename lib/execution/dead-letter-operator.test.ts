@@ -598,7 +598,7 @@ describe("DeadLetterOperatorService", () => {
     const service = new DeadLetterOperatorService(f.db, {
       jobs: { get: async (id) => jobs.get(id) ?? null },
       specs: {
-        get: async (id) => {
+        get: async (id: string) => {
           if (id !== f.source.id) throw new Error("missing execution spec");
           return sourceSpec;
         },
