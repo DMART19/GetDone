@@ -47,27 +47,38 @@ GRANT EXECUTE ON FUNCTION getdone_tenant_scope_matches(text, text)
 
 DO $$
 DECLARE
-  target record;
+  table_name text;
+  tenant_tables constant text[] := ARRAY[
+    'control_plane_entities',
+    'audit_events',
+    'authorization_grants',
+    'verification_receipts',
+    'job_execution_start_facts',
+    'job_execution_completion_facts',
+    'capacity_ledgers',
+    'capacity_reservations',
+    'reservation_commits',
+    'owner_intents',
+    'resource_evidence',
+    'business_action_verification_evidence'
+  ];
 BEGIN
-  FOR target IN
-    SELECT table_name
-    FROM information_schema.columns
-    WHERE table_schema = current_schema()
-    GROUP BY table_name
-    HAVING bool_or(column_name = 'portfolio_id')
-       AND bool_or(column_name = 'company_id')
+  FOREACH table_name IN ARRAY tenant_tables
   LOOP
-    EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', target.table_name);
-    EXECUTE format('ALTER TABLE %I FORCE ROW LEVEL SECURITY', target.table_name);
+    IF to_regclass(table_name) IS NULL THEN
+      RAISE EXCEPTION 'Required tenant-scoped production relation is missing: %', table_name;
+    END IF;
+    EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', table_name);
+    EXECUTE format('ALTER TABLE %I FORCE ROW LEVEL SECURITY', table_name);
     EXECUTE format(
       'DROP POLICY IF EXISTS getdone_tenant_isolation ON %I',
-      target.table_name
+      table_name
     );
     EXECUTE format(
       'CREATE POLICY getdone_tenant_isolation ON %I
          USING (getdone_tenant_scope_matches(portfolio_id, company_id))
          WITH CHECK (getdone_tenant_scope_matches(portfolio_id, company_id))',
-      target.table_name
+      table_name
     );
   END LOOP;
 END
