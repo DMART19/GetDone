@@ -50,10 +50,14 @@ process.once("unhandledRejection", (error) => {
   void terminate(1, "unhandledRejection", error);
 });
 
-try {
-  workerProcess = await createDedicatedJobWorkerProcessFromEnv();
-  await workerProcess.start();
-  console.log("GetDone dedicated Job worker ready", workerProcess.health());
-} catch (error) {
-  await terminate(1, "startup-failure", error);
+async function main() {
+  try {
+    workerProcess = await createDedicatedJobWorkerProcessFromEnv();
+    await workerProcess.start();
+    console.log("GetDone dedicated Job worker ready", workerProcess.health());
+  } catch (error) {
+    await terminate(1, "startup-failure", error);
+  }
 }
+
+void main();
