@@ -39,7 +39,7 @@ class FakeHealthDb implements SqlQueryable {
       return result([{ failure_class: "MODEL_CALL_FAILED" }]) as unknown as QueryResult<R>;
     }
     if (text.includes("actualProfileId")) {
-      const profileId = values?.[0];
+      const profileId = values?.[2];
       return result([{
         recorded_at: profileId === "primary-profile"
           ? "2026-09-23T08:10:00.000Z"
@@ -146,6 +146,17 @@ describe("owner-safe AI Gateway health", () => {
       }
     });
 
+    const auditReads = db.writes.filter((entry) =>
+      entry.text.includes("FROM ai_call_audits")
+    );
+    expect(auditReads).not.toHaveLength(0);
+    for (const read of auditReads) {
+      expect(read.text).toContain("portfolio_id=$1");
+      expect(read.text).toContain("company_id=$2");
+      expect(read.values?.[0]).toBe("portfolio-a");
+      expect(read.values?.[1]).toBe("company-a");
+    }
+
     const serialized = JSON.stringify(health);
     expect(serialized).not.toContain("server-only-secret-value");
     expect(serialized).not.toContain("private-primary-model");
@@ -216,6 +227,46 @@ describe("owner-safe AI Gateway health", () => {
     expect(serialized).not.toContain("model");
     expect(serialized).not.toContain("credential");
     expect(serialized).not.toContain("secret");
+  });
+
+  it("rejects an invalid canary timestamp before persistence", async () => {
+    const db = new FakeHealthDb();
+    await expect(recordAIGatewayCanarySuccess({
+      db,
+      scope,
+      observedAt: "not-a-timestamp"
+    })).rejects.toThrow(/valid timestamp/);
+    expect(db.writes).toHaveLength(0);
+  });
+
+  it("reports exhausted budget once tenant spend reaches the configured ceiling", async () => {
+    class ExhaustedBudgetDb extends FakeHealthDb {
+      override async query<R extends QueryResultRow = QueryResultRow>(
+        text: string,
+        values?: readonly unknown[]
+      ): Promise<QueryResult<R>> {
+        if (text.includes("SUM(actual_cost_cents)")) {
+          this.writes.push({ text, values });
+          return result([{ spent_cents: "120" }]) as unknown as QueryResult<R>;
+        }
+        return super.query<R>(text, values);
+      }
+    }
+
+    const health = await readOwnerAIGatewayHealth(
+      scope,
+      configuredEnv(),
+      {
+        db: new ExhaustedBudgetDb(),
+        now: new Date("2026-09-23T09:00:00.000Z")
+      }
+    );
+    expect(health.budget).toMatchObject({
+      status: "exhausted",
+      spentCents: 120,
+      limitCents: 100,
+      remainingCents: 0
+    });
   });
 
   it("never invokes a provider while reading health", async () => {
