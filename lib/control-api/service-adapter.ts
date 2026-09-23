@@ -18,6 +18,7 @@ import {
 } from "@/lib/resources/enrollment";
 import type { VerificationRequestRecord } from "@/lib/domain/services/verification-service";
 import type { Resource } from "@/lib/domain/resources";
+import type { OwnerSafeAIGatewayHealth } from "@/lib/ai-gateway/health";
 import type {
   ControlApiApplicationAdapter,
   ControlApiHealth,
@@ -74,6 +75,7 @@ export interface ServiceBackedControlApiDependencies {
   jobs: ScopedReadStore<JobRecord>;
   verifications: ScopedReadStore<VerificationRequestRecord>;
   health: () => Promise<ControlApiHealth>;
+  aiGatewayHealth: (principal: ControlApiPrincipal) => Promise<OwnerSafeAIGatewayHealth>;
   tenantScopeRunner?: <T>(
     scope: TrustedExecutionScope,
     operation: () => Promise<T> | T
@@ -162,6 +164,13 @@ export class ServiceBackedControlApiAdapter implements ControlApiApplicationAdap
 
   health() {
     return this.deps.health();
+  }
+
+  getAIGatewayHealth(principal: ControlApiPrincipal) {
+    return this.scoped(principal, () => {
+      requireRole(principal, ["owner", "admin"], "AI Gateway health");
+      return this.deps.aiGatewayHealth(principal);
+    });
   }
 
   async beginStepUp(request: Request) {
