@@ -487,7 +487,7 @@
     "lib/ai-gateway/health.server.test.ts",
     "app/api/control/ai/health/route.ts",
     "lib/execution/worker-crash-restart.integration.test.ts",
-    "lib/execution/worker-crash-acceptance-child.integration.test.ts",
+    "lib/execution/worker-crash-acceptance-child.ts",
     "docs/SOL_WORKER_CRASH_RESTART_ACCEPTANCE.md"
   ],
   "manualSourcePaths": [
