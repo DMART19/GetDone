@@ -4,6 +4,7 @@ import { createCorrelationId, readIdempotencyKey } from "@/lib/control-plane/req
 import { readServerRuntimeEnvironment } from "@/lib/control-plane/runtime-environment.server";
 import { apiFailure, apiSuccess } from "@/lib/control-plane/schemas";
 import { getControlApiAdapter } from "@/lib/control-api/runtime.server";
+import { readOwnerAIGatewayHealth } from "@/lib/ai-gateway/health.server";
 
 const stepUpVerifySchema = z.object({
   challengeId: z.string().uuid(),
@@ -124,6 +125,22 @@ async function execute<T>(
 
 export function handleControlHealth() {
   return execute((adapter) => adapter.health());
+}
+
+export function handleAIGatewayHealth(
+  request: Request,
+  reader: typeof readOwnerAIGatewayHealth = readOwnerAIGatewayHealth
+) {
+  return execute(async (adapter) => {
+    const principal = await adapter.authenticate(request);
+    if (principal.role !== "owner") {
+      throw new ControlPlaneError(
+        "FORBIDDEN",
+        "Owner role is required for AI Gateway health"
+      );
+    }
+    return reader(principal.scope);
+  });
 }
 
 export function handleBeginStepUp(request: Request) {
