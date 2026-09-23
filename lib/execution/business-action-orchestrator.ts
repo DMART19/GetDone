@@ -11,6 +11,7 @@ import {
 } from "@/lib/execution/adapters/business-action";
 import { createVerificationEvidence, type VerificationEvidence } from "@/lib/verification/verification";
 import { validateCapabilityOutput } from "@/lib/domain/capabilities";
+import type { ProviderConcurrencyGate } from "@/lib/execution/provider-concurrency.server";
 
 export const BUSINESS_ACTION_ORCHESTRATOR_VERSION = "1.0.0";
 
@@ -111,8 +112,26 @@ export class BusinessActionExecutionOrchestrator {
       pollIntervalMs?: number;
       sleep?: (milliseconds: number) => Promise<void>;
       now?: () => Date;
+      providerConcurrencyGate?: ProviderConcurrencyGate;
     } = {}
   ) {}
+
+  private providerCall<T>(
+    request: AuthorizedBusinessActionRequest,
+    adapter: BusinessActionAdapter,
+    operation: "execute" | "status" | "cancel",
+    call: () => Promise<T>
+  ) {
+    const gate = this.options.providerConcurrencyGate;
+    if (!gate) return call();
+    return gate.withPermit({
+      providerKey: adapter.id,
+      requestId: request.id,
+      portfolioId: request.scope.portfolioId,
+      companyId: request.scope.companyId,
+      operation
+    }, call);
+  }
 
   async execute(request: AuthorizedBusinessActionRequest): Promise<BusinessActionExecutionResult> {
     assertAuthorizedBusinessActionRequest(request);
@@ -142,7 +161,12 @@ export class BusinessActionExecutionOrchestrator {
       return this.pollAccepted(request, adapter, existing);
     }
 
-    const result = await adapter.execute(request);
+    const result = await this.providerCall(
+      request,
+      adapter,
+      "execute",
+      () => adapter.execute(request)
+    );
     assertBusinessActionAdapterResult(result);
     if (
       result.adapterId !== adapter.id
@@ -197,11 +221,16 @@ export class BusinessActionExecutionOrchestrator {
     if (!adapter?.cancel) {
       throw new ControlPlaneError("UNAVAILABLE", "Business action adapter does not support cancellation");
     }
-    const status = await adapter.cancel({
-      requestId: request.id,
-      providerOperationId: record.providerOperationId,
-      reason
-    });
+    const status = await this.providerCall(
+      request,
+      adapter,
+      "cancel",
+      () => adapter.cancel!({
+        requestId: request.id,
+        providerOperationId: record.providerOperationId!,
+        reason
+      })
+    );
     assertStatusIdentity(adapter, request, record.providerOperationId, status);
     const next = createRecord({
       ...record,
@@ -228,10 +257,15 @@ export class BusinessActionExecutionOrchestrator {
 
     for (let index = 0; index < polls; index += 1) {
       if (index > 0 && interval > 0) await sleep(interval);
-      const status = await adapter.status({
-        requestId: request.id,
-        providerOperationId: initial.providerOperationId
-      });
+      const status = await this.providerCall(
+        request,
+        adapter,
+        "status",
+        () => adapter.status({
+          requestId: request.id,
+          providerOperationId: initial.providerOperationId!
+        })
+      );
       assertStatusIdentity(adapter, request, initial.providerOperationId, status);
 
       const previousHash = record.recordHash;
