@@ -75,8 +75,8 @@ function baseEnv(): Record<string, string | undefined> {
     GETDONE_BACKUP_MAX_AGE_HOURS: "24",
     GETDONE_WEBAUTHN_RP_ID: "getdone.example",
     GETDONE_WEBAUTHN_ORIGINS: JSON.stringify(["https://app.getdone.example"]),
-    GETDONE_INTERNAL_WORKER_TOKEN: "worker-token-abcdefghijklmnopqrstuvwxyz-123456",
-    OPENROUTER_API_KEY: "openrouter-key-abcdefghijklmnopqrstuvwxyz",
+    GETDONE_INTERNAL_WORKER_TOKEN: "w".repeat(40),
+    OPENROUTER_API_KEY: "k".repeat(32),
     OPENROUTER_BASE_URL: "https://" + "openrouter.ai/api/v1",
     OPENROUTER_CANARY_ENABLED: "true",
     OPENROUTER_CANARY_MODEL: "openai/gpt-5.6-sol",
@@ -85,7 +85,7 @@ function baseEnv(): Record<string, string | undefined> {
       version: "production-1",
       routes: { STANDARD: ["standard-primary", "standard-fallback"] }
     }),
-    PROD_HTTP_TOKEN: "http-production-token-abcdefghijklmnopqrstuvwxyz",
+    PROD_HTTP_TOKEN: "t".repeat(40),
     GETDONE_HTTP_ACTIONS_JSON: JSON.stringify([{
       name: "crm-sync",
       companyId: "company-prod",
@@ -97,9 +97,10 @@ function baseEnv(): Record<string, string | undefined> {
 }
 
 function run(overrides: Record<string, string | undefined>) {
+  const childEnv = { ...baseEnv(), ...overrides, NODE_ENV: overrides.NODE_ENV ?? "production" };
   return spawnSync(process.execPath, [verifier], {
     cwd: root,
-    env: { ...baseEnv(), ...overrides },
+    env: childEnv as NodeJS.ProcessEnv,
     encoding: "utf8"
   });
 }
