@@ -16,6 +16,7 @@ export interface PersistentJobWorkerSnapshot {
   lastErrorAt?: string;
   lastErrorHash?: string;
   cycles: number;
+  draining: boolean;
   stopped: boolean;
 }
 
@@ -76,8 +77,12 @@ export function readPersistentJobWorkerConfig(
 export class PersistentJobWorkerService {
   private stopped = false;
   private started = false;
+  private draining = false;
+  private stopRequested = false;
   private loopPromise: Promise<void> | null = null;
   private cycles = 0;
+  private resolveStopSignal: (() => void) | null = null;
+  private readonly stopSignal: Promise<void>;
   private snapshotValue: PersistentJobWorkerSnapshot;
 
   constructor(
@@ -89,11 +94,15 @@ export class PersistentJobWorkerService {
       (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds))
   ) {
     const startedAt = this.now().toISOString();
+    this.stopSignal = new Promise((resolve) => {
+      this.resolveStopSignal = resolve;
+    });
     this.snapshotValue = Object.freeze({
       workerId: config.workerId,
       status: "starting",
       startedAt,
       cycles: 0,
+      draining: false,
       stopped: false
     });
   }
@@ -102,11 +111,21 @@ export class PersistentJobWorkerService {
     return this.snapshotValue;
   }
 
+  isReady() {
+    const snapshot = this.snapshotValue;
+    return this.started
+      && !this.stopRequested
+      && !snapshot.draining
+      && !snapshot.stopped
+      && snapshot.status === "running";
+  }
+
   private update(patch: Partial<PersistentJobWorkerSnapshot>) {
     this.snapshotValue = Object.freeze({
       ...this.snapshotValue,
       ...patch,
       cycles: this.cycles,
+      draining: this.draining,
       stopped: this.stopped
     });
     return this.snapshotValue;
@@ -131,7 +150,9 @@ export class PersistentJobWorkerService {
     const polledAt = this.now().toISOString();
     this.update({ lastPollAt: polledAt });
     const recovered = await this.runtime.recoverExpired(this.config.recoveryLimit);
-    const results = await this.runtime.runOnce();
+    const results = await this.runtime.runOnce({
+      shouldStop: () => this.stopRequested
+    });
     this.cycles += 1;
     const completedAt = this.now().toISOString();
     this.update({
@@ -149,17 +170,30 @@ export class PersistentJobWorkerService {
   }
 
   async start() {
-    if (this.started) return this.loopPromise;
+    if (this.started) return;
     this.started = true;
     this.stopped = false;
+    this.draining = false;
+    this.stopRequested = false;
     await this.persist("starting");
     this.loopPromise = this.loop();
-    return this.loopPromise;
+  }
+
+  requestStop() {
+    if (this.stopRequested) return;
+    this.stopRequested = true;
+    this.draining = true;
+    this.update({ draining: true });
+    this.resolveStopSignal?.();
   }
 
   async stop() {
+    if (this.stopped) return;
+    this.requestStop();
+    if (this.loopPromise) await this.loopPromise;
     this.stopped = true;
-    this.update({ stopped: true });
+    this.draining = false;
+    this.update({ draining: false, stopped: true });
     try {
       await this.persist("stopped");
     } catch {
@@ -167,11 +201,18 @@ export class PersistentJobWorkerService {
     }
   }
 
+  private async wait(milliseconds: number) {
+    await Promise.race([
+      this.sleep(milliseconds),
+      this.stopSignal
+    ]);
+  }
+
   private async loop() {
-    while (!this.stopped) {
+    while (!this.stopRequested) {
       try {
         await this.runCycle();
-        if (!this.stopped) await this.sleep(this.config.pollIntervalMs);
+        if (!this.stopRequested) await this.wait(this.config.pollIntervalMs);
       } catch (error) {
         const at = this.now().toISOString();
         this.update({
@@ -184,7 +225,7 @@ export class PersistentJobWorkerService {
         } catch {
           // A database outage is itself a worker degradation; retry after backoff.
         }
-        if (!this.stopped) await this.sleep(this.config.errorBackoffMs);
+        if (!this.stopRequested) await this.wait(this.config.errorBackoffMs);
       }
     }
   }
