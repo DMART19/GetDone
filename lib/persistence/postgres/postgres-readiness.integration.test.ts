@@ -50,6 +50,7 @@ function runtimeFor(connectionString: string, connectionTimeoutMs = 1_000) {
       maxConnections: 1,
       statementTimeoutMs: 2_000,
       connectionTimeoutMs,
+      runtimeRole: "getdone_tenant_runtime",
       ssl: process.env.GETDONE_DB_SSL !== "false"
     }),
     24
@@ -120,6 +121,9 @@ integrationDescribe("production PostgreSQL startup readiness", () => {
         schemaCurrent: true,
         requiredRelationsPresent: true,
         requiredIndexesPresent: true,
+        tenantRlsProtected: true,
+        databaseRole: "getdone_tenant_runtime",
+        databaseRoleRlsSafe: true,
         transactionIsolationSerializable: true,
         transactionIsolation: "serializable",
         backupFresh: true
