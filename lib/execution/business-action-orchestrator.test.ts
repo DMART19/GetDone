@@ -182,6 +182,32 @@ describe("BusinessActionExecutionOrchestrator", () => {
     expect(result.verificationEvidence?.result).toBe("fail");
   });
 
+  it("routes execute and status calls through provider concurrency admission", async () => {
+    const adapter = new SequencedAdapter();
+    adapter.states = ["completed"];
+    const operations: string[] = [];
+    const orchestrator = new BusinessActionExecutionOrchestrator(
+      new StaticBusinessActionAdapterRegistry([{ capability: "email.send", adapter }]),
+      new MemoryExecutionStore(),
+      {
+        maxStatusPolls: 1,
+        pollIntervalMs: 0,
+        providerConcurrencyGate: {
+          withPermit: async (input, operation) => {
+            operations.push(`${input.providerKey}:${input.operation}`);
+            return operation();
+          }
+        }
+      }
+    );
+
+    await orchestrator.execute(request);
+    expect(operations).toEqual([
+      "mail-adapter:execute",
+      "mail-adapter:status"
+    ]);
+  });
+
   it("rejects duplicate capability bindings", () => {
     const adapter = new SequencedAdapter();
     expect(() => new StaticBusinessActionAdapterRegistry([

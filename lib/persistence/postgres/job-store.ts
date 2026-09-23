@@ -229,16 +229,48 @@ export class PostgresDurableJobStore implements DurableJobWorkStore {
     private readonly options: {
       maxAttempts?: number;
       recoveryDelayMs?: number;
+      maxQueueDepth?: number;
+      maxCompanyQueueDepth?: number;
     } = {}
-  ) {}
+  ) {
+    for (const [label, value] of [
+      ["maxQueueDepth", options.maxQueueDepth],
+      ["maxCompanyQueueDepth", options.maxCompanyQueueDepth]
+    ] as const) {
+      if (value !== undefined && (!Number.isInteger(value) || value < 1)) {
+        throw new ControlPlaneError(
+          "VALIDATION_FAILED",
+          `Durable Job ${label} must be a positive integer`
+        );
+      }
+    }
+    if (
+      options.maxQueueDepth !== undefined
+      && options.maxCompanyQueueDepth !== undefined
+      && options.maxCompanyQueueDepth >= options.maxQueueDepth
+    ) {
+      throw new ControlPlaneError(
+        "VALIDATION_FAILED",
+        "Durable Job company queue depth limit must be lower than the global queue depth limit"
+      );
+    }
+  }
 
   async listReady(input: { now: string; limit: number }) {
     const limit = Math.max(1, Math.min(100, Math.trunc(input.limit)));
     const result = await this.database.query<RuntimeRow>(
-      `SELECT * FROM job_runtime_state
-       WHERE runtime_state IN ('queued','retry-wait')
-         AND scheduled_at <= $1
-       ORDER BY scheduled_at, job_id
+      `WITH ready AS (
+         SELECT *,
+           ROW_NUMBER() OVER (
+             PARTITION BY envelope->'scope'->>'companyId'
+             ORDER BY scheduled_at, job_id
+           ) AS company_rank
+         FROM job_runtime_state
+         WHERE runtime_state IN ('queued','retry-wait')
+           AND scheduled_at <= $1
+       )
+       SELECT * FROM ready
+       ORDER BY company_rank, scheduled_at, job_id
        LIMIT $2`,
       [input.now, limit]
     );
@@ -287,6 +319,71 @@ export class PostgresDurableJobStore implements DurableJobWorkStore {
           "IDEMPOTENCY_CONFLICT",
           "Durable Job enqueue conflicts with existing runtime state"
         );
+      }
+
+      if (
+        this.options.maxQueueDepth !== undefined
+        || this.options.maxCompanyQueueDepth !== undefined
+      ) {
+        await db.query(
+          "SELECT pg_advisory_xact_lock(hashtext($1))",
+          ["getdone:durable-job-queue:admission"]
+        );
+        const depth = await db.query<{
+          global_depth: string | number;
+          company_depth: string | number;
+        }>(
+          `SELECT
+             COUNT(*) FILTER (
+               WHERE runtime_state IN ('queued','retry-wait')
+             ) AS global_depth,
+             COUNT(*) FILTER (
+               WHERE runtime_state IN ('queued','retry-wait')
+                 AND envelope->'scope'->>'companyId'=$1
+             ) AS company_depth
+           FROM job_runtime_state`,
+          [envelope.scope.companyId]
+        );
+        const globalDepth = Number(depth.rows[0]?.global_depth ?? 0);
+        const companyDepth = Number(depth.rows[0]?.company_depth ?? 0);
+
+        if (
+          this.options.maxQueueDepth !== undefined
+          && globalDepth >= this.options.maxQueueDepth
+        ) {
+          throw new ControlPlaneError(
+            "UNAVAILABLE",
+            "Durable Job queue is saturated",
+            {
+              details: {
+                reason: "QUEUE_SATURATED",
+                scope: "global",
+                depth: globalDepth,
+                limit: this.options.maxQueueDepth,
+                retryable: true
+              }
+            }
+          );
+        }
+        if (
+          this.options.maxCompanyQueueDepth !== undefined
+          && companyDepth >= this.options.maxCompanyQueueDepth
+        ) {
+          throw new ControlPlaneError(
+            "UNAVAILABLE",
+            "Company durable Job queue is saturated",
+            {
+              details: {
+                reason: "QUEUE_SATURATED",
+                scope: "company",
+                companyId: envelope.scope.companyId,
+                depth: companyDepth,
+                limit: this.options.maxCompanyQueueDepth,
+                retryable: true
+              }
+            }
+          );
+        }
       }
 
       const expectedHash = sha256Hex({ jobId: envelope.jobId, state: "absent" });

@@ -36,6 +36,16 @@ export function getDurableJobEngineFromEnv(
       env.GETDONE_JOB_RECOVERY_DELAY_MS,
       1_000,
       "GETDONE_JOB_RECOVERY_DELAY_MS"
+    ),
+    maxQueueDepth: positiveInteger(
+      env.GETDONE_JOB_QUEUE_DEPTH_LIMIT,
+      1_000,
+      "GETDONE_JOB_QUEUE_DEPTH_LIMIT"
+    ),
+    maxCompanyQueueDepth: positiveInteger(
+      env.GETDONE_JOB_COMPANY_QUEUE_DEPTH_LIMIT,
+      250,
+      "GETDONE_JOB_COMPANY_QUEUE_DEPTH_LIMIT"
     )
   });
   assertProductionDurableJobStoreDescriptor(store.descriptor);
@@ -54,6 +64,11 @@ export function getDurableJobEngineFromEnv(
       "GETDONE_JOB_HEARTBEAT_SECONDS"
     ),
     batchSize: positiveInteger(env.GETDONE_JOB_BATCH_SIZE, 10, "GETDONE_JOB_BATCH_SIZE"),
+    concurrency: positiveInteger(
+      env.GETDONE_JOB_CONCURRENCY,
+      4,
+      "GETDONE_JOB_CONCURRENCY"
+    ),
     retryBaseDelayMs: positiveInteger(
       env.GETDONE_JOB_RETRY_BASE_DELAY_MS,
       1_000,

@@ -6,7 +6,7 @@ function required(name) {
   return value;
 }
 
-const requiredMigration = "2026-09-23.1";
+const requiredMigration = "2026-09-23.2";
 const maxBackupAgeHours = Number(process.env.GETDONE_BACKUP_MAX_AGE_HOURS || "24");
 if (!Number.isFinite(maxBackupAgeHours) || maxBackupAgeHours <= 0) {
   throw new Error("GETDONE_BACKUP_MAX_AGE_HOURS must be positive");
@@ -59,10 +59,20 @@ try {
   const constraints = await client.query(
     `SELECT indexname,indexdef FROM pg_indexes
      WHERE schemaname=current_schema()
-       AND tablename IN ('authorization_consumptions','job_leases','job_runtime_transactions')`
+       AND tablename IN (
+         'authorization_consumptions',
+         'job_leases',
+         'job_runtime_transactions',
+         'provider_concurrency_leases'
+       )`
   );
   const indexText = constraints.rows.map((row) => row.indexdef).join("\n");
-  for (const requiredFragment of ["authorization_consumptions", "job_leases", "job_runtime_transactions"]) {
+  for (const requiredFragment of [
+    "authorization_consumptions",
+    "job_leases",
+    "job_runtime_transactions",
+    "provider_concurrency_leases"
+  ]) {
     if (!indexText.includes(requiredFragment)) {
       throw new Error(`Concurrency/idempotency index verification missing: ${requiredFragment}`);
     }
@@ -158,11 +168,12 @@ try {
     `SELECT COUNT(*)::int AS count
      FROM unnest(ARRAY[
        'job_worker_instances',
-       'business_action_verification_evidence'
+       'business_action_verification_evidence',
+       'provider_concurrency_leases'
      ]::text[]) AS required(name)
      WHERE to_regclass(required.name) IS NOT NULL`
   );
-  if (workerSchema.rows[0]?.count !== 2) {
+  if (workerSchema.rows[0]?.count !== 3) {
     throw new Error("Durable worker persistence schema verification failed");
   }
 

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { ControlPlaneError } from "@/lib/control-plane/errors";
 import {
   createDurableJobLease,
   createJobQueueEnvelope,
@@ -229,6 +230,33 @@ describe("DurableJobWorker", () => {
     expect(store.attempt).toBe(1);
   });
 
+  it("retries PostgreSQL serialization conflicts with the same durable transition", async () => {
+    class SerializationConflictStore extends FakeWorkStore {
+      releaseAttempts = 0;
+
+      override async release(input: Parameters<FakeWorkStore["release"]>[0]) {
+        this.releaseAttempts += 1;
+        if (this.releaseAttempts === 1) {
+          throw new ControlPlaneError(
+            "CONFLICT",
+            "Concurrent PostgreSQL transaction conflicted; retry with the same idempotency key",
+            { details: { postgresCode: "40001" } }
+          );
+        }
+        return super.release(input);
+      }
+    }
+
+    const store = new SerializationConflictStore();
+    const results = await worker(store).runOnce({
+      execute: async () => ({ kind: "succeeded" })
+    });
+
+    expect(store.releaseAttempts).toBe(2);
+    expect(store.state).toBe("released");
+    expect(results).toEqual([{ jobId: "job-1", outcome: { kind: "succeeded" } }]);
+  });
+
   it("renews the lease when execution asks for a heartbeat", async () => {
     const store = new FakeWorkStore();
     const handler: DurableJobExecutionHandler = {
@@ -327,5 +355,12 @@ describe("DurableJobWorker", () => {
       leaseSeconds: 10,
       heartbeatSeconds: 10
     })).toThrow(/heartbeat interval/i);
+    expect(() => new DurableJobWorker(store, {
+      workerId: "worker",
+      leaseSeconds: 10,
+      heartbeatSeconds: 2,
+      batchSize: 2,
+      concurrency: 3
+    })).toThrow(/concurrency/i);
   });
 });

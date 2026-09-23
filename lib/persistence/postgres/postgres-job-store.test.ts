@@ -98,6 +98,43 @@ describe("PostgresDurableJobStore", () => {
       scheduledAt: "2026-09-21T04:00:00Z"
     });
     expect(store.descriptor.productionEligible).toBe(true);
+    expect(db.calls[0]).toContain("ROW_NUMBER() OVER");
+    expect(db.calls[0]).toContain("PARTITION BY envelope->'scope'->>'companyId'");
+  });
+
+  it("rejects queue admission when the global or company pending depth is saturated", async () => {
+    const globalDb = new ScriptedDb([
+      { rows: [] },
+      { rows: [] },
+      { rows: [{ global_depth: "5", company_depth: "1" }] }
+    ]);
+    await expect(new PostgresDurableJobStore(globalDb, {
+      maxQueueDepth: 5,
+      maxCompanyQueueDepth: 4
+    }).enqueue(envelope)).rejects.toMatchObject({
+      code: "UNAVAILABLE",
+      details: { reason: "QUEUE_SATURATED", scope: "global", limit: 5 }
+    });
+
+    const companyDb = new ScriptedDb([
+      { rows: [] },
+      { rows: [] },
+      { rows: [{ global_depth: "2", company_depth: "2" }] }
+    ]);
+    await expect(new PostgresDurableJobStore(companyDb, {
+      maxQueueDepth: 10,
+      maxCompanyQueueDepth: 2
+    }).enqueue(envelope)).rejects.toMatchObject({
+      code: "UNAVAILABLE",
+      details: { reason: "QUEUE_SATURATED", scope: "company", limit: 2 }
+    });
+  });
+
+  it("rejects a per-company queue ceiling that could consume the entire global queue", () => {
+    expect(() => new PostgresDurableJobStore(new ScriptedDb([]), {
+      maxQueueDepth: 10,
+      maxCompanyQueueDepth: 10
+    })).toThrow(/company queue depth limit must be lower/i);
   });
 
   it("enqueues a new durable Job and persists transaction lineage", async () => {

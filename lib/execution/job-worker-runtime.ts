@@ -34,6 +34,7 @@ export interface DurableJobWorkerConfig {
   leaseSeconds?: number;
   heartbeatSeconds?: number;
   batchSize?: number;
+  concurrency?: number;
   retryBaseDelayMs?: number;
   maxAttempts?: number;
 }
@@ -42,6 +43,7 @@ export class DurableJobWorker {
   private readonly leaseSeconds: number;
   private readonly heartbeatSeconds: number;
   private readonly batchSize: number;
+  private readonly concurrency: number;
   private readonly retryBaseDelayMs: number;
   private readonly maxAttempts: number;
 
@@ -56,6 +58,7 @@ export class DurableJobWorker {
     this.leaseSeconds = config.leaseSeconds ?? 60;
     this.heartbeatSeconds = config.heartbeatSeconds ?? 20;
     this.batchSize = config.batchSize ?? 10;
+    this.concurrency = config.concurrency ?? 1;
     this.retryBaseDelayMs = config.retryBaseDelayMs ?? 1_000;
     this.maxAttempts = config.maxAttempts ?? 5;
     if (
@@ -65,6 +68,9 @@ export class DurableJobWorker {
       || this.heartbeatSeconds < 1
       || !Number.isInteger(this.batchSize)
       || this.batchSize < 1
+      || !Number.isInteger(this.concurrency)
+      || this.concurrency < 1
+      || this.concurrency > this.batchSize
       || !Number.isInteger(this.maxAttempts)
       || this.maxAttempts < 1
       || !Number.isFinite(this.retryBaseDelayMs)
@@ -72,7 +78,7 @@ export class DurableJobWorker {
     ) {
       throw new ControlPlaneError(
         "VALIDATION_FAILED",
-        "Durable Job worker timing, batch size, and retry limits are invalid"
+        "Durable Job worker timing, batch size, concurrency, and retry limits are invalid"
       );
     }
     if (this.heartbeatSeconds >= this.leaseSeconds) {
@@ -89,13 +95,27 @@ export class DurableJobWorker {
   ) {
     const at = this.now().toISOString();
     const candidates = await this.store.listReady({ now: at, limit: this.batchSize });
-    const results: Array<{ jobId: string; outcome: JobExecutionOutcome }> = [];
-    for (const candidate of candidates) {
-      if (options.shouldStop?.()) break;
-      const result = await this.runCandidate(candidate, handler);
-      if (result) results.push(result);
-    }
-    return results;
+    const results = new Array<{ jobId: string; outcome: JobExecutionOutcome } | null>(
+      candidates.length
+    ).fill(null);
+    let nextIndex = 0;
+
+    const runLane = async () => {
+      while (true) {
+        if (options.shouldStop?.()) return;
+        const index = nextIndex;
+        nextIndex += 1;
+        if (index >= candidates.length) return;
+        const result = await this.runCandidate(candidates[index], handler);
+        if (result) results[index] = result;
+      }
+    };
+
+    const lanes = Math.min(this.concurrency, candidates.length);
+    await Promise.all(Array.from({ length: lanes }, () => runLane()));
+    return results.filter(
+      (result): result is { jobId: string; outcome: JobExecutionOutcome } => result !== null
+    );
   }
 
   async recoverExpired(limit = this.batchSize) {
@@ -108,14 +128,36 @@ export class DurableJobWorker {
   async cancel(jobId: string, reason: string) {
     const snapshot = await this.store.getRuntimeSnapshot(jobId);
     if (!snapshot) throw new ControlPlaneError("NOT_FOUND", "Durable Job runtime state was not found");
-    return this.store.cancel({
+    return this.retrySerializableConflict(() => this.store.cancel({
       jobId,
       reason,
       cancelledAt: this.now().toISOString(),
       expectedJobVersion: snapshot.version,
       expectedJobHash: snapshot.stateHash,
       idempotencyKey: `cancel:${jobId}:${snapshot.version}`
-    });
+    }));
+  }
+
+  private async retrySerializableConflict<T>(
+    operation: () => Promise<T>,
+    maxAttempts = 4
+  ): Promise<T> {
+    let attempt = 0;
+    while (true) {
+      try {
+        return await operation();
+      } catch (error) {
+        attempt += 1;
+        const postgresCode = error instanceof ControlPlaneError
+          ? error.details?.postgresCode
+          : undefined;
+        const retryable = error instanceof ControlPlaneError
+          && error.code === "CONFLICT"
+          && (postgresCode === "40001" || postgresCode === "40P01");
+        if (!retryable || attempt >= maxAttempts) throw error;
+        await new Promise((resolve) => setTimeout(resolve, attempt * 5));
+      }
+    }
   }
 
   private async runCandidate(
@@ -124,7 +166,7 @@ export class DurableJobWorker {
   ) {
     let claim;
     try {
-      claim = await this.store.claimAtomic({
+      claim = await this.retrySerializableConflict(() => this.store.claimAtomic({
         jobId: candidate.envelope.jobId,
         workerId: this.config.workerId,
         now: this.now().toISOString(),
@@ -132,7 +174,7 @@ export class DurableJobWorker {
         expectedJobVersion: candidate.version,
         expectedJobHash: candidate.stateHash,
         idempotencyKey: `claim:${candidate.envelope.jobId}:${candidate.version}:${this.config.workerId}`
-      });
+      }));
     } catch (error) {
       if (error instanceof ControlPlaneError && error.code === "CONFLICT") {
         return null;
@@ -152,14 +194,14 @@ export class DurableJobWorker {
       if (stopped || heartbeatBusy) return;
       heartbeatBusy = true;
       try {
-        const renewed = await this.store.heartbeat({
+        const renewed = await this.retrySerializableConflict(() => this.store.heartbeat({
           lease,
           now: this.now().toISOString(),
           extendSeconds: this.leaseSeconds,
           expectedJobVersion: version,
           expectedJobHash: stateHash,
           idempotencyKey: `heartbeat:${lease.id}:${lease.version}`
-        });
+        }));
         lease = renewed.lease;
         version = renewed.transaction.nextVersion;
         stateHash = renewed.transaction.nextHash;
@@ -211,23 +253,24 @@ export class DurableJobWorker {
     }
 
     if (outcome.kind === "succeeded") {
-      const receipt = await this.store.release({
+      const receipt = await this.retrySerializableConflict(() => this.store.release({
         lease,
         now: this.now().toISOString(),
         expectedJobVersion: version,
         expectedJobHash: stateHash,
         idempotencyKey: `release:${lease.id}:${lease.version}`
-      });
+      }));
       latestTransaction = receipt;
     } else if (outcome.kind === "cancelled") {
-      const receipt = await this.store.cancel({
+      const cancellationReason = outcome.reason;
+      const receipt = await this.retrySerializableConflict(() => this.store.cancel({
         jobId: candidate.envelope.jobId,
-        reason: outcome.reason,
+        reason: cancellationReason,
         cancelledAt: this.now().toISOString(),
         expectedJobVersion: version,
         expectedJobHash: stateHash,
         idempotencyKey: `cancel:${candidate.envelope.jobId}:${version}`
-      });
+      }));
       latestTransaction = receipt;
     } else if (outcome.kind === "dead-letter") {
       const record = createDeadLetterRecord({
@@ -239,7 +282,7 @@ export class DurableJobWorker {
         sourceEnvelopeHash: candidate.envelope.envelopeHash,
         transactionHash: latestTransaction.transactionHash
       });
-      latestTransaction = await this.store.deadLetter(record);
+      latestTransaction = await this.retrySerializableConflict(() => this.store.deadLetter(record));
     } else if (lease.attempt >= this.maxAttempts) {
       const record = createDeadLetterRecord({
         id: crypto.randomUUID(),
@@ -250,7 +293,7 @@ export class DurableJobWorker {
         sourceEnvelopeHash: candidate.envelope.envelopeHash,
         transactionHash: latestTransaction.transactionHash
       });
-      latestTransaction = await this.store.deadLetter(record);
+      latestTransaction = await this.retrySerializableConflict(() => this.store.deadLetter(record));
       outcome = { kind: "dead-letter", reason: record.reason };
     } else {
       const delay = outcome.delayMs ?? this.retryBaseDelayMs * 2 ** Math.max(0, lease.attempt - 1);
@@ -263,7 +306,7 @@ export class DurableJobWorker {
         sourceEnvelopeHash: candidate.envelope.envelopeHash,
         transactionHash: latestTransaction.transactionHash
       });
-      latestTransaction = await this.store.scheduleRetry(record);
+      latestTransaction = await this.retrySerializableConflict(() => this.store.scheduleRetry(record));
     }
 
     return { jobId: candidate.envelope.jobId, outcome };
