@@ -2,7 +2,7 @@ import type { ZodType } from "zod";
 import type { TrustedExecutionScope } from "@/lib/control-plane/trusted-execution-scope";
 import type { ResourceDataClass } from "@/lib/resources/policy";
 
-export const AI_GATEWAY_CONTRACT_VERSION = "1.2.0";
+export const AI_GATEWAY_CONTRACT_VERSION = "1.3.0";
 export const AI_ROUTING_POLICY_CONTRACT_VERSION = "1.0.0";
 
 export type AIRole =
