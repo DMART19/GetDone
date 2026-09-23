@@ -96,10 +96,13 @@ describe("PersistentJobWorkerService", () => {
 
   it("backs off after transient runtime failure and can stop cleanly", async () => {
     let calls = 0;
+    let secondCycle!: () => void;
+    const secondCycleReached = new Promise<void>((resolve) => { secondCycle = resolve; });
     const runtime = {
       recoverExpired: async () => {
         calls += 1;
         if (calls === 1) throw new Error("temporary database outage");
+        secondCycle();
         return [];
       },
       runOnce: async () => []
@@ -119,15 +122,65 @@ describe("PersistentJobWorkerService", () => {
       () => new Date("2026-09-22T07:00:00.000Z"),
       async (milliseconds) => {
         sleeps.push(milliseconds);
-        if (calls >= 2) await service.stop();
       }
     );
 
     await service.start();
+    await secondCycleReached;
+    service.requestStop();
+    await service.stop();
+
     expect(calls).toBeGreaterThanOrEqual(2);
     expect(sleeps).toContain(11);
-    expect(service.snapshot().stopped).toBe(true);
+    expect(service.snapshot()).toMatchObject({
+      draining: false,
+      stopped: true,
+      status: "stopped"
+    });
     expect(instances.records.some((record) => record.status === "degraded")).toBe(true);
     expect(instances.records.at(-1)?.status).toBe("stopped");
+  });
+
+  it("waits for the active cycle to settle after drain is requested", async () => {
+    let releaseActive!: () => void;
+    let activeStarted!: () => void;
+    const active = new Promise<void>((resolve) => { releaseActive = resolve; });
+    const started = new Promise<void>((resolve) => { activeStarted = resolve; });
+    let observedStop = false;
+
+    const service = new PersistentJobWorkerService(
+      {
+        recoverExpired: async () => [],
+        runOnce: async (options: { shouldStop?: () => boolean }) => {
+          activeStarted();
+          await active;
+          observedStop = options.shouldStop?.() === true;
+          return [];
+        }
+      } as never,
+      new MemoryWorkerInstanceStore() as never,
+      {
+        workerId: "worker-drain",
+        pollIntervalMs: 100,
+        errorBackoffMs: 100,
+        recoveryLimit: 2
+      }
+    );
+
+    await service.start();
+    await started;
+    service.requestStop();
+    const stopping = service.stop();
+
+    expect(service.snapshot().draining).toBe(true);
+    let settled = false;
+    void stopping.then(() => { settled = true; });
+    await Promise.resolve();
+    expect(settled).toBe(false);
+
+    releaseActive();
+    await stopping;
+    expect(observedStop).toBe(true);
+    expect(service.snapshot().stopped).toBe(true);
   });
 });
