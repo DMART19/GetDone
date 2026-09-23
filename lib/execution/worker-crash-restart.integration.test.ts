@@ -231,7 +231,10 @@ async function waitFor(
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     if (await predicate()) return;
-    if (worker?.child.exitCode !== null || worker?.child.signalCode !== null) {
+    if (
+      worker
+      && (worker.child.exitCode !== null || worker.child.signalCode !== null)
+    ) {
       const result = await worker.done;
       throw new Error(
         `Worker exited before ${label}: code=${result.code} signal=${result.signal}\n${worker.output()}`
