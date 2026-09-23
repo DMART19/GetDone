@@ -277,7 +277,7 @@ const softwareWorkerRuntime = read("lib/execution/software-worker-runtime.ts");
 const jobExecutionRouter = read("lib/execution/job-execution-router.ts");
 
 for (const required of [
-  'POSTGRES_PERSISTENCE_VERSION = "1.0.0"',
+  'POSTGRES_PERSISTENCE_VERSION = "1.1.0"',
   "BEGIN ISOLATION LEVEL SERIALIZABLE",
   "DATABASE_URL is required for PostgreSQL persistence",
   "PostgresTransactionalDatabase"
