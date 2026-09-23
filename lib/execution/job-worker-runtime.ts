@@ -34,6 +34,7 @@ export interface DurableJobWorkerConfig {
   leaseSeconds?: number;
   heartbeatSeconds?: number;
   batchSize?: number;
+  concurrency?: number;
   retryBaseDelayMs?: number;
   maxAttempts?: number;
 }
@@ -42,6 +43,7 @@ export class DurableJobWorker {
   private readonly leaseSeconds: number;
   private readonly heartbeatSeconds: number;
   private readonly batchSize: number;
+  private readonly concurrency: number;
   private readonly retryBaseDelayMs: number;
   private readonly maxAttempts: number;
 
@@ -56,6 +58,7 @@ export class DurableJobWorker {
     this.leaseSeconds = config.leaseSeconds ?? 60;
     this.heartbeatSeconds = config.heartbeatSeconds ?? 20;
     this.batchSize = config.batchSize ?? 10;
+    this.concurrency = config.concurrency ?? 1;
     this.retryBaseDelayMs = config.retryBaseDelayMs ?? 1_000;
     this.maxAttempts = config.maxAttempts ?? 5;
     if (
@@ -65,6 +68,9 @@ export class DurableJobWorker {
       || this.heartbeatSeconds < 1
       || !Number.isInteger(this.batchSize)
       || this.batchSize < 1
+      || !Number.isInteger(this.concurrency)
+      || this.concurrency < 1
+      || this.concurrency > this.batchSize
       || !Number.isInteger(this.maxAttempts)
       || this.maxAttempts < 1
       || !Number.isFinite(this.retryBaseDelayMs)
@@ -72,7 +78,7 @@ export class DurableJobWorker {
     ) {
       throw new ControlPlaneError(
         "VALIDATION_FAILED",
-        "Durable Job worker timing, batch size, and retry limits are invalid"
+        "Durable Job worker timing, batch size, concurrency, and retry limits are invalid"
       );
     }
     if (this.heartbeatSeconds >= this.leaseSeconds) {
@@ -89,13 +95,27 @@ export class DurableJobWorker {
   ) {
     const at = this.now().toISOString();
     const candidates = await this.store.listReady({ now: at, limit: this.batchSize });
-    const results: Array<{ jobId: string; outcome: JobExecutionOutcome }> = [];
-    for (const candidate of candidates) {
-      if (options.shouldStop?.()) break;
-      const result = await this.runCandidate(candidate, handler);
-      if (result) results.push(result);
-    }
-    return results;
+    const results = new Array<{ jobId: string; outcome: JobExecutionOutcome } | null>(
+      candidates.length
+    ).fill(null);
+    let nextIndex = 0;
+
+    const runLane = async () => {
+      while (true) {
+        if (options.shouldStop?.()) return;
+        const index = nextIndex;
+        nextIndex += 1;
+        if (index >= candidates.length) return;
+        const result = await this.runCandidate(candidates[index], handler);
+        if (result) results[index] = result;
+      }
+    };
+
+    const lanes = Math.min(this.concurrency, candidates.length);
+    await Promise.all(Array.from({ length: lanes }, () => runLane()));
+    return results.filter(
+      (result): result is { jobId: string; outcome: JobExecutionOutcome } => result !== null
+    );
   }
 
   async recoverExpired(limit = this.batchSize) {
