@@ -18,7 +18,17 @@ export interface PostgresConnectionConfig {
   connectionString: string;
   maxConnections?: number;
   statementTimeoutMs?: number;
+  connectionTimeoutMs?: number;
   ssl?: boolean;
+}
+
+function positiveInteger(value: string | undefined, fallback: number, label: string) {
+  if (value === undefined || value.trim() === "") return fallback;
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    throw new ControlPlaneError("VALIDATION_FAILED", `${label} must be a positive integer`);
+  }
+  return parsed;
 }
 
 export function readPostgresConfigFromEnv(
@@ -28,16 +38,30 @@ export function readPostgresConfigFromEnv(
   if (!connectionString) {
     throw new ControlPlaneError("UNAVAILABLE", "DATABASE_URL is required for PostgreSQL persistence");
   }
-  const url = new URL(connectionString);
+
+  let url: URL;
+  try {
+    url = new URL(connectionString);
+  } catch {
+    throw new ControlPlaneError("VALIDATION_FAILED", "DATABASE_URL must be a valid PostgreSQL URL");
+  }
   if (url.protocol !== "postgres:" && url.protocol !== "postgresql:") {
     throw new ControlPlaneError("VALIDATION_FAILED", "DATABASE_URL must use postgres:// or postgresql://");
   }
+
   return {
     connectionString,
-    maxConnections: env.GETDONE_DB_POOL_MAX ? Number(env.GETDONE_DB_POOL_MAX) : 10,
-    statementTimeoutMs: env.GETDONE_DB_STATEMENT_TIMEOUT_MS
-      ? Number(env.GETDONE_DB_STATEMENT_TIMEOUT_MS)
-      : 15_000,
+    maxConnections: positiveInteger(env.GETDONE_DB_POOL_MAX, 10, "GETDONE_DB_POOL_MAX"),
+    statementTimeoutMs: positiveInteger(
+      env.GETDONE_DB_STATEMENT_TIMEOUT_MS,
+      15_000,
+      "GETDONE_DB_STATEMENT_TIMEOUT_MS"
+    ),
+    connectionTimeoutMs: positiveInteger(
+      env.GETDONE_DB_CONNECTION_TIMEOUT_MS,
+      5_000,
+      "GETDONE_DB_CONNECTION_TIMEOUT_MS"
+    ),
     ssl: env.GETDONE_DB_SSL !== "false"
   };
 }
@@ -50,6 +74,7 @@ export class PostgresDatabase implements PostgresTransactionalDatabase {
       connectionString: config.connectionString,
       max: config.maxConnections ?? 10,
       statement_timeout: config.statementTimeoutMs ?? 15_000,
+      connectionTimeoutMillis: config.connectionTimeoutMs ?? 5_000,
       application_name: "getdone-control-plane",
       ssl: config.ssl === false ? false : { rejectUnauthorized: true }
     };
@@ -98,6 +123,23 @@ export class PostgresDatabase implements PostgresTransactionalDatabase {
           { details: { postgresCode: code } }
         );
       }
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async serializableTransactionIsolation() {
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN ISOLATION LEVEL SERIALIZABLE READ ONLY");
+      const result = await client.query<{ transaction_isolation: string }>(
+        "SHOW transaction_isolation"
+      );
+      await client.query("ROLLBACK");
+      return result.rows[0]?.transaction_isolation;
+    } catch (error) {
+      try { await client.query("ROLLBACK"); } catch {}
       throw error;
     } finally {
       client.release();
