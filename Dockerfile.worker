@@ -1,16 +1,35 @@
-FROM node:24-bookworm-slim
+FROM node:24-bookworm-slim AS build
 
 WORKDIR /app
 
 COPY package.json package-lock.json ./
 RUN npm ci --ignore-scripts --no-audit --no-fund
 
-COPY . .
-RUN npm run build
+COPY tsconfig.json tsconfig.worker.json next-env.d.ts ./
+COPY lib ./lib
+COPY scripts/register-worker-alias.cjs ./scripts/register-worker-alias.cjs
+RUN npm run build:worker
+RUN npm prune --omit=dev
+
+FROM node:24-bookworm-slim AS runtime
+
+WORKDIR /app
 
 ENV NODE_ENV=production
 ENV GETDONE_PROCESS_ROLE=job-worker
+ENV GETDONE_JOB_WORKER_HEALTH_HOST=0.0.0.0
+ENV GETDONE_JOB_WORKER_HEALTH_PORT=3001
 
-EXPOSE 3000
+COPY --from=build /app/package.json /app/package-lock.json ./
+COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/dist-worker ./dist-worker
+COPY --from=build /app/scripts/register-worker-alias.cjs ./scripts/register-worker-alias.cjs
+COPY scripts/verify-production-runtime.mjs scripts/verify-postgres-production.mjs ./scripts/
+COPY release ./release
 
-CMD ["npm","run","start"]
+EXPOSE 3001
+
+HEALTHCHECK --interval=10s --timeout=3s --start-period=20s --retries=3 \
+  CMD ["node","-e","fetch('http://127.0.0.1:3001/readyz').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+
+CMD ["npm","run","start:worker"]
