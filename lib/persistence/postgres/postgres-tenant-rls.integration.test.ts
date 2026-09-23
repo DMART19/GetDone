@@ -1,6 +1,8 @@
 import { spawnSync } from "node:child_process";
 import { Pool, type PoolClient, type QueryResult } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { PostgresDatabase } from "@/lib/persistence/postgres/client";
+import { runWithPostgresTenantScope } from "@/lib/persistence/postgres/tenant-context.server";
 
 const enabled = process.env.GETDONE_POSTGRES_INTEGRATION === "true";
 const integrationDescribe = enabled ? describe.sequential : describe.skip;
@@ -346,6 +348,41 @@ integrationDescribe("PostgreSQL tenant RLS", () => {
        WHERE id IN ('decision-b','job-b','resource-b')`
     );
     expect(preserved.rows[0]?.count).toBe(3);
+  });
+
+  it("does not leak tenant scope or runtime role state across pooled application queries", async () => {
+    const db = new PostgresDatabase({
+      connectionString,
+      maxConnections: 1,
+      statementTimeoutMs: 2_000,
+      connectionTimeoutMs: 1_000,
+      runtimeRole: "getdone_tenant_runtime",
+      ssl: process.env.GETDONE_DB_SSL !== "false"
+    });
+    try {
+      const tenantA = await runWithPostgresTenantScope(
+        { portfolioId: "portfolio-a", companyId: "company-a" },
+        () => db.query<{ id: string }>(
+          "SELECT id FROM control_plane_entities WHERE entity_type='decision' ORDER BY id"
+        )
+      );
+      expect(tenantA.rows.map((row) => row.id)).toEqual(["decision-a"]);
+
+      const unscoped = await db.query<{ id: string }>(
+        "SELECT id FROM control_plane_entities WHERE entity_type='decision' ORDER BY id"
+      );
+      expect(unscoped.rows).toEqual([]);
+
+      const tenantB = await runWithPostgresTenantScope(
+        { portfolioId: "portfolio-b", companyId: "company-b" },
+        () => db.query<{ id: string }>(
+          "SELECT id FROM control_plane_entities WHERE entity_type='decision' ORDER BY id"
+        )
+      );
+      expect(tenantB.rows.map((row) => row.id)).toEqual(["decision-b"]);
+    } finally {
+      await db.close();
+    }
   });
 
   it("fails closed when the tenant runtime role has no tenant scope", async () => {
