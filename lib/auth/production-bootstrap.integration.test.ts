@@ -113,7 +113,7 @@ integrationDescribe("production bootstrap command", () => {
     if (pool) await pool.end();
     if (adminPool) {
       await adminPool.query(
-        `DROP DATABASE IF EXISTS ${quoteIdentifier(databaseName)} WITH (FORCE)`
+        `DROP DATABASE IF EXISTS ${quoteIdentifier(databaseName)}`
       );
       await adminPool.end();
     }
