@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { AlertTriangle, ChevronRight } from "lucide-react";
 import { useEffect, useState } from "react";
-import type { DeadLetterSummary } from "@/lib/execution/dead-letter-operator-contracts";
+import type { DeadLetterSummary } from "@/lib/control-api/dead-letter-contracts";
 
 type Envelope<T> =
   | { ok: true; data: T }
