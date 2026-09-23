@@ -381,8 +381,8 @@ describe("ServiceBackedControlApiAdapter", () => {
       scopes: { resolve: async () => ({ scope, role: "viewer" as const }) }
     }).instance;
     const viewerPrincipal = await viewer.authenticate(new Request("http://localhost"));
-    await expect(viewer.getAIGatewayHealth(viewerPrincipal))
-      .rejects.toThrow(/elevated Control API role/i);
+    expect(() => viewer.getAIGatewayHealth(viewerPrincipal))
+      .toThrow(/elevated Control API role/i);
   });
 
   it("exposes health and scoped list/read seams without embedding persistence", async () => {
