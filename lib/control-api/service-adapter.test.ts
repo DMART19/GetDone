@@ -205,9 +205,28 @@ function adapter(overrides: Partial<ConstructorParameters<typeof ServiceBackedCo
       listByScope: async () => [],
       get: async () => null
     },
+    aiGatewayHealth: async () => ({
+      configured: true,
+      routingPolicyVersion: "policy-1",
+      lastSuccessfulCanaryAt: null,
+      primaryAvailability: "available",
+      fallbackAvailability: "available",
+      recentErrorClass: null,
+      budget: {
+        state: "unavailable",
+        period: null,
+        companyRemainingCents: null,
+        portfolioRemainingCents: null,
+        activeConcurrentCalls: null,
+        concurrencyLimit: null,
+        snapshotAt: null,
+        expiresAt: null
+      },
+      checkedAt: "2026-09-21T04:00:00Z"
+    }),
     health: async () => ({
       service: "getdone-control-api",
-      surfaceVersion: "1.1.0",
+      surfaceVersion: "1.2.0",
       status: "ready",
       authConnected: true,
       persistenceConnected: true,
@@ -340,6 +359,30 @@ describe("ServiceBackedControlApiAdapter", () => {
       verificationReceiptId: "receipt-1"
     });
     expect(await instance.getJobResult(principal, "missing")).toBeNull();
+  });
+
+  it("allows owner/admin AI Gateway health reads and denies viewer access", async () => {
+    const owner = adapter().instance;
+    const ownerPrincipal = await owner.authenticate(new Request("http://localhost"));
+    await expect(owner.getAIGatewayHealth(ownerPrincipal)).resolves.toMatchObject({
+      configured: true,
+      routingPolicyVersion: "policy-1"
+    });
+
+    const admin = adapter({
+      scopes: { resolve: async () => ({ scope, role: "admin" as const }) }
+    }).instance;
+    const adminPrincipal = await admin.authenticate(new Request("http://localhost"));
+    await expect(admin.getAIGatewayHealth(adminPrincipal)).resolves.toMatchObject({
+      primaryAvailability: "available"
+    });
+
+    const viewer = adapter({
+      scopes: { resolve: async () => ({ scope, role: "viewer" as const }) }
+    }).instance;
+    const viewerPrincipal = await viewer.authenticate(new Request("http://localhost"));
+    await expect(viewer.getAIGatewayHealth(viewerPrincipal))
+      .rejects.toThrow(/elevated Control API role/i);
   });
 
   it("exposes health and scoped list/read seams without embedding persistence", async () => {
