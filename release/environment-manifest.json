@@ -93,8 +93,8 @@
         "engine": "postgresql",
         "minimumEngineVersion": "16",
         "adapterStatus": "implemented-unconnected",
-        "migrationVersion": "2026-09-23.1",
-        "schemaVersion": "1.4.0"
+        "migrationVersion": "2026-09-23.2",
+        "schemaVersion": "1.5.0"
       },
       "nodeAgent": {
         "status": "implemented-development-only",
@@ -218,8 +218,8 @@
         "engine": "postgresql",
         "minimumEngineVersion": "16",
         "adapterStatus": "implemented-unconnected",
-        "migrationVersion": "2026-09-23.1",
-        "schemaVersion": "1.4.0"
+        "migrationVersion": "2026-09-23.2",
+        "schemaVersion": "1.5.0"
       },
       "nodeAgent": {
         "status": "implemented-development-only",
@@ -343,8 +343,8 @@
         "engine": "postgresql",
         "minimumEngineVersion": "16",
         "adapterStatus": "implemented-unconnected",
-        "migrationVersion": "2026-09-23.1",
-        "schemaVersion": "1.4.0"
+        "migrationVersion": "2026-09-23.2",
+        "schemaVersion": "1.5.0"
       },
       "nodeAgent": {
         "status": "implemented-development-only",
@@ -392,6 +392,7 @@
     "PostgreSQL 16+ production persistence adapters, the durable Job Store/worker, business-action orchestrator, software-worker runtime, and durable execution router are implemented; no production DATABASE_URL, business provider adapter, or software deployment executor is connected.",
     "Authoritative PostgreSQL migrations and adapters exist for entity transactions, idempotency, audit, authorization grants/consumption, verification receipts, Job bridge facts, reservations, execution specs, and runtime state; connection flags remain false until deployed against an actual database.",
     "Phase 28.4 implements Linux x86-64/ARM64 capability detection and validation, full-profile capability reconciliation with removal/downgrade handling, the authenticated capability API surface, and a deterministic bridge into the existing Phase 5 Capability Registry. Production Node Agent transport and authoritative Resource Registry capability-binding persistence remain unconnected.",
-    "A dedicated persistent Job worker process role, PG-backed worker heartbeat, lease recovery loop, authority re-read, provider-resume semantics, and failure acceptance harness are implemented; no deployed staging/production worker service is connected yet."
+    "A dedicated persistent Job worker process role, PG-backed worker heartbeat, lease recovery loop, authority re-read, provider-resume semantics, and failure acceptance harness are implemented; no deployed staging/production worker service is connected yet.",
+    "The owner-safe AI Gateway health endpoint is implemented with redacted routing availability, persisted canary evidence, scoped recent error class, and durable budget-health snapshots; connection flags remain false until deployed/live acceptance evidence exists."
   ]
 }
