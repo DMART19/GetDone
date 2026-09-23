@@ -73,6 +73,8 @@ describe("ordinary integration framework coverage", () => {
     expect(() => resolveCredentialReference("env:MISSING", {})).toThrow(/unavailable/i);
     expect(assertProviderOperationId(" operation-1 ")).toBe("operation-1");
     expect(() => assertProviderOperationId("\u0001")).toThrow(/malformed/i);
+    expect(() => assertProviderOperationId("../../escape?target=https://attacker.invalid")).toThrow(/malformed/i);
+    expect(() => assertProviderOperationId("provider/id")).toThrow(/malformed/i);
 
     const input = { companyId: "company-a", operation: "notify", payload: {} };
     const valid = request("webhook.send", input);
