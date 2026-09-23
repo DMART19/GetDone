@@ -61,7 +61,7 @@ function cleanEnvironment() {
   );
 }
 
-function baseEnv(): NodeJS.ProcessEnv {
+function baseEnv(): Record<string, string | undefined> {
   return {
     ...cleanEnvironment(),
     NODE_ENV: "production",
@@ -96,7 +96,7 @@ function baseEnv(): NodeJS.ProcessEnv {
   };
 }
 
-function run(overrides: NodeJS.ProcessEnv) {
+function run(overrides: Record<string, string | undefined>) {
   return spawnSync(process.execPath, [verifier], {
     cwd: root,
     env: { ...baseEnv(), ...overrides },
