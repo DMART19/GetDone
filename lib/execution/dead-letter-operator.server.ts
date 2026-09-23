@@ -350,6 +350,10 @@ export class DeadLetterOperatorService {
       throw new ControlPlaneError("CONFLICT", "Job is not in dead-letter operator state");
     }
 
+    if (input.action === "retry") {
+      await this.assertRedriveEligible(principal, view, input);
+    }
+
     const guardKey = input.action === "retry"
       ? "dead-letter-redrive:" + sha256Hex({
           portfolioId: principal.scope.portfolioId,
@@ -452,6 +456,65 @@ export class DeadLetterOperatorService {
       });
     }
     return this.result("cancel", view.jobId, this.now().toISOString());
+  }
+
+  private async assertRedriveEligible(
+    principal: ControlApiPrincipal,
+    sourceView: DeadLetterOperatorView,
+    input: Extract<DeadLetterOperatorAction, { action: "retry" }>
+  ) {
+    if (input.replacementJobId === sourceView.jobId) {
+      throw new ControlPlaneError("FORBIDDEN", "Dead-letter redrive requires a different replacement Job");
+    }
+    const [sourceJob, replacementJob, sourceSpec] = await Promise.all([
+      this.jobs.get(sourceView.jobId),
+      this.jobs.get(input.replacementJobId),
+      this.specs.get(sourceView.jobId)
+    ]);
+    if (!sourceJob || !replacementJob || !sourceSpec) {
+      throw new ControlPlaneError("NOT_FOUND", "Source or replacement authoritative lineage was not found");
+    }
+    if (sourceSpec.spec.kind !== "business-action") {
+      throw new ControlPlaneError(
+        "POLICY_BLOCKED",
+        "Automatic dead-letter redrive is limited to governed business actions; create a newly authorized plan for this Job kind"
+      );
+    }
+    if (
+      replacementJob.portfolioId !== principal.scope.portfolioId
+      || replacementJob.companyId !== principal.scope.companyId
+      || replacementJob.state !== "queued"
+      || !replacementJob.authorizationGrantId
+      || !replacementJob.authorizationGrantHash
+      || !replacementJob.authorizationConsumption
+      || replacementJob.authorizationConsumption.consumerType !== "task"
+      || replacementJob.authorizationConsumption.consumerId !== replacementJob.taskId
+      || replacementJob.authorizationConsumption.grantId !== replacementJob.authorizationGrantId
+      || replacementJob.authorizationConsumption.grantHash !== replacementJob.authorizationGrantHash
+    ) {
+      throw new ControlPlaneError(
+        "FORBIDDEN",
+        "Replacement Job must be a queued authoritative Job with intact Task authorization lineage in the same tenant"
+      );
+    }
+    const replacementScope = replacementJob.authorizationConsumption.scope;
+    if (
+      replacementScope.portfolioId !== principal.scope.portfolioId
+      || replacementScope.companyId !== principal.scope.companyId
+      || replacementScope.environment !== principal.scope.environment
+    ) {
+      throw new ControlPlaneError("FORBIDDEN", "Replacement authorization scope does not match the operator scope");
+    }
+    if (
+      sourceJob.authorizationGrantHash === replacementJob.authorizationGrantHash
+      && sourceJob.authorizationConsumption?.consumptionHash
+        === replacementJob.authorizationConsumption.consumptionHash
+    ) {
+      throw new ControlPlaneError(
+        "FORBIDDEN",
+        "Dead-letter redrive requires fresh authorization lineage, not the source Job grant/consumption"
+      );
+    }
   }
 
   private async redrive(
