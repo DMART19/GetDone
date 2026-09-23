@@ -20,7 +20,8 @@ export default defineConfig({
         "lib/**/test-fixture.ts",
         "lib/**/test-security-fixture.ts",
         "lib/mock-data.ts",
-        "lib/**/development-mock-*.ts"
+        "lib/**/development-mock-*.ts",
+        "lib/execution/worker-crash-acceptance-child.ts"
       ],
       thresholds: {
         statements: 80,
