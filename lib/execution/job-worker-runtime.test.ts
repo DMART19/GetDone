@@ -327,5 +327,12 @@ describe("DurableJobWorker", () => {
       leaseSeconds: 10,
       heartbeatSeconds: 10
     })).toThrow(/heartbeat interval/i);
+    expect(() => new DurableJobWorker(store, {
+      workerId: "worker",
+      leaseSeconds: 10,
+      heartbeatSeconds: 2,
+      batchSize: 2,
+      concurrency: 3
+    })).toThrow(/concurrency/i);
   });
 });
