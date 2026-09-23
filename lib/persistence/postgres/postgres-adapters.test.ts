@@ -45,13 +45,19 @@ describe("PostgreSQL production persistence adapters", () => {
       DATABASE_URL: "postgresql://user:pass@db.example.com/getdone",
       GETDONE_DB_POOL_MAX: "12",
       GETDONE_DB_STATEMENT_TIMEOUT_MS: "9000",
+      GETDONE_DB_CONNECTION_TIMEOUT_MS: "2500",
       GETDONE_DB_SSL: "true"
     });
     expect(config).toMatchObject({
       maxConnections: 12,
       statementTimeoutMs: 9000,
+      connectionTimeoutMs: 2500,
       ssl: true
     });
+    expect(() => readPostgresConfigFromEnv({
+      DATABASE_URL: "postgresql://user:pass@db.example.com/getdone",
+      GETDONE_DB_CONNECTION_TIMEOUT_MS: "0"
+    })).toThrow(/positive integer/);
   });
 
   it("defines the required atomic persistence constraints in the migration", () => {
