@@ -251,7 +251,7 @@ integrationDescribe("production bootstrap command", () => {
 
   it("fails safely on conflicting existing tenant identity instead of rebinding it", async () => {
     await pool.query(
-      "UPDATE companies SET organization_id='other-org' WHERE id='company-prod'"
+      "UPDATE companies SET name='Drifted Company Name' WHERE id='company-prod'"
     );
 
     const beforePolicy = await pool.query<{ payload: unknown }>(
@@ -262,10 +262,10 @@ integrationDescribe("production bootstrap command", () => {
     expect(run.status).not.toBe(0);
     expect(run.stderr).toMatch(/Owner company conflicts/);
 
-    const company = await pool.query<{ organization_id: string }>(
-      "SELECT organization_id FROM companies WHERE id='company-prod'"
+    const company = await pool.query<{ name: string }>(
+      "SELECT name FROM companies WHERE id='company-prod'"
     );
-    expect(company.rows[0].organization_id).toBe("other-org");
+    expect(company.rows[0].name).toBe("Drifted Company Name");
 
     const afterPolicy = await pool.query<{ payload: unknown }>(
       `SELECT payload FROM control_plane_entities
@@ -274,7 +274,7 @@ integrationDescribe("production bootstrap command", () => {
     expect(afterPolicy.rows).toEqual(beforePolicy.rows);
 
     await pool.query(
-      "UPDATE companies SET organization_id='org-prod' WHERE id='company-prod'"
+      "UPDATE companies SET name='GetDone' WHERE id='company-prod'"
     );
   });
 
