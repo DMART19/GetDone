@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import pg from "pg";
+import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { PostgresDatabase } from "@/lib/persistence/postgres/client";
 import {
@@ -56,7 +56,7 @@ function runtimeFor(connectionString: string, connectionTimeoutMs = 1_000) {
   );
 }
 
-async function seedFreshBackup(pool: pg.Pool) {
+async function seedFreshBackup(pool: Pool) {
   await pool.query("DELETE FROM database_backup_evidence");
   await pool.query(
     `INSERT INTO database_backup_evidence
@@ -73,13 +73,13 @@ async function seedFreshBackup(pool: pg.Pool) {
 
 integrationDescribe("production PostgreSQL startup readiness", () => {
   const databaseName = `getdone_readiness_${process.pid}_${Date.now()}`;
-  let adminPool: pg.Pool;
-  let testPool: pg.Pool;
+  let adminPool: Pool;
+  let testPool: Pool;
   let connectionString: string;
 
   beforeAll(async () => {
     if (!baseConnectionString) throw new Error("DATABASE_URL is required");
-    adminPool = new pg.Pool({
+    adminPool = new Pool({
       connectionString: baseConnectionString,
       max: 2,
       application_name: "getdone-readiness-admin",
@@ -89,7 +89,7 @@ integrationDescribe("production PostgreSQL startup readiness", () => {
     await adminPool.query(`CREATE DATABASE ${quoteIdentifier(databaseName)}`);
     connectionString = databaseUrl(databaseName);
     runMigrations(connectionString);
-    testPool = new pg.Pool({
+    testPool = new Pool({
       connectionString,
       max: 2,
       application_name: "getdone-readiness-test",
