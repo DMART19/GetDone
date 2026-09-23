@@ -179,7 +179,7 @@ acceptanceDescribe("real OpenRouter staging acceptance", () => {
     fs.writeFileSync(
       "test-results/openrouter-staging-acceptance.json",
       JSON.stringify({
-        accepted: evidence.length === 11,
+        accepted: evidence.length === 12,
         generatedAt: new Date().toISOString(),
         primaryModel,
         fallbackModel,
