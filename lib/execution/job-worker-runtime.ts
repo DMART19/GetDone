@@ -83,11 +83,15 @@ export class DurableJobWorker {
     }
   }
 
-  async runOnce(handler: DurableJobExecutionHandler) {
+  async runOnce(
+    handler: DurableJobExecutionHandler,
+    options: { shouldStop?: () => boolean } = {}
+  ) {
     const at = this.now().toISOString();
     const candidates = await this.store.listReady({ now: at, limit: this.batchSize });
     const results: Array<{ jobId: string; outcome: JobExecutionOutcome }> = [];
     for (const candidate of candidates) {
+      if (options.shouldStop?.()) break;
       const result = await this.runCandidate(candidate, handler);
       if (result) results.push(result);
     }
