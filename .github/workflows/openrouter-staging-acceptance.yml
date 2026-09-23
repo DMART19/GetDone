@@ -1,0 +1,87 @@
+name: OpenRouter Staging Acceptance
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: openrouter-staging-acceptance
+  cancel-in-progress: false
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  NPM_CONFIG_IGNORE_SCRIPTS: "true"
+  GETDONE_OPENROUTER_STAGING_ACCEPTANCE: "true"
+  GETDONE_DB_RUNTIME_ROLE: getdone_tenant_runtime
+
+jobs:
+  live-openrouter:
+    name: live-openrouter
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: staging
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Verify staging acceptance inputs
+        shell: bash
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          GETDONE_OPENROUTER_PRIMARY_MODEL: ${{ vars.OPENROUTER_PRIMARY_MODEL }}
+          GETDONE_OPENROUTER_FALLBACK_MODEL: ${{ vars.OPENROUTER_FALLBACK_MODEL }}
+        run: |
+          test -n "$OPENROUTER_API_KEY" || { echo "staging secret OPENROUTER_API_KEY is required"; exit 1; }
+          test -n "$GETDONE_OPENROUTER_PRIMARY_MODEL" || { echo "staging variable OPENROUTER_PRIMARY_MODEL is required"; exit 1; }
+          test -n "$GETDONE_OPENROUTER_FALLBACK_MODEL" || { echo "staging variable OPENROUTER_FALLBACK_MODEL is required"; exit 1; }
+          test "$GETDONE_OPENROUTER_PRIMARY_MODEL" != "$GETDONE_OPENROUTER_FALLBACK_MODEL" || { echo "primary and fallback models must be distinct"; exit 1; }
+
+      - name: Migrate staging acceptance PostgreSQL
+        run: npm run db:migrate
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+          GETDONE_DB_SSL: "false"
+
+      - name: Run real OpenRouter staging acceptance
+        run: npm run ai:accept-staging
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+          GETDONE_DB_SSL: "false"
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          GETDONE_OPENROUTER_PRIMARY_MODEL: ${{ vars.OPENROUTER_PRIMARY_MODEL }}
+          GETDONE_OPENROUTER_FALLBACK_MODEL: ${{ vars.OPENROUTER_FALLBACK_MODEL }}
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: openrouter-staging-acceptance-${{ github.run_number }}
+          path: test-results/openrouter-staging-acceptance.json
+          if-no-files-found: warn
+          retention-days: 30

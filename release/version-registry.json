@@ -479,7 +479,10 @@
     "docs/SOL_ORDINARY_INTEGRATIONS_REPORT.md",
     "migrations/2026-09-23.1_tenant_rls.sql",
     "lib/persistence/postgres/tenant-context.server.ts",
-    "lib/persistence/postgres/postgres-tenant-rls.integration.test.ts"
+    "lib/persistence/postgres/postgres-tenant-rls.integration.test.ts",
+    ".github/workflows/openrouter-staging-acceptance.yml",
+    "lib/ai-gateway/openrouter-staging.acceptance.test.ts",
+    "docs/SOL_OPENROUTER_STAGING_ACCEPTANCE.md"
   ],
   "manualSourcePaths": [
     "docs/ARCHITECTURE.md",
@@ -494,7 +497,8 @@
     "docs/SOL_QUALITY_V8_PLAYWRIGHT_AI_BUDGET_REPORT.md",
     "docs/SOL_CONTROL_API_OPENROUTER_SECURITY_REPORT.md",
     "docs/SOL_POSTGRES_JOB_EXECUTION_RUNTIME_REPORT.md",
-    "docs/SOL_ORDINARY_INTEGRATIONS_REPORT.md"
+    "docs/SOL_ORDINARY_INTEGRATIONS_REPORT.md",
+    "docs/SOL_OPENROUTER_STAGING_ACCEPTANCE.md"
   ],
   "generatedArtifacts": {
     "machineManifest": "release/out/release-manifest.json",
