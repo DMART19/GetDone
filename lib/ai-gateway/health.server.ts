@@ -70,31 +70,40 @@ function periodLabel(now: Date) {
 
 async function latestProfileSuccess(
   db: SqlQueryable,
+  scope: TrustedExecutionScope,
   profileId: string | undefined
 ) {
   if (!profileId) return null;
   const result = await db.query<{ recorded_at: Date | string }>(
     `SELECT recorded_at
      FROM ai_call_audits
-     WHERE validation_status='valid'
-       AND payload->>'actualProfileId'=$1
+     WHERE portfolio_id=$1
+       AND company_id=$2
+       AND validation_status='valid'
+       AND payload->>'actualProfileId'=$3
      ORDER BY recorded_at DESC
      LIMIT 1`,
-    [profileId]
+    [scope.portfolioId, scope.companyId, profileId]
   );
   const value = result.rows[0]?.recorded_at;
   return value instanceof Date ? value.toISOString() : value ? String(value) : null;
 }
 
-async function recentErrorClass(db: SqlQueryable, since: Date) {
+async function recentErrorClass(
+  db: SqlQueryable,
+  scope: TrustedExecutionScope,
+  since: Date
+) {
   const result = await db.query<{ failure_class: string | null }>(
     `SELECT payload->>'failureClass' AS failure_class
      FROM ai_call_audits
-     WHERE recorded_at >= $1
+     WHERE portfolio_id=$1
+       AND company_id=$2
+       AND recorded_at >= $3
        AND COALESCE(payload->>'failureClass','') <> ''
      ORDER BY recorded_at DESC
      LIMIT 1`,
-    [since.toISOString()]
+    [scope.portfolioId, scope.companyId, since.toISOString()]
   );
   return result.rows[0]?.failure_class ?? null;
 }
@@ -111,12 +120,18 @@ async function lastSuccessfulCanary(db: SqlQueryable) {
   return result.rows[0]?.observed_at ?? null;
 }
 
-async function monthlySpend(db: SqlQueryable, start: Date) {
+async function monthlySpend(
+  db: SqlQueryable,
+  scope: TrustedExecutionScope,
+  start: Date
+) {
   const result = await db.query<{ spent_cents: string | number | null }>(
     `SELECT COALESCE(SUM(actual_cost_cents),0) AS spent_cents
      FROM ai_call_audits
-     WHERE recorded_at >= $1`,
-    [start.toISOString()]
+     WHERE portfolio_id=$1
+       AND company_id=$2
+       AND recorded_at >= $3`,
+    [scope.portfolioId, scope.companyId, start.toISOString()]
   );
   const value = Number(result.rows[0]?.spent_cents ?? 0);
   return Number.isFinite(value) ? Number(value.toFixed(6)) : 0;
@@ -195,10 +210,14 @@ export async function readOwnerAIGatewayHealth(
       spentCents
     ] = await Promise.all([
       lastSuccessfulCanary(db),
-      recentErrorClass(db, new Date(now.getTime() - 24 * 60 * 60_000)),
-      latestProfileSuccess(db, primaryProfile?.id),
-      latestProfileSuccess(db, fallbackProfile?.id),
-      monthlySpend(db, monthStart(now))
+      recentErrorClass(
+        db,
+        scope,
+        new Date(now.getTime() - 24 * 60 * 60_000)
+      ),
+      latestProfileSuccess(db, scope, primaryProfile?.id),
+      latestProfileSuccess(db, scope, fallbackProfile?.id),
+      monthlySpend(db, scope, monthStart(now))
     ]);
 
     const limitCents = monthlyBudgetCents(env);
