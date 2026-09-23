@@ -34,7 +34,7 @@ class FakeReadinessDatabase {
   ): Promise<QueryResult<R>> {
     if (text === "SELECT 1") {
       if (!this.connected) throw new Error("offline");
-      return result([]) as QueryResult<R>;
+      return result([]) as unknown as QueryResult<R>;
     }
     if (this.inspectionFails) throw new Error("inspection failed");
     if (text.includes("to_regclass")) {
@@ -42,16 +42,16 @@ class FakeReadinessDatabase {
       return result(names.map((name) => ({
         name,
         present: !this.missing.has(name)
-      }))) as QueryResult<R>;
+      }))) as unknown as QueryResult<R>;
     }
     if (text.includes("getdone_schema_migrations")) {
-      return result(this.migration ? [{ version: this.migration }] : []) as QueryResult<R>;
+      return result(this.migration ? [{ version: this.migration }] : []) as unknown as QueryResult<R>;
     }
     if (text.includes("database_backup_evidence")) {
       return result(this.backupAt ? [{
         completed_at: this.backupAt,
         verification_hash: this.backupHash
-      }] : []) as QueryResult<R>;
+      }] : []) as unknown as QueryResult<R>;
     }
     throw new Error(`Unexpected query: ${text}`);
   }
