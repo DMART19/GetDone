@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { sha256Hex } from "@/lib/control-plane/canonical-hash";
 import { ControlPlaneError } from "@/lib/control-plane/errors";
 import { validateCapabilityInput } from "@/lib/domain/capabilities";
 import {
@@ -19,7 +20,7 @@ import {
   type BusinessActionAdapterDeclaration
 } from "@/lib/execution/adapters/ordinary-integration-framework";
 
-export const GMAIL_BUSINESS_ACTION_ADAPTER_VERSION = "1.0.0";
+export const GMAIL_BUSINESS_ACTION_ADAPTER_VERSION = "1.1.0";
 
 const gmailSendResponseSchema = z.object({
   id: z.string().min(1).max(500),
@@ -28,6 +29,12 @@ const gmailSendResponseSchema = z.object({
 
 const gmailGetResponseSchema = z.object({
   id: z.string().min(1).max(500)
+}).passthrough();
+
+const gmailListResponseSchema = z.object({
+  messages: z.array(z.object({
+    id: z.string().min(1).max(500)
+  }).passthrough()).optional()
 }).passthrough();
 
 const environmentSchema = z.enum(["development", "staging", "production"]);
@@ -51,6 +58,13 @@ export interface GmailBusinessActionAdapterOptions {
 }
 
 type ValidatedGmailConfiguration = ReturnType<typeof validateConfiguration>;
+
+type GmailLookupResult =
+  | { kind: "found"; messageId: string }
+  | { kind: "not-found" }
+  | { kind: "retryable"; retryClass: "transport" | "rate-limit" | "provider-5xx" }
+  | { kind: "terminal"; retryClass: "provider-4xx" }
+  | { kind: "malformed"; retryClass: "malformed-response" };
 
 function validateConfiguration(configuration: GmailProviderConfiguration) {
   if (!/^[A-Za-z0-9._-]+$/.test(configuration.id)) {
@@ -96,13 +110,20 @@ function validateConfiguration(configuration: GmailProviderConfiguration) {
 
 function rejectHeaderInjection(value: string | undefined, label: string) {
   if (value && /[\r\n]/.test(value)) {
-    throw new ControlPlaneError("VALIDATION_FAILED", `${label} cannot contain CR/LF`);
+    throw new ControlPlaneError("VALIDATION_FAILED", label + " cannot contain CR/LF");
   }
 }
 
 function encodeSubject(subject: string) {
   rejectHeaderInjection(subject, "Email subject");
-  return `=?UTF-8?B?${Buffer.from(subject, "utf8").toString("base64")}?=`;
+  return "=?UTF-8?B?" + Buffer.from(subject, "utf8").toString("base64") + "?=";
+}
+
+export function gmailRfc822MessageId(requestId: string) {
+  if (!requestId.trim()) {
+    throw new ControlPlaneError("VALIDATION_FAILED", "Gmail request id is required");
+  }
+  return "getdone-" + sha256Hex({ provider: "gmail", requestId }).slice(0, 48) + "@getdone.invalid";
 }
 
 function buildMime(input: {
@@ -114,30 +135,32 @@ function buildMime(input: {
   replyTo?: string;
 }, requestId: string) {
   rejectHeaderInjection(input.replyTo, "Email replyTo");
+  const messageId = gmailRfc822MessageId(requestId);
   const headers = [
-    `To: ${input.to.join(", ")}`,
-    ...(input.cc.length ? [`Cc: ${input.cc.join(", ")}`] : []),
-    `Subject: ${encodeSubject(input.subject)}`,
-    ...(input.replyTo ? [`Reply-To: ${input.replyTo}`] : []),
+    "To: " + input.to.join(", "),
+    ...(input.cc.length ? ["Cc: " + input.cc.join(", ")] : []),
+    "Subject: " + encodeSubject(input.subject),
+    "Message-ID: <" + messageId + ">",
+    ...(input.replyTo ? ["Reply-To: " + input.replyTo] : []),
     "MIME-Version: 1.0"
   ];
 
   let body: string;
   if (input.text !== undefined && input.html !== undefined) {
-    const boundary = `getdone-${Buffer.from(requestId).toString("base64url").slice(0, 32)}`;
-    headers.push(`Content-Type: multipart/alternative; boundary="${boundary}"`);
+    const boundary = "getdone-" + Buffer.from(requestId).toString("base64url").slice(0, 32);
+    headers.push('Content-Type: multipart/alternative; boundary="' + boundary + '"');
     body = [
-      `--${boundary}`,
+      "--" + boundary,
       'Content-Type: text/plain; charset="UTF-8"',
       "Content-Transfer-Encoding: 8bit",
       "",
       input.text,
-      `--${boundary}`,
+      "--" + boundary,
       'Content-Type: text/html; charset="UTF-8"',
       "Content-Transfer-Encoding: 8bit",
       "",
       input.html,
-      `--${boundary}--`
+      "--" + boundary + "--"
     ].join("\r\n");
   } else if (input.html !== undefined) {
     headers.push('Content-Type: text/html; charset="UTF-8"');
@@ -151,6 +174,10 @@ function buildMime(input: {
   return Buffer.from([...headers, "", body].join("\r\n"), "utf8").toString("base64url");
 }
 
+function syntheticProviderOperationId(configurationId: string, messageId: string) {
+  return "gmail:" + configurationId + ":rfc822:" + Buffer.from(messageId, "utf8").toString("base64url");
+}
+
 function parseProviderOperationId(
   configurations: ReadonlyMap<string, ValidatedGmailConfiguration>,
   providerOperationId: string
@@ -160,7 +187,20 @@ function parseProviderOperationId(
   if (!match || !configuration) {
     throw new ControlPlaneError("NOT_FOUND", "Gmail provider operation is not configured");
   }
-  return { configuration, messageId: match[2] };
+  const value = match[2];
+  if (value.startsWith("rfc822:")) {
+    let rfc822MessageId = "";
+    try {
+      rfc822MessageId = Buffer.from(value.slice("rfc822:".length), "base64url").toString("utf8");
+    } catch {
+      throw new ControlPlaneError("VALIDATION_FAILED", "Gmail provider operation lineage is malformed");
+    }
+    if (!/^[A-Za-z0-9._@-]+$/.test(rfc822MessageId)) {
+      throw new ControlPlaneError("VALIDATION_FAILED", "Gmail RFC822 provider lineage is malformed");
+    }
+    return { configuration, kind: "rfc822" as const, value: rfc822MessageId };
+  }
+  return { configuration, kind: "message" as const, value };
 }
 
 export class GmailBusinessActionAdapter implements BusinessActionAdapter {
@@ -221,6 +261,103 @@ export class GmailBusinessActionAdapter implements BusinessActionAdapter {
     return matches[0];
   }
 
+  private async lookupByRfc822MessageId(
+    configuration: ValidatedGmailConfiguration,
+    rfc822MessageId: string
+  ): Promise<GmailLookupResult> {
+    const credential = resolveCredentialReference(
+      configuration.verificationCredentialRef ?? configuration.credentialRef,
+      this.env,
+      "Gmail verification credential"
+    );
+    let response: Response;
+    try {
+      const url = new URL(
+        "users/" + encodeURIComponent(configuration.userId) + "/messages",
+        configuration.baseUrl
+      );
+      url.searchParams.set("q", "rfc822msgid:" + rfc822MessageId);
+      url.searchParams.set("maxResults", "2");
+      url.searchParams.set("includeSpamTrash", "true");
+      response = await this.fetchImpl(url, {
+        method: "GET",
+        headers: { authorization: "Bearer " + credential },
+        signal: AbortSignal.timeout(30_000)
+      });
+    } catch {
+      return { kind: "retryable", retryClass: "transport" };
+    }
+
+    if (!response.ok) {
+      await readBoundedJson(response, configuration.maxResponseBytes).catch(() => ({}));
+      const failure = classifyHttpFailure(response.status);
+      if (failure.retryable) {
+        return {
+          kind: "retryable",
+          retryClass: failure.retryClass === "rate-limit" ? "rate-limit" : "provider-5xx"
+        };
+      }
+      return { kind: "terminal", retryClass: "provider-4xx" };
+    }
+
+    try {
+      const parsed = gmailListResponseSchema.parse(
+        await readBoundedJson(response, configuration.maxResponseBytes)
+      );
+      const message = parsed.messages?.[0];
+      return message ? { kind: "found", messageId: message.id } : { kind: "not-found" };
+    } catch {
+      return { kind: "malformed", retryClass: "malformed-response" };
+    }
+  }
+
+  private acceptedFromLookup(
+    request: AuthorizedBusinessActionRequest,
+    configuration: ValidatedGmailConfiguration,
+    messageId: string,
+    recipients: readonly string[],
+    observedAt: string
+  ) {
+    const providerOperationId = "gmail:" + configuration.id + ":" + messageId;
+    return createBusinessActionAdapterResult({
+      source: "business-action-adapter",
+      requestId: request.id,
+      adapterId: this.id,
+      adapterVersion: this.version,
+      status: "accepted",
+      providerOperationId,
+      output: {
+        messageId,
+        providerReference: providerOperationId,
+        accepted: [...recipients],
+        rejected: [],
+        acceptedAt: observedAt
+      },
+      retryable: false,
+      retryClass: "none",
+      observedAt
+    });
+  }
+
+  private ambiguousAcceptance(
+    request: AuthorizedBusinessActionRequest,
+    configuration: ValidatedGmailConfiguration,
+    rfc822MessageId: string,
+    retryClass: "transport" | "malformed-response"
+  ) {
+    return createBusinessActionAdapterResult({
+      source: "business-action-adapter",
+      requestId: request.id,
+      adapterId: this.id,
+      adapterVersion: this.version,
+      status: "accepted",
+      providerOperationId: syntheticProviderOperationId(configuration.id, rfc822MessageId),
+      retryable: true,
+      retryClass,
+      observedAt: this.now().toISOString()
+    });
+  }
+
   async execute(request: AuthorizedBusinessActionRequest) {
     const configuration = this.configurationFor(request);
     assertAdapterRequest(request, this.declaration, configuration);
@@ -237,6 +374,56 @@ export class GmailBusinessActionAdapter implements BusinessActionAdapter {
       throw new ControlPlaneError("FORBIDDEN", "Email company does not match authoritative Job scope");
     }
 
+    const rfc822MessageId = gmailRfc822MessageId(request.id);
+    if (configuration.verificationMode === "provider-object-read") {
+      const prior = await this.lookupByRfc822MessageId(configuration, rfc822MessageId);
+      if (prior.kind === "found") {
+        return this.acceptedFromLookup(
+          request,
+          configuration,
+          prior.messageId,
+          [...new Set([...input.to, ...input.cc])],
+          this.now().toISOString()
+        );
+      }
+      if (prior.kind === "retryable") {
+        return createBusinessActionAdapterResult({
+          source: "business-action-adapter",
+          requestId: request.id,
+          adapterId: this.id,
+          adapterVersion: this.version,
+          status: "failed",
+          retryable: true,
+          retryClass: prior.retryClass,
+          observedAt: this.now().toISOString()
+        });
+      }
+      if (prior.kind === "terminal") {
+        return createBusinessActionAdapterResult({
+          source: "business-action-adapter",
+          requestId: request.id,
+          adapterId: this.id,
+          adapterVersion: this.version,
+          status: "rejected",
+          retryable: false,
+          retryClass: prior.retryClass,
+          observedAt: this.now().toISOString()
+        });
+      }
+      if (prior.kind === "malformed") {
+        return createBusinessActionAdapterResult({
+          source: "business-action-adapter",
+          requestId: request.id,
+          adapterId: this.id,
+          adapterVersion: this.version,
+          status: "failed",
+          retryable: false,
+          retryClass: prior.retryClass,
+          observedAt: this.now().toISOString()
+        });
+      }
+    }
+
     const credential = resolveCredentialReference(
       configuration.credentialRef,
       this.env,
@@ -246,7 +433,7 @@ export class GmailBusinessActionAdapter implements BusinessActionAdapter {
     try {
       response = await this.fetchImpl(
         new URL(
-          `users/${encodeURIComponent(configuration.userId)}/messages/send`,
+          "users/" + encodeURIComponent(configuration.userId) + "/messages/send",
           configuration.baseUrl
         ),
         {
@@ -261,6 +448,9 @@ export class GmailBusinessActionAdapter implements BusinessActionAdapter {
         }
       );
     } catch {
+      if (configuration.verificationMode === "provider-object-read") {
+        return this.ambiguousAcceptance(request, configuration, rfc822MessageId, "transport");
+      }
       return createBusinessActionAdapterResult({
         source: "business-action-adapter",
         requestId: request.id,
@@ -295,6 +485,9 @@ export class GmailBusinessActionAdapter implements BusinessActionAdapter {
         await readBoundedJson(response, configuration.maxResponseBytes)
       );
     } catch {
+      if (configuration.verificationMode === "provider-object-read") {
+        return this.ambiguousAcceptance(request, configuration, rfc822MessageId, "malformed-response");
+      }
       return createBusinessActionAdapterResult({
         source: "business-action-adapter",
         requestId: request.id,
@@ -307,39 +500,46 @@ export class GmailBusinessActionAdapter implements BusinessActionAdapter {
       });
     }
 
-    const providerOperationId = `gmail:${configuration.id}:${parsed.id}`;
-    const output = {
-      messageId: parsed.id,
-      providerReference: providerOperationId,
-      accepted: [...new Set([...input.to, ...input.cc])],
-      rejected: [],
-      acceptedAt: observedAt
-    };
-    return createBusinessActionAdapterResult({
-      source: "business-action-adapter",
-      requestId: request.id,
-      adapterId: this.id,
-      adapterVersion: this.version,
-      status: configuration.verificationMode === "provider-object-read" ? "accepted" : "completed",
-      providerOperationId,
-      output,
-      retryable: false,
-      retryClass: "none",
+    return this.acceptedFromLookup(
+      request,
+      configuration,
+      parsed.id,
+      [...new Set([...input.to, ...input.cc])],
       observedAt
-    });
+    );
   }
 
   async status(input: {
     requestId: string;
     providerOperationId: string;
   }): Promise<BusinessActionStatus> {
-    const { configuration, messageId } = parseProviderOperationId(
+    const operation = parseProviderOperationId(
       this.configurations,
       input.providerOperationId
     );
+    const { configuration } = operation;
     if (configuration.verificationMode !== "provider-object-read") {
       throw new ControlPlaneError("UNAVAILABLE", "Gmail object verification is not configured");
     }
+
+    if (operation.kind === "rfc822") {
+      const lookup = await this.lookupByRfc822MessageId(configuration, operation.value);
+      const state: BusinessActionStatus["state"] = lookup.kind === "found"
+        ? "completed"
+        : lookup.kind === "terminal" || lookup.kind === "malformed"
+          ? "failed"
+          : "running";
+      return createBusinessActionStatus({
+        source: "business-action-adapter",
+        requestId: input.requestId,
+        providerOperationId: input.providerOperationId,
+        adapterId: this.id,
+        adapterVersion: this.version,
+        state,
+        observedAt: this.now().toISOString()
+      });
+    }
+
     const credential = resolveCredentialReference(
       configuration.verificationCredentialRef ?? configuration.credentialRef,
       this.env,
@@ -348,13 +548,13 @@ export class GmailBusinessActionAdapter implements BusinessActionAdapter {
     let response: Response;
     try {
       const url = new URL(
-        `users/${encodeURIComponent(configuration.userId)}/messages/${encodeURIComponent(messageId)}`,
+        "users/" + encodeURIComponent(configuration.userId) + "/messages/" + encodeURIComponent(operation.value),
         configuration.baseUrl
       );
       url.searchParams.set("format", "minimal");
       response = await this.fetchImpl(url, {
         method: "GET",
-        headers: { authorization: `Bearer ${credential}` },
+        headers: { authorization: "Bearer " + credential },
         signal: AbortSignal.timeout(30_000)
       });
     } catch {
@@ -375,7 +575,7 @@ export class GmailBusinessActionAdapter implements BusinessActionAdapter {
         const parsed = gmailGetResponseSchema.parse(
           await readBoundedJson(response, configuration.maxResponseBytes)
         );
-        state = parsed.id === messageId ? "completed" : "failed";
+        state = parsed.id === operation.value ? "completed" : "failed";
       } catch {
         state = "failed";
       }
