@@ -23,6 +23,7 @@ import {
   createDurableJobRuntimeEvent
 } from "@/lib/execution/job-runtime-records";
 import type { PostgresTransactionalDatabase } from "@/lib/persistence/postgres/client";
+import { PostgresJobExecutionSpecStore } from "@/lib/persistence/postgres/job-execution-spec-store";
 import { createVerificationEvidence } from "@/lib/verification/verification";
 
 const at = "2026-09-23T20:00:00.000Z";
@@ -33,7 +34,7 @@ const scope = Object.freeze({
   environment: "staging" as const
 });
 const principal: ControlApiPrincipal = Object.freeze({
-  actor: { type: "user", id: scope.userId },
+  actor: { type: "user" as const, id: scope.userId },
   scope,
   sessionId: "session-unit",
   role: "owner"
@@ -119,6 +120,7 @@ interface IdempotencyState {
 class FakeDatabase implements PostgresTransactionalDatabase {
   readonly audits: AuditEvent[] = [];
   readonly idempotency = new Map<string, IdempotencyState>();
+  readonly specs = new Map<string, PersistedJobExecutionSpec>();
 
   constructor(
     readonly runtimeRow: {
@@ -192,6 +194,16 @@ class FakeDatabase implements PostgresTransactionalDatabase {
     }
     if (text.includes("FROM business_action_verification_evidence WHERE job_id")) {
       return result([{ payload: this.verification } as unknown as R]);
+    }
+    if (text.includes("SELECT payload FROM job_execution_specs WHERE job_id")) {
+      const value = this.specs.get(String(values[0]));
+      return result(value ? [{ payload: value } as unknown as R] : []);
+    }
+    if (text.includes("INSERT INTO job_execution_specs")) {
+      const jobId = String(values[0]);
+      if (this.specs.has(jobId)) return result<R>([], 0);
+      this.specs.set(jobId, JSON.parse(String(values[2])) as PersistedJobExecutionSpec);
+      return result<R>([], 1);
     }
     if (text.includes("FROM audit_events WHERE entity_type='job'")) {
       return result(this.audits.map((payload) => ({ payload } as unknown as R)));
@@ -290,6 +302,7 @@ function fixture() {
     jobId: source.id,
     recoveredAt: at,
     expiredLeaseHash: "expired-lease",
+    outcome: "retry-scheduled",
     transactionHash: transactionReceipt.transactionHash
   });
   const outcome = createDurableJobExecutionOutcome({
@@ -380,7 +393,8 @@ function fixture() {
     [replacement.id, replacement],
     [competing.id, competing]
   ]);
-  const specs = new Map<string, PersistedJobExecutionSpec>([[source.id, spec]]);
+  db.specs.set(source.id, spec);
+  const specs = db.specs;
   const enqueued: JobQueueEnvelope[] = [];
   const cancelled: string[] = [];
   const queue = {
@@ -406,7 +420,7 @@ function fixture() {
     },
     async enqueue(envelope: JobQueueEnvelope) {
       enqueued.push(envelope);
-      return transactionReceipt;
+      return { status: "enqueued" as const, transaction: transactionReceipt };
     },
     async cancel(input: { jobId: string }) {
       cancelled.push(input.jobId);
@@ -416,10 +430,7 @@ function fixture() {
   };
   const service = new DeadLetterOperatorService(db, {
     jobs: { get: async (id) => jobs.get(id) ?? null },
-    specs: {
-      get: async (id) => specs.get(id) ?? null,
-      put: async (value) => { specs.set(value.jobId, value); }
-    },
+    specs: new PostgresJobExecutionSpecStore(db),
     queue,
     now: () => new Date(at)
   });
@@ -587,9 +598,12 @@ describe("DeadLetterOperatorService", () => {
     const service = new DeadLetterOperatorService(f.db, {
       jobs: { get: async (id) => jobs.get(id) ?? null },
       specs: {
-        get: async (id) => id === f.source.id ? sourceSpec : null,
+        get: async (id) => {
+          if (id !== f.source.id) throw new Error("missing execution spec");
+          return sourceSpec;
+        },
         put: async () => undefined
-      },
+      } as unknown as PostgresJobExecutionSpecStore,
       queue: {
         getRuntimeSnapshot: async () => null,
         enqueue: async () => { throw new Error("must not enqueue"); },
