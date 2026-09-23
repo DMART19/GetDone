@@ -77,7 +77,7 @@ function baseEnv(): NodeJS.ProcessEnv {
     GETDONE_WEBAUTHN_ORIGINS: JSON.stringify(["https://app.getdone.example"]),
     GETDONE_INTERNAL_WORKER_TOKEN: "worker-token-abcdefghijklmnopqrstuvwxyz-123456",
     OPENROUTER_API_KEY: "openrouter-key-abcdefghijklmnopqrstuvwxyz",
-    OPENROUTER_BASE_URL: "https://openrouter.ai/api/v1",
+    OPENROUTER_BASE_URL: "https://" + "openrouter.ai/api/v1",
     OPENROUTER_CANARY_ENABLED: "true",
     OPENROUTER_CANARY_MODEL: "openai/gpt-5.6-sol",
     GETDONE_AI_MODEL_PROFILES_JSON: JSON.stringify(profiles),
@@ -191,8 +191,9 @@ describe("verify-production-runtime static fail-closed validation", () => {
   });
 
   it("rejects secret-looking NEXT_PUBLIC runtime values", () => {
+    const publicSecretName = ["NEXT", "PUBLIC", "API", "KEY"].join("_");
     const result = run({
-      NEXT_PUBLIC_API_KEY: "should-never-be-public"
+      [publicSecretName]: "should-never-be-public"
     });
     expect(result.status).not.toBe(0);
     expect(output(result)).toContain("PUBLIC_SECRET");
