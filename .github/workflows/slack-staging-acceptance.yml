@@ -2,6 +2,11 @@ name: Slack Staging Acceptance
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - sol/slack-http-staging
+    paths:
+      - ".github/workflows/slack-staging-acceptance.yml"
 
 permissions:
   contents: read
