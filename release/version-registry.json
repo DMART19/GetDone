@@ -485,7 +485,10 @@
     "docs/SOL_OPENROUTER_STAGING_ACCEPTANCE.md",
     "lib/ai-gateway/health.server.ts",
     "lib/ai-gateway/health.server.test.ts",
-    "app/api/control/ai/health/route.ts"
+    "app/api/control/ai/health/route.ts",
+    "lib/execution/worker-crash-restart.integration.test.ts",
+    "lib/execution/worker-crash-acceptance-child.ts",
+    "docs/SOL_WORKER_CRASH_RESTART_ACCEPTANCE.md"
   ],
   "manualSourcePaths": [
     "docs/ARCHITECTURE.md",
@@ -501,7 +504,8 @@
     "docs/SOL_CONTROL_API_OPENROUTER_SECURITY_REPORT.md",
     "docs/SOL_POSTGRES_JOB_EXECUTION_RUNTIME_REPORT.md",
     "docs/SOL_ORDINARY_INTEGRATIONS_REPORT.md",
-    "docs/SOL_OPENROUTER_STAGING_ACCEPTANCE.md"
+    "docs/SOL_OPENROUTER_STAGING_ACCEPTANCE.md",
+    "docs/SOL_WORKER_CRASH_RESTART_ACCEPTANCE.md"
   ],
   "generatedArtifacts": {
     "machineManifest": "release/out/release-manifest.json",

@@ -1,7 +1,11 @@
 const Module = require("node:module");
 const path = require("node:path");
 
-const workerRoot = path.resolve(__dirname, "..", "dist-worker");
+const workerRoot = path.resolve(
+  __dirname,
+  "..",
+  process.env.GETDONE_WORKER_ALIAS_ROOT?.trim() || "dist-worker"
+);
 const originalResolveFilename = Module._resolveFilename;
 
 Module._resolveFilename = function resolveGetDoneWorkerAlias(

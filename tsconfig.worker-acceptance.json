@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.worker.json",
+  "compilerOptions": {
+    "outDir": "dist-worker-acceptance"
+  },
+  "files": [
+    "lib/execution/worker-crash-acceptance-child.ts"
+  ],
+  "include": []
+}
