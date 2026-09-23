@@ -262,9 +262,10 @@ export class DurableJobWorker {
       }));
       latestTransaction = receipt;
     } else if (outcome.kind === "cancelled") {
+      const cancellationReason = outcome.reason;
       const receipt = await this.retrySerializableConflict(() => this.store.cancel({
         jobId: candidate.envelope.jobId,
-        reason: outcome.reason,
+        reason: cancellationReason,
         cancelledAt: this.now().toISOString(),
         expectedJobVersion: version,
         expectedJobHash: stateHash,
