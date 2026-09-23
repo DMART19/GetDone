@@ -13,6 +13,7 @@ vi.mock("@/lib/persistence/postgres/runtime.server", () => ({
 import { registerNodeInstrumentation } from "@/instrumentation.node";
 
 describe("production startup validation hook", () => {
+  const mutableEnv = process.env as Record<string, string | undefined>;
   const original = {
     NODE_ENV: process.env.NODE_ENV,
     GETDONE_RUNTIME_ENV: process.env.GETDONE_RUNTIME_ENV,
@@ -22,19 +23,19 @@ describe("production startup validation hook", () => {
   beforeEach(() => {
     execFileSync.mockReset();
     assertPostgresReadyAtStartup.mockClear();
-    process.env.GETDONE_PROCESS_ROLE = "web";
+    mutableEnv.GETDONE_PROCESS_ROLE = "web";
   });
 
   afterEach(() => {
     for (const [key, value] of Object.entries(original)) {
-      if (value === undefined) delete process.env[key];
-      else process.env[key] = value;
+      if (value === undefined) delete mutableEnv[key];
+      else mutableEnv[key] = value;
     }
   });
 
   it("runs verify-production-runtime before production PostgreSQL startup inspection", async () => {
-    process.env.NODE_ENV = "production";
-    process.env.GETDONE_RUNTIME_ENV = "production";
+    mutableEnv.NODE_ENV = "production";
+    mutableEnv.GETDONE_RUNTIME_ENV = "production";
 
     await registerNodeInstrumentation();
 
@@ -54,8 +55,8 @@ describe("production startup validation hook", () => {
   });
 
   it("does not apply the production-only validator to staging", async () => {
-    process.env.NODE_ENV = "production";
-    process.env.GETDONE_RUNTIME_ENV = "staging";
+    mutableEnv.NODE_ENV = "production";
+    mutableEnv.GETDONE_RUNTIME_ENV = "staging";
 
     await registerNodeInstrumentation();
 
@@ -64,8 +65,8 @@ describe("production startup validation hook", () => {
   });
 
   it("fails closed through the production validator when NODE_ENV is production but runtime identity is missing", async () => {
-    process.env.NODE_ENV = "production";
-    delete process.env.GETDONE_RUNTIME_ENV;
+    mutableEnv.NODE_ENV = "production";
+    delete mutableEnv.GETDONE_RUNTIME_ENV;
 
     await registerNodeInstrumentation();
 
