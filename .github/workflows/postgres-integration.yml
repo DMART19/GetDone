@@ -16,6 +16,7 @@ concurrency:
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
   NPM_CONFIG_IGNORE_SCRIPTS: "true"
+  GETDONE_DB_RUNTIME_ROLE: getdone_tenant_runtime
 
 jobs:
   postgres16:
@@ -58,6 +59,13 @@ jobs:
 
       - name: Run PostgreSQL startup/readiness acceptance
         run: npx vitest run lib/persistence/postgres/postgres-readiness.integration.test.ts
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+          GETDONE_DB_SSL: "false"
+          GETDONE_POSTGRES_INTEGRATION: "true"
+
+      - name: Run PostgreSQL tenant RLS adversarial acceptance
+        run: npx vitest run lib/persistence/postgres/postgres-tenant-rls.integration.test.ts
         env:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
           GETDONE_DB_SSL: "false"

@@ -277,7 +277,7 @@ const softwareWorkerRuntime = read("lib/execution/software-worker-runtime.ts");
 const jobExecutionRouter = read("lib/execution/job-execution-router.ts");
 
 for (const required of [
-  'POSTGRES_PERSISTENCE_VERSION = "1.0.0"',
+  'POSTGRES_PERSISTENCE_VERSION = "1.1.0"',
   "BEGIN ISOLATION LEVEL SERIALIZABLE",
   "DATABASE_URL is required for PostgreSQL persistence",
   "PostgresTransactionalDatabase"
@@ -1109,9 +1109,11 @@ if (
   releaseRegistry.database?.status !== "implemented-unconnected"
   || releaseRegistry.database?.engine !== "postgresql"
   || releaseRegistry.database?.minimumEngineVersion !== "16"
-  || releaseRegistry.database?.migrationVersion !== "2026-09-22.3"
-  || releaseRegistry.database?.schemaVersion !== "1.3.0"
+  || releaseRegistry.database?.migrationVersion !== "2026-09-23.1"
+  || releaseRegistry.database?.schemaVersion !== "1.4.0"
+  || releaseRegistry.schemaVersions?.postgresPersistence?.version !== "1.1.0"
   || releaseRegistry.adapters?.postgresPersistence?.status !== "implemented-unconnected"
+  || releaseRegistry.adapters?.postgresPersistence?.version !== "1.1.0"
   || releaseRegistry.adapters?.durableJobStore?.status !== "implemented-unconnected"
 ) {
   fail("PostgreSQL persistence release truth drifted or overclaims connectivity");
@@ -1242,8 +1244,8 @@ for (const [name, state] of Object.entries(releaseEnvironment.environments ?? {}
     || state.connections?.database !== false
     || state.database?.engine !== "postgresql"
     || state.database?.adapterStatus !== "implemented-unconnected"
-    || state.database?.migrationVersion !== "2026-09-22.3"
-    || state.database?.schemaVersion !== "1.3.0"
+    || state.database?.migrationVersion !== "2026-09-23.1"
+    || state.database?.schemaVersion !== "1.4.0"
     || state.composition?.goldenPathHarnessStatus !== "deterministic-simulation-only"
     || state.composition?.productionExecutionClaimed !== false
     || state.resourceFabric?.storageFabricContractStatus !== "deterministic-contract"

@@ -6,7 +6,7 @@ function required(name) {
   return value;
 }
 
-const requiredMigration = "2026-09-22.3";
+const requiredMigration = "2026-09-23.1";
 const maxBackupAgeHours = Number(process.env.GETDONE_BACKUP_MAX_AGE_HOURS || "24");
 if (!Number.isFinite(maxBackupAgeHours) || maxBackupAgeHours <= 0) {
   throw new Error("GETDONE_BACKUP_MAX_AGE_HOURS must be positive");
@@ -68,6 +68,56 @@ try {
     }
   }
 
+
+  const rlsRelations = [
+    "control_plane_entities",
+    "audit_events",
+    "authorization_grants",
+    "authorization_consumptions",
+    "verification_receipts",
+    "job_execution_start_facts",
+    "job_execution_completion_facts",
+    "capacity_ledgers",
+    "capacity_reservations",
+    "reservation_commits",
+    "owner_intents",
+    "resource_evidence",
+    "business_action_executions",
+    "business_action_verification_evidence"
+  ];
+  const rls = await client.query(
+    `SELECT required.name, relation.relrowsecurity, relation.relforcerowsecurity
+     FROM unnest($1::text[]) AS required(name)
+     LEFT JOIN pg_class relation ON relation.oid=to_regclass(required.name)`,
+    [rlsRelations]
+  );
+  const unsafeRls = rls.rows.filter(
+    (row) => row.relrowsecurity !== true || row.relforcerowsecurity !== true
+  );
+  if (unsafeRls.length > 0) {
+    throw new Error(
+      `Tenant RLS is not enabled and forced on: ${unsafeRls.map((row) => row.name).join(", ")}`
+    );
+  }
+
+  const runtimeRole = await client.query(
+    `SELECT rolsuper,rolbypassrls
+     FROM pg_roles
+     WHERE rolname='getdone_tenant_runtime'`
+  );
+  if (
+    runtimeRole.rows.length !== 1
+    || runtimeRole.rows[0].rolsuper
+    || runtimeRole.rows[0].rolbypassrls
+  ) {
+    throw new Error("Tenant runtime role must exist without superuser/BYPASSRLS");
+  }
+  const roleMembership = await client.query(
+    "SELECT pg_has_role(current_user,'getdone_tenant_runtime','MEMBER') AS member"
+  );
+  if (roleMembership.rows[0]?.member !== true) {
+    throw new Error("Migration/runtime principal cannot SET ROLE getdone_tenant_runtime");
+  }
 
   const authSchema = await client.query(
     `SELECT COUNT(*)::int AS count
@@ -133,6 +183,8 @@ try {
     transactionIsolation: "serializable",
     rollback: "verified",
     concurrencyConstraints: "verified",
+    tenantRls: "verified",
+    tenantRuntimeRole: "verified",
     auditSchema: "verified",
     authSchema: "verified",
     durableWorkerSchema: "verified",

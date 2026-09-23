@@ -28,6 +28,7 @@ import {
 } from "@/lib/persistence/postgres/control-api-stores";
 import { PostgresControlPlaneTransactionManager } from "@/lib/persistence/postgres/transaction-manager";
 import { getPostgresRuntimeFromEnv } from "@/lib/persistence/postgres/runtime.server";
+import { runWithPostgresTenantScope } from "@/lib/persistence/postgres/tenant-context.server";
 
 export function createPostgresControlApiAdapter(
   env: Readonly<Record<string, string | undefined>> = process.env
@@ -107,6 +108,8 @@ export function createPostgresControlApiAdapter(
     resourceEnrollmentService,
     jobs,
     verifications,
+    tenantScopeRunner: (scope, operation) =>
+      runWithPostgresTenantScope(scope, operation),
     health: async () => {
       const health = await runtime.health();
       const schemaReady = health.connected && health.schemaCurrent;

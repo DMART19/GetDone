@@ -16,6 +16,7 @@ import type {
 } from "@/lib/execution/software-worker";
 import type { SoftwareWorkerRuntime } from "@/lib/execution/software-worker-runtime";
 import type { JobVerificationEvidenceStore } from "@/lib/persistence/postgres/worker-runtime-stores";
+import { runWithPostgresTenantScope } from "@/lib/persistence/postgres/tenant-context.server";
 
 export const JOB_EXECUTION_ROUTER_VERSION = "1.1.0";
 
@@ -186,6 +187,12 @@ export class RoutedJobExecutionHandler implements DurableJobExecutionHandler {
   }
 
   async execute(context: DurableJobExecutionContext): Promise<JobExecutionOutcome> {
+    return runWithPostgresTenantScope(context.envelope.scope, () =>
+      this.executeScoped(context)
+    );
+  }
+
+  private async executeScoped(context: DurableJobExecutionContext): Promise<JobExecutionOutcome> {
     const persisted = await this.specs.get(context.envelope.jobId);
     if (!persisted) {
       return { kind: "dead-letter", reason: "Job execution spec is missing" };

@@ -1,6 +1,6 @@
 {
   "registrySchemaVersion": "1.6.0",
-  "registryVersion": "2026-09-22.1",
+  "registryVersion": "2026-09-23.1",
   "appVersion": "0.1.0",
   "schemaVersions": {
     "controlApi": {
@@ -176,7 +176,7 @@
       ]
     },
     "postgresPersistence": {
-      "version": "1.0.0",
+      "version": "1.1.0",
       "sourcePath": "lib/persistence/postgres/client.ts"
     },
     "jobWorkerRuntime": {
@@ -343,7 +343,7 @@
     },
     "postgresPersistence": {
       "status": "implemented-unconnected",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "sourcePath": "lib/persistence/postgres/client.ts"
     },
     "durableJobStore": {
@@ -476,7 +476,10 @@
     "lib/execution/persistent-job-worker.server.test.ts",
     "lib/execution/adapters/ordinary-integration-adapters.test.ts",
     "lib/execution/ordinary-integration-pipeline.test.ts",
-    "docs/SOL_ORDINARY_INTEGRATIONS_REPORT.md"
+    "docs/SOL_ORDINARY_INTEGRATIONS_REPORT.md",
+    "migrations/2026-09-23.1_tenant_rls.sql",
+    "lib/persistence/postgres/tenant-context.server.ts",
+    "lib/persistence/postgres/postgres-tenant-rls.integration.test.ts"
   ],
   "manualSourcePaths": [
     "docs/ARCHITECTURE.md",
@@ -501,9 +504,9 @@
     "status": "implemented-unconnected",
     "engine": "postgresql",
     "minimumEngineVersion": "16",
-    "migrationVersion": "2026-09-22.3",
-    "schemaVersion": "1.3.0",
-    "sourcePath": "migrations/2026-09-22.3_durable_worker.sql",
+    "migrationVersion": "2026-09-23.1",
+    "schemaVersion": "1.4.0",
+    "sourcePath": "migrations/2026-09-23.1_tenant_rls.sql",
     "adapterSourcePath": "lib/persistence/postgres/client.ts"
   },
   "voice": {

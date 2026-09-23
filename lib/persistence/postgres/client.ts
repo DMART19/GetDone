@@ -1,7 +1,8 @@
 import { Pool, type PoolClient, type PoolConfig, type QueryResult, type QueryResultRow } from "pg";
 import { ControlPlaneError } from "@/lib/control-plane/errors";
+import { getPostgresTenantScope } from "@/lib/persistence/postgres/tenant-context.server";
 
-export const POSTGRES_PERSISTENCE_VERSION = "1.0.0";
+export const POSTGRES_PERSISTENCE_VERSION = "1.1.0";
 
 export interface SqlQueryable {
   query<R extends QueryResultRow = QueryResultRow>(
@@ -19,6 +20,7 @@ export interface PostgresConnectionConfig {
   maxConnections?: number;
   statementTimeoutMs?: number;
   connectionTimeoutMs?: number;
+  runtimeRole?: string;
   ssl?: boolean;
 }
 
@@ -29,6 +31,22 @@ function positiveInteger(value: string | undefined, fallback: number, label: str
     throw new ControlPlaneError("VALIDATION_FAILED", `${label} must be a positive integer`);
   }
   return parsed;
+}
+
+function runtimeRole(value: string | undefined) {
+  const role = value?.trim();
+  if (!role) return undefined;
+  if (!/^[A-Za-z_][A-Za-z0-9_]{0,62}$/.test(role)) {
+    throw new ControlPlaneError(
+      "VALIDATION_FAILED",
+      "GETDONE_DB_RUNTIME_ROLE must be a safe PostgreSQL role identifier"
+    );
+  }
+  return role;
+}
+
+function quoteRole(role: string) {
+  return `"${role.replaceAll('"', '""')}"`;
 }
 
 export function readPostgresConfigFromEnv(
@@ -62,14 +80,17 @@ export function readPostgresConfigFromEnv(
       5_000,
       "GETDONE_DB_CONNECTION_TIMEOUT_MS"
     ),
+    runtimeRole: runtimeRole(env.GETDONE_DB_RUNTIME_ROLE),
     ssl: env.GETDONE_DB_SSL !== "false"
   };
 }
 
 export class PostgresDatabase implements PostgresTransactionalDatabase {
   readonly pool: Pool;
+  private readonly runtimeRole?: string;
 
   constructor(config: PostgresConnectionConfig) {
+    this.runtimeRole = config.runtimeRole;
     const poolConfig: PoolConfig = {
       connectionString: config.connectionString,
       max: config.maxConnections ?? 10,
@@ -94,17 +115,71 @@ export class PostgresDatabase implements PostgresTransactionalDatabase {
     });
   }
 
-  query<R extends QueryResultRow = QueryResultRow>(
+  private async connectRuntimeClient() {
+    const client = await this.pool.connect();
+    try {
+      if (this.runtimeRole) {
+        await client.query(`SET ROLE ${quoteRole(this.runtimeRole)}`);
+      }
+      return client;
+    } catch (error) {
+      await this.releaseRuntimeClient(client);
+      throw error;
+    }
+  }
+
+  private async applyTenantScope(client: PoolClient) {
+    const scope = getPostgresTenantScope();
+    if (!scope) return;
+    await client.query(
+      `SELECT
+         set_config('getdone.portfolio_id',$1,true),
+         set_config('getdone.company_id',$2,true)`,
+      [scope.portfolioId, scope.companyId]
+    );
+  }
+
+  private async releaseRuntimeClient(client: PoolClient) {
+    try {
+      if (this.runtimeRole) await client.query("RESET ROLE");
+    } finally {
+      client.release();
+    }
+  }
+
+  async query<R extends QueryResultRow = QueryResultRow>(
     text: string,
     values?: readonly unknown[]
-  ) {
-    return this.pool.query<R>(text, values as unknown[]);
+  ): Promise<QueryResult<R>> {
+    const scope = getPostgresTenantScope();
+    const client = await this.connectRuntimeClient();
+    if (!scope) {
+      try {
+        return await client.query<R>(text, values as unknown[]);
+      } finally {
+        await this.releaseRuntimeClient(client);
+      }
+    }
+
+    try {
+      await client.query("BEGIN");
+      await this.applyTenantScope(client);
+      const result = await client.query<R>(text, values as unknown[]);
+      await client.query("COMMIT");
+      return result;
+    } catch (error) {
+      try { await client.query("ROLLBACK"); } catch {}
+      throw error;
+    } finally {
+      await this.releaseRuntimeClient(client);
+    }
   }
 
   async transaction<T>(operation: (client: PoolClient) => Promise<T>): Promise<T> {
-    const client = await this.pool.connect();
+    const client = await this.connectRuntimeClient();
     try {
       await client.query("BEGIN ISOLATION LEVEL SERIALIZABLE");
+      await this.applyTenantScope(client);
       const result = await operation(client);
       await client.query("COMMIT");
       return result;
@@ -125,12 +200,12 @@ export class PostgresDatabase implements PostgresTransactionalDatabase {
       }
       throw error;
     } finally {
-      client.release();
+      await this.releaseRuntimeClient(client);
     }
   }
 
   async serializableTransactionIsolation() {
-    const client = await this.pool.connect();
+    const client = await this.connectRuntimeClient();
     try {
       await client.query("BEGIN ISOLATION LEVEL SERIALIZABLE READ ONLY");
       const result = await client.query<{ transaction_isolation: string }>(
@@ -142,7 +217,7 @@ export class PostgresDatabase implements PostgresTransactionalDatabase {
       try { await client.query("ROLLBACK"); } catch {}
       throw error;
     } finally {
-      client.release();
+      await this.releaseRuntimeClient(client);
     }
   }
 

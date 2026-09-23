@@ -6,7 +6,8 @@ import {
   PostgresRuntime,
   REQUIRED_POSTGRES_INDEXES,
   REQUIRED_POSTGRES_MIGRATION,
-  REQUIRED_POSTGRES_RELATIONS
+  REQUIRED_POSTGRES_RELATIONS,
+  REQUIRED_POSTGRES_RLS_RELATIONS
 } from "@/lib/persistence/postgres/runtime.server";
 
 function result<R extends QueryResultRow>(rows: R[]): QueryResult<R> {
@@ -27,6 +28,10 @@ class FakeReadinessDatabase {
   isolation = "serializable";
   backupAt = new Date().toISOString();
   backupHash = "a".repeat(64);
+  missingRls = new Set<string>();
+  roleName = "getdone_tenant_runtime";
+  roleSuperuser = false;
+  roleBypassRls = false;
 
   async query<R extends QueryResultRow = QueryResultRow>(
     text: string,
@@ -37,12 +42,26 @@ class FakeReadinessDatabase {
       return result([]) as unknown as QueryResult<R>;
     }
     if (this.inspectionFails) throw new Error("inspection failed");
+    if (text.includes("relrowsecurity")) {
+      return result(REQUIRED_POSTGRES_RLS_RELATIONS.map((name) => ({
+        name,
+        row_security: !this.missingRls.has(name),
+        force_row_security: !this.missingRls.has(name)
+      }))) as unknown as QueryResult<R>;
+    }
     if (text.includes("to_regclass")) {
       const names = (values?.[0] ?? []) as readonly string[];
       return result(names.map((name) => ({
         name,
         present: !this.missing.has(name)
       }))) as unknown as QueryResult<R>;
+    }
+    if (text.includes("pg_roles")) {
+      return result([{
+        role_name: this.roleName,
+        rolsuper: this.roleSuperuser,
+        rolbypassrls: this.roleBypassRls
+      }]) as unknown as QueryResult<R>;
     }
     if (text.includes("getdone_schema_migrations")) {
       return result(this.migration ? [{ version: this.migration }] : []) as unknown as QueryResult<R>;
@@ -81,6 +100,10 @@ describe("PostgreSQL startup readiness gate", () => {
       missingRelations: [],
       requiredIndexesPresent: true,
       missingIndexes: [],
+      tenantRlsProtected: true,
+      missingRlsRelations: [],
+      databaseRole: "getdone_tenant_runtime",
+      databaseRoleRlsSafe: true,
       transactionIsolationSerializable: true,
       transactionIsolation: "serializable",
       backupFresh: true
@@ -125,6 +148,20 @@ describe("PostgreSQL startup readiness gate", () => {
     expect(health.requiredIndexesPresent).toBe(false);
     expect(health.missingIndexes).toEqual([REQUIRED_POSTGRES_INDEXES[0]]);
     await expect(runtime(fake).assertReady()).rejects.toThrow(/required indexes are missing/);
+  });
+
+  it("rejects missing forced tenant RLS and unsafe database roles", async () => {
+    const missingRls = new FakeReadinessDatabase();
+    missingRls.missingRls.add(REQUIRED_POSTGRES_RLS_RELATIONS[0]);
+    await expect(runtime(missingRls).assertReady()).rejects.toThrow(/tenant RLS is not forced/);
+
+    const superuser = new FakeReadinessDatabase();
+    superuser.roleSuperuser = true;
+    await expect(runtime(superuser).assertReady()).rejects.toThrow(/must not be superuser or BYPASSRLS/);
+
+    const bypass = new FakeReadinessDatabase();
+    bypass.roleBypassRls = true;
+    await expect(runtime(bypass).assertReady()).rejects.toThrow(/must not be superuser or BYPASSRLS/);
   });
 
   it("rejects a non-serializable production transaction", async () => {
