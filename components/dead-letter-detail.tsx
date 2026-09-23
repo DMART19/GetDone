@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type {
   DeadLetterOperatorActionResult,
   DeadLetterOperatorView
-} from "@/lib/execution/dead-letter-operator-contracts";
+} from "@/lib/control-api/dead-letter-contracts";
 
 type Envelope<T> =
   | { ok: true; data: T }
