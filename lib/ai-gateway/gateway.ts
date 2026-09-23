@@ -1,6 +1,10 @@
 import { ControlPlaneError } from "@/lib/control-plane/errors";
 import type { KillSwitch } from "@/lib/domain/kill-switch";
-import { admitAIBudget, estimateProfileRequestCostCents } from "@/lib/ai-gateway/budget";
+import {
+  admitAIBudget,
+  assertAIBudgetSnapshot,
+  estimateProfileRequestCostCents
+} from "@/lib/ai-gateway/budget";
 import {
   actualResponseCostCents,
   createAICallAuditRecord,
@@ -119,6 +123,8 @@ export class AIGateway {
         continue;
       }
 
+      assertAIBudgetSnapshot(input.budget, input.request, Date.parse(now));
+      await this.auditStore?.recordBudgetSnapshot?.(input.budget, now);
       admitAIBudget({ request: input.request, profile, snapshot: input.budget, admittedAt: now });
       const estimatedCostCents = estimateProfileRequestCostCents(profile, input.request);
       estimatedTotalCostCents = Number((estimatedTotalCostCents + estimatedCostCents).toFixed(6));
