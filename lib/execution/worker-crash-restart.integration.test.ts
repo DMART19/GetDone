@@ -181,7 +181,8 @@ function spawnWorker(
         GETDONE_DB_SSL: process.env.GETDONE_DB_SSL ?? "false",
         GETDONE_POSTGRES_INTEGRATION: "true",
         GETDONE_WORKER_CRASH_SCENARIO: scenario,
-        GETDONE_JOB_WORKER_ID: workerId
+        GETDONE_JOB_WORKER_ID: workerId,
+        GETDONE_WORKER_ALIAS_ROOT: "dist-worker-acceptance"
       },
       stdio: ["ignore", "pipe", "pipe"]
     }
@@ -224,14 +225,23 @@ async function killHard(worker: SpawnedWorker) {
 async function waitFor(
   label: string,
   predicate: () => Promise<boolean>,
-  timeoutMs = 12_000
+  timeoutMs = 12_000,
+  worker?: SpawnedWorker
 ) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     if (await predicate()) return;
+    if (worker?.child.exitCode !== null || worker?.child.signalCode !== null) {
+      const result = await worker.done;
+      throw new Error(
+        `Worker exited before ${label}: code=${result.code} signal=${result.signal}\n${worker.output()}`
+      );
+    }
     await new Promise((resolve) => setTimeout(resolve, 25));
   }
-  throw new Error(`Timed out waiting for ${label}`);
+  throw new Error(
+    `Timed out waiting for ${label}${worker ? `\n${worker.output()}` : ""}`
+  );
 }
 
 integrationDescribe("worker crash/restart real PostgreSQL acceptance", () => {
@@ -468,8 +478,11 @@ integrationDescribe("worker crash/restart real PostgreSQL acceptance", () => {
       `worker_first_${scenario.replaceAll("-", "_")}`
     );
 
-    await waitFor(`${scenario} crash boundary`, async () =>
-      marker({ ids: value, row: await control(scenario) })
+    await waitFor(
+      `${scenario} crash boundary`,
+      async () => marker({ ids: value, row: await control(scenario) }),
+      12_000,
+      first
     );
 
     await killHard(first);
