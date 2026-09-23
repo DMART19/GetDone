@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { ControlApiApplicationAdapter, ControlApiPrincipal } from "@/lib/control-api/contracts";
 import {
   handleControlHealth,
+  handleAIGatewayHealth,
   handleDiscoverResource,
   handleAdvanceResourceEnrollment,
   handleGetDecision,
@@ -199,6 +200,79 @@ afterEach(() => {
 });
 
 describe("Control API HTTP surface", () => {
+  it("returns owner-safe AI Gateway health without exposing provider identities", async () => {
+    const reader = async () => ({
+      surfaceVersion: "1.0.0",
+      configured: true,
+      status: "ready" as const,
+      activeRoutingPolicyVersion: "routing-v7",
+      lastSuccessfulCanaryAt: "2026-09-23T08:00:00.000Z",
+      primary: {
+        configured: true,
+        available: true,
+        lastSuccessfulCallAt: "2026-09-23T08:10:00.000Z"
+      },
+      fallback: {
+        configured: true,
+        available: true,
+        lastSuccessfulCallAt: "2026-09-23T08:05:00.000Z"
+      },
+      recentErrorClass: "MODEL_CALL_FAILED",
+      budget: {
+        configured: true,
+        status: "healthy" as const,
+        period: "2026-09",
+        spentCents: 25,
+        limitCents: 100,
+        remainingCents: 75
+      }
+    });
+
+    const response = await handleAIGatewayHealth(
+      new Request("http://localhost/api/control/ai/health"),
+      reader
+    );
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    const body = await json(response);
+    expect(body).toMatchObject({
+      ok: true,
+      data: {
+        configured: true,
+        activeRoutingPolicyVersion: "routing-v7",
+        primary: { available: true },
+        fallback: { available: true },
+        recentErrorClass: "MODEL_CALL_FAILED"
+      }
+    });
+    const serialized = JSON.stringify(body);
+    expect(serialized).not.toContain("modelId");
+    expect(serialized).not.toContain("profileId");
+    expect(serialized).not.toContain("apiKey");
+    expect(serialized).not.toContain("credential");
+  });
+
+  it("denies non-owner AI Gateway health access", async () => {
+    installControlApiAdapter({
+      ...fakeAdapter(),
+      authenticate: async () => ({ ...principal, role: "viewer" as const })
+    });
+    let called = false;
+    const response = await handleAIGatewayHealth(
+      new Request("http://localhost/api/control/ai/health"),
+      async () => {
+        called = true;
+        throw new Error("must not run");
+      }
+    );
+    expect(response.status).toBe(403);
+    expect(called).toBe(false);
+    expect(await json(response)).toMatchObject({
+      ok: false,
+      error: { code: "FORBIDDEN" }
+    });
+  });
+
   it("returns explicit health and no-store envelopes", async () => {
     const response = await handleControlHealth();
     expect(response.status).toBe(200);
