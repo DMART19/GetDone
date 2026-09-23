@@ -244,6 +244,16 @@ export class PostgresDurableJobStore implements DurableJobWorkStore {
         );
       }
     }
+    if (
+      options.maxQueueDepth !== undefined
+      && options.maxCompanyQueueDepth !== undefined
+      && options.maxCompanyQueueDepth >= options.maxQueueDepth
+    ) {
+      throw new ControlPlaneError(
+        "VALIDATION_FAILED",
+        "Durable Job company queue depth limit must be lower than the global queue depth limit"
+      );
+    }
   }
 
   async listReady(input: { now: string; limit: number }) {
