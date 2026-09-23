@@ -2,6 +2,15 @@ name: Configured HTTPS Staging Acceptance
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - sol/slack-http-staging
+    paths:
+      - "lib/execution/adapters/configured-http-action.ts"
+      - "lib/execution/configured-http-live-staging.acceptance.test.ts"
+      - "scripts/configured-http-staging-server.mjs"
+      - ".github/workflows/configured-http-staging-acceptance.yml"
+      - "package.json"
   pull_request:
     paths:
       - "lib/execution/adapters/configured-http-action.ts"
