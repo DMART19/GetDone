@@ -4,7 +4,7 @@ import {
   readPostgresConfigFromEnv
 } from "@/lib/persistence/postgres/client";
 
-export const REQUIRED_POSTGRES_MIGRATION = "2026-09-22.3";
+export const REQUIRED_POSTGRES_MIGRATION = "2026-09-23.1";
 
 export const REQUIRED_POSTGRES_RELATIONS = Object.freeze([
   "getdone_schema_migrations",
@@ -53,7 +53,18 @@ export const REQUIRED_POSTGRES_INDEXES = Object.freeze([
   "job_leases_one_active_per_job",
   "job_leases_expiry_idx",
   "job_worker_instances_status_idx",
-  "business_action_verification_scope_idx"
+  "business_action_verification_scope_idx",
+  "business_action_executions_job_idx"
+] as const);
+
+export const REQUIRED_POSTGRES_RLS_RELATIONS = Object.freeze([
+  "control_plane_entities",
+  "audit_events",
+  "authorization_grants",
+  "authorization_consumptions",
+  "verification_receipts",
+  "business_action_executions",
+  "business_action_verification_evidence"
 ] as const);
 
 export interface PostgresRuntimeHealth {
@@ -66,6 +77,10 @@ export interface PostgresRuntimeHealth {
   missingRelations: readonly string[];
   requiredIndexesPresent: boolean;
   missingIndexes: readonly string[];
+  tenantRlsProtected: boolean;
+  missingRlsRelations: readonly string[];
+  databaseRole?: string;
+  databaseRoleRlsSafe: boolean;
   transactionIsolationSerializable: boolean;
   transactionIsolation?: string;
   backupFresh: boolean;
@@ -77,6 +92,18 @@ interface PresenceRow {
   present: boolean;
 }
 
+interface RlsRow {
+  name: string;
+  row_security: boolean | null;
+  force_row_security: boolean | null;
+}
+
+interface RoleRow {
+  role_name: string;
+  rolsuper: boolean;
+  rolbypassrls: boolean;
+}
+
 const unavailableHealth = (): PostgresRuntimeHealth => ({
   connected: false,
   inspectionSucceeded: false,
@@ -86,6 +113,9 @@ const unavailableHealth = (): PostgresRuntimeHealth => ({
   missingRelations: REQUIRED_POSTGRES_RELATIONS,
   requiredIndexesPresent: false,
   missingIndexes: REQUIRED_POSTGRES_INDEXES,
+  tenantRlsProtected: false,
+  missingRlsRelations: REQUIRED_POSTGRES_RLS_RELATIONS,
+  databaseRoleRlsSafe: false,
   transactionIsolationSerializable: false,
   backupFresh: false
 });
@@ -103,6 +133,37 @@ export class PostgresRuntime {
       [names]
     );
     return result.rows.filter((row) => !row.present).map((row) => row.name);
+  }
+
+  private async tenantRlsHealth() {
+    const result = await this.database.query<RlsRow>(
+      `SELECT
+         required.name,
+         relation.relrowsecurity AS row_security,
+         relation.relforcerowsecurity AS force_row_security
+       FROM unnest($1::text[]) AS required(name)
+       LEFT JOIN pg_class relation ON relation.oid = to_regclass(required.name)`,
+      [REQUIRED_POSTGRES_RLS_RELATIONS]
+    );
+    const missingRlsRelations = result.rows
+      .filter((row) => row.row_security !== true || row.force_row_security !== true)
+      .map((row) => row.name);
+
+    const roleResult = await this.database.query<RoleRow>(
+      `SELECT
+         current_user AS role_name,
+         role.rolsuper,
+         role.rolbypassrls
+       FROM pg_roles role
+       WHERE role.rolname = current_user`
+    );
+    const role = roleResult.rows[0];
+    return {
+      tenantRlsProtected: missingRlsRelations.length === 0,
+      missingRlsRelations,
+      databaseRole: role?.role_name,
+      databaseRoleRlsSafe: Boolean(role && !role.rolsuper && !role.rolbypassrls)
+    };
   }
 
   async health(now = Date.now()): Promise<PostgresRuntimeHealth> {
@@ -127,6 +188,7 @@ export class PostgresRuntime {
       }
       const schemaCurrent = latestMigration === REQUIRED_POSTGRES_MIGRATION;
 
+      const rls = await this.tenantRlsHealth();
       const transactionIsolation = await this.database.serializableTransactionIsolation();
       const transactionIsolationSerializable = transactionIsolation === "serializable";
 
@@ -156,6 +218,8 @@ export class PostgresRuntime {
       const ready = schemaCurrent
         && requiredRelationsPresent
         && requiredIndexesPresent
+        && rls.tenantRlsProtected
+        && rls.databaseRoleRlsSafe
         && transactionIsolationSerializable
         && backupFresh;
 
@@ -169,6 +233,7 @@ export class PostgresRuntime {
         missingRelations,
         requiredIndexesPresent,
         missingIndexes,
+        ...rls,
         transactionIsolationSerializable,
         transactionIsolation,
         backupFresh,
@@ -206,6 +271,18 @@ export class PostgresRuntime {
       throw new ControlPlaneError(
         "UNAVAILABLE",
         `PostgreSQL required indexes are missing: ${health.missingIndexes.join(", ")}`
+      );
+    }
+    if (!health.tenantRlsProtected) {
+      throw new ControlPlaneError(
+        "UNAVAILABLE",
+        `PostgreSQL tenant RLS is not forced on: ${health.missingRlsRelations.join(", ")}`
+      );
+    }
+    if (!health.databaseRoleRlsSafe) {
+      throw new ControlPlaneError(
+        "UNAVAILABLE",
+        "PostgreSQL runtime role must not be superuser or BYPASSRLS"
       );
     }
     if (!health.transactionIsolationSerializable) {
