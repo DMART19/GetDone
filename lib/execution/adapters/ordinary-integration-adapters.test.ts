@@ -145,9 +145,10 @@ describe("ordinary integration adapters", () => {
       text: "hello"
     };
     await expect(gmail.execute(request("email.send", emailInput))).resolves.toMatchObject({
-      status: "failed",
-      retryable: false,
-      retryClass: "malformed-response"
+      status: "accepted",
+      retryable: true,
+      retryClass: "malformed-response",
+      providerOperationId: expect.stringContaining("gmail:gmail-primary:rfc822:")
     });
 
     const slack = new SlackBusinessActionAdapter([{
