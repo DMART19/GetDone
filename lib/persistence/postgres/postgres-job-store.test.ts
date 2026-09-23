@@ -130,6 +130,13 @@ describe("PostgresDurableJobStore", () => {
     });
   });
 
+  it("rejects a per-company queue ceiling that could consume the entire global queue", () => {
+    expect(() => new PostgresDurableJobStore(new ScriptedDb([]), {
+      maxQueueDepth: 10,
+      maxCompanyQueueDepth: 10
+    })).toThrow(/company queue depth limit must be lower/i);
+  });
+
   it("enqueues a new durable Job and persists transaction lineage", async () => {
     const db = new ScriptedDb([
       { rows: [] },
