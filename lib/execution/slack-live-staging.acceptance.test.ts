@@ -331,7 +331,7 @@ liveDescribe("real Slack governed staging acceptance", () => {
 
       const record = await new PostgresBusinessActionExecutionStore(db).get(action.id);
       expect(record?.providerOperationId).toBeTruthy();
-      const hash = await independentVerify(record!.providerOperationId!, action.input.text as string);
+      const hash = await independentVerify(record!.providerOperationId!, (action.input as { text: string }).text);
       expect(observedClientMsgId).toBe(deterministicSlackClientMessageId(action.idempotencyKey));
       expect(postCalls).toBe(1);
       recordCase({
@@ -403,7 +403,7 @@ liveDescribe("real Slack governed staging acceptance", () => {
       await value.mvp.enqueueAuthorizedBusinessAction(authoritative, action);
       expect((await runUntilTerminal(value, authoritative.id)).state).toBe("released");
       const record = await new PostgresBusinessActionExecutionStore(db).get(action.id);
-      const hash = await independentVerify(record!.providerOperationId!, action.input.text as string);
+      const hash = await independentVerify(record!.providerOperationId!, (action.input as { text: string }).text);
       expect(realPostCalls).toBe(1);
       recordCase({
         name: "rate-limit-retry",
@@ -498,7 +498,7 @@ liveDescribe("real Slack governed staging acceptance", () => {
       const resumed = runtime(secondDb, adapter(liveFetch), start + 5_000, 5);
       expect((await runUntilTerminal(resumed, authoritative.id)).state).toBe("released");
       const record = await new PostgresBusinessActionExecutionStore(secondDb).get(action.id);
-      const hash = await independentVerify(record!.providerOperationId!, action.input.text as string);
+      const hash = await independentVerify(record!.providerOperationId!, (action.input as { text: string }).text);
       expect(postCalls).toBe(1);
       recordCase({
         name: "restart-resume",
