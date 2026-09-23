@@ -119,6 +119,25 @@ try {
     throw new Error("Migration/runtime principal cannot SET ROLE getdone_tenant_runtime");
   }
 
+  await client.query('SET ROLE "getdone_tenant_runtime"');
+  try {
+    const effectiveRuntimeRole = await client.query(
+      `SELECT current_user AS role_name, role.rolsuper, role.rolbypassrls
+       FROM pg_roles role
+       WHERE role.rolname=current_user`
+    );
+    const effective = effectiveRuntimeRole.rows[0];
+    if (
+      effective?.role_name !== "getdone_tenant_runtime"
+      || effective.rolsuper
+      || effective.rolbypassrls
+    ) {
+      throw new Error("Effective PostgreSQL runtime role is not RLS-safe");
+    }
+  } finally {
+    await client.query("RESET ROLE");
+  }
+
   const authSchema = await client.query(
     `SELECT COUNT(*)::int AS count
      FROM unnest(ARRAY[
@@ -185,6 +204,7 @@ try {
     concurrencyConstraints: "verified",
     tenantRls: "verified",
     tenantRuntimeRole: "verified",
+    effectiveRuntimeRole: "verified",
     auditSchema: "verified",
     authSchema: "verified",
     durableWorkerSchema: "verified",

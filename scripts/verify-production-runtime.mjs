@@ -1,0 +1,493 @@
+import { spawnSync } from "node:child_process";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const env = process.env;
+const failures = [];
+
+function fail(code, message) {
+  failures.push({ code, message });
+}
+
+function required(name) {
+  const value = env[name]?.trim();
+  if (!value) {
+    fail("MISSING_CONFIG", `${name} is required in production`);
+    return "";
+  }
+  return value;
+}
+
+function parseJson(name) {
+  const raw = required(name);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    fail("INVALID_JSON", `${name} must be valid JSON`);
+    return null;
+  }
+}
+
+function isPlaceholderSecret(value) {
+  return /^(changeme|change-me|example|placeholder|secret|token|test|dummy)$/i.test(value);
+}
+
+function assertSecret(name, minLength = 16) {
+  const value = required(name);
+  if (!value) return "";
+  if (value.length < minLength || isPlaceholderSecret(value)) {
+    fail("WEAK_SECRET", `${name} must be a non-placeholder secret of at least ${minLength} characters`);
+  }
+  return value;
+}
+
+function assertHttpsUrl(value, label, { approvedHosts } = {}) {
+  let url;
+  try {
+    url = new URL(value);
+  } catch {
+    fail("INVALID_URL", `${label} must be a valid URL`);
+    return null;
+  }
+  if (url.protocol !== "https:" || url.username || url.password || url.hash) {
+    fail("INSECURE_URL", `${label} must be credential-free HTTPS`);
+    return null;
+  }
+  if (approvedHosts && !approvedHosts.includes(url.hostname)) {
+    fail("UNAPPROVED_HOST", `${label} must use an approved host`);
+    return null;
+  }
+  return url;
+}
+
+function credentialVariable(reference, label) {
+  if (typeof reference !== "string" || !/^env:[A-Z][A-Z0-9_]*$/.test(reference)) {
+    fail("INVALID_CREDENTIAL_REFERENCE", `${label} must be an env:VARIABLE reference`);
+    return null;
+  }
+  const variable = reference.slice(4);
+  if (!env[variable]?.trim()) {
+    fail("MISSING_CREDENTIAL", `${label} references unavailable server secret ${variable}`);
+  }
+  return variable;
+}
+
+function walkCredentialReferences(value, label) {
+  if (!value || typeof value !== "object") return;
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => walkCredentialReferences(item, `${label}[${index}]`));
+    return;
+  }
+  for (const [key, item] of Object.entries(value)) {
+    if (/credentialRef$/i.test(key) && item !== undefined) {
+      credentialVariable(item, `${label}.${key}`);
+    } else if (key === "authorizationEnv" && item !== undefined) {
+      fail(
+        "LEGACY_CREDENTIAL_CONFIG",
+        `${label}.authorizationEnv is not allowed in production; use credentialRef=env:VARIABLE`
+      );
+    } else {
+      walkCredentialReferences(item, `${label}.${key}`);
+    }
+  }
+}
+
+function walkHttpsUrls(value, label) {
+  if (!value || typeof value !== "object") return;
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => walkHttpsUrls(item, `${label}[${index}]`));
+    return;
+  }
+  for (const [key, item] of Object.entries(value)) {
+    if ((key === "url" || key === "baseUrl") && typeof item === "string") {
+      const probe = item.replaceAll("{providerOperationId}", "provider-operation");
+      assertHttpsUrl(probe, `${label}.${key}`);
+    } else {
+      walkHttpsUrls(item, `${label}.${key}`);
+    }
+  }
+}
+
+function validateIntegrationArray(name, type) {
+  const parsed = parseJson(name);
+  if (parsed === null) return 0;
+  if (!Array.isArray(parsed) || parsed.length === 0) {
+    fail("INVALID_INTEGRATION_CONFIG", `${name} must be a non-empty JSON array`);
+    return 0;
+  }
+
+  parsed.forEach((entry, index) => {
+    const label = `${name}[${index}]`;
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+      fail("INVALID_INTEGRATION_CONFIG", `${label} must be an object`);
+      return;
+    }
+    if (entry.environment !== "production") {
+      fail("NON_PRODUCTION_INTEGRATION", `${label}.environment must be production`);
+    }
+    if (typeof entry.companyId !== "string" || !entry.companyId.trim()) {
+      fail("INVALID_INTEGRATION_CONFIG", `${label}.companyId is required`);
+    }
+
+    if (type === "http" || type === "webhook") {
+      if (typeof entry.name !== "string" || !/^[A-Za-z0-9._:-]+$/.test(entry.name)) {
+        fail("INVALID_INTEGRATION_CONFIG", `${label}.name is invalid`);
+      }
+      if (typeof entry.url !== "string") {
+        fail("INVALID_INTEGRATION_CONFIG", `${label}.url is required`);
+      }
+      if (entry.consequential === true && !entry.verification) {
+        fail(
+          "UNVERIFIED_CONSEQUENTIAL_ACTION",
+          `${label} is consequential and requires independent verification`
+        );
+      }
+    } else {
+      if (typeof entry.id !== "string" || !entry.id.trim()) {
+        fail("INVALID_INTEGRATION_CONFIG", `${label}.id is required`);
+      }
+      if (typeof entry.credentialRef !== "string") {
+        fail("INVALID_INTEGRATION_CONFIG", `${label}.credentialRef is required`);
+      }
+      if (
+        (type === "gmail" || type === "slack")
+        && entry.verificationMode === "provider-acceptance-only"
+      ) {
+        fail(
+          "UNVERIFIED_PRODUCTION_INTEGRATION",
+          `${label} must use provider-object verification in production`
+        );
+      }
+    }
+
+    walkCredentialReferences(entry, label);
+    walkHttpsUrls(entry, label);
+  });
+
+  return parsed.length;
+}
+
+function validateEnvironmentIdentity() {
+  if (env.GETDONE_RUNTIME_ENV?.trim() !== "production") {
+    fail("ENVIRONMENT_IDENTITY", "GETDONE_RUNTIME_ENV must be production");
+  }
+  if (env.NODE_ENV?.trim() !== "production") {
+    fail("ENVIRONMENT_IDENTITY", "NODE_ENV must be production");
+  }
+  if (env.NEXT_PUBLIC_APP_ENV?.trim() !== "production") {
+    fail("ENVIRONMENT_IDENTITY", "NEXT_PUBLIC_APP_ENV must be production");
+  }
+  if (env.GETDONE_DATA_MODE?.trim() !== "authoritative") {
+    fail("ENVIRONMENT_IDENTITY", "GETDONE_DATA_MODE must be authoritative");
+  }
+
+  const role = env.GETDONE_PROCESS_ROLE?.trim();
+  if (role !== "web" && role !== "job-worker") {
+    fail("PROCESS_IDENTITY", "GETDONE_PROCESS_ROLE must be explicitly web or job-worker");
+  }
+
+  const runtimeRole = env.GETDONE_DB_RUNTIME_ROLE?.trim();
+  if (runtimeRole !== "getdone_tenant_runtime") {
+    fail("DATABASE_ROLE", "GETDONE_DB_RUNTIME_ROLE must be getdone_tenant_runtime");
+  }
+}
+
+function validateProhibitedSettings() {
+  const prohibited = [
+    "GETDONE_NODE_IDENTITY_DEV_SECRET",
+    "GETDONE_OWNER_SESSION_TOKEN",
+    "GETDONE_OWNER_SESSION_ID"
+  ];
+  for (const name of prohibited) {
+    if (env[name]?.trim()) {
+      fail("PROHIBITED_PRODUCTION_SETTING", `${name} must not be set in production`);
+    }
+  }
+
+  for (const [name, value] of Object.entries(env)) {
+    if (
+      value?.trim()
+      && name.startsWith("NEXT_PUBLIC_")
+      && /(SECRET|TOKEN|PASSWORD|API_KEY|PRIVATE_KEY|DATABASE_URL)/i.test(name)
+    ) {
+      fail("PUBLIC_SECRET", `${name} looks secret-bearing and must not be exposed to the browser`);
+    }
+  }
+}
+
+function validateDatabaseConfiguration() {
+  const connection = required("DATABASE_URL");
+  if (connection) {
+    let url;
+    try {
+      url = new URL(connection);
+    } catch {
+      fail("DATABASE_CONFIG", "DATABASE_URL must be a valid PostgreSQL URL");
+      return;
+    }
+    if (!["postgres:", "postgresql:"].includes(url.protocol)) {
+      fail("DATABASE_CONFIG", "DATABASE_URL must use postgres:// or postgresql://");
+    }
+  }
+
+  const maxBackupAge = Number(env.GETDONE_BACKUP_MAX_AGE_HOURS || "24");
+  if (!Number.isFinite(maxBackupAge) || maxBackupAge <= 0) {
+    fail("BACKUP_CONFIG", "GETDONE_BACKUP_MAX_AGE_HOURS must be positive");
+  }
+}
+
+function validateWebAuthn() {
+  const rpId = required("GETDONE_WEBAUTHN_RP_ID");
+  if (rpId && (!/^[A-Za-z0-9.-]+$/.test(rpId) || rpId === "localhost")) {
+    fail("WEBAUTHN_CONFIG", "GETDONE_WEBAUTHN_RP_ID must be a production DNS RP ID");
+  }
+
+  const rawOrigins = required("GETDONE_WEBAUTHN_ORIGINS");
+  if (!rawOrigins || !rpId) return;
+
+  let origins;
+  if (rawOrigins.startsWith("[")) {
+    try {
+      origins = JSON.parse(rawOrigins);
+    } catch {
+      origins = null;
+    }
+  } else {
+    origins = rawOrigins.split(",");
+  }
+
+  if (!Array.isArray(origins) || origins.length === 0 || origins.some((item) => typeof item !== "string")) {
+    fail("WEBAUTHN_CONFIG", "GETDONE_WEBAUTHN_ORIGINS must be a non-empty string list");
+    return;
+  }
+
+  const normalized = [...new Set(origins.map((item) => item.trim()).filter(Boolean))];
+  if (normalized.length === 0) {
+    fail("WEBAUTHN_CONFIG", "At least one WebAuthn origin is required");
+    return;
+  }
+
+  for (const origin of normalized) {
+    const url = assertHttpsUrl(origin, "WebAuthn origin");
+    if (!url) continue;
+    if (url.origin !== origin) {
+      fail("WEBAUTHN_CONFIG", "WebAuthn origins must be exact origins without path/query");
+    }
+    if (url.hostname !== rpId && !url.hostname.endsWith(`.${rpId}`)) {
+      fail("WEBAUTHN_CONFIG", "WebAuthn origin hostname must match or be a subdomain of the RP ID");
+    }
+    if (["localhost", "127.0.0.1", "::1"].includes(url.hostname)) {
+      fail("WEBAUTHN_CONFIG", "Loopback WebAuthn origins are prohibited in production");
+    }
+  }
+}
+
+function validateWorkerConfiguration() {
+  assertSecret("GETDONE_INTERNAL_WORKER_TOKEN", 32);
+  if (env.GETDONE_PROCESS_ROLE?.trim() === "job-worker") {
+    const workerId = required("GETDONE_JOB_WORKER_ID");
+    if (workerId && !/^[A-Za-z0-9._:-]{1,128}$/.test(workerId)) {
+      fail("WORKER_CONFIG", "GETDONE_JOB_WORKER_ID is malformed");
+    }
+  }
+}
+
+function validateAiRouting() {
+  assertSecret("OPENROUTER_API_KEY", 16);
+  const base = required("OPENROUTER_BASE_URL");
+  assertHttpsUrl(base, "OPENROUTER_BASE_URL", {
+    approvedHosts: ["openrouter.ai", "eu.openrouter.ai"]
+  });
+
+  const profiles = parseJson("GETDONE_AI_MODEL_PROFILES_JSON");
+  const policy = parseJson("GETDONE_AI_ROUTING_POLICY_JSON");
+  if (!Array.isArray(profiles) || profiles.length < 2) {
+    fail("AI_ROUTING", "Production AI routing requires at least two model profiles for primary/fallback routing");
+    return;
+  }
+  if (!policy || typeof policy !== "object" || Array.isArray(policy)) {
+    fail("AI_ROUTING", "GETDONE_AI_ROUTING_POLICY_JSON must be an object");
+    return;
+  }
+  if (typeof policy.version !== "string" || !policy.version.trim()) {
+    fail("AI_ROUTING", "AI routing policy version is required");
+  }
+  if (!policy.routes || typeof policy.routes !== "object" || Array.isArray(policy.routes)) {
+    fail("AI_ROUTING", "AI routing policy routes are required");
+    return;
+  }
+
+  const byId = new Map();
+  for (const [index, profile] of profiles.entries()) {
+    const label = `GETDONE_AI_MODEL_PROFILES_JSON[${index}]`;
+    if (!profile || typeof profile !== "object" || Array.isArray(profile)) {
+      fail("AI_PROFILE", `${label} must be an object`);
+      continue;
+    }
+    if (typeof profile.id !== "string" || !profile.id.trim()) {
+      fail("AI_PROFILE", `${label}.id is required`);
+      continue;
+    }
+    if (byId.has(profile.id)) {
+      fail("AI_PROFILE", `Duplicate AI profile id: ${profile.id}`);
+      continue;
+    }
+    byId.set(profile.id, profile);
+
+    if (
+      profile.gatewayId !== "openrouter"
+      || profile.providerId !== "openrouter"
+      || profile.enabled !== true
+      || profile.validationStatus !== "validated"
+      || profile.health !== "healthy"
+      || !Array.isArray(profile.allowedEnvironments)
+      || !profile.allowedEnvironments.includes("production")
+    ) {
+      fail("AI_PROFILE", `${label} is not an enabled, validated, healthy production OpenRouter profile`);
+    }
+    if (
+      typeof profile.modelId !== "string"
+      || !profile.modelId.trim()
+      || profile.modelId === "openrouter/auto"
+      || profile.modelId.startsWith("~")
+    ) {
+      fail("AI_PROFILE", `${label}.modelId must be a concrete model ID`);
+    }
+  }
+
+  const routeEntries = Object.entries(policy.routes);
+  if (routeEntries.length === 0) {
+    fail("AI_ROUTING", "At least one AI route is required");
+  }
+  if (!Array.isArray(policy.routes.STANDARD) || policy.routes.STANDARD.length < 2) {
+    fail("AI_ROUTING", "STANDARD routing requires an ordered primary and fallback profile");
+  }
+
+  for (const [role, route] of routeEntries) {
+    if (!Array.isArray(route) || route.length === 0 || route.some((id) => typeof id !== "string")) {
+      fail("AI_ROUTING", `AI route ${role} must contain profile IDs`);
+      continue;
+    }
+    if (new Set(route).size !== route.length) {
+      fail("AI_ROUTING", `AI route ${role} contains duplicate profile IDs`);
+    }
+    for (const id of route) {
+      const profile = byId.get(id);
+      if (!profile) {
+        fail("AI_ROUTING", `AI route ${role} references unknown profile ${id}`);
+      } else if (
+        profile.enabled !== true
+        || profile.validationStatus !== "validated"
+        || profile.health !== "healthy"
+        || !profile.allowedEnvironments?.includes("production")
+      ) {
+        fail("AI_ROUTING", `AI route ${role} references production-ineligible profile ${id}`);
+      }
+    }
+  }
+
+  if (env.OPENROUTER_CANARY_ENABLED !== "true") {
+    fail("AI_CANARY", "OPENROUTER_CANARY_ENABLED must be true in production");
+  }
+  const canaryModel = required("OPENROUTER_CANARY_MODEL");
+  if (canaryModel) {
+    if (canaryModel === "openrouter/auto" || canaryModel.startsWith("~")) {
+      fail("AI_CANARY", "OPENROUTER_CANARY_MODEL must be a concrete model ID");
+    }
+    const configuredModels = new Set([...byId.values()].map((profile) => profile.modelId));
+    if (!configuredModels.has(canaryModel)) {
+      fail("AI_CANARY", "OPENROUTER_CANARY_MODEL must match a configured production profile");
+    }
+  }
+}
+
+function validateIntegrations() {
+  const configs = [
+    ["GETDONE_HTTP_ACTIONS_JSON", "http"],
+    ["GETDONE_WEBHOOK_ACTIONS_JSON", "webhook"],
+    ["GETDONE_GMAIL_ACTIONS_JSON", "gmail"],
+    ["GETDONE_SLACK_ACTIONS_JSON", "slack"]
+  ];
+
+  let configured = 0;
+  for (const [name, type] of configs) {
+    if (!env[name]?.trim()) continue;
+    configured += validateIntegrationArray(name, type);
+  }
+  if (configured === 0) {
+    fail(
+      "INTEGRATION_CONFIG",
+      "At least one governed ordinary production integration must be configured"
+    );
+  }
+}
+
+function printFailureAndExit() {
+  console.error(JSON.stringify({
+    ok: false,
+    verifier: "verify-production-runtime",
+    failures
+  }, null, 2));
+  process.exit(1);
+}
+
+validateEnvironmentIdentity();
+validateProhibitedSettings();
+validateDatabaseConfiguration();
+validateWebAuthn();
+validateWorkerConfiguration();
+validateAiRouting();
+validateIntegrations();
+
+if (failures.length > 0) {
+  printFailureAndExit();
+}
+
+const databaseVerifier = spawnSync(
+  process.execPath,
+  [path.join(root, "scripts", "verify-postgres-production.mjs")],
+  {
+    cwd: root,
+    env,
+    encoding: "utf8"
+  }
+);
+
+if (databaseVerifier.status !== 0) {
+  const output = [databaseVerifier.stderr, databaseVerifier.stdout]
+    .filter(Boolean)
+    .join("\n")
+    .trim()
+    .split("\n")
+    .filter(Boolean)
+    .slice(-8);
+  fail(
+    "DATABASE_READINESS",
+    output.length > 0
+      ? `PostgreSQL production readiness failed: ${output.join(" | ")}`
+      : "PostgreSQL production readiness verification failed"
+  );
+  printFailureAndExit();
+}
+
+let database = {};
+try {
+  database = JSON.parse(databaseVerifier.stdout);
+} catch {
+  database = { status: "verified" };
+}
+
+console.log(JSON.stringify({
+  ok: true,
+  verifier: "verify-production-runtime",
+  environment: "production",
+  processRole: env.GETDONE_PROCESS_ROLE,
+  database,
+  webAuthn: "configured",
+  workerAuthentication: "configured",
+  aiRouting: "configured",
+  integrations: "configured",
+  developmentSettings: "prohibited"
+}, null, 2));
