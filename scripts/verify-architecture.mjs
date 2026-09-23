@@ -155,7 +155,7 @@ const aiContracts = read("lib/ai-gateway/contracts.ts");
 const aiGateway = read("lib/ai-gateway/gateway.ts");
 const aiRouter = read("lib/ai-gateway/router.ts");
 for (const required of [
-  'AI_GATEWAY_CONTRACT_VERSION = "1.2.0"',
+  'AI_GATEWAY_CONTRACT_VERSION = "1.3.0"',
   '"DETERMINISTIC"',
   '"HIGH_REASONING"',
   '"CODING"',
