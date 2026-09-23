@@ -97,8 +97,8 @@ export class MvpJobRuntime {
     return this.enqueueAuthorizedBusinessAction(job, request);
   }
 
-  runOnce() {
-    return this.engine.runOnce(this.handler);
+  runOnce(options: { shouldStop?: () => boolean } = {}) {
+    return this.engine.runOnce(this.handler, options);
   }
 
   recoverExpired(limit?: number) {
