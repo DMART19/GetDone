@@ -108,14 +108,19 @@ async function recentErrorClass(
   return result.rows[0]?.failure_class ?? null;
 }
 
-async function lastSuccessfulCanary(db: SqlQueryable) {
+async function lastSuccessfulCanary(
+  db: SqlQueryable,
+  scope: TrustedExecutionScope
+) {
   const result = await db.query<{ observed_at: string | null }>(
     `SELECT payload->>'observedAt' AS observed_at
      FROM control_plane_entities
      WHERE entity_type=$1
+       AND portfolio_id=$2
+       AND company_id=$3
      ORDER BY updated_at DESC
      LIMIT 1`,
-    [CANARY_ENTITY_TYPE]
+    [CANARY_ENTITY_TYPE, scope.portfolioId, scope.companyId]
   );
   return result.rows[0]?.observed_at ?? null;
 }
@@ -209,7 +214,7 @@ export async function readOwnerAIGatewayHealth(
       fallbackLastSuccess,
       spentCents
     ] = await Promise.all([
-      lastSuccessfulCanary(db),
+      lastSuccessfulCanary(db, scope),
       recentErrorClass(
         db,
         scope,
