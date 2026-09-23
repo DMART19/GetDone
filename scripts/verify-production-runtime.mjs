@@ -296,7 +296,7 @@ function validateWorkerConfiguration() {
 
 function validateAiRouting() {
   assertSecret("OPENROUTER_API_KEY", 16);
-  const base = env.OPENROUTER_BASE_URL?.trim() || "https://openrouter.ai/api/v1";
+  const base = required("OPENROUTER_BASE_URL");
   assertHttpsUrl(base, "OPENROUTER_BASE_URL", {
     approvedHosts: ["openrouter.ai", "eu.openrouter.ai"]
   });
