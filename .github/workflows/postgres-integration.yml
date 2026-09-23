@@ -115,6 +115,9 @@ jobs:
           GETDONE_DB_SSL: "false"
           GETDONE_POSTGRES_INTEGRATION: "true"
 
+      - name: Build crash acceptance worker process
+        run: npm run build:worker-acceptance
+
       - name: Run worker crash/restart acceptance
         run: npx vitest run lib/execution/worker-crash-restart.integration.test.ts
         env:
