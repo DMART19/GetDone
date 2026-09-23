@@ -71,6 +71,13 @@ jobs:
           GETDONE_DB_SSL: "false"
           GETDONE_POSTGRES_INTEGRATION: "true"
 
+      - name: Run AI Gateway health persistence acceptance
+        run: npx vitest run lib/ai-gateway/ai-gateway-health.integration.test.ts
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+          GETDONE_DB_SSL: "false"
+          GETDONE_POSTGRES_INTEGRATION: "true"
+
       - name: Run production runtime startup validator acceptance
         run: npx vitest run lib/runtime/production-runtime-validator.integration.test.ts
         env:
