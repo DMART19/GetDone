@@ -1,8 +1,12 @@
 export async function register() {
-  if (
-    process.env.NEXT_RUNTIME === "nodejs"
-    && process.env.GETDONE_PROCESS_ROLE === "job-worker"
-  ) {
+  if (process.env.NEXT_RUNTIME !== "nodejs") return;
+
+  const { assertPostgresReadyAtStartup } = await import(
+    "@/lib/persistence/postgres/runtime.server"
+  );
+  await assertPostgresReadyAtStartup();
+
+  if (process.env.GETDONE_PROCESS_ROLE === "job-worker") {
     const { installPersistentJobWorkerFromEnv } = await import(
       "@/lib/execution/persistent-job-worker.server"
     );
