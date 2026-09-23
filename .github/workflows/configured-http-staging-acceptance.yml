@@ -1,0 +1,138 @@
+name: Configured HTTPS Staging Acceptance
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "lib/execution/adapters/configured-http-action.ts"
+      - "lib/execution/configured-http-live-staging.acceptance.test.ts"
+      - "scripts/configured-http-staging-server.mjs"
+      - ".github/workflows/configured-http-staging-acceptance.yml"
+      - "package.json"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: configured-http-staging-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  NPM_CONFIG_IGNORE_SCRIPTS: "true"
+  GETDONE_HTTP_STAGING_ACCEPTANCE: "true"
+
+jobs:
+  live-configured-https:
+    name: live-configured-https
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Generate ephemeral staging credentials
+        shell: bash
+        run: |
+          echo "GETDONE_HTTP_STAGING_TOKEN_A=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+          echo "GETDONE_HTTP_STAGING_TOKEN_B=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+          echo "GETDONE_HTTP_STAGING_CONTROL_TOKEN=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+
+      - name: Start controlled local staging provider
+        shell: bash
+        run: |
+          GETDONE_HTTP_STAGING_PORT=8787           GETDONE_HTTP_STAGING_INITIAL_TOKEN="$GETDONE_HTTP_STAGING_TOKEN_A"           GETDONE_HTTP_STAGING_CONTROL_TOKEN="$GETDONE_HTTP_STAGING_CONTROL_TOKEN"           node scripts/configured-http-staging-server.mjs > /tmp/getdone-http-staging.log 2>&1 &
+          echo $! > /tmp/getdone-http-staging.pid
+          for i in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:8787/health >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/getdone-http-staging.log
+          exit 1
+
+      - name: Install Cloudflare tunnel client
+        shell: bash
+        run: |
+          curl --fail --location --silent --show-error             https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64             --output /tmp/cloudflared
+          chmod +x /tmp/cloudflared
+          /tmp/cloudflared --version
+
+      - name: Expose controlled provider through real HTTPS
+        shell: bash
+        run: |
+          /tmp/cloudflared tunnel --no-autoupdate --url http://127.0.0.1:8787             > /tmp/cloudflared.log 2>&1 &
+          echo $! > /tmp/cloudflared.pid
+          ORIGIN=""
+          for i in $(seq 1 120); do
+            ORIGIN=$(grep -Eo 'https://[-a-zA-Z0-9]+\.trycloudflare\.com' /tmp/cloudflared.log | head -n 1 || true)
+            if [ -n "$ORIGIN" ] && curl --fail --silent --show-error --connect-timeout 5 --max-time 10 "$ORIGIN/health" >/dev/null; then
+              echo "GETDONE_HTTP_STAGING_ORIGIN=$ORIGIN" >> "$GITHUB_ENV"
+              echo "Controlled HTTPS staging origin established."
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/cloudflared.log
+          exit 1
+
+      - name: Migrate configured HTTPS staging PostgreSQL
+        run: npm run db:migrate
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+          GETDONE_DB_SSL: "false"
+
+      - name: Run configured HTTPS live staging acceptance
+        run: npm run http:accept-staging
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+          GETDONE_DB_SSL: "false"
+          GETDONE_HTTP_STAGING_ACCEPTANCE: "true"
+          GETDONE_HTTP_STAGING_ORIGIN: ${{ env.GETDONE_HTTP_STAGING_ORIGIN }}
+          GETDONE_HTTP_STAGING_TOKEN_A: ${{ env.GETDONE_HTTP_STAGING_TOKEN_A }}
+          GETDONE_HTTP_STAGING_TOKEN_B: ${{ env.GETDONE_HTTP_STAGING_TOKEN_B }}
+          GETDONE_HTTP_STAGING_CONTROL_TOKEN: ${{ env.GETDONE_HTTP_STAGING_CONTROL_TOKEN }}
+
+      - name: Upload configured HTTPS staging evidence
+        uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: configured-http-staging-acceptance-${{ github.run_number }}
+          path: |
+            test-results/configured-http-staging-acceptance.json
+            /tmp/getdone-http-staging.log
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Stop staging processes
+        if: always()
+        shell: bash
+        run: |
+          if [ -f /tmp/cloudflared.pid ]; then kill "$(cat /tmp/cloudflared.pid)" 2>/dev/null || true; fi
+          if [ -f /tmp/getdone-http-staging.pid ]; then kill "$(cat /tmp/getdone-http-staging.pid)" 2>/dev/null || true; fi

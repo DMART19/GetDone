@@ -43,7 +43,7 @@ export interface BusinessActionAdapterDeclaration {
 }
 
 const credentialReferencePattern = /^env:[A-Z][A-Z0-9_]*$/;
-const providerOperationPattern = /^[^\u0000-\u001F\u007F]{1,500}$/;
+const providerOperationPattern = /^[A-Za-z0-9][A-Za-z0-9._:@+=-]{0,499}$/;
 
 export function assertCredentialReference(value: string, label = "credential reference"): CredentialReference {
   if (!credentialReferencePattern.test(value)) {

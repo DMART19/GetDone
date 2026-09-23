@@ -94,7 +94,7 @@ function validateConfiguration(configuration: SlackProviderConfiguration) {
   });
 }
 
-function deterministicClientMessageId(seed: string) {
+export function deterministicSlackClientMessageId(seed: string) {
   const hex = createHash("sha256").update(seed).digest("hex");
   return [
     hex.slice(0, 8),
@@ -217,7 +217,7 @@ export class SlackBusinessActionAdapter implements BusinessActionAdapter {
           channel: input.channelId,
           text: input.text,
           ...(input.threadTs ? { thread_ts: input.threadTs } : {}),
-          client_msg_id: deterministicClientMessageId(request.idempotencyKey)
+          client_msg_id: deterministicSlackClientMessageId(request.idempotencyKey)
         }),
         signal: AbortSignal.timeout(request.timeoutMs)
       });
