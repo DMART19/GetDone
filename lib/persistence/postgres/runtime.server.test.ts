@@ -42,18 +42,18 @@ class FakeReadinessDatabase {
       return result([]) as unknown as QueryResult<R>;
     }
     if (this.inspectionFails) throw new Error("inspection failed");
-    if (text.includes("to_regclass")) {
-      const names = (values?.[0] ?? []) as readonly string[];
-      return result(names.map((name) => ({
-        name,
-        present: !this.missing.has(name)
-      }))) as unknown as QueryResult<R>;
-    }
     if (text.includes("relrowsecurity")) {
       return result(REQUIRED_POSTGRES_RLS_RELATIONS.map((name) => ({
         name,
         row_security: !this.missingRls.has(name),
         force_row_security: !this.missingRls.has(name)
+      }))) as unknown as QueryResult<R>;
+    }
+    if (text.includes("to_regclass")) {
+      const names = (values?.[0] ?? []) as readonly string[];
+      return result(names.map((name) => ({
+        name,
+        present: !this.missing.has(name)
       }))) as unknown as QueryResult<R>;
     }
     if (text.includes("pg_roles")) {
