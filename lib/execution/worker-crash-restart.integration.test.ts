@@ -1,4 +1,4 @@
-import { spawn, spawnSync, type ChildProcessWithoutNullStreams } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { Pool } from "pg";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { sha256Hex } from "@/lib/control-plane/canonical-hash";
@@ -105,7 +105,7 @@ function authoritativeJob(
       id: `authorization_${value.jobId}`,
       grantId: `grant_${value.jobId}`,
       grantHash: `grant_hash_${value.jobId}`,
-      consumerType: "task",
+      consumerType: "task" as const,
       consumerId: value.taskId,
       scope,
       planHash: `plan_${value.jobId}`,
@@ -156,7 +156,7 @@ function initialGates(scenario: CrashScenario) {
 }
 
 interface SpawnedWorker {
-  child: ChildProcessWithoutNullStreams;
+  child: ReturnType<typeof spawn>;
   done: Promise<{ code: number | null; signal: NodeJS.Signals | null }>;
   output(): string;
 }
@@ -190,10 +190,10 @@ function spawnWorker(
   );
   let stdout = "";
   let stderr = "";
-  child.stdout.setEncoding("utf8");
-  child.stderr.setEncoding("utf8");
-  child.stdout.on("data", (chunk) => { stdout += chunk; });
-  child.stderr.on("data", (chunk) => { stderr += chunk; });
+  child.stdout!.setEncoding("utf8");
+  child.stderr!.setEncoding("utf8");
+  child.stdout!.on("data", (chunk) => { stdout += chunk; });
+  child.stderr!.on("data", (chunk) => { stderr += chunk; });
   const done = new Promise<{ code: number | null; signal: NodeJS.Signals | null }>(
     (resolve, reject) => {
       child.once("error", reject);
