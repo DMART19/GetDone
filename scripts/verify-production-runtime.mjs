@@ -318,6 +318,15 @@ function validateWorkerConfiguration() {
       "GETDONE_JOB_CONCURRENCY must not exceed GETDONE_JOB_BATCH_SIZE"
     );
   }
+  if (
+    Number(parsed.get("GETDONE_JOB_COMPANY_QUEUE_DEPTH_LIMIT"))
+    >= Number(parsed.get("GETDONE_JOB_QUEUE_DEPTH_LIMIT"))
+  ) {
+    fail(
+      "WORKER_BACKPRESSURE_CONFIG",
+      "GETDONE_JOB_COMPANY_QUEUE_DEPTH_LIMIT must be lower than GETDONE_JOB_QUEUE_DEPTH_LIMIT"
+    );
+  }
 
   const rawProviderLimits = env.GETDONE_PROVIDER_CONCURRENCY_LIMITS_JSON?.trim();
   if (rawProviderLimits) {
