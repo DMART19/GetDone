@@ -7,6 +7,7 @@ import {
   type AIGatewayHealthEvidenceReader
 } from "@/lib/ai-gateway/health";
 import type { SqlQueryable } from "@/lib/persistence/postgres/client";
+import { runWithPostgresTenantScope } from "@/lib/persistence/postgres/tenant-context.server";
 
 interface CanaryRow {
   observed_at: Date | string;
@@ -83,7 +84,7 @@ export class PostgresAIGatewayHealthStore implements AIGatewayHealthEvidenceRead
       recordedAt
     };
     const snapshotHash = sha256Hex(payload);
-    await this.db.query(
+    await runWithPostgresTenantScope(snapshot, () => this.db.query(
       `INSERT INTO ai_budget_health_snapshots
         (snapshot_hash,portfolio_id,company_id,period,company_remaining_cents,
          portfolio_remaining_cents,active_concurrent_calls,concurrency_limit,
@@ -104,7 +105,7 @@ export class PostgresAIGatewayHealthStore implements AIGatewayHealthEvidenceRead
         recordedAt,
         JSON.stringify(payload)
       ]
-    );
+    ));
   }
 
   async read(
