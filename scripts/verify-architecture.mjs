@@ -1043,7 +1043,7 @@ if (
 if (
   releaseRegistry.aiGateway.status !== "runtime-wired-unconnected"
   || releaseRegistry.aiGateway.adapterVersion !== "1.1.0"
-  || releaseRegistry.aiGateway.contractVersion !== "1.2.0"
+  || releaseRegistry.aiGateway.contractVersion !== "1.3.0"
   || releaseRegistry.aiGateway.routingPolicyContractVersion !== "1.0.0"
   || releaseRegistry.aiGateway.routingPolicyVersion !== "UNCONFIGURED"
   || releaseRegistry.adapters?.openRouter?.status !== "implemented-unconfigured"
@@ -1102,9 +1102,9 @@ if (
 if (
   releaseRegistry.schemaVersions?.aiBudgetReservation?.version !== "1.0.0"
   || releaseRegistry.schemaVersions?.aiBudgetReservation?.contractTracked !== true
-  || releaseRegistry.adapters?.aiGateway?.version !== "1.2.0"
+  || releaseRegistry.adapters?.aiGateway?.version !== "1.3.0"
 ) {
-  fail("Atomic AI budget reservation / AI Gateway 1.2 release binding drifted");
+  fail("Atomic AI budget reservation / AI Gateway 1.3 release binding drifted");
 }
 
 if (
