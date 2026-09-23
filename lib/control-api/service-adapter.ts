@@ -77,7 +77,7 @@ export interface ServiceBackedControlApiDependencies {
   tenantScopeRunner?: <T>(
     scope: TrustedExecutionScope,
     operation: () => Promise<T> | T
-  ) => Promise<T>;
+  ) => Promise<T> | T;
   now?: () => Date;
 }
 
@@ -130,9 +130,9 @@ export class ServiceBackedControlApiAdapter implements ControlApiApplicationAdap
     operation: () => Promise<T> | T
   ): Promise<T> {
     const runner = this.deps.tenantScopeRunner;
-    return runner
-      ? runner(principal.scope, operation)
-      : Promise.resolve(operation());
+    return Promise.resolve(
+      runner ? runner(principal.scope, operation) : operation()
+    );
   }
 
   async authenticate(request: Request): Promise<ControlApiPrincipal> {
