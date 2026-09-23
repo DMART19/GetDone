@@ -33,7 +33,7 @@ const scope = Object.freeze({
 });
 
 const principal: ControlApiPrincipal = Object.freeze({
-  actor: { type: "user", id: scope.userId },
+  actor: { type: "user" as const, id: scope.userId },
   scope,
   sessionId: "session-dead-letter",
   role: "owner"
