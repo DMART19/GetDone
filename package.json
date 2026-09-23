@@ -30,7 +30,8 @@
     "db:record-backup": "node scripts/record-postgres-backup-evidence.mjs",
     "auth:provision-owner": "node scripts/provision-owner-session.mjs",
     "db:test-integration": "node scripts/test-postgres-integration.mjs",
-    "production:bootstrap": "node scripts/bootstrap-production.mjs"
+    "production:bootstrap": "node scripts/bootstrap-production.mjs",
+    "verify:production-runtime": "node scripts/verify-production-runtime.mjs"
   },
   "dependencies": {
     "lucide-react": "0.468.0",
