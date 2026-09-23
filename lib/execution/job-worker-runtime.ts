@@ -128,14 +128,36 @@ export class DurableJobWorker {
   async cancel(jobId: string, reason: string) {
     const snapshot = await this.store.getRuntimeSnapshot(jobId);
     if (!snapshot) throw new ControlPlaneError("NOT_FOUND", "Durable Job runtime state was not found");
-    return this.store.cancel({
+    return this.retrySerializableConflict(() => this.store.cancel({
       jobId,
       reason,
       cancelledAt: this.now().toISOString(),
       expectedJobVersion: snapshot.version,
       expectedJobHash: snapshot.stateHash,
       idempotencyKey: `cancel:${jobId}:${snapshot.version}`
-    });
+    }));
+  }
+
+  private async retrySerializableConflict<T>(
+    operation: () => Promise<T>,
+    maxAttempts = 4
+  ): Promise<T> {
+    let attempt = 0;
+    while (true) {
+      try {
+        return await operation();
+      } catch (error) {
+        attempt += 1;
+        const postgresCode = error instanceof ControlPlaneError
+          ? error.details?.postgresCode
+          : undefined;
+        const retryable = error instanceof ControlPlaneError
+          && error.code === "CONFLICT"
+          && (postgresCode === "40001" || postgresCode === "40P01");
+        if (!retryable || attempt >= maxAttempts) throw error;
+        await new Promise((resolve) => setTimeout(resolve, attempt * 5));
+      }
+    }
   }
 
   private async runCandidate(
@@ -144,7 +166,7 @@ export class DurableJobWorker {
   ) {
     let claim;
     try {
-      claim = await this.store.claimAtomic({
+      claim = await this.retrySerializableConflict(() => this.store.claimAtomic({
         jobId: candidate.envelope.jobId,
         workerId: this.config.workerId,
         now: this.now().toISOString(),
@@ -152,7 +174,7 @@ export class DurableJobWorker {
         expectedJobVersion: candidate.version,
         expectedJobHash: candidate.stateHash,
         idempotencyKey: `claim:${candidate.envelope.jobId}:${candidate.version}:${this.config.workerId}`
-      });
+      }));
     } catch (error) {
       if (error instanceof ControlPlaneError && error.code === "CONFLICT") {
         return null;
@@ -172,14 +194,14 @@ export class DurableJobWorker {
       if (stopped || heartbeatBusy) return;
       heartbeatBusy = true;
       try {
-        const renewed = await this.store.heartbeat({
+        const renewed = await this.retrySerializableConflict(() => this.store.heartbeat({
           lease,
           now: this.now().toISOString(),
           extendSeconds: this.leaseSeconds,
           expectedJobVersion: version,
           expectedJobHash: stateHash,
           idempotencyKey: `heartbeat:${lease.id}:${lease.version}`
-        });
+        }));
         lease = renewed.lease;
         version = renewed.transaction.nextVersion;
         stateHash = renewed.transaction.nextHash;
@@ -231,23 +253,23 @@ export class DurableJobWorker {
     }
 
     if (outcome.kind === "succeeded") {
-      const receipt = await this.store.release({
+      const receipt = await this.retrySerializableConflict(() => this.store.release({
         lease,
         now: this.now().toISOString(),
         expectedJobVersion: version,
         expectedJobHash: stateHash,
         idempotencyKey: `release:${lease.id}:${lease.version}`
-      });
+      }));
       latestTransaction = receipt;
     } else if (outcome.kind === "cancelled") {
-      const receipt = await this.store.cancel({
+      const receipt = await this.retrySerializableConflict(() => this.store.cancel({
         jobId: candidate.envelope.jobId,
         reason: outcome.reason,
         cancelledAt: this.now().toISOString(),
         expectedJobVersion: version,
         expectedJobHash: stateHash,
         idempotencyKey: `cancel:${candidate.envelope.jobId}:${version}`
-      });
+      }));
       latestTransaction = receipt;
     } else if (outcome.kind === "dead-letter") {
       const record = createDeadLetterRecord({
@@ -259,7 +281,7 @@ export class DurableJobWorker {
         sourceEnvelopeHash: candidate.envelope.envelopeHash,
         transactionHash: latestTransaction.transactionHash
       });
-      latestTransaction = await this.store.deadLetter(record);
+      latestTransaction = await this.retrySerializableConflict(() => this.store.deadLetter(record));
     } else if (lease.attempt >= this.maxAttempts) {
       const record = createDeadLetterRecord({
         id: crypto.randomUUID(),
@@ -270,7 +292,7 @@ export class DurableJobWorker {
         sourceEnvelopeHash: candidate.envelope.envelopeHash,
         transactionHash: latestTransaction.transactionHash
       });
-      latestTransaction = await this.store.deadLetter(record);
+      latestTransaction = await this.retrySerializableConflict(() => this.store.deadLetter(record));
       outcome = { kind: "dead-letter", reason: record.reason };
     } else {
       const delay = outcome.delayMs ?? this.retryBaseDelayMs * 2 ** Math.max(0, lease.attempt - 1);
@@ -283,7 +305,7 @@ export class DurableJobWorker {
         sourceEnvelopeHash: candidate.envelope.envelopeHash,
         transactionHash: latestTransaction.transactionHash
       });
-      latestTransaction = await this.store.scheduleRetry(record);
+      latestTransaction = await this.retrySerializableConflict(() => this.store.scheduleRetry(record));
     }
 
     return { jobId: candidate.envelope.jobId, outcome };
