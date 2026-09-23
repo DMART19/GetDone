@@ -372,7 +372,7 @@ liveDescribe("real Gmail governed staging acceptance", () => {
       await value.jobs.create(authoritative);
       const first = await value.mvp.enqueueAuthorizedBusinessAction(authoritative, request);
       const replay = await value.mvp.enqueueAuthorizedBusinessAction(authoritative, request);
-      expect(replay.transactionHash).toBe(first.transactionHash);
+      expect(replay.transaction.transactionHash).toBe(first.transaction.transactionHash);
       expect((await runUntilTerminal(value, authoritative.id)).state).toBe("released");
       const verified = await independentVerify(request.id);
       expect(verified.count).toBe(1);
