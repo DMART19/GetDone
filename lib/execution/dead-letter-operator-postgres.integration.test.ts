@@ -367,10 +367,10 @@ integrationDescribe("dead-letter owner/admin PostgreSQL acceptance", () => {
       idempotencyKey: "operator-redrive-second"
     })).rejects.toThrow(/different redrive lineage/i);
 
-    await expect(service.list({
+    expect(() => service.list({
       ...principal,
       role: "operator"
-    })).rejects.toThrow(/owner or admin/i);
+    })).toThrow(/owner or admin/i);
   });
 
   it("supports idempotent dismiss and cancellation without replaying provider work", async () => {
