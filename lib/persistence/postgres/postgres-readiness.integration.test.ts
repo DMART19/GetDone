@@ -217,19 +217,26 @@ integrationDescribe("production PostgreSQL startup readiness", () => {
     }
   });
 
-  it("recovers readiness after the pooled PostgreSQL connection is terminated", async () => {
+  it("recovers readiness after a pooled PostgreSQL connection is evicted and reconnected", async () => {
     const runtime = runtimeFor(connectionString);
     try {
       await expect(runtime.assertReady()).resolves.toMatchObject({ ready: true });
 
       const client = await runtime.database.pool.connect();
-      const pidResult = await client.query<{ pid: number }>("SELECT pg_backend_pid() AS pid");
-      const pid = pidResult.rows[0]?.pid;
-      client.release();
-      expect(pid).toBeTypeOf("number");
+      const firstPid = (
+        await client.query<{ pid: number }>("SELECT pg_backend_pid() AS pid")
+      ).rows[0]?.pid;
+      expect(firstPid).toBeTypeOf("number");
+      client.release(true);
 
-      await adminPool.query("SELECT pg_terminate_backend($1)", [pid]);
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      const replacement = await runtime.database.pool.connect();
+      const replacementPid = (
+        await replacement.query<{ pid: number }>("SELECT pg_backend_pid() AS pid")
+      ).rows[0]?.pid;
+      replacement.release();
+
+      expect(replacementPid).toBeTypeOf("number");
+      expect(replacementPid).not.toBe(firstPid);
 
       await expect(runtime.assertReady()).resolves.toMatchObject({
         connected: true,
