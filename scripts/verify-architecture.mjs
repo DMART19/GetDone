@@ -1111,7 +1111,9 @@ if (
   || releaseRegistry.database?.minimumEngineVersion !== "16"
   || releaseRegistry.database?.migrationVersion !== "2026-09-23.1"
   || releaseRegistry.database?.schemaVersion !== "1.4.0"
+  || releaseRegistry.schemaVersions?.postgresPersistence?.version !== "1.1.0"
   || releaseRegistry.adapters?.postgresPersistence?.status !== "implemented-unconnected"
+  || releaseRegistry.adapters?.postgresPersistence?.version !== "1.1.0"
   || releaseRegistry.adapters?.durableJobStore?.status !== "implemented-unconnected"
 ) {
   fail("PostgreSQL persistence release truth drifted or overclaims connectivity");
