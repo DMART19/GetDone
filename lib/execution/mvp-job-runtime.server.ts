@@ -20,6 +20,7 @@ import { PostgresJobExecutionSpecStore } from "@/lib/persistence/postgres/job-ex
 import { PostgresEntityStore } from "@/lib/persistence/postgres/authority-stores";
 import { PostgresJobVerificationEvidenceStore } from "@/lib/persistence/postgres/worker-runtime-stores";
 import { getPostgresRuntimeFromEnv } from "@/lib/persistence/postgres/runtime.server";
+import { runWithPostgresTenantScope } from "@/lib/persistence/postgres/tenant-context.server";
 
 export class MvpJobRuntime {
   constructor(
@@ -31,6 +32,15 @@ export class MvpJobRuntime {
   ) {}
 
   async enqueueAuthorizedBusinessAction(job: JobRecord, request: AuthorizedBusinessActionRequest) {
+    return runWithPostgresTenantScope(request.scope, () =>
+      this.enqueueAuthorizedBusinessActionScoped(job, request)
+    );
+  }
+
+  private async enqueueAuthorizedBusinessActionScoped(
+    job: JobRecord,
+    request: AuthorizedBusinessActionRequest
+  ) {
     const authoritative = await this.jobs.get(job.id);
     if (
       !authoritative
