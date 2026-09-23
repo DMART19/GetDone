@@ -1,6 +1,12 @@
 import crypto from "node:crypto";
 import pg from "pg";
 
+if (process.env.GETDONE_RUNTIME_ENV?.trim() === "production") {
+  throw new Error(
+    "auth:provision-owner is not allowed in production; use npm run production:bootstrap"
+  );
+}
+
 function required(name) {
   const value = process.env[name]?.trim();
   if (!value) throw new Error(`${name} is required`);
