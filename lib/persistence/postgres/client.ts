@@ -143,7 +143,7 @@ export class PostgresDatabase implements PostgresTransactionalDatabase {
     try {
       if (this.runtimeRole) await client.query("RESET ROLE");
     } finally {
-      await this.releaseRuntimeClient(client);
+      client.release();
     }
   }
 
