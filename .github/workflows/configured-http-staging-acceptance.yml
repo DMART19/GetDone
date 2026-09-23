@@ -99,9 +99,9 @@ jobs:
           /tmp/cloudflared tunnel --no-autoupdate --url http://127.0.0.1:8787             > /tmp/cloudflared.log 2>&1 &
           echo $! > /tmp/cloudflared.pid
           ORIGIN=""
-          for i in $(seq 1 60); do
+          for i in $(seq 1 120); do
             ORIGIN=$(grep -Eo 'https://[-a-zA-Z0-9]+\.trycloudflare\.com' /tmp/cloudflared.log | head -n 1 || true)
-            if [ -n "$ORIGIN" ] && curl --fail --silent "$ORIGIN/health" >/dev/null; then
+            if [ -n "$ORIGIN" ] && curl --fail --silent --show-error --connect-timeout 5 --max-time 10 "$ORIGIN/health" >/dev/null; then
               echo "GETDONE_HTTP_STAGING_ORIGIN=$ORIGIN" >> "$GITHUB_ENV"
               echo "Controlled HTTPS staging origin established."
               exit 0
