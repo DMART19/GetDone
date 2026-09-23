@@ -75,6 +75,13 @@ try {
     "authorization_grants",
     "authorization_consumptions",
     "verification_receipts",
+    "job_execution_start_facts",
+    "job_execution_completion_facts",
+    "capacity_ledgers",
+    "capacity_reservations",
+    "reservation_commits",
+    "owner_intents",
+    "resource_evidence",
     "business_action_executions",
     "business_action_verification_evidence"
   ];
