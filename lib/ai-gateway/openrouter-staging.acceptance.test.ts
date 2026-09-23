@@ -14,6 +14,7 @@ import type {
   ModelRoutePolicy
 } from "@/lib/ai-gateway/contracts";
 import { PostgresAICallAuditStore } from "@/lib/persistence/postgres/ai-audit-store";
+import { PostgresAIGatewayHealthStore } from "@/lib/persistence/postgres/ai-gateway-health-store";
 import { PostgresDatabase } from "@/lib/persistence/postgres/client";
 import { runWithPostgresTenantScope } from "@/lib/persistence/postgres/tenant-context.server";
 
@@ -324,6 +325,18 @@ acceptanceDescribe("real OpenRouter staging acceptance", () => {
       ok: true,
       modelId: primaryModel
     });
+    if (result.enabled && result.ok) {
+      await new PostgresAIGatewayHealthStore(database).recordSuccessfulCanary({
+        environment: "staging",
+        routingPolicyVersion: "openrouter-staging-acceptance-1",
+        observedAt: result.observedAt,
+        latencyMs: result.latencyMs
+      });
+    }
+    const persistedCanary = await adminPool.query(
+      "SELECT observed_at FROM ai_gateway_canary_events WHERE environment='staging' ORDER BY observed_at DESC LIMIT 1"
+    );
+    expect(persistedCanary.rows).toHaveLength(1);
     record("canary", "live-provider", {
       modelId: primaryModel,
       latencyMs: result.latencyMs
