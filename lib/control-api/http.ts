@@ -126,6 +126,13 @@ export function handleControlHealth() {
   return execute((adapter) => adapter.health());
 }
 
+export function handleAIGatewayHealth(request: Request) {
+  return execute(async (adapter) => {
+    const principal = await adapter.authenticate(request);
+    return adapter.getAIGatewayHealth(principal);
+  });
+}
+
 export function handleBeginStepUp(request: Request) {
   return execute((adapter) => adapter.beginStepUp(request), { status: 201 });
 }
