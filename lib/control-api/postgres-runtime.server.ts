@@ -1,6 +1,8 @@
 import { PostgresAuthAdapter } from "@/lib/auth/postgres-adapter";
 import { readWebAuthnServerConfig } from "@/lib/auth/webauthn-config";
 import { isAIGatewayConfigured } from "@/lib/ai-gateway/runtime.server";
+import { buildOwnerSafeAIGatewayHealth } from "@/lib/ai-gateway/health";
+import { PostgresAIGatewayHealthStore } from "@/lib/persistence/postgres/ai-gateway-health-store";
 import { parseAuthoritativeRuntimeEnvironment } from "@/lib/control-plane/runtime-environment";
 import { ServiceBackedControlApiAdapter } from "@/lib/control-api/service-adapter";
 import {
@@ -41,6 +43,7 @@ export function createPostgresControlApiAdapter(
   const runtime = getPostgresRuntimeFromEnv(env);
   const db = runtime.database;
   const webAuthn = readWebAuthnServerConfig(env);
+  const aiGatewayHealthStore = new PostgresAIGatewayHealthStore(db);
 
   const decisions = new PostgresEntityStore<AuthoritativeDecision>(db, "decision");
   const resources = new PostgresEntityStore<Resource>(db, "resource");
@@ -110,6 +113,14 @@ export function createPostgresControlApiAdapter(
     verifications,
     tenantScopeRunner: (scope, operation) =>
       runWithPostgresTenantScope(scope, operation),
+    aiGatewayHealth: async (principal) => buildOwnerSafeAIGatewayHealth({
+      env,
+      environment: principal.scope.environment,
+      evidence: await aiGatewayHealthStore.read(
+        principal.scope,
+        principal.scope.environment
+      )
+    }),
     health: async () => {
       const health = await runtime.health();
       const schemaReady = health.connected && health.schemaCurrent;
