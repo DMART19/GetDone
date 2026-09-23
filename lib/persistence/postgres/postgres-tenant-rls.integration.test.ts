@@ -305,6 +305,9 @@ integrationDescribe("PostgreSQL tenant RLS", () => {
         "DELETE FROM authorization_grants WHERE id='grant-b'"
       ));
       expectNoMutation(await client.query(
+        "UPDATE authorization_consumptions SET consumer_id='tampered' WHERE id='consumption-b'"
+      ));
+      expectNoMutation(await client.query(
         "DELETE FROM authorization_consumptions WHERE id='consumption-b'"
       ));
       expectNoMutation(await client.query(
@@ -314,10 +317,19 @@ integrationDescribe("PostgreSQL tenant RLS", () => {
         "DELETE FROM business_action_executions WHERE request_id='request-b'"
       ));
       expectNoMutation(await client.query(
+        "UPDATE verification_receipts SET expires_at=now() WHERE id='receipt-b'"
+      ));
+      expectNoMutation(await client.query(
         "DELETE FROM verification_receipts WHERE id='receipt-b'"
       ));
       expectNoMutation(await client.query(
+        "UPDATE business_action_verification_evidence SET observed_at=now() WHERE evidence_id='evidence-b'"
+      ));
+      expectNoMutation(await client.query(
         "DELETE FROM business_action_verification_evidence WHERE evidence_id='evidence-b'"
+      ));
+      expectNoMutation(await client.query(
+        "UPDATE audit_events SET occurred_at=now() WHERE id='audit-b'"
       ));
       expectNoMutation(await client.query(
         "DELETE FROM audit_events WHERE id='audit-b'"
@@ -334,6 +346,40 @@ integrationDescribe("PostgreSQL tenant RLS", () => {
        WHERE id IN ('decision-b','job-b','resource-b')`
     );
     expect(preserved.rows[0]?.count).toBe(3);
+  });
+
+  it("fails closed when the tenant runtime role has no tenant scope", async () => {
+    const client = await pool.connect();
+    try {
+      await client.query("SET ROLE getdone_tenant_runtime");
+      await client.query("BEGIN");
+
+      expect(await ids(
+        client,
+        "SELECT id FROM control_plane_entities ORDER BY id"
+      )).toEqual([]);
+      expect(await ids(
+        client,
+        "SELECT id FROM authorization_grants ORDER BY id"
+      )).toEqual([]);
+
+      const integrations = await client.query<{ request_id: string }>(
+        "SELECT request_id FROM business_action_executions ORDER BY request_id"
+      );
+      expect(integrations.rows).toEqual([]);
+
+      const evidence = await client.query<{ evidence_id: string }>(
+        "SELECT evidence_id FROM business_action_verification_evidence ORDER BY evidence_id"
+      );
+      expect(evidence.rows).toEqual([]);
+
+      expect(await ids(client, "SELECT id FROM audit_events ORDER BY id"))
+        .toEqual([]);
+    } finally {
+      try { await client.query("ROLLBACK"); } catch {}
+      try { await client.query("RESET ROLE"); } catch {}
+      client.release();
+    }
   });
 
   it("blocks owner A from inserting a row bound to owner B scope", async () => {
