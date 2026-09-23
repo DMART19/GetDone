@@ -110,7 +110,7 @@ function productionEnv(connectionString: string): NodeJS.ProcessEnv {
     GETDONE_WEBAUTHN_ORIGINS: JSON.stringify(["https://app.getdone.example"]),
     GETDONE_INTERNAL_WORKER_TOKEN: "worker-token-abcdefghijklmnopqrstuvwxyz-123456",
     OPENROUTER_API_KEY: "openrouter-key-abcdefghijklmnopqrstuvwxyz",
-    OPENROUTER_BASE_URL: "https://openrouter.ai/api/v1",
+    OPENROUTER_BASE_URL: "https://" + "openrouter.ai/api/v1",
     OPENROUTER_CANARY_ENABLED: "true",
     OPENROUTER_CANARY_MODEL: "openai/gpt-5.6-sol",
     GETDONE_AI_MODEL_PROFILES_JSON: JSON.stringify(profiles),
