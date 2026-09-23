@@ -42,6 +42,7 @@ jobs:
       - run: npm run lint
       - run: npm run verify:coverage
       - run: npm run build:worker
+      - run: docker build --file Dockerfile.worker --tag getdone-job-worker:ci .
       - run: npm run build
         env:
           NEXT_PUBLIC_APP_ENV: development
