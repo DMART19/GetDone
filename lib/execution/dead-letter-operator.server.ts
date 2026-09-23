@@ -31,7 +31,7 @@ import type {
   DeadLetterOperatorActionView,
   DeadLetterOperatorView,
   DeadLetterSummary
-} from "@/lib/execution/dead-letter-operator-contracts";
+} from "@/lib/control-api/dead-letter-contracts";
 import {
   PostgresEntityStore,
   PostgresIdempotencyStore
