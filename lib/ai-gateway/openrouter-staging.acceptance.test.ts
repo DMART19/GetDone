@@ -14,6 +14,7 @@ import type {
   ModelRoutePolicy
 } from "@/lib/ai-gateway/contracts";
 import { PostgresAICallAuditStore } from "@/lib/persistence/postgres/ai-audit-store";
+import { recordAIGatewayCanarySuccess } from "@/lib/ai-gateway/health.server";
 import { PostgresDatabase } from "@/lib/persistence/postgres/client";
 import { runWithPostgresTenantScope } from "@/lib/persistence/postgres/tenant-context.server";
 
@@ -323,6 +324,11 @@ acceptanceDescribe("real OpenRouter staging acceptance", () => {
       enabled: true,
       ok: true,
       modelId: primaryModel
+    });
+    await recordAIGatewayCanarySuccess({
+      db: database,
+      scope,
+      observedAt: new Date().toISOString()
     });
     record("canary", "live-provider", {
       modelId: primaryModel,
