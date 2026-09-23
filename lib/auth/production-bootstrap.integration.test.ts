@@ -2,6 +2,11 @@ import { generateKeyPairSync } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import {
+  CURRENT_POLICY_VERSION,
+  POLICY_REGISTRY_ID
+} from "@/lib/domain/policy-registry";
+import { POLICY_ENGINE_VERSION } from "@/lib/planning/policy-engine";
 
 const enabled = process.env.GETDONE_POSTGRES_INTEGRATION === "true";
 const integrationDescribe = enabled ? describe.sequential : describe.skip;
@@ -130,7 +135,9 @@ integrationDescribe("production bootstrap command", () => {
         credentialId: "credential-prod"
       },
       policy: {
-        registryId: "getdone-core-policy",
+        registryId: POLICY_REGISTRY_ID,
+        registryVersion: CURRENT_POLICY_VERSION,
+        engineVersion: POLICY_ENGINE_VERSION,
         enforcement: "enforce"
       }
     });
@@ -177,7 +184,9 @@ integrationDescribe("production bootstrap command", () => {
       companyId: "company-prod",
       environment: "production",
       state: "active",
-      registryId: "getdone-core-policy",
+      registryId: POLICY_REGISTRY_ID,
+      registryVersion: CURRENT_POLICY_VERSION,
+      policyEngineVersion: POLICY_ENGINE_VERSION,
       enforcement: "enforce"
     });
 
