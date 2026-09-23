@@ -72,7 +72,7 @@
       ]
     },
     "aiGatewayContract": {
-      "version": "1.2.0",
+      "version": "1.3.0",
       "sourcePath": "lib/ai-gateway/contracts.ts",
       "contractTracked": true,
       "contractSourcePaths": [
@@ -247,7 +247,7 @@
     "engineSourcePath": "lib/planning/policy-engine.ts"
   },
   "aiGateway": {
-    "contractVersion": "1.2.0",
+    "contractVersion": "1.3.0",
     "routingPolicyContractVersion": "1.0.0",
     "status": "runtime-wired-unconnected",
     "adapterVersion": "1.1.0",
@@ -284,7 +284,7 @@
     },
     "aiGateway": {
       "status": "contract-only",
-      "version": "1.2.0",
+      "version": "1.3.0",
       "sourcePath": "lib/ai-gateway/contracts.ts",
       "contractTracked": true,
       "contractSourcePaths": [
