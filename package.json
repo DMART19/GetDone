@@ -31,7 +31,8 @@
     "auth:provision-owner": "node scripts/provision-owner-session.mjs",
     "db:test-integration": "node scripts/test-postgres-integration.mjs",
     "production:bootstrap": "node scripts/bootstrap-production.mjs",
-    "verify:production-runtime": "node scripts/verify-production-runtime.mjs"
+    "verify:production-runtime": "node scripts/verify-production-runtime.mjs",
+    "ai:accept-staging": "vitest run lib/ai-gateway/openrouter-staging.acceptance.test.ts"
   },
   "dependencies": {
     "lucide-react": "0.468.0",
