@@ -189,6 +189,7 @@ export interface AIUsageRecord {
 export interface AICallAuditStore {
   appendAudit(record: AICallAuditRecord): Promise<void>;
   appendUsage(record: AIUsageRecord): Promise<void>;
+  recordBudgetSnapshot?(snapshot: AIBudgetSnapshot, recordedAt: string): Promise<void>;
 }
 
 export interface AIInvocationSuccess<T> {
