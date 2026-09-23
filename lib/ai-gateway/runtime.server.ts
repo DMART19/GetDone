@@ -6,6 +6,8 @@ import {
   readOpenRouterConfigFromEnv
 } from "@/lib/ai-gateway/openrouter-adapter";
 import { ControlPlaneError } from "@/lib/control-plane/errors";
+import { parseAuthoritativeRuntimeEnvironment } from "@/lib/control-plane/runtime-environment";
+import { PostgresAIGatewayHealthStore } from "@/lib/persistence/postgres/ai-gateway-health-store";
 import { PostgresAICallAuditStore } from "@/lib/persistence/postgres/ai-audit-store";
 import { getPostgresRuntimeFromEnv } from "@/lib/persistence/postgres/runtime.server";
 
@@ -63,6 +65,25 @@ export function readAIGatewayRuntimeConfig(
     }
   }
   return { profiles: Object.freeze(profiles), policy: Object.freeze(policy) };
+}
+
+export async function runOpenRouterCanaryFromEnv(
+  env: Readonly<Record<string, string | undefined>> = process.env
+) {
+  const config = readAIGatewayRuntimeConfig(env);
+  const environment = parseAuthoritativeRuntimeEnvironment(env.GETDONE_RUNTIME_ENV);
+  const adapter = new OpenRouterAIGatewayAdapter(readOpenRouterConfigFromEnv(env));
+  const result = await adapter.runCanary();
+  if (result.enabled && result.ok) {
+    const database = getPostgresRuntimeFromEnv(env).database;
+    await new PostgresAIGatewayHealthStore(database).recordSuccessfulCanary({
+      environment,
+      routingPolicyVersion: config.policy.version,
+      observedAt: result.observedAt,
+      latencyMs: result.latencyMs
+    });
+  }
+  return result;
 }
 
 export function isAIGatewayConfigured(
