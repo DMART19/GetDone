@@ -16,6 +16,7 @@ concurrency:
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
   NPM_CONFIG_IGNORE_SCRIPTS: "true"
+  GETDONE_DB_RUNTIME_ROLE: getdone_tenant_runtime
 
 jobs:
   postgres16:
