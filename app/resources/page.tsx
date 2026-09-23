@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Plus } from "lucide-react";
+import { Plus, ShieldAlert } from "lucide-react";
 import { AppHeader } from "@/components/app-header";
 import { AppShell } from "@/components/app-shell";
 import { DevelopmentBadge } from "@/components/dev-badge";
