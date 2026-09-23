@@ -89,6 +89,12 @@ export class DedicatedJobWorkerProcess {
     return this.stateValue;
   }
 
+  healthAddress() {
+    const address = this.server?.address();
+    if (!address || typeof address === "string") return null;
+    return Object.freeze({ host: address.address, port: address.port });
+  }
+
   health() {
     const worker = this.worker.snapshot();
     return Object.freeze({
