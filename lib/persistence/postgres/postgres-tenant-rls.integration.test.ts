@@ -206,7 +206,7 @@ integrationDescribe("PostgreSQL tenant RLS", () => {
   afterAll(async () => {
     if (pool) await pool.end();
     if (adminPool) {
-      await adminPool.query(`DROP DATABASE IF EXISTS ${quoteIdentifier(databaseName)} WITH (FORCE)`);
+      await adminPool.query(`DROP DATABASE IF EXISTS ${quoteIdentifier(databaseName)}`);
       await adminPool.end();
     }
   });

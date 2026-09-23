@@ -71,6 +71,13 @@ jobs:
           GETDONE_DB_SSL: "false"
           GETDONE_POSTGRES_INTEGRATION: "true"
 
+      - name: Run deterministic production bootstrap acceptance
+        run: npx vitest run lib/auth/production-bootstrap.integration.test.ts
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+          GETDONE_DB_SSL: "false"
+          GETDONE_POSTGRES_INTEGRATION: "true"
+
       - name: Migrate Control API integration database
         run: npm run db:migrate
         env:

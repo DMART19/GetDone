@@ -1,6 +1,16 @@
 import crypto from "node:crypto";
 import pg from "pg";
 
+const legacyRuntimeEnvironment = process.env.GETDONE_RUNTIME_ENV?.trim();
+if (
+  legacyRuntimeEnvironment !== "development"
+  && legacyRuntimeEnvironment !== "staging"
+) {
+  throw new Error(
+    "auth:provision-owner requires explicit development/staging; use npm run production:bootstrap for production"
+  );
+}
+
 function required(name) {
   const value = process.env[name]?.trim();
   if (!value) throw new Error(`${name} is required`);
