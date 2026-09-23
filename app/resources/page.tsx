@@ -33,6 +33,13 @@ export default async function ResourcesPage() {
           <article className="summary-card"><span>Savings (Owned)</span><strong>{resourceSummary.ownedSavings}</strong><small>vs. variable cloud</small></article>
         </div>
         <ResourceFilters resources={[...resources]} />
+        <Link href="/operations/dead-letters" className="dead-letter-entry">
+          <ShieldAlert size={18} />
+          <span>
+            <strong>Dead-letter Jobs</strong>
+            <small>Inspect terminal failures, evidence, and safe redrives</small>
+          </span>
+        </Link>
         <Link href="/resources/add" className="add-resource-button"><Plus size={19} /> Add Resource</Link>
       </section>
     </AppShell>
