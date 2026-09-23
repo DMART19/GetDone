@@ -217,7 +217,7 @@ export async function readOwnerAIGatewayHealth(
     const fallbackAvailable = isProfileAvailable(fallbackProfile, scope.environment);
     const status = !configured || !configValid
       ? "not-configured" as const
-      : primaryAvailable && (!fallbackProfile || fallbackAvailable)
+      : primaryAvailable && Boolean(fallbackProfile) && fallbackAvailable
         ? "ready" as const
         : "degraded" as const;
 
