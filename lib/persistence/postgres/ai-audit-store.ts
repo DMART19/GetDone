@@ -1,12 +1,18 @@
 import type {
   AICallAuditRecord,
   AICallAuditStore,
-  AIUsageRecord
+  AIUsageRecord,
+  AIBudgetSnapshot
 } from "@/lib/ai-gateway/contracts";
 import type { SqlQueryable } from "@/lib/persistence/postgres/client";
+import { PostgresAIGatewayHealthStore } from "@/lib/persistence/postgres/ai-gateway-health-store";
 
 export class PostgresAICallAuditStore implements AICallAuditStore {
-  constructor(private readonly db: SqlQueryable) {}
+  private readonly health: PostgresAIGatewayHealthStore;
+
+  constructor(private readonly db: SqlQueryable) {
+    this.health = new PostgresAIGatewayHealthStore(db);
+  }
 
   async appendAudit(record: AICallAuditRecord) {
     await this.db.query(
@@ -28,6 +34,10 @@ export class PostgresAICallAuditStore implements AICallAuditStore {
         record.recordedAt
       ]
     );
+  }
+
+  async recordBudgetSnapshot(snapshot: AIBudgetSnapshot, recordedAt: string) {
+    await this.health.recordBudgetSnapshot(snapshot, recordedAt);
   }
 
   async appendUsage(record: AIUsageRecord) {
