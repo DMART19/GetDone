@@ -7,8 +7,9 @@ import type { JobRecord } from "@/lib/domain/services/job-service";
 import type { VerificationRequestRecord } from "@/lib/domain/services/verification-service";
 import type { Resource } from "@/lib/domain/resources";
 import type { ResourceEnrollmentRecord } from "@/lib/resources/enrollment";
+import type { OwnerSafeAIGatewayHealth } from "@/lib/ai-gateway/health";
 
-export const CONTROL_API_SURFACE_VERSION = "1.1.0";
+export const CONTROL_API_SURFACE_VERSION = "1.2.0";
 
 export type ControlApiRole = "owner" | "admin" | "operator" | "viewer";
 
@@ -127,6 +128,7 @@ export interface ControlApiHealth {
 export interface ControlApiApplicationAdapter {
   authenticate(request: Request): Promise<ControlApiPrincipal>;
   health(): Promise<ControlApiHealth>;
+  getAIGatewayHealth(principal: ControlApiPrincipal): Promise<OwnerSafeAIGatewayHealth>;
   beginStepUp(request: Request): Promise<StepUpChallenge>;
   verifyStepUp(
     request: Request,
