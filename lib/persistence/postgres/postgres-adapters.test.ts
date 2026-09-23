@@ -46,18 +46,24 @@ describe("PostgreSQL production persistence adapters", () => {
       GETDONE_DB_POOL_MAX: "12",
       GETDONE_DB_STATEMENT_TIMEOUT_MS: "9000",
       GETDONE_DB_CONNECTION_TIMEOUT_MS: "2500",
+      GETDONE_DB_RUNTIME_ROLE: "getdone_tenant_runtime",
       GETDONE_DB_SSL: "true"
     });
     expect(config).toMatchObject({
       maxConnections: 12,
       statementTimeoutMs: 9000,
       connectionTimeoutMs: 2500,
+      runtimeRole: "getdone_tenant_runtime",
       ssl: true
     });
     expect(() => readPostgresConfigFromEnv({
       DATABASE_URL: "postgresql://user:pass@db.example.com/getdone",
       GETDONE_DB_CONNECTION_TIMEOUT_MS: "0"
     })).toThrow(/positive integer/);
+    expect(() => readPostgresConfigFromEnv({
+      DATABASE_URL: "postgresql://user:pass@db.example.com/getdone",
+      GETDONE_DB_RUNTIME_ROLE: "unsafe role; reset role"
+    })).toThrow(/safe PostgreSQL role identifier/);
   });
 
   it("defines the required atomic persistence constraints in the migration", () => {
