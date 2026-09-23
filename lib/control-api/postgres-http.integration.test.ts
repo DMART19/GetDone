@@ -3,6 +3,7 @@ import pg from "pg";
 import { sha256Hex } from "@/lib/control-plane/canonical-hash";
 import {
   handleControlHealth,
+  handleAIGatewayHealth,
   handleGetDecision,
   handleGetJob,
   handleGetJobResult,
@@ -138,6 +139,54 @@ describeIntegration("PostgreSQL-backed Control API HTTP acceptance", () => {
     process.env.GETDONE_DB_SSL = process.env.GETDONE_DB_SSL ?? "false";
     process.env.GETDONE_WEBAUTHN_RP_ID = "localhost";
     process.env.GETDONE_WEBAUTHN_ORIGINS = "http://localhost";
+    process.env.OPENROUTER_API_KEY = "integration-secret-never-returned";
+    process.env.GETDONE_AI_MONTHLY_COMPANY_BUDGET_CENTS = "100";
+    process.env.GETDONE_AI_MODEL_PROFILES_JSON = JSON.stringify([
+      {
+        id: "integration-primary",
+        gatewayId: "openrouter",
+        providerId: "openrouter",
+        modelId: "provider/hidden-primary",
+        enabled: true,
+        validationStatus: "validated",
+        roles: ["STANDARD"],
+        modalities: ["text"],
+        supportsTools: true,
+        supportsStructuredOutput: true,
+        maxContextTokens: 128000,
+        allowedDataClasses: ["PUBLIC", "INTERNAL"],
+        allowedEnvironments: ["staging"],
+        health: "healthy",
+        latencyClass: "standard",
+        inputCostPerMillionTokensCents: 1,
+        outputCostPerMillionTokensCents: 1,
+        profileVersion: "1"
+      },
+      {
+        id: "integration-fallback",
+        gatewayId: "openrouter",
+        providerId: "openrouter",
+        modelId: "provider/hidden-fallback",
+        enabled: true,
+        validationStatus: "validated",
+        roles: ["STANDARD"],
+        modalities: ["text"],
+        supportsTools: true,
+        supportsStructuredOutput: true,
+        maxContextTokens: 128000,
+        allowedDataClasses: ["PUBLIC", "INTERNAL"],
+        allowedEnvironments: ["staging"],
+        health: "healthy",
+        latencyClass: "standard",
+        inputCostPerMillionTokensCents: 1,
+        outputCostPerMillionTokensCents: 1,
+        profileVersion: "1"
+      }
+    ]);
+    process.env.GETDONE_AI_ROUTING_POLICY_JSON = JSON.stringify({
+      version: "integration-routing-v1",
+      routes: { STANDARD: ["integration-primary", "integration-fallback"] }
+    });
 
     resetControlApiAdapter();
     await resetPostgresRuntimeForTests();
@@ -160,6 +209,8 @@ describeIntegration("PostgreSQL-backed Control API HTTP acceptance", () => {
         control_plane_entities,
         idempotency_records,
         audit_events,
+        ai_usage_records,
+        ai_call_audits,
         database_backup_evidence
        RESTART IDENTITY CASCADE`
     );
@@ -263,12 +314,120 @@ describeIntegration("PostgreSQL-backed Control API HTTP acceptance", () => {
       version: 1,
       updatedAt: "2026-09-22T04:00:00.000Z"
     });
+
+    await insertEntity(pool, "ai-gateway-canary", {
+      id: "canary:portfolio-a:company-a",
+      portfolioId: "portfolio-a",
+      companyId: "company-a",
+      version: 1,
+      observedAt: new Date().toISOString(),
+      environment: "staging",
+      updatedAt: new Date().toISOString()
+    });
+
+    const aiAuditRows = [
+      {
+        requestId: "ai-health-primary",
+        validationStatus: "valid",
+        actualCostCents: 15,
+        payload: {
+          actualProfileId: "integration-primary",
+          failureClass: null
+        }
+      },
+      {
+        requestId: "ai-health-fallback",
+        validationStatus: "valid",
+        actualCostCents: 20,
+        payload: {
+          actualProfileId: "integration-fallback",
+          failureClass: null
+        }
+      },
+      {
+        requestId: "ai-health-error",
+        validationStatus: "failed",
+        actualCostCents: 0,
+        payload: {
+          failureClass: "MODEL_CALL_FAILED"
+        }
+      }
+    ];
+    for (const row of aiAuditRows) {
+      await pool.query(
+        `INSERT INTO ai_call_audits
+          (request_id,correlation_id,portfolio_id,company_id,validation_status,
+           estimated_cost_cents,actual_cost_cents,audit_hash,payload,recorded_at)
+         VALUES($1,$2,'portfolio-a','company-a',$3,$4,$4,$5,$6::jsonb,now())`,
+        [
+          row.requestId,
+          `correlation:${row.requestId}`,
+          row.validationStatus,
+          row.actualCostCents,
+          `audit-hash:${row.requestId}`,
+          JSON.stringify(row.payload)
+        ]
+      );
+    }
   }, 30_000);
 
   afterAll(async () => {
     resetControlApiAdapter();
     await resetPostgresRuntimeForTests();
     await pool.end();
+  });
+
+  it("serves owner-authenticated AI Gateway health from tenant-scoped PostgreSQL evidence without leaking secrets or model identities", async () => {
+    const response = await handleAIGatewayHealth(
+      authenticatedRequest("/api/control/ai/health")
+    );
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+
+    const body = await envelope<{
+      configured: boolean;
+      status: string;
+      activeRoutingPolicyVersion: string | null;
+      lastSuccessfulCanaryAt: string | null;
+      primary: { configured: boolean; available: boolean; lastSuccessfulCallAt: string | null };
+      fallback: { configured: boolean; available: boolean; lastSuccessfulCallAt: string | null };
+      recentErrorClass: string | null;
+      budget: {
+        configured: boolean;
+        status: string;
+        spentCents: number;
+        limitCents: number | null;
+        remainingCents: number | null;
+      };
+    }>(response);
+
+    expect(body.ok).toBe(true);
+    expect(body.data).toMatchObject({
+      configured: true,
+      status: "ready",
+      activeRoutingPolicyVersion: "integration-routing-v1",
+      primary: { configured: true, available: true },
+      fallback: { configured: true, available: true },
+      recentErrorClass: "MODEL_CALL_FAILED",
+      budget: {
+        configured: true,
+        status: "healthy",
+        spentCents: 35,
+        limitCents: 100,
+        remainingCents: 65
+      }
+    });
+    expect(body.data?.lastSuccessfulCanaryAt).toBeTruthy();
+    expect(body.data?.primary.lastSuccessfulCallAt).toBeTruthy();
+    expect(body.data?.fallback.lastSuccessfulCallAt).toBeTruthy();
+
+    const serialized = JSON.stringify(body);
+    expect(serialized).not.toContain("integration-secret-never-returned");
+    expect(serialized).not.toContain("provider/hidden-primary");
+    expect(serialized).not.toContain("provider/hidden-fallback");
+    expect(serialized).not.toContain("integration-primary");
+    expect(serialized).not.toContain("integration-fallback");
+    expect(serialized).not.toContain("OPENROUTER_API_KEY");
   });
 
   it("reports actual database, auth, and durable runtime readiness", async () => {
