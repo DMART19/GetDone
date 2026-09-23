@@ -208,6 +208,56 @@ describe("BusinessActionExecutionOrchestrator", () => {
     ]);
   });
 
+  it("redispatches a retryable pre-acceptance failure with the same authorized idempotency lineage", async () => {
+    class RetryableAdapter extends SequencedAdapter {
+      override async execute(value: AuthorizedBusinessActionRequest) {
+        this.executeCalls += 1;
+        if (this.executeCalls === 1) {
+          return createBusinessActionAdapterResult({
+            source: "business-action-adapter",
+            requestId: value.id,
+            adapterId: this.id,
+            adapterVersion: this.version,
+            status: "failed",
+            retryable: true,
+            retryClass: "rate-limit",
+            observedAt: "2026-09-21T04:00:01Z"
+          });
+        }
+        return createBusinessActionAdapterResult({
+          source: "business-action-adapter",
+          requestId: value.id,
+          adapterId: this.id,
+          adapterVersion: this.version,
+          status: "accepted",
+          providerOperationId: "provider-op-after-retry",
+          retryable: false,
+          retryClass: "none",
+          observedAt: "2026-09-21T04:00:02Z"
+        });
+      }
+    }
+    const adapter = new RetryableAdapter();
+    adapter.states = ["completed"];
+    const store = new MemoryExecutionStore();
+    const registry = new StaticBusinessActionAdapterRegistry([
+      { capability: "email.send", adapter }
+    ]);
+    const first = await new BusinessActionExecutionOrchestrator(
+      registry,
+      store,
+      { maxStatusPolls: 1, pollIntervalMs: 0 }
+    ).execute(request);
+    expect(first.record).toMatchObject({ state: "failed", retryable: true });
+    const second = await new BusinessActionExecutionOrchestrator(
+      registry,
+      store,
+      { maxStatusPolls: 1, pollIntervalMs: 0 }
+    ).execute(request);
+    expect(second.record.state).toBe("completed");
+    expect(adapter.executeCalls).toBe(2);
+  });
+
   it("rejects duplicate capability bindings", () => {
     const adapter = new SequencedAdapter();
     expect(() => new StaticBusinessActionAdapterRegistry([

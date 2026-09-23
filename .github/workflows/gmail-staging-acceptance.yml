@@ -1,0 +1,92 @@
+name: Gmail Staging Acceptance
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gmail-staging-acceptance
+  cancel-in-progress: false
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  NPM_CONFIG_IGNORE_SCRIPTS: "true"
+  GETDONE_GMAIL_STAGING_ACCEPTANCE: "true"
+
+jobs:
+  live-gmail:
+    name: live-gmail
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: staging
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Verify protected Gmail staging inputs
+        shell: bash
+        env:
+          GETDONE_GMAIL_STAGING_CLIENT_ID: ${{ secrets.GMAIL_STAGING_CLIENT_ID }}
+          GETDONE_GMAIL_STAGING_CLIENT_SECRET: ${{ secrets.GMAIL_STAGING_CLIENT_SECRET }}
+          GETDONE_GMAIL_STAGING_REFRESH_TOKEN: ${{ secrets.GMAIL_STAGING_REFRESH_TOKEN }}
+          GETDONE_GMAIL_STAGING_REVOKED_TOKEN: ${{ secrets.GMAIL_STAGING_REVOKED_TOKEN }}
+          GETDONE_GMAIL_STAGING_EMAIL: ${{ vars.GMAIL_STAGING_EMAIL }}
+        run: |
+          test -n "$GETDONE_GMAIL_STAGING_CLIENT_ID" || { echo "staging secret GMAIL_STAGING_CLIENT_ID is required"; exit 1; }
+          test -n "$GETDONE_GMAIL_STAGING_CLIENT_SECRET" || { echo "staging secret GMAIL_STAGING_CLIENT_SECRET is required"; exit 1; }
+          test -n "$GETDONE_GMAIL_STAGING_REFRESH_TOKEN" || { echo "staging secret GMAIL_STAGING_REFRESH_TOKEN is required"; exit 1; }
+          test -n "$GETDONE_GMAIL_STAGING_REVOKED_TOKEN" || { echo "staging secret GMAIL_STAGING_REVOKED_TOKEN is required"; exit 1; }
+          test -n "$GETDONE_GMAIL_STAGING_EMAIL" || { echo "staging variable GMAIL_STAGING_EMAIL is required"; exit 1; }
+
+      - name: Migrate Gmail staging acceptance PostgreSQL
+        run: npm run db:migrate
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+          GETDONE_DB_SSL: "false"
+
+      - name: Run governed real Gmail staging acceptance
+        run: npm run gmail:accept-staging
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+          GETDONE_DB_SSL: "false"
+          GETDONE_GMAIL_STAGING_ACCEPTANCE: "true"
+          GETDONE_GMAIL_STAGING_CLIENT_ID: ${{ secrets.GMAIL_STAGING_CLIENT_ID }}
+          GETDONE_GMAIL_STAGING_CLIENT_SECRET: ${{ secrets.GMAIL_STAGING_CLIENT_SECRET }}
+          GETDONE_GMAIL_STAGING_REFRESH_TOKEN: ${{ secrets.GMAIL_STAGING_REFRESH_TOKEN }}
+          GETDONE_GMAIL_STAGING_REVOKED_TOKEN: ${{ secrets.GMAIL_STAGING_REVOKED_TOKEN }}
+          GETDONE_GMAIL_STAGING_EMAIL: ${{ vars.GMAIL_STAGING_EMAIL }}
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: gmail-staging-acceptance-${{ github.run_number }}
+          path: test-results/gmail-staging-acceptance.json
+          if-no-files-found: warn
+          retention-days: 30

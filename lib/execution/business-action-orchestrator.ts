@@ -144,7 +144,10 @@ export class BusinessActionExecutionOrchestrator {
           "Business action request ID was reused with different authorized input"
         );
       }
-      if (["completed", "rejected", "failed", "cancelled"].includes(existing.state)) {
+      if (
+        ["completed", "rejected", "cancelled"].includes(existing.state)
+        || (existing.state === "failed" && (!existing.retryable || existing.providerOperationId))
+      ) {
         return { record: existing, verificationEvidence: verificationFor(request, existing) };
       }
     }

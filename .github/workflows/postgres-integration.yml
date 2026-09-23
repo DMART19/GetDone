@@ -122,6 +122,13 @@ jobs:
           GETDONE_DB_SSL: "false"
           GETDONE_POSTGRES_INTEGRATION: "true"
 
+      - name: Run dead-letter operator acceptance
+        run: npx vitest run lib/execution/dead-letter-operator-postgres.integration.test.ts
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+          GETDONE_DB_SSL: "false"
+          GETDONE_POSTGRES_INTEGRATION: "true"
+
       - name: Build crash acceptance worker process
         run: npm run build:worker-acceptance
 

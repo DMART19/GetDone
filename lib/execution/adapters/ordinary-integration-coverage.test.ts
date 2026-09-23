@@ -217,19 +217,24 @@ describe("ordinary provider lifecycle coverage", () => {
         accepted: ["to@example.com", "cc@example.com"]
       }
     });
-    const sendHeaders = calls[0].init?.headers as Record<string, string>;
+    expect(calls[0].init?.method).toBe("GET");
+    expect((calls[0].init?.headers as Record<string, string>).authorization).toBe("Bearer read-token");
+    const sendCall = calls.find((call) => call.init?.method === "POST");
+    expect(sendCall).toBeDefined();
+    const sendHeaders = sendCall!.init?.headers as Record<string, string>;
     expect(sendHeaders.authorization).toBe("Bearer send-token");
-    const sendBody = JSON.parse(String(calls[0].init?.body)) as { raw: string };
+    const sendBody = JSON.parse(String(sendCall!.init?.body)) as { raw: string };
     const mime = Buffer.from(sendBody.raw, "base64url").toString("utf8");
     expect(mime).toContain("multipart/alternative");
     expect(mime).toContain("Reply-To: reply@example.com");
+    expect(mime).toContain("Message-ID: <getdone-");
 
     const status = await adapter.status({
       requestId: accepted.requestId,
       providerOperationId: accepted.providerOperationId!
     });
     expect(status.state).toBe("completed");
-    expect((calls[1].init?.headers as Record<string, string>).authorization).toBe("Bearer read-token");
+    expect((calls.at(-1)?.init?.headers as Record<string, string>).authorization).toBe("Bearer read-token");
   });
 
   it("covers Gmail transport, provider failure, status retry, validation and env parsing", async () => {
