@@ -35,6 +35,7 @@
     "ai:accept-staging": "vitest run lib/ai-gateway/openrouter-staging.acceptance.test.ts",
     "gmail:accept-staging": "vitest run lib/execution/gmail-live-staging.acceptance.test.ts",
     "slack:accept-staging": "vitest run lib/execution/slack-live-staging.acceptance.test.ts",
+    "http:accept-staging": "vitest run lib/execution/configured-http-live-staging.acceptance.test.ts",
     "build:worker": "tsc -p tsconfig.worker.json",
     "start:worker": "node --require ./scripts/register-worker-alias.cjs dist-worker/lib/execution/job-worker-entry.js",
     "worker:test-crash-restart": "vitest run lib/execution/worker-crash-restart.integration.test.ts",
