@@ -36,10 +36,7 @@ import {
   PostgresEntityStore,
   PostgresIdempotencyStore
 } from "@/lib/persistence/postgres/authority-stores";
-import type {
-  PostgresTransactionalDatabase,
-  SqlQueryable
-} from "@/lib/persistence/postgres/client";
+import type { PostgresTransactionalDatabase } from "@/lib/persistence/postgres/client";
 import { PostgresJobExecutionSpecStore } from "@/lib/persistence/postgres/job-execution-spec-store";
 import { PostgresDurableJobStore } from "@/lib/persistence/postgres/job-store";
 import { getPostgresRuntimeFromEnv } from "@/lib/persistence/postgres/runtime.server";
