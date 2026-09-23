@@ -1,0 +1,91 @@
+name: Slack Staging Acceptance
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: slack-staging-acceptance
+  cancel-in-progress: false
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  NPM_CONFIG_IGNORE_SCRIPTS: "true"
+  GETDONE_SLACK_STAGING_ACCEPTANCE: "true"
+
+jobs:
+  live-slack:
+    name: live-slack
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: staging
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Verify protected Slack staging inputs
+        shell: bash
+        env:
+          GETDONE_SLACK_STAGING_BOT_TOKEN: ${{ secrets.SLACK_STAGING_BOT_TOKEN }}
+          GETDONE_SLACK_STAGING_READ_TOKEN: ${{ secrets.SLACK_STAGING_READ_TOKEN }}
+          GETDONE_SLACK_STAGING_NO_WRITE_TOKEN: ${{ secrets.SLACK_STAGING_NO_WRITE_TOKEN }}
+          GETDONE_SLACK_STAGING_REVOKED_TOKEN: ${{ secrets.SLACK_STAGING_REVOKED_TOKEN }}
+          GETDONE_SLACK_STAGING_CHANNEL_ID: ${{ vars.SLACK_STAGING_CHANNEL_ID }}
+        run: |
+          test -n "$GETDONE_SLACK_STAGING_BOT_TOKEN" || { echo "staging secret SLACK_STAGING_BOT_TOKEN is required"; exit 1; }
+          test -n "$GETDONE_SLACK_STAGING_NO_WRITE_TOKEN" || { echo "staging secret SLACK_STAGING_NO_WRITE_TOKEN is required"; exit 1; }
+          test -n "$GETDONE_SLACK_STAGING_REVOKED_TOKEN" || { echo "staging secret SLACK_STAGING_REVOKED_TOKEN is required"; exit 1; }
+          test -n "$GETDONE_SLACK_STAGING_CHANNEL_ID" || { echo "staging variable SLACK_STAGING_CHANNEL_ID is required"; exit 1; }
+
+      - name: Migrate Slack staging acceptance PostgreSQL
+        run: npm run db:migrate
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+          GETDONE_DB_SSL: "false"
+
+      - name: Run governed real Slack staging acceptance
+        run: npm run slack:accept-staging
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+          GETDONE_DB_SSL: "false"
+          GETDONE_SLACK_STAGING_ACCEPTANCE: "true"
+          GETDONE_SLACK_STAGING_BOT_TOKEN: ${{ secrets.SLACK_STAGING_BOT_TOKEN }}
+          GETDONE_SLACK_STAGING_READ_TOKEN: ${{ secrets.SLACK_STAGING_READ_TOKEN }}
+          GETDONE_SLACK_STAGING_NO_WRITE_TOKEN: ${{ secrets.SLACK_STAGING_NO_WRITE_TOKEN }}
+          GETDONE_SLACK_STAGING_REVOKED_TOKEN: ${{ secrets.SLACK_STAGING_REVOKED_TOKEN }}
+          GETDONE_SLACK_STAGING_CHANNEL_ID: ${{ vars.SLACK_STAGING_CHANNEL_ID }}
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: slack-staging-acceptance-${{ github.run_number }}
+          path: test-results/slack-staging-acceptance.json
+          if-no-files-found: warn
+          retention-days: 30
