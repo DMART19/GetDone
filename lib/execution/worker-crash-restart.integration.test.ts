@@ -169,10 +169,9 @@ function spawnWorker(
   const child = spawn(
     process.execPath,
     [
-      "node_modules/vitest/vitest.mjs",
-      "run",
-      "lib/execution/worker-crash-acceptance-child.integration.test.ts",
-      "--reporter=dot"
+      "--require",
+      "./scripts/register-worker-alias.cjs",
+      "dist-worker-acceptance/lib/execution/worker-crash-acceptance-child.js"
     ],
     {
       cwd: process.cwd(),
@@ -181,7 +180,6 @@ function spawnWorker(
         DATABASE_URL: connectionString,
         GETDONE_DB_SSL: process.env.GETDONE_DB_SSL ?? "false",
         GETDONE_POSTGRES_INTEGRATION: "true",
-        GETDONE_WORKER_CRASH_CHILD: "true",
         GETDONE_WORKER_CRASH_SCENARIO: scenario,
         GETDONE_JOB_WORKER_ID: workerId
       },
