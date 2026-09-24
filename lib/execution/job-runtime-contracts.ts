@@ -6,6 +6,7 @@ export const JOB_RUNTIME_CONTRACT_VERSION = "1.1.0";
 
 export interface JobQueueEnvelope {
   id: string;
+  correlationId?: string;
   jobId: string;
   taskId: string;
   scope: TrustedExecutionScope;
