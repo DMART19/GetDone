@@ -133,8 +133,7 @@ const slackAdapterMaterial = new WeakMap<SlackBusinessActionAdapter, string>();
 
 function adapter(
   fetchImpl: typeof fetch,
-  providerToken = botToken,
-  _verificationCredential = readToken
+  providerToken = botToken
 ) {
   const value = new SlackBusinessActionAdapter([{
     id: "slack-live-staging",
@@ -438,7 +437,7 @@ liveDescribe("real Slack governed staging acceptance", () => {
   it("fails closed for a revoked token", async () => {
     const db = database();
     try {
-      const value = runtime(db, adapter(fetch, revokedToken, readToken), Date.now());
+      const value = runtime(db, adapter(fetch, revokedToken), Date.now());
       const authoritative = job("revoked-token", new Date().toISOString());
       const action = request(authoritative, "revoked-token");
       await value.jobs.create(authoritative);
@@ -455,7 +454,7 @@ liveDescribe("real Slack governed staging acceptance", () => {
   it("fails closed for a valid Slack token without chat:write permission", async () => {
     const db = database();
     try {
-      const value = runtime(db, adapter(fetch, noWriteToken, readToken), Date.now());
+      const value = runtime(db, adapter(fetch, noWriteToken), Date.now());
       const authoritative = job("permission-failure", new Date().toISOString());
       const action = request(authoritative, "permission-failure");
       await value.jobs.create(authoritative);
