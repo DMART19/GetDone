@@ -70,6 +70,12 @@ function errorType(error: unknown) {
   return error instanceof Error ? error.name : typeof error;
 }
 
+export class NoopTelemetrySink implements TelemetrySink {
+  log() {}
+  metric() {}
+  span() {}
+}
+
 export class JsonConsoleTelemetrySink implements TelemetrySink {
   log(record: StructuredLogRecord) {
     process.stdout.write(JSON.stringify({
@@ -217,10 +223,131 @@ export class Telemetry {
   }
 }
 
+export class CompositeTelemetrySink implements TelemetrySink {
+  constructor(private readonly sinks: readonly TelemetrySink[]) {}
+  async log(record: StructuredLogRecord) {
+    await Promise.all(this.sinks.map((sink) => sink.log(record)));
+  }
+  async metric(record: MetricRecord) {
+    await Promise.all(this.sinks.map((sink) => sink.metric(record)));
+  }
+  async span(record: SpanRecord) {
+    await Promise.all(this.sinks.map((sink) => sink.span(record)));
+  }
+}
+
+export class OtlpJsonHttpTelemetrySink implements TelemetrySink {
+  private readonly endpoint: string;
+  constructor(
+    endpoint: string,
+    private readonly headers: Readonly<Record<string, string>> = {},
+    private readonly fetchImpl: typeof fetch = fetch
+  ) {
+    const url = new URL(endpoint);
+    if (url.protocol !== "https:" && !(url.protocol === "http:" && ["127.0.0.1","localhost","::1"].includes(url.hostname))) {
+      throw new Error("OTLP endpoint must use HTTPS outside loopback development");
+    }
+    this.endpoint = url.toString().replace(/\/$/, "");
+  }
+
+  private async send(path: string, body: unknown) {
+    const response = await this.fetchImpl(this.endpoint + path, {
+      method: "POST",
+      headers: { "content-type": "application/json", ...this.headers },
+      body: JSON.stringify(body)
+    });
+    if (!response.ok) {
+      throw new Error(`OTLP export failed with HTTP ${response.status}`);
+    }
+  }
+
+  log(record: StructuredLogRecord) {
+    return this.send("/v1/logs", {
+      resourceLogs: [{
+        scopeLogs: [{
+          logRecords: [{
+            timeUnixNano: String(Date.parse(record.timestamp) * 1_000_000),
+            severityText: record.severity,
+            body: { stringValue: record.message ?? record.event },
+            traceId: record.traceId,
+            spanId: record.spanId,
+            attributes: Object.entries({ event: record.event, ...record.attributes })
+              .map(([key, value]) => ({ key, value: { stringValue: String(value) } }))
+          }]
+        }]
+      }]
+    });
+  }
+
+  metric(record: MetricRecord) {
+    const point = {
+      timeUnixNano: String(Date.parse(record.timestamp) * 1_000_000),
+      asDouble: record.value,
+      attributes: Object.entries(record.attributes)
+        .map(([key, value]) => ({ key, value: { stringValue: String(value) } }))
+    };
+    const data = record.kind === "histogram"
+      ? { histogram: { dataPoints: [{ ...point, count: "1", sum: record.value }] } }
+      : { gauge: { dataPoints: [point] } };
+    return this.send("/v1/metrics", {
+      resourceMetrics: [{
+        scopeMetrics: [{
+          metrics: [{ name: record.name, unit: record.unit ?? "1", ...data }]
+        }]
+      }]
+    });
+  }
+
+  span(record: SpanRecord) {
+    return this.send("/v1/traces", {
+      resourceSpans: [{
+        scopeSpans: [{
+          spans: [{
+            traceId: record.traceId,
+            spanId: record.spanId,
+            parentSpanId: record.parentSpanId,
+            name: record.name,
+            startTimeUnixNano: String(Date.parse(record.startedAt) * 1_000_000),
+            endTimeUnixNano: String(Date.parse(record.endedAt) * 1_000_000),
+            status: { code: record.status === "ok" ? 1 : 2 },
+            attributes: Object.entries(record.attributes)
+              .map(([key, value]) => ({ key, value: { stringValue: String(value) } }))
+          }]
+        }]
+      }]
+    });
+  }
+}
+
+export function telemetryFromEnv(
+  env: Readonly<Record<string, string | undefined>> = process.env,
+  fetchImpl: typeof fetch = fetch
+) {
+  if (env.GETDONE_OBSERVABILITY_ENABLED !== "true") {
+    return new Telemetry(new NoopTelemetrySink());
+  }
+  const sinks: TelemetrySink[] = [new JsonConsoleTelemetrySink()];
+  const endpoint = env.GETDONE_OTEL_EXPORTER_OTLP_ENDPOINT?.trim();
+  if (endpoint) {
+    const headers = Object.fromEntries(
+      (env.GETDONE_OTEL_EXPORTER_OTLP_HEADERS ?? "")
+        .split(",")
+        .map((entry) => entry.trim())
+        .filter(Boolean)
+        .map((entry) => {
+          const index = entry.indexOf("=");
+          return index > 0 ? [entry.slice(0, index), entry.slice(index + 1)] : [entry, ""];
+        })
+    );
+    sinks.push(new OtlpJsonHttpTelemetrySink(endpoint, headers, fetchImpl));
+  }
+  return new Telemetry(new CompositeTelemetrySink(sinks));
+}
+
 let defaultTelemetry: Telemetry | undefined;
 
 export function getTelemetry() {
-  defaultTelemetry ??= new Telemetry();
+  defaultTelemetry ??= telemetryFromEnv();
   return defaultTelemetry;
 }
 
