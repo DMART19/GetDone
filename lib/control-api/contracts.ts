@@ -8,7 +8,7 @@ import type { VerificationRequestRecord } from "@/lib/domain/services/verificati
 import type { Resource } from "@/lib/domain/resources";
 import type { ResourceEnrollmentRecord } from "@/lib/resources/enrollment";
 
-export const CONTROL_API_SURFACE_VERSION = "1.2.0";
+export const CONTROL_API_SURFACE_VERSION = "1.3.0";
 
 export type ControlApiRole = "owner" | "admin" | "operator" | "viewer";
 
@@ -28,6 +28,7 @@ export interface OwnerIntentInput {
 
 export interface OwnerIntentRecord {
   id: string;
+  correlationId?: string;
   portfolioId: string;
   companyId: string;
   environment: TrustedExecutionScope["environment"];
@@ -98,6 +99,7 @@ export interface ResourceEnrollmentActionInput {
 
 export interface JobResultView {
   jobId: string;
+  correlationId?: string;
   state: JobRecord["state"];
   verificationEvidenceIds: readonly string[];
   verificationReceiptId?: string;
@@ -137,14 +139,16 @@ export interface ControlApiApplicationAdapter {
   submitOwnerIntent(
     principal: ControlApiPrincipal,
     input: OwnerIntentInput,
-    idempotencyKey: string
+    idempotencyKey: string,
+    correlationId?: string
   ): Promise<OwnerIntentRecord>;
 
   listDecisions(principal: ControlApiPrincipal): Promise<readonly AuthoritativeDecision[]>;
   getDecision(principal: ControlApiPrincipal, decisionId: string): Promise<AuthoritativeDecision | null>;
   mutateDecision(
     principal: ControlApiPrincipal,
-    input: DecisionMutationInput
+    input: DecisionMutationInput,
+    correlationId?: string
   ): Promise<AuthoritativeDecision>;
 
   listResources(principal: ControlApiPrincipal): Promise<readonly Resource[]>;
