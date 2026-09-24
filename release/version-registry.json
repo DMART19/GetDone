@@ -507,7 +507,9 @@
     "lib/observability/alert-rules.test.ts",
     "lib/observability/correlation-lineage.test.ts",
     "lib/persistence/postgres/correlation-lineage-store.ts",
-    "migrations/2026-09-24.1_correlation_lineage.sql"
+    "migrations/2026-09-24.1_correlation_lineage.sql",
+    "docs/SOL_OPERATIONAL_ALERTS_CORRELATION.md",
+    "lib/observability/correlation-lineage-postgres.integration.test.ts"
   ],
   "manualSourcePaths": [
     "docs/ARCHITECTURE.md",
@@ -527,7 +529,8 @@
     "docs/SOL_WORKER_CRASH_RESTART_ACCEPTANCE.md",
     "docs/SOL_QUEUE_BACKPRESSURE_ACCEPTANCE.md",
     "docs/SOL_WEBHOOK_STAGING_ACCEPTANCE.md",
-    "docs/SOL_CREDENTIAL_ROTATION_OBSERVABILITY.md"
+    "docs/SOL_CREDENTIAL_ROTATION_OBSERVABILITY.md",
+    "docs/SOL_OPERATIONAL_ALERTS_CORRELATION.md"
   ],
   "generatedArtifacts": {
     "machineManifest": "release/out/release-manifest.json",
