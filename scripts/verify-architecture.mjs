@@ -1127,7 +1127,7 @@ if (
   fail("Phase 4 release state drifted");
 }
 if (
-  releaseRegistry.execution.jobRuntimeContractVersion !== "1.1.0"
+  releaseRegistry.execution.jobRuntimeContractVersion !== "1.2.0"
   || releaseRegistry.execution.durableJobStoreStatus !== "implemented-unconnected"
   || releaseRegistry.execution.durableJobStoreVersion !== "1.0.0"
   || releaseRegistry.execution.businessActionContractVersion !== "1.6.0"
