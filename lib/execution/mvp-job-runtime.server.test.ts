@@ -29,8 +29,11 @@ const consumption = {
   consumptionHash: "consumption-hash"
 };
 
+const correlationId = "corr-mvp-runtime-1";
+
 const job: JobRecord = {
   id: "job-1",
+  correlationId,
   portfolioId: "portfolio-a",
   companyId: "company-a",
   state: "queued",
@@ -53,6 +56,7 @@ function action(capability = "http.request"): AuthorizedBusinessActionRequest {
   };
   return {
     id: "action-1",
+    correlationId,
     jobId: "job-1",
     scope,
     capability,
@@ -91,9 +95,13 @@ describe("MVP capability-dispatched Job runtime", () => {
     await runtime.enqueueAuthorizedHttpAction(job, action());
     expect(stored[0]).toMatchObject({
       jobId: "job-1",
-      spec: { kind: "business-action", request: { capability: "http.request" } }
+      spec: {
+        kind: "business-action",
+        request: { capability: "http.request", correlationId }
+      }
     });
     expect(enqueued[0]).toMatchObject({
+      correlationId,
       jobId: "job-1",
       taskId: "task-1",
       authorizationConsumptionHash: "consumption-hash"
@@ -118,7 +126,10 @@ describe("MVP capability-dispatched Job runtime", () => {
   it("returns an owner-safe notification derived from durable outcome truth", async () => {
     const runtime = new MvpJobRuntime({
       status: async () => ({
-        runtime: { state: "succeeded" },
+        runtime: {
+          state: "succeeded",
+          envelope: { correlationId }
+        },
         outcomes: [{
           id: "outcome-1",
           jobId: "job-1",
@@ -136,6 +147,7 @@ describe("MVP capability-dispatched Job runtime", () => {
     {} as unknown as ConstructorParameters<typeof MvpJobRuntime>[2],
     jobs as ConstructorParameters<typeof MvpJobRuntime>[3]);
     const view = await runtime.ownerView("job-1", "task-1");
+    expect(view.correlationId).toBe(correlationId);
     expect(view.notification).toMatchObject({
       destination: "/?focus=task-result&id=task-1",
       requiresAuthoritativeFetch: true

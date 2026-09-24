@@ -100,6 +100,7 @@ export function toJobResultView(job: JobRecord): JobResultView {
     jobId: job.id,
     state: job.state,
     verificationEvidenceIds: Object.freeze([...job.verificationEvidenceIds]),
+    correlationId: job.correlationId,
     verificationReceiptId: job.verificationReceiptId,
     verificationReceiptHash: job.verificationReceiptHash,
     verifiedCompletionFactId: job.verifiedCompletionFactId,
@@ -188,12 +189,14 @@ export class ServiceBackedControlApiAdapter implements ControlApiApplicationAdap
   async submitOwnerIntent(
     principal: ControlApiPrincipal,
     input: OwnerIntentInput,
-    idempotencyKey: string
+    idempotencyKey: string,
+    correlationId?: string
   ) {
     return this.scoped(principal, async () => {
       requireRole(principal, ["owner"], "Owner intent submission");
       const record: OwnerIntentRecord = Object.freeze({
         id: crypto.randomUUID(),
+        correlationId: correlationId ?? createCorrelationId(),
         portfolioId: principal.scope.portfolioId,
         companyId: principal.scope.companyId,
         environment: principal.scope.environment,
@@ -220,15 +223,26 @@ export class ServiceBackedControlApiAdapter implements ControlApiApplicationAdap
     );
   }
 
-  mutateDecision(principal: ControlApiPrincipal, input: DecisionMutationInput) {
-    return this.scoped(principal, () => {
-      requireRole(principal, ["owner", "admin"], "Decision mutation");
-      const correlationId = createCorrelationId();
+  mutateDecision(
+    principal: ControlApiPrincipal,
+    input: DecisionMutationInput,
+    correlationId?: string
+  ) {
+    requireRole(principal, ["owner", "admin"], "Decision mutation");
+    return this.scoped(principal, async () => {
+      const current = assertScopedEntity(
+        principal,
+        await this.deps.decisions.get(input.decisionId)
+      );
+      if (!current) {
+        throw new ControlPlaneError("NOT_FOUND", "Decision was not found");
+      }
+      const lineageCorrelationId = current.correlationId ?? correlationId ?? createCorrelationId();
       const command = createCommandEnvelope({
         commandId: crypto.randomUUID(),
         actor: principal.actor,
         scope: principal.scope,
-        correlationId,
+        correlationId: lineageCorrelationId,
         environment: principal.scope.environment,
         idempotencyKey: input.idempotencyKey,
         provenance: "control-api:decision-mutation",

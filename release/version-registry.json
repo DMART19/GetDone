@@ -1,6 +1,6 @@
 {
   "registrySchemaVersion": "1.6.0",
-  "registryVersion": "2026-09-24.1",
+  "registryVersion": "2026-09-24.2",
   "appVersion": "0.1.0",
   "schemaVersions": {
     "controlApi": {
@@ -88,7 +88,7 @@
       ]
     },
     "jobRuntime": {
-      "version": "1.1.0",
+      "version": "1.2.0",
       "sourcePath": "lib/execution/job-runtime-contracts.ts",
       "contractTracked": true,
       "contractSourcePaths": [
@@ -168,7 +168,7 @@
       ]
     },
     "controlApiSurface": {
-      "version": "1.2.0",
+      "version": "1.3.0",
       "sourcePath": "lib/control-api/contracts.ts",
       "contractTracked": true,
       "contractSourcePaths": [
@@ -275,7 +275,7 @@
     },
     "businessAction": {
       "status": "contract-only",
-      "version": "1.5.0",
+      "version": "1.6.0",
       "sourcePath": "lib/execution/adapters/business-action.ts",
       "contractTracked": true,
       "contractSourcePaths": [
@@ -502,7 +502,14 @@
     "lib/observability/telemetry.test.ts",
     "lib/credentials/rotation-policy.ts",
     "lib/observability/telemetry.ts",
-    "docs/SOL_CREDENTIAL_ROTATION_OBSERVABILITY.md"
+    "docs/SOL_CREDENTIAL_ROTATION_OBSERVABILITY.md",
+    "config/operational-alert-rules.json",
+    "lib/observability/alert-rules.test.ts",
+    "lib/observability/correlation-lineage.test.ts",
+    "lib/persistence/postgres/correlation-lineage-store.ts",
+    "migrations/2026-09-24.1_correlation_lineage.sql",
+    "docs/SOL_OPERATIONAL_ALERTS_CORRELATION.md",
+    "lib/observability/correlation-lineage-postgres.integration.test.ts"
   ],
   "manualSourcePaths": [
     "docs/ARCHITECTURE.md",
@@ -522,7 +529,8 @@
     "docs/SOL_WORKER_CRASH_RESTART_ACCEPTANCE.md",
     "docs/SOL_QUEUE_BACKPRESSURE_ACCEPTANCE.md",
     "docs/SOL_WEBHOOK_STAGING_ACCEPTANCE.md",
-    "docs/SOL_CREDENTIAL_ROTATION_OBSERVABILITY.md"
+    "docs/SOL_CREDENTIAL_ROTATION_OBSERVABILITY.md",
+    "docs/SOL_OPERATIONAL_ALERTS_CORRELATION.md"
   ],
   "generatedArtifacts": {
     "machineManifest": "release/out/release-manifest.json",
@@ -532,9 +540,9 @@
     "status": "implemented-unconnected",
     "engine": "postgresql",
     "minimumEngineVersion": "16",
-    "migrationVersion": "2026-09-23.3",
-    "schemaVersion": "1.6.0",
-    "sourcePath": "migrations/2026-09-23.3_credential_broker_runtime.sql",
+    "migrationVersion": "2026-09-24.1",
+    "schemaVersion": "1.7.0",
+    "sourcePath": "migrations/2026-09-24.1_correlation_lineage.sql",
     "adapterSourcePath": "lib/persistence/postgres/client.ts"
   },
   "voice": {
@@ -556,9 +564,9 @@
     "adapterImplementationStatus": "implemented-unconfigured"
   },
   "execution": {
-    "jobRuntimeContractVersion": "1.1.0",
+    "jobRuntimeContractVersion": "1.2.0",
     "durableJobStoreStatus": "implemented-unconnected",
-    "businessActionContractVersion": "1.5.0",
+    "businessActionContractVersion": "1.6.0",
     "businessAdaptersStatus": "implemented-unconfigured",
     "softwareWorkerContractVersion": "1.1.0",
     "softwareDeploymentStatus": "not-connected",
@@ -625,7 +633,7 @@
     "mvpBusinessWorkflowSourcePath": "lib/composition/mvp-business-workflow.ts"
   },
   "controlApi": {
-    "surfaceVersion": "1.2.0",
+    "surfaceVersion": "1.3.0",
     "status": "implemented-unconnected",
     "applicationAdapterStatus": "not-connected",
     "authStatus": "implemented-unconnected",
@@ -741,5 +749,18 @@
     "structuredJsonLogs": true,
     "otlpJson": true,
     "requiredForProduction": true
+  },
+  "operationalAlerts": {
+    "version": "1.0.0",
+    "status": "implemented",
+    "rulesPath": "config/operational-alert-rules.json",
+    "sourcePath": "lib/observability/alert-rules.ts",
+    "ruleCount": 10
+  },
+  "correlationLineage": {
+    "version": "1.0.0",
+    "status": "implemented",
+    "sourcePath": "lib/observability/correlation-lineage.ts",
+    "postgresSourcePath": "lib/persistence/postgres/correlation-lineage-store.ts"
   }
 }

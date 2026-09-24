@@ -140,6 +140,7 @@ export class TaskService {
 
       const record: TaskRecord = Object.freeze({
         id: input.id,
+        correlationId: command.correlationId,
         portfolioId: command.scope.portfolioId,
         companyId: command.scope.companyId,
         state: "proposed",

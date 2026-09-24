@@ -84,6 +84,7 @@ export class VerificationService {
 
       const record: VerificationRequestRecord = Object.freeze({
         id: request.id,
+        correlationId: request.correlationId ?? command.correlationId,
         portfolioId: request.portfolioId,
         companyId: request.companyId,
         state: "requested",

@@ -174,7 +174,8 @@ export class DurableJobWorker {
         [OTEL_SEMANTIC.jobId]: candidate.envelope.jobId,
         [OTEL_SEMANTIC.workerId]: this.config.workerId,
         [OTEL_SEMANTIC.companyId]: candidate.envelope.scope.companyId,
-        [OTEL_SEMANTIC.environment]: candidate.envelope.scope.environment
+        [OTEL_SEMANTIC.environment]: candidate.envelope.scope.environment,
+        [OTEL_SEMANTIC.correlationId]: candidate.envelope.correlationId ?? null
       }, () => this.retrySerializableConflict(() => this.store.claimAtomic({
         jobId: candidate.envelope.jobId,
         workerId: this.config.workerId,
@@ -245,7 +246,8 @@ export class DurableJobWorker {
         [OTEL_SEMANTIC.workerId]: this.config.workerId,
         [OTEL_SEMANTIC.jobAttempt]: lease.attempt,
         [OTEL_SEMANTIC.companyId]: candidate.envelope.scope.companyId,
-        [OTEL_SEMANTIC.environment]: candidate.envelope.scope.environment
+        [OTEL_SEMANTIC.environment]: candidate.envelope.scope.environment,
+        [OTEL_SEMANTIC.correlationId]: candidate.envelope.correlationId ?? null
       }, () => handler.execute({
         envelope: candidate.envelope,
         get lease() { return lease; },
@@ -290,7 +292,8 @@ export class DurableJobWorker {
         [OTEL_SEMANTIC.jobId]: candidate.envelope.jobId,
         [OTEL_SEMANTIC.workerId]: this.config.workerId,
         [OTEL_SEMANTIC.jobAttempt]: lease.attempt,
-        outcome: outcome.kind
+        outcome: outcome.kind,
+        [OTEL_SEMANTIC.correlationId]: candidate.envelope.correlationId ?? null
       }
     );
 

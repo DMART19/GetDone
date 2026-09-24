@@ -200,7 +200,7 @@ const controlApiRuntime = read("lib/control-api/runtime.server.ts");
 const controlApiHttp = read("lib/control-api/http.ts");
 const controlApiServices = read("lib/control-api/service-adapter.ts");
 for (const required of [
-  'CONTROL_API_SURFACE_VERSION = "1.2.0"',
+  'CONTROL_API_SURFACE_VERSION = "1.3.0"',
   "submitOwnerIntent",
   "mutateDecision",
   "discoverResource",
@@ -1088,12 +1088,12 @@ if (
   fail("Phase 28.4 release state drifted or overclaims live Node capability/binding connectivity");
 }
 if (
-  releaseRegistry.controlApi?.surfaceVersion !== "1.2.0"
+  releaseRegistry.controlApi?.surfaceVersion !== "1.3.0"
   || releaseRegistry.controlApi?.status !== "implemented-unconnected"
   || releaseRegistry.controlApi?.applicationAdapterStatus !== "not-connected"
   || releaseRegistry.controlApi?.authStatus !== "implemented-unconnected"
   || releaseRegistry.controlApi?.persistenceStatus !== "not-connected"
-  || releaseRegistry.schemaVersions?.controlApiSurface?.version !== "1.2.0"
+  || releaseRegistry.schemaVersions?.controlApiSurface?.version !== "1.3.0"
 ) {
   fail("Control API release state must expose the implemented surface while preserving unconnected authority adapters");
 }
@@ -1109,8 +1109,8 @@ if (
   releaseRegistry.database?.status !== "implemented-unconnected"
   || releaseRegistry.database?.engine !== "postgresql"
   || releaseRegistry.database?.minimumEngineVersion !== "16"
-  || releaseRegistry.database?.migrationVersion !== "2026-09-23.3"
-  || releaseRegistry.database?.schemaVersion !== "1.6.0"
+  || releaseRegistry.database?.migrationVersion !== "2026-09-24.1"
+  || releaseRegistry.database?.schemaVersion !== "1.7.0"
   || releaseRegistry.schemaVersions?.postgresPersistence?.version !== "1.1.0"
   || releaseRegistry.adapters?.postgresPersistence?.status !== "implemented-unconnected"
   || releaseRegistry.adapters?.postgresPersistence?.version !== "1.1.0"
@@ -1127,13 +1127,13 @@ if (
   fail("Phase 4 release state drifted");
 }
 if (
-  releaseRegistry.execution.jobRuntimeContractVersion !== "1.1.0"
+  releaseRegistry.execution.jobRuntimeContractVersion !== "1.2.0"
   || releaseRegistry.execution.durableJobStoreStatus !== "implemented-unconnected"
   || releaseRegistry.execution.durableJobStoreVersion !== "1.0.0"
-  || releaseRegistry.execution.businessActionContractVersion !== "1.5.0"
+  || releaseRegistry.execution.businessActionContractVersion !== "1.6.0"
   || releaseRegistry.execution.businessActionOrchestratorStatus !== "implemented"
   || releaseRegistry.execution.businessAdaptersStatus !== "implemented-unconfigured"
-  || releaseRegistry.adapters?.businessAction?.version !== "1.5.0"
+  || releaseRegistry.adapters?.businessAction?.version !== "1.6.0"
   || releaseRegistry.adapters?.configuredHttpAction?.version !== "1.3.0"
   || releaseRegistry.adapters?.configuredWebhookAction?.status !== "implemented-unconfigured"
   || releaseRegistry.adapters?.gmailBusinessAction?.status !== "implemented-unconfigured"
@@ -1244,8 +1244,8 @@ for (const [name, state] of Object.entries(releaseEnvironment.environments ?? {}
     || state.connections?.database !== false
     || state.database?.engine !== "postgresql"
     || state.database?.adapterStatus !== "implemented-unconnected"
-    || state.database?.migrationVersion !== "2026-09-23.3"
-    || state.database?.schemaVersion !== "1.6.0"
+    || state.database?.migrationVersion !== "2026-09-24.1"
+    || state.database?.schemaVersion !== "1.7.0"
     || state.composition?.goldenPathHarnessStatus !== "deterministic-simulation-only"
     || state.composition?.productionExecutionClaimed !== false
     || state.resourceFabric?.storageFabricContractStatus !== "deterministic-contract"

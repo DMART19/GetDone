@@ -2,7 +2,7 @@ import { ControlPlaneError } from "@/lib/control-plane/errors";
 import { sha256Hex } from "@/lib/control-plane/canonical-hash";
 import type { TrustedExecutionScope } from "@/lib/control-plane/trusted-execution-scope";
 
-export const BUSINESS_ACTION_ADAPTER_CONTRACT_VERSION = "1.5.0";
+export const BUSINESS_ACTION_ADAPTER_CONTRACT_VERSION = "1.6.0";
 
 export type BusinessActionRetryClass =
   | "none"
@@ -16,6 +16,7 @@ export type BusinessActionRetryClass =
 
 export interface AuthorizedBusinessActionRequest {
   id: string;
+  correlationId?: string;
   jobId: string;
   scope: TrustedExecutionScope;
   capability: string;

@@ -10,6 +10,7 @@ export type DurableJobOutcomeKind =
 
 export interface DurableJobExecutionOutcomeRecord {
   id: string;
+  correlationId?: string;
   jobId: string;
   kind: DurableJobOutcomeKind;
   runtimeState: string;
@@ -22,6 +23,7 @@ export interface DurableJobExecutionOutcomeRecord {
 
 export interface DurableJobRuntimeEventRecord {
   id: string;
+  correlationId?: string;
   jobId: string;
   eventType: string;
   attempt: number;
@@ -69,6 +71,7 @@ export function createDurableJobRuntimeEvent(input: {
   }
   const base = {
     id: input.id,
+    correlationId: input.outcome.correlationId,
     jobId: input.jobId,
     eventType: input.eventType,
     attempt: input.attempt,

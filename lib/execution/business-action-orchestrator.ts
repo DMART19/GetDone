@@ -33,6 +33,7 @@ export type BusinessActionExecutionState =
 
 export interface BusinessActionExecutionRecord {
   requestId: string;
+  correlationId?: string;
   jobId: string;
   requestHash: string;
   adapterId: string;
@@ -92,6 +93,7 @@ function verificationFor(
   if (!["completed", "failed", "cancelled"].includes(record.state)) return undefined;
   return createVerificationEvidence({
     id: `business-action-evidence:${request.id}:${record.recordHash}`,
+    correlationId: request.correlationId,
     portfolioId: request.scope.portfolioId,
     companyId: request.scope.companyId,
     subject: { type: "job", id: request.jobId },
@@ -149,7 +151,8 @@ export class BusinessActionExecutionOrchestrator {
       [OTEL_SEMANTIC.operation]: operation,
       [OTEL_SEMANTIC.capability]: request.capability,
       [OTEL_SEMANTIC.companyId]: request.scope.companyId,
-      [OTEL_SEMANTIC.environment]: request.scope.environment
+      [OTEL_SEMANTIC.environment]: request.scope.environment,
+      [OTEL_SEMANTIC.correlationId]: request.correlationId ?? null
     }, async () => {
       const startedAt = Date.now();
       try {
@@ -236,6 +239,7 @@ export class BusinessActionExecutionOrchestrator {
 
     const record = createRecord({
       requestId: request.id,
+      correlationId: request.correlationId,
       jobId: request.jobId,
       requestHash,
       adapterId: adapter.id,

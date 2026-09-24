@@ -9,6 +9,7 @@ export type AuthoritativeDecisionStatus = "pending" | "approved" | "modified" | 
 
 export interface AuthoritativeDecision {
   id: string;
+  correlationId?: string;
   portfolioId: string;
   companyId: string;
   status: AuthoritativeDecisionStatus;

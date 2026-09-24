@@ -28,6 +28,7 @@ export interface VerificationSubject {
 
 export interface VerificationRequest {
   id: string;
+  correlationId?: string;
   portfolioId: string;
   companyId: string;
   environment: TrustedExecutionScope["environment"];
@@ -45,6 +46,7 @@ export type VerificationEvidenceResult = "pass" | "fail" | "unknown";
 
 export interface VerificationEvidence {
   id: string;
+  correlationId?: string;
   portfolioId: string;
   companyId: string;
   subject: VerificationSubject;
@@ -77,6 +79,7 @@ export interface VerificationStrategyResult {
 
 export interface VerificationReceipt {
   id: string;
+  correlationId?: string;
   requestId: string;
   portfolioId: string;
   companyId: string;
@@ -344,6 +347,7 @@ export function resolveVerificationRequest(
 
   const base: Omit<VerificationReceipt, "receiptHash"> = {
     id: input.receiptId,
+    correlationId: request.correlationId,
     requestId: request.id,
     portfolioId: request.portfolioId,
     companyId: request.companyId,
