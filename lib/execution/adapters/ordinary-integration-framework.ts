@@ -73,17 +73,15 @@ export function resolveCredentialReference(
 
 export function requireBrokeredCredential(
   context: BusinessActionExecutionContext | undefined,
-  request: AuthorizedBusinessActionRequest,
-  requirement: BusinessActionCredentialRequirement
+  requirement: BusinessActionCredentialRequirement,
+  capability: string
 ) {
   const credential = context?.credential;
   if (
     !credential
-    || !request.credentialLeaseId
-    || credential.leaseId !== request.credentialLeaseId
     || credential.providerId !== requirement.providerId
-    || credential.capability !== request.capability
-    || credential.expiresAt <= new Date().toISOString()
+    || credential.capability !== capability
+    || Date.parse(credential.expiresAt) <= Date.now()
     || !requirement.requiredScopes.every((scope) => credential.grantedScopes.includes(scope))
   ) {
     throw new ControlPlaneError(
