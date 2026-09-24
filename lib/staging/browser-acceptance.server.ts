@@ -384,6 +384,37 @@ export async function readAcceptanceResult(
   });
 }
 
+export function buildAcceptanceActionRequest(input: {
+  principal: ControlApiPrincipal;
+  correlationId: string;
+  decisionId: string;
+  jobId: string;
+  authorizationConsumptionHash: string;
+}) {
+  const actionInput = {
+    companyId: input.principal.scope.companyId,
+    operation: "staging.browser.safe",
+    payload: {
+      correlationId: input.correlationId,
+      decisionId: input.decisionId,
+      purpose: "production-browser-e2e"
+    }
+  };
+  return Object.freeze({
+    id: `browser-action:${input.correlationId}`,
+    correlationId: input.correlationId,
+    jobId: input.jobId,
+    scope: input.principal.scope,
+    capability: "http.request",
+    input: actionInput,
+    inputHash: sha256Hex(actionInput),
+    authorizationConsumptionHash: input.authorizationConsumptionHash,
+    idempotencyKey: `browser-action:${input.correlationId}`,
+    timeoutMs: 10_000,
+    attempt: 1
+  });
+}
+
 export async function executeAcceptanceDecision(
   request: Request,
   decisionId: string
@@ -461,29 +492,17 @@ export async function executeAcceptanceDecision(
       queuedTask.authorizationConsumption
     );
 
-    const actionInput = {
-      companyId: principal.scope.companyId,
-      operation: "staging.browser.safe",
-      payload: {
+    const runtime = getMvpJobRuntimeFromEnv();
+    await runtime.enqueueAuthorizedBusinessAction(
+      queuedJob,
+      buildAcceptanceActionRequest({
+        principal,
         correlationId,
         decisionId,
-        purpose: "production-browser-e2e"
-      }
-    };
-    const runtime = getMvpJobRuntimeFromEnv();
-    await runtime.enqueueAuthorizedBusinessAction(queuedJob, {
-      id: `browser-action:${correlationId}`,
-      correlationId,
-      jobId,
-      scope: principal.scope,
-      capability: "http.request",
-      input: actionInput,
-      inputHash: sha256Hex(actionInput),
-      authorizationConsumptionHash: queuedTask.authorizationConsumption.consumptionHash,
-      idempotencyKey: `browser-action:${correlationId}`,
-      timeoutMs: 10_000,
-      attempt: 1
-    });
+        jobId,
+        authorizationConsumptionHash: queuedTask.authorizationConsumption.consumptionHash
+      })
+    );
     const results = await runtime.runOnce();
     const outcome = results.find((item) => item.jobId === jobId)?.outcome;
     if (!outcome || outcome.kind !== "succeeded") {
