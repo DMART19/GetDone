@@ -105,11 +105,15 @@ export class MvpJobRuntime {
       )
     });
     validateCapabilityInput(request.capability, request.input);
-    const correlationId = authoritative.correlationId ?? request.correlationId;
+    const correlationId = authoritative.correlationId
+      ?? request.correlationId
+      ?? (request.scope.environment === "production"
+        ? undefined
+        : `legacy-job:${authoritative.id}`);
     if (!correlationId) {
       throw new ControlPlaneError(
         "FORBIDDEN",
-        "Governed Job execution requires persisted correlation lineage"
+        "Production governed Job execution requires persisted correlation lineage"
       );
     }
     const correlatedRequest = Object.freeze({ ...request, correlationId });
@@ -154,7 +158,7 @@ export class MvpJobRuntime {
     const status = await this.engine.status(jobId);
     const terminal = status.outcomes.at(-1);
     return Object.freeze({
-      correlationId: status.runtime?.envelope.correlationId,
+      correlationId: status.runtime?.envelope?.correlationId,
       status,
       notification: terminal ? planOwnerNotification({
         id: `job-outcome:${terminal.recordHash}`,
