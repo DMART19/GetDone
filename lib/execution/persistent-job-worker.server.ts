@@ -1,6 +1,7 @@
 import { ControlPlaneError } from "@/lib/control-plane/errors";
 import { getMvpJobRuntimeFromEnv, type MvpJobRuntime } from "@/lib/execution/mvp-job-runtime.server";
 import { getPostgresRuntimeFromEnv } from "@/lib/persistence/postgres/runtime.server";
+import { getTelemetry, OTEL_SEMANTIC } from "@/lib/observability/telemetry";
 import {
   PostgresJobWorkerInstanceStore,
   workerErrorHash,
@@ -147,7 +148,15 @@ export class PersistentJobWorkerService {
   }
 
   async runCycle() {
-    const polledAt = this.now().toISOString();
+    const cycleNow = this.now();
+    const previousHeartbeat = this.snapshotValue.lastSuccessAt ?? this.snapshotValue.startedAt;
+    await getTelemetry().gauge(
+      "getdone.worker.heartbeat.age",
+      Math.max(0, cycleNow.getTime() - Date.parse(previousHeartbeat)),
+      "ms",
+      { [OTEL_SEMANTIC.workerId]: this.config.workerId }
+    );
+    const polledAt = cycleNow.toISOString();
     this.update({ lastPollAt: polledAt });
     const recovered = await this.runtime.recoverExpired(this.config.recoveryLimit);
     const results = await this.runtime.runOnce({
@@ -163,6 +172,10 @@ export class PersistentJobWorkerService {
       lastErrorHash: undefined
     });
     await this.persist("running");
+    await getTelemetry().counter("getdone.worker.cycle.total", 1, {
+      [OTEL_SEMANTIC.workerId]: this.config.workerId,
+      outcome: "success"
+    });
     return Object.freeze({
       recovered: Object.freeze([...recovered]),
       results: Object.freeze([...results])
@@ -219,6 +232,10 @@ export class PersistentJobWorkerService {
           status: "degraded",
           lastErrorAt: at,
           lastErrorHash: workerErrorHash(error)
+        });
+        await getTelemetry().counter("getdone.worker.cycle.total", 1, {
+          [OTEL_SEMANTIC.workerId]: this.config.workerId,
+          outcome: "error"
         });
         try {
           await this.persist("degraded");
