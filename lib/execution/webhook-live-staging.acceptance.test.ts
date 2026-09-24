@@ -224,6 +224,7 @@ class StagingDeliveryProvider implements CredentialDeliveryProvider {
       material: signingSecret,
       expiresAt: input.lease.expiresAt,
       providerId: "webhook-staging",
+      credentialVersion: input.lease.issuedCredentialVersion ?? 1,
       grantedScopes: ["deliver", "verify", "cancel"]
     };
   }
