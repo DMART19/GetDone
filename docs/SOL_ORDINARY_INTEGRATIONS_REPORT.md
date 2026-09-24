@@ -26,7 +26,7 @@ The ordinary integration framework enforces or declares:
 
 - capability identity
 - server-controlled provider/endpoint configuration
-- server-side credential references only
+- credential lease references only in persisted Jobs/specs
 - minimum provider scopes and separate verification scopes where needed
 - bounded request timeouts
 - required idempotency lineage
@@ -40,7 +40,7 @@ The ordinary integration framework enforces or declares:
 - tenant and environment binding
 - provider acceptance semantics that do not grant adapter authority
 
-Raw credentials are never part of Job input. Production Business Actions still require a credential lease reference in the authorized request, while adapters resolve provider secrets only from server-side configuration such as `env:VARIABLE`.
+Raw credentials are never part of Job input or persisted execution specs. Credential-bearing Business Actions carry only a `credentialLeaseId`. Immediately before execute/status/cancel, the governed runtime broker validates the persisted tenant-scoped lease, checks Job/resource/capability/provider/scope binding, redeems its opaque delivery reference into short-lived scoped material, records a credential-usage audit, and passes the material only in-memory to the adapter. Ordinary adapters do not resolve long-lived provider tokens from environment variables.
 
 ## Implemented adapters
 
@@ -50,7 +50,7 @@ Raw credentials are never part of Job input. Production Business Actions still r
 
 ### Webhook
 
-`webhook.send` executes fixed configured webhooks. Consequential webhook configurations fail closed unless an independent verification endpoint is also configured. Optional cancellation endpoints use the persisted provider operation ID and server-side credential references.
+`webhook.send` executes fixed configured webhooks. Consequential webhook configurations fail closed unless an independent verification endpoint is also configured. Optional cancellation endpoints use the persisted provider operation ID and freshly brokered short-lived credential material. Signed webhook delivery can use HMAC-SHA256 over the exact request body and timestamp.
 
 ### Gmail
 
@@ -59,6 +59,21 @@ Raw credentials are never part of Job input. Production Business Actions still r
 ### Slack
 
 `slack.message.send` uses `chat.postMessage`, a deterministic client message ID derived from GetDone idempotency lineage, optional provider-object verification, and `chat.delete` cancellation. Initial Slack `ok` means the provider accepted the request; it is not treated as independent business truth.
+
+## Credential runtime path
+
+Credential-bearing ordinary integrations follow:
+
+1. Job/spec persists only `credentialLeaseId`;
+2. worker re-reads authoritative Job and authorization lineage;
+3. adapter declares provider/scopes required for the concrete operation;
+4. broker loads the tenant-scoped credential lease from PostgreSQL;
+5. broker validates Job, Resource, capability, provider, scope and expiry;
+6. broker redeems the opaque `deliveryRef` into short-lived material;
+7. a credential-usage audit is persisted without the secret material;
+8. material exists only in the execution context for the provider call.
+
+The production runtime fails closed if a credential-bearing adapter is invoked without the governed broker. Legacy `credentialRef` / `authorizationEnv` ordinary-integration configuration is rejected by the production validator.
 
 ## Authority path
 
@@ -84,4 +99,4 @@ Provider-specific hostile/malformed response tests are in `lib/execution/adapter
 
 ## Release truth
 
-The repository contains production-wirable adapters and governed integration code. Live provider acceptance is not claimed until real provider credentials/configuration are installed and the deployment runs the adapters against the providers. Test transports prove governed execution behavior, not live external connectivity.
+The repository contains production-wirable adapters and governed integration code. Live provider acceptance is not claimed until real provider credentials/configuration are installed and the deployment runs the adapters against the providers. The controlled configured-HTTPS and signed-webhook staging suites exercise real external HTTPS/DNS with ephemeral runtime credentials. Gmail and Slack real-provider acceptance remains credential-gated and is intentionally deferred to the final credential provisioning sweep.

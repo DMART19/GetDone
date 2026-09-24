@@ -7,20 +7,20 @@ import {
   createBusinessActionStatus,
   type AuthorizedBusinessActionRequest,
   type BusinessActionAdapter,
+  type BusinessActionExecutionContext,
   type BusinessActionStatus
 } from "@/lib/execution/adapters/business-action";
 import {
   assertAdapterRequest,
-  assertCredentialReference,
   classifyHttpFailure,
   providerRequestHeaders,
   readBoundedJson,
-  resolveCredentialReference,
+  requireBrokeredCredential,
   ORDINARY_INTEGRATION_RETRY_TAXONOMY,
   type BusinessActionAdapterDeclaration
 } from "@/lib/execution/adapters/ordinary-integration-framework";
 
-export const GMAIL_BUSINESS_ACTION_ADAPTER_VERSION = "1.1.0";
+export const GMAIL_BUSINESS_ACTION_ADAPTER_VERSION = "1.2.0";
 
 const gmailSendResponseSchema = z.object({
   id: z.string().min(1).max(500),
@@ -43,8 +43,7 @@ export interface GmailProviderConfiguration {
   id: string;
   companyId: string;
   environment: z.infer<typeof environmentSchema>;
-  credentialRef: string;
-  verificationCredentialRef?: string;
+  credentialProviderId: string;
   userId?: string;
   baseUrl?: string;
   maxResponseBytes?: number;
@@ -53,7 +52,6 @@ export interface GmailProviderConfiguration {
 
 export interface GmailBusinessActionAdapterOptions {
   fetchImpl?: typeof fetch;
-  env?: Readonly<Record<string, string | undefined>>;
   now?: () => Date;
 }
 
@@ -70,12 +68,8 @@ function validateConfiguration(configuration: GmailProviderConfiguration) {
   if (!/^[A-Za-z0-9._-]+$/.test(configuration.id)) {
     throw new ControlPlaneError("VALIDATION_FAILED", "Gmail provider configuration id is invalid");
   }
-  assertCredentialReference(configuration.credentialRef, "Gmail credential reference");
-  if (configuration.verificationCredentialRef) {
-    assertCredentialReference(
-      configuration.verificationCredentialRef,
-      "Gmail verification credential reference"
-    );
+  if (!/^[A-Za-z0-9._:@+-]{1,200}$/.test(configuration.credentialProviderId)) {
+    throw new ControlPlaneError("VALIDATION_FAILED", "Gmail credentialProviderId is invalid");
   }
   const baseUrl = new URL(configuration.baseUrl ?? "https://gmail.googleapis.com/gmail/v1/");
   if (
@@ -209,7 +203,7 @@ export class GmailBusinessActionAdapter implements BusinessActionAdapter {
   readonly declaration: BusinessActionAdapterDeclaration = Object.freeze({
     capability: "email.send",
     provider: "gmail",
-    credentialMode: "credential-reference",
+    credentialMode: "brokered-lease",
     minimumScopes: Object.freeze(["https://www.googleapis.com/auth/gmail.send"]),
     verificationScopes: Object.freeze(["https://www.googleapis.com/auth/gmail.readonly"]),
     timeoutMs: Object.freeze({ min: 100, max: 120_000 }),
@@ -227,7 +221,6 @@ export class GmailBusinessActionAdapter implements BusinessActionAdapter {
 
   private readonly configurations: ReadonlyMap<string, ValidatedGmailConfiguration>;
   private readonly fetchImpl: typeof fetch;
-  private readonly env: Readonly<Record<string, string | undefined>>;
   private readonly now: () => Date;
 
   constructor(
@@ -243,7 +236,6 @@ export class GmailBusinessActionAdapter implements BusinessActionAdapter {
     }
     this.configurations = new Map(entries);
     this.fetchImpl = options.fetchImpl ?? fetch;
-    this.env = options.env ?? process.env;
     this.now = options.now ?? (() => new Date());
   }
 
@@ -261,15 +253,34 @@ export class GmailBusinessActionAdapter implements BusinessActionAdapter {
     return matches[0];
   }
 
+  private requirementFor(configuration: ValidatedGmailConfiguration) {
+    return {
+      providerId: configuration.credentialProviderId,
+      requiredScopes: configuration.verificationMode === "provider-object-read"
+        ? [
+            "https://www.googleapis.com/auth/gmail.send",
+            "https://www.googleapis.com/auth/gmail.readonly"
+          ]
+        : ["https://www.googleapis.com/auth/gmail.send"]
+    };
+  }
+
+  credentialRequirement(request: AuthorizedBusinessActionRequest) {
+    return this.requirementFor(this.configurationFor(request));
+  }
+
+  private credential(
+    configuration: ValidatedGmailConfiguration,
+    context: BusinessActionExecutionContext | undefined
+  ) {
+    return requireBrokeredCredential(context, this.requirementFor(configuration), "email.send");
+  }
+
   private async lookupByRfc822MessageId(
     configuration: ValidatedGmailConfiguration,
-    rfc822MessageId: string
+    rfc822MessageId: string,
+    credential: string
   ): Promise<GmailLookupResult> {
-    const credential = resolveCredentialReference(
-      configuration.verificationCredentialRef ?? configuration.credentialRef,
-      this.env,
-      "Gmail verification credential"
-    );
     let response: Response;
     try {
       const url = new URL(
@@ -358,8 +369,12 @@ export class GmailBusinessActionAdapter implements BusinessActionAdapter {
     });
   }
 
-  async execute(request: AuthorizedBusinessActionRequest) {
+  async execute(
+    request: AuthorizedBusinessActionRequest,
+    context?: BusinessActionExecutionContext
+  ) {
     const configuration = this.configurationFor(request);
+    const credential = this.credential(configuration, context);
     assertAdapterRequest(request, this.declaration, configuration);
     const input = validateCapabilityInput<{
       companyId: string;
@@ -376,7 +391,7 @@ export class GmailBusinessActionAdapter implements BusinessActionAdapter {
 
     const rfc822MessageId = gmailRfc822MessageId(request.id);
     if (configuration.verificationMode === "provider-object-read") {
-      const prior = await this.lookupByRfc822MessageId(configuration, rfc822MessageId);
+      const prior = await this.lookupByRfc822MessageId(configuration, rfc822MessageId, credential);
       if (prior.kind === "found") {
         return this.acceptedFromLookup(
           request,
@@ -424,11 +439,6 @@ export class GmailBusinessActionAdapter implements BusinessActionAdapter {
       }
     }
 
-    const credential = resolveCredentialReference(
-      configuration.credentialRef,
-      this.env,
-      "Gmail send credential"
-    );
     let response: Response;
     try {
       response = await this.fetchImpl(
@@ -509,21 +519,25 @@ export class GmailBusinessActionAdapter implements BusinessActionAdapter {
     );
   }
 
-  async status(input: {
-    requestId: string;
-    providerOperationId: string;
-  }): Promise<BusinessActionStatus> {
+  async status(
+    input: {
+      requestId: string;
+      providerOperationId: string;
+    },
+    context?: BusinessActionExecutionContext
+  ): Promise<BusinessActionStatus> {
     const operation = parseProviderOperationId(
       this.configurations,
       input.providerOperationId
     );
     const { configuration } = operation;
+    const credential = this.credential(configuration, context);
     if (configuration.verificationMode !== "provider-object-read") {
       throw new ControlPlaneError("UNAVAILABLE", "Gmail object verification is not configured");
     }
 
     if (operation.kind === "rfc822") {
-      const lookup = await this.lookupByRfc822MessageId(configuration, operation.value);
+      const lookup = await this.lookupByRfc822MessageId(configuration, operation.value, credential);
       const state: BusinessActionStatus["state"] = lookup.kind === "found"
         ? "completed"
         : lookup.kind === "terminal" || lookup.kind === "malformed"
@@ -540,11 +554,6 @@ export class GmailBusinessActionAdapter implements BusinessActionAdapter {
       });
     }
 
-    const credential = resolveCredentialReference(
-      configuration.verificationCredentialRef ?? configuration.credentialRef,
-      this.env,
-      "Gmail verification credential"
-    );
     let response: Response;
     try {
       const url = new URL(
@@ -611,8 +620,7 @@ export function readGmailProviderConfigurationsFromEnv(
     id: z.string().min(1),
     companyId: z.string().min(1),
     environment: environmentSchema,
-    credentialRef: z.string().min(1),
-    verificationCredentialRef: z.string().optional(),
+    credentialProviderId: z.string().min(1),
     userId: z.string().min(1).optional(),
     baseUrl: z.string().url().optional(),
     maxResponseBytes: z.number().int().optional(),

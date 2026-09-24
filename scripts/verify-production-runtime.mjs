@@ -62,34 +62,20 @@ function assertHttpsUrl(value, label, { approvedHosts } = {}) {
   return url;
 }
 
-function credentialVariable(reference, label) {
-  if (typeof reference !== "string" || !/^env:[A-Z][A-Z0-9_]*$/.test(reference)) {
-    fail("INVALID_CREDENTIAL_REFERENCE", `${label} must be an env:VARIABLE reference`);
-    return null;
-  }
-  const variable = reference.slice(4);
-  if (!env[variable]?.trim()) {
-    fail("MISSING_CREDENTIAL", `${label} references unavailable server secret ${variable}`);
-  }
-  return variable;
-}
-
-function walkCredentialReferences(value, label) {
+function walkLegacyCredentialFields(value, label) {
   if (!value || typeof value !== "object") return;
   if (Array.isArray(value)) {
-    value.forEach((item, index) => walkCredentialReferences(item, `${label}[${index}]`));
+    value.forEach((item, index) => walkLegacyCredentialFields(item, `${label}[${index}]`));
     return;
   }
   for (const [key, item] of Object.entries(value)) {
-    if (/credentialRef$/i.test(key) && item !== undefined) {
-      credentialVariable(item, `${label}.${key}`);
-    } else if (key === "authorizationEnv" && item !== undefined) {
+    if ((/credentialRef$/i.test(key) || key === "authorizationEnv") && item !== undefined) {
       fail(
         "LEGACY_CREDENTIAL_CONFIG",
-        `${label}.authorizationEnv is not allowed in production; use credentialRef=env:VARIABLE`
+        `${label}.${key} is prohibited; ordinary integrations must use brokered credentialProviderId references`
       );
     } else {
-      walkCredentialReferences(item, `${label}.${key}`);
+      walkLegacyCredentialFields(item, `${label}.${key}`);
     }
   }
 }
@@ -109,6 +95,8 @@ function walkHttpsUrls(value, label) {
     }
   }
 }
+
+let brokeredCredentialIntegrations = 0;
 
 function validateIntegrationArray(name, type) {
   const parsed = parseJson(name);
@@ -148,8 +136,8 @@ function validateIntegrationArray(name, type) {
       if (typeof entry.id !== "string" || !entry.id.trim()) {
         fail("INVALID_INTEGRATION_CONFIG", `${label}.id is required`);
       }
-      if (typeof entry.credentialRef !== "string") {
-        fail("INVALID_INTEGRATION_CONFIG", `${label}.credentialRef is required`);
+      if (typeof entry.credentialProviderId !== "string" || !entry.credentialProviderId.trim()) {
+        fail("INVALID_INTEGRATION_CONFIG", `${label}.credentialProviderId is required`);
       }
       if (
         (type === "gmail" || type === "slack")
@@ -162,7 +150,17 @@ function validateIntegrationArray(name, type) {
       }
     }
 
-    walkCredentialReferences(entry, label);
+    if (entry.credentialProviderId !== undefined) {
+      if (
+        typeof entry.credentialProviderId !== "string"
+        || !/^[A-Za-z0-9._:@+-]{1,200}$/.test(entry.credentialProviderId)
+      ) {
+        fail("INVALID_CREDENTIAL_PROVIDER", `${label}.credentialProviderId is invalid`);
+      } else {
+        brokeredCredentialIntegrations += 1;
+      }
+    }
+    walkLegacyCredentialFields(entry, label);
     walkHttpsUrls(entry, label);
   });
 
@@ -467,6 +465,7 @@ function validateIntegrations() {
   ];
 
   let configured = 0;
+  brokeredCredentialIntegrations = 0;
   for (const [name, type] of configs) {
     if (!env[name]?.trim()) continue;
     configured += validateIntegrationArray(name, type);
@@ -476,6 +475,12 @@ function validateIntegrations() {
       "INTEGRATION_CONFIG",
       "At least one governed ordinary production integration must be configured"
     );
+  }
+
+  if (brokeredCredentialIntegrations > 0) {
+    const deliveryUrl = required("GETDONE_CREDENTIAL_DELIVERY_URL");
+    if (deliveryUrl) assertHttpsUrl(deliveryUrl, "GETDONE_CREDENTIAL_DELIVERY_URL");
+    assertSecret("GETDONE_CREDENTIAL_BROKER_TOKEN", 32);
   }
 }
 

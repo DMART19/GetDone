@@ -353,8 +353,8 @@ if (failures.length === 0) {
     registry.database.status !== "implemented-unconnected"
     || registry.database.engine !== "postgresql"
     || registry.database.minimumEngineVersion !== "16"
-    || registry.database.migrationVersion !== "2026-09-23.2"
-    || registry.database.schemaVersion !== "1.5.0"
+    || registry.database.migrationVersion !== "2026-09-23.3"
+    || registry.database.schemaVersion !== "1.6.0"
     || registry.schemaVersions.postgresPersistence?.version !== "1.1.0"
     || registry.adapters.postgresPersistence?.version !== "1.1.0"
     || manifest.database.status !== registry.database.status

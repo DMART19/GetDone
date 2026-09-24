@@ -38,8 +38,7 @@ export function createOrdinaryBusinessActionBindingsFromEnv(
     bindings.push({
       capability: "http.request",
       adapter: new ConfiguredHttpActionAdapter(
-        readConfiguredHttpOperationsFromEnv(env),
-        { env }
+        readConfiguredHttpOperationsFromEnv(env)
       )
     });
   }
@@ -48,8 +47,7 @@ export function createOrdinaryBusinessActionBindingsFromEnv(
     bindings.push({
       capability: "webhook.send",
       adapter: new ConfiguredWebhookActionAdapter(
-        readConfiguredWebhookOperationsFromEnv(env),
-        { env }
+        readConfiguredWebhookOperationsFromEnv(env)
       )
     });
   }
@@ -58,8 +56,7 @@ export function createOrdinaryBusinessActionBindingsFromEnv(
     bindings.push({
       capability: "email.send",
       adapter: new GmailBusinessActionAdapter(
-        readGmailProviderConfigurationsFromEnv(env),
-        { env }
+        readGmailProviderConfigurationsFromEnv(env)
       )
     });
   }
@@ -68,8 +65,7 @@ export function createOrdinaryBusinessActionBindingsFromEnv(
     bindings.push({
       capability: "slack.message.send",
       adapter: new SlackBusinessActionAdapter(
-        readSlackProviderConfigurationsFromEnv(env),
-        { env }
+        readSlackProviderConfigurationsFromEnv(env)
       )
     });
   }

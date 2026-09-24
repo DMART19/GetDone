@@ -110,15 +110,10 @@ describe("ordinary integration governed Job pipeline exit gate", () => {
       id: "gmail-primary",
       companyId: "company-a",
       environment: "production",
-      credentialRef: "env:GMAIL_SEND_TOKEN",
-      verificationCredentialRef: "env:GMAIL_READ_TOKEN",
+      credentialProviderId: "gmail-pipeline-provider",
       baseUrl: "https://gmail.example.test/",
       verificationMode: "provider-object-read"
     }], {
-      env: {
-        GMAIL_SEND_TOKEN: "send-secret",
-        GMAIL_READ_TOKEN: "read-secret"
-      },
       fetchImpl: async (_url, init) => init?.method === "POST"
         ? new Response('{"id":"msg-1"}', { status: 200 })
         : new Response('{"id":"msg-1"}', { status: 200 }),
@@ -196,7 +191,23 @@ describe("ordinary integration governed Job pipeline exit gate", () => {
           executions.set(record.requestId, record);
         }
       },
-      { maxStatusPolls: 2, pollIntervalMs: 0, now }
+      {
+        maxStatusPolls: 2,
+        pollIntervalMs: 0,
+        now,
+        credentialBroker: {
+          resolve: async ({ request, requirement }) => ({
+            leaseId: request.credentialLeaseId!,
+            leaseHash: sha256Hex({ leaseId: request.credentialLeaseId }),
+            providerId: requirement.providerId,
+            capability: request.capability,
+            grantedScopes: [...requirement.requiredScopes],
+            material: "short-lived-pipeline-token",
+            issuedAt: "2026-09-22T15:59:00Z",
+            expiresAt: "2099-01-01T00:00:00Z"
+          })
+        }
+      }
     );
 
     const handler = new RoutedJobExecutionHandler(

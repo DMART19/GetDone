@@ -6,7 +6,8 @@ import {
 } from "@/lib/execution/adapters/configured-http-action";
 import {
   assertBusinessActionAdapterResult,
-  type AuthorizedBusinessActionRequest
+  type AuthorizedBusinessActionRequest,
+  type BusinessActionExecutionContext
 } from "@/lib/execution/adapters/business-action";
 import { StaticBusinessActionAdapterRegistry } from "@/lib/execution/adapters/business-action-registry";
 import { BusinessActionExecutionOrchestrator } from "@/lib/execution/business-action-orchestrator";
@@ -38,6 +39,21 @@ function request(overrides: Partial<AuthorizedBusinessActionRequest> = {}): Auth
   };
 }
 
+function brokerContext(): BusinessActionExecutionContext {
+  return {
+    credential: {
+      leaseId: "lease-http",
+      leaseHash: sha256Hex({ lease: "http" }),
+      providerId: "crm-provider",
+      capability: "http.request",
+      grantedScopes: ["execute"],
+      material: "fixture",
+      issuedAt: "2026-09-22T11:59:00Z",
+      expiresAt: "2099-01-01T00:00:00Z"
+    }
+  };
+}
+
 describe("configured HTTP business action", () => {
   it("executes a server-configured operation with idempotency and typed result evidence", async () => {
     let capturedUrl = "";
@@ -47,9 +63,9 @@ describe("configured HTTP business action", () => {
       companyId: "company-a",
       environment: "development",
       url: "https://api.example.com/actions/contact-sync",
-      authorizationEnv: "CRM_ACTION_TOKEN"
+      credentialProviderId: "crm-provider",
+      minimumScopes: ["execute"]
     }], {
-      env: { CRM_ACTION_TOKEN: "server-only-token" },
       fetchImpl: async (url, init) => {
         capturedUrl = String(url);
         captured = init;
@@ -61,7 +77,7 @@ describe("configured HTTP business action", () => {
       now: () => new Date("2026-09-22T12:00:00Z")
     });
 
-    const result = assertBusinessActionAdapterResult(await adapter.execute(request()));
+    const result = assertBusinessActionAdapterResult(await adapter.execute(request(), brokerContext()));
     expect(result).toMatchObject({
       status: "completed",
       providerOperationId: "http:crm.contact.sync:provider-op-1",
@@ -74,7 +90,7 @@ describe("configured HTTP business action", () => {
     });
     expect(capturedUrl).toBe("https://api.example.com/actions/contact-sync");
     const headers = captured?.headers as Record<string, string>;
-    expect(headers.authorization).toBe("Bearer server-only-token");
+    expect(headers.authorization).toBe("Bearer fixture");
     expect(headers["idempotency-key"]).toBe("idempotency-1");
     expect(JSON.parse(String(captured?.body))).not.toHaveProperty("url");
   });
@@ -236,16 +252,26 @@ describe("configured HTTP business action", () => {
     await expect(registry.resolve(request({ capability: "raspberryPi5" }))).resolves.toBeNull();
   });
 
-  it("parses deployment configuration without accepting embedded credentials", () => {
+  it("parses brokered deployment configuration and rejects legacy or embedded credentials", () => {
     expect(readConfiguredHttpOperationsFromEnv({
       GETDONE_HTTP_ACTIONS_JSON: JSON.stringify([{
         name: "crm.contact.sync",
         companyId: "company-a",
         environment: "development",
         url: "https://api.example.com/action",
-        authorizationEnv: "CRM_ACTION_TOKEN"
+        credentialProviderId: "crm-provider",
+        minimumScopes: ["execute"]
       }])
     })).toHaveLength(1);
+    expect(() => readConfiguredHttpOperationsFromEnv({
+      GETDONE_HTTP_ACTIONS_JSON: JSON.stringify([{
+        name: "legacy",
+        companyId: "company-a",
+        environment: "development",
+        url: "https://api.example.com/action",
+        authorizationEnv: "CRM_ACTION_TOKEN"
+      }])
+    })).toThrow();
     expect(() => new ConfiguredHttpActionAdapter([{
       name: "bad",
       companyId: "company-a",

@@ -29,7 +29,8 @@ const scope = Object.freeze({
   userId: "owner-gmail-staging",
   portfolioId: "portfolio-gmail-staging",
   companyId: "company-gmail-staging",
-  environment: "staging" as const
+  environment: "staging" as const,
+  resourceId: "gmail-staging-resource"
 });
 
 interface AcceptanceArtifact {
@@ -138,31 +139,30 @@ function actionRequest(authoritative: JobRecord, name: string): AuthorizedBusine
     input,
     inputHash: sha256Hex(input),
     authorizationConsumptionHash: authoritative.authorizationConsumption!.consumptionHash,
+    credentialLeaseId: "gmail-lease-" + authoritative.id,
     idempotencyKey: "gmail-idempotency-" + runId + "-" + name,
     timeoutMs: 30_000,
     attempt: 1
   });
 }
 
+const gmailAdapterMaterial = new WeakMap<GmailBusinessActionAdapter, string>();
+
 function gmailAdapter(
   fetchImpl: typeof fetch,
-  sendToken = accessToken,
-  readToken = accessToken
+  providerToken = accessToken
 ) {
-  return new GmailBusinessActionAdapter([{
+  const value = new GmailBusinessActionAdapter([{
     id: "gmail-live-staging",
     companyId: scope.companyId,
     environment: "staging",
-    credentialRef: "env:SEND_TOKEN",
-    verificationCredentialRef: "env:READ_TOKEN",
+    credentialProviderId: "gmail-live-staging-provider",
     verificationMode: "provider-object-read"
   }], {
-    env: {
-      SEND_TOKEN: sendToken,
-      READ_TOKEN: readToken
-    },
     fetchImpl
   });
+  gmailAdapterMaterial.set(value, providerToken);
+  return value;
 }
 
 function runtime(
@@ -192,7 +192,22 @@ function runtime(
   const business = new BusinessActionExecutionOrchestrator(
     new StaticBusinessActionAdapterRegistry([{ capability: "email.send", adapter }]),
     new PostgresBusinessActionExecutionStore(db),
-    { maxStatusPolls, pollIntervalMs: 500 }
+    {
+      maxStatusPolls,
+      pollIntervalMs: 500,
+      credentialBroker: {
+        resolve: async ({ request, requirement }) => ({
+          leaseId: request.credentialLeaseId!,
+          leaseHash: sha256Hex({ leaseId: request.credentialLeaseId, runId }),
+          providerId: requirement.providerId,
+          capability: request.capability,
+          grantedScopes: [...requirement.requiredScopes],
+          material: gmailAdapterMaterial.get(adapter)!,
+          issuedAt: new Date(startMs).toISOString(),
+          expiresAt: new Date(startMs + 60 * 60_000).toISOString()
+        })
+      }
+    }
   );
   const handler = new RoutedJobExecutionHandler(
     specs,
@@ -479,7 +494,7 @@ liveDescribe("real Gmail governed staging acceptance", () => {
   it("fails closed with an invalid Gmail token and creates no provider object", async () => {
     const db = database();
     try {
-      const value = runtime(db, gmailAdapter(fetch, "definitely-invalid-token", accessToken), Date.now());
+      const value = runtime(db, gmailAdapter(fetch, "definitely-invalid-token"), Date.now());
       const authoritative = job("invalid-token", new Date().toISOString());
       const request = actionRequest(authoritative, "invalid-token");
       await value.jobs.create(authoritative);
@@ -501,7 +516,7 @@ liveDescribe("real Gmail governed staging acceptance", () => {
     const db = database();
     try {
       const revoked = required("GETDONE_GMAIL_STAGING_REVOKED_TOKEN");
-      const value = runtime(db, gmailAdapter(fetch, revoked, accessToken), Date.now());
+      const value = runtime(db, gmailAdapter(fetch, revoked), Date.now());
       const authoritative = job("revoked-token", new Date().toISOString());
       const request = actionRequest(authoritative, "revoked-token");
       await value.jobs.create(authoritative);

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { sha256Hex } from "@/lib/control-plane/canonical-hash";
-import type { AuthorizedBusinessActionRequest } from "@/lib/execution/adapters/business-action";
+import type { AuthorizedBusinessActionRequest, BusinessActionExecutionContext } from "@/lib/execution/adapters/business-action";
 import {
   GmailBusinessActionAdapter,
   gmailRfc822MessageId
@@ -29,6 +29,7 @@ function request(id: string): AuthorizedBusinessActionRequest {
     input,
     inputHash: sha256Hex(input),
     authorizationConsumptionHash: "consumption-" + id,
+    credentialLeaseId: "lease-" + id,
     idempotencyKey: "idempotency-" + id,
     timeoutMs: 5_000,
     attempt: 1
@@ -40,14 +41,30 @@ function adapter(fetchImpl: typeof fetch) {
     id: "gmail-staging",
     companyId: scope.companyId,
     environment: scope.environment,
-    credentialRef: "env:SEND_TOKEN",
-    verificationCredentialRef: "env:READ_TOKEN",
+    credentialProviderId: "gmail-staging-provider",
     verificationMode: "provider-object-read"
   }], {
-    env: { SEND_TOKEN: "send-token", READ_TOKEN: "read-token" },
     fetchImpl,
     now: () => new Date("2026-09-23T21:00:00.000Z")
   });
+}
+
+function context(action: AuthorizedBusinessActionRequest): BusinessActionExecutionContext {
+  return {
+    credential: {
+      leaseId: action.credentialLeaseId!,
+      leaseHash: sha256Hex({ id: action.credentialLeaseId }),
+      providerId: "gmail-staging-provider",
+      capability: "email.send",
+      grantedScopes: [
+        "https://www.googleapis.com/auth/gmail.send",
+        "https://www.googleapis.com/auth/gmail.readonly"
+      ],
+      material: "short-lived-gmail-token",
+      issuedAt: "2026-09-23T20:59:00.000Z",
+      expiresAt: "2099-01-01T00:00:00.000Z"
+    }
+  };
 }
 
 function json(value: unknown, status = 200) {
@@ -80,8 +97,8 @@ describe("Gmail resumable provider-object delivery", () => {
       return json({ id: "msg-duplicate" });
     });
 
-    const first = await gmail.execute(action);
-    const duplicate = await gmail.execute(action);
+    const first = await gmail.execute(action, context(action));
+    const duplicate = await gmail.execute(action, context(action));
 
     expect(first.providerOperationId).toBe("gmail:gmail-staging:msg-duplicate");
     expect(duplicate.providerOperationId).toBe(first.providerOperationId);
@@ -106,13 +123,13 @@ describe("Gmail resumable provider-object delivery", () => {
       return json({ id: "msg-timeout" });
     });
 
-    const accepted = await gmail.execute(action);
+    const accepted = await gmail.execute(action, context(action));
     expect(accepted.status).toBe("accepted");
     expect(accepted.providerOperationId).toContain(":rfc822:");
     const verified = await gmail.status({
       requestId: action.id,
       providerOperationId: accepted.providerOperationId!
-    });
+    }, context(action));
     expect(verified.state).toBe("completed");
     expect(postCalls).toBe(1);
   });
@@ -134,14 +151,14 @@ describe("Gmail resumable provider-object delivery", () => {
       return json({ id: "msg-malformed" });
     });
 
-    const accepted = await gmail.execute(action);
+    const accepted = await gmail.execute(action, context(action));
     expect(accepted.status).toBe("accepted");
     expect(accepted.retryClass).toBe("malformed-response");
     expect(accepted.providerOperationId).toContain(":rfc822:");
     expect((await gmail.status({
       requestId: action.id,
       providerOperationId: accepted.providerOperationId!
-    })).state).toBe("completed");
+    }, context(action))).state).toBe("completed");
     expect(postCalls).toBe(1);
   });
 
@@ -151,7 +168,7 @@ describe("Gmail resumable provider-object delivery", () => {
       if (init?.method === "GET" && value.pathname.endsWith("/messages")) return json({});
       return json({ error: { code: 401 } }, 401);
     });
-    const invalidResult = await invalid.execute(request("gmail-invalid-token"));
+    const invalidResult = await invalid.execute(request("gmail-invalid-token"), context(request("gmail-invalid-token")));
     expect(invalidResult).toMatchObject({
       status: "rejected",
       retryable: false,
@@ -163,7 +180,7 @@ describe("Gmail resumable provider-object delivery", () => {
       if (init?.method === "GET" && value.pathname.endsWith("/messages")) return json({});
       return json({ error: { code: 429 } }, 429);
     });
-    const limitedResult = await limited.execute(request("gmail-rate-limit"));
+    const limitedResult = await limited.execute(request("gmail-rate-limit"), context(request("gmail-rate-limit")));
     expect(limitedResult).toMatchObject({
       status: "failed",
       retryable: true,
@@ -185,11 +202,11 @@ describe("Gmail resumable provider-object delivery", () => {
       return json({});
     });
 
-    const accepted = await gmail.execute(action);
+    const accepted = await gmail.execute(action, context(action));
     expect(accepted.status).toBe("accepted");
     expect((await gmail.status({
       requestId: action.id,
       providerOperationId: accepted.providerOperationId!
-    })).state).toBe("failed");
+    }, context(action))).state).toBe("failed");
   });
 });

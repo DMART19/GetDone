@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { sha256Hex } from "@/lib/control-plane/canonical-hash";
-import type { AuthorizedBusinessActionRequest } from "@/lib/execution/adapters/business-action";
+import type { AuthorizedBusinessActionRequest, BusinessActionExecutionContext } from "@/lib/execution/adapters/business-action";
 import { ConfiguredWebhookActionAdapter } from "@/lib/execution/adapters/configured-webhook-action";
 import { GmailBusinessActionAdapter } from "@/lib/execution/adapters/gmail-action";
 import {
@@ -47,10 +47,30 @@ function request(
   };
 }
 
+function brokerContext(
+  capability: string,
+  providerId: string,
+  scopes: readonly string[],
+  material = "broker-token"
+): BusinessActionExecutionContext {
+  return {
+    credential: {
+      leaseId: "lease-1",
+      leaseHash: sha256Hex({ capability, providerId }),
+      providerId,
+      capability,
+      grantedScopes: [...scopes],
+      material,
+      issuedAt: "2026-09-22T15:59:00Z",
+      expiresAt: "2099-01-01T00:00:00Z"
+    }
+  };
+}
+
 const declaration: BusinessActionAdapterDeclaration = {
   capability: "webhook.send",
   provider: "test-provider",
-  credentialMode: "credential-reference",
+  credentialMode: "brokered-lease",
   minimumScopes: [],
   timeoutMs: { min: 100, max: 10_000 },
   idempotency: "required",
@@ -162,16 +182,14 @@ describe("ordinary integration framework coverage", () => {
         id: "gmail",
         companyId: "company-a",
         environment: "production",
-        credentialRef: "env:GMAIL_TOKEN"
+        credentialProviderId: "gmail-provider"
       }]),
       GETDONE_SLACK_ACTIONS_JSON: JSON.stringify([{
         id: "slack",
         companyId: "company-a",
         environment: "production",
-        credentialRef: "env:SLACK_TOKEN"
+        credentialProviderId: "slack-provider"
       }]),
-      GMAIL_TOKEN: "gmail-secret",
-      SLACK_TOKEN: "slack-secret"
     };
     expect(createOrdinaryBusinessActionBindingsFromEnv(env).map((item) => item.capability))
       .toEqual(["http.request", "webhook.send", "email.send", "slack.message.send"]);
@@ -186,13 +204,11 @@ describe("ordinary provider lifecycle coverage", () => {
       id: "gmail-primary",
       companyId: "company-a",
       environment: "production",
-      credentialRef: "env:GMAIL_SEND",
-      verificationCredentialRef: "env:GMAIL_READ",
+      credentialProviderId: "gmail-provider",
       baseUrl: "https://gmail.example.test/gmail/v1/",
       userId: "me",
       verificationMode: "provider-object-read"
     }], {
-      env: { GMAIL_SEND: "send-token", GMAIL_READ: "read-token" },
       fetchImpl: async (url, init) => {
         calls.push({ url: String(url), init });
         return init?.method === "POST"
@@ -210,7 +226,12 @@ describe("ordinary provider lifecycle coverage", () => {
       html: "<p>html</p>",
       replyTo: "reply@example.com"
     };
-    const accepted = await adapter.execute(request("email.send", input));
+    const gmailAction = request("email.send", input);
+    const gmailContext = brokerContext("email.send", "gmail-provider", [
+      "https://www.googleapis.com/auth/gmail.send",
+      "https://www.googleapis.com/auth/gmail.readonly"
+    ]);
+    const accepted = await adapter.execute(gmailAction, gmailContext);
     expect(accepted).toMatchObject({
       status: "accepted",
       providerOperationId: "gmail:gmail-primary:message-1",
@@ -220,11 +241,11 @@ describe("ordinary provider lifecycle coverage", () => {
       }
     });
     expect(calls[0].init?.method).toBe("GET");
-    expect((calls[0].init?.headers as Record<string, string>).authorization).toBe("Bearer read-token");
+    expect((calls[0].init?.headers as Record<string, string>).authorization).toBe("Bearer broker-token");
     const sendCall = calls.find((call) => call.init?.method === "POST");
     expect(sendCall).toBeDefined();
     const sendHeaders = sendCall!.init?.headers as Record<string, string>;
-    expect(sendHeaders.authorization).toBe("Bearer send-token");
+    expect(sendHeaders.authorization).toBe("Bearer broker-token");
     const sendBody = JSON.parse(String(sendCall!.init?.body)) as { raw: string };
     const mime = Buffer.from(sendBody.raw, "base64url").toString("utf8");
     expect(mime).toContain("multipart/alternative");
@@ -234,9 +255,9 @@ describe("ordinary provider lifecycle coverage", () => {
     const status = await adapter.status({
       requestId: accepted.requestId,
       providerOperationId: accepted.providerOperationId!
-    });
+    }, gmailContext);
     expect(status.state).toBe("completed");
-    expect((calls.at(-1)?.init?.headers as Record<string, string>).authorization).toBe("Bearer read-token");
+    expect((calls.at(-1)?.init?.headers as Record<string, string>).authorization).toBe("Bearer broker-token");
   });
 
   it("covers Gmail transport, provider failure, status retry, validation and env parsing", async () => {
@@ -244,7 +265,7 @@ describe("ordinary provider lifecycle coverage", () => {
       id: "gmail-dev",
       companyId: "company-a",
       environment: "development" as const,
-      credentialRef: "env:GMAIL",
+      credentialProviderId: "gmail-dev-provider",
       baseUrl: "https://gmail.example.test/",
       verificationMode: "provider-acceptance-only" as const
     };
@@ -256,20 +277,24 @@ describe("ordinary provider lifecycle coverage", () => {
       text: "body"
     };
     const transport = new GmailBusinessActionAdapter([config], {
-      env: { GMAIL: "token" },
       fetchImpl: async () => { throw new Error("network"); }
     });
-    await expect(transport.execute(request("email.send", input, {
+    const gmailDevAction = request("email.send", input, {
       scope: { ...baseScope, environment: "development" }
-    }))).resolves.toMatchObject({ status: "failed", retryClass: "transport" });
+    });
+    const gmailDevContext = brokerContext(
+      "email.send",
+      "gmail-dev-provider",
+      ["https://www.googleapis.com/auth/gmail.send"]
+    );
+    await expect(transport.execute(gmailDevAction, gmailDevContext))
+      .resolves.toMatchObject({ status: "failed", retryClass: "transport" });
 
     const rateLimited = new GmailBusinessActionAdapter([config], {
-      env: { GMAIL: "token" },
       fetchImpl: async () => new Response('{"error":"rate"}', { status: 429 })
     });
-    await expect(rateLimited.execute(request("email.send", input, {
-      scope: { ...baseScope, environment: "development" }
-    }))).resolves.toMatchObject({ status: "failed", retryClass: "rate-limit" });
+    await expect(rateLimited.execute(gmailDevAction, gmailDevContext))
+      .resolves.toMatchObject({ status: "failed", retryClass: "rate-limit" });
 
     expect(() => new GmailBusinessActionAdapter([{
       ...config,
@@ -286,12 +311,10 @@ describe("ordinary provider lifecycle coverage", () => {
       id: "slack-primary",
       companyId: "company-a",
       environment: "production",
-      credentialRef: "env:SLACK_SEND",
-      verificationCredentialRef: "env:SLACK_READ",
+      credentialProviderId: "slack-provider",
       baseUrl: "https://slack.example.test/api/",
       verificationMode: "provider-object-read"
     }], {
-      env: { SLACK_SEND: "send-token", SLACK_READ: "read-token" },
       fetchImpl: async (url, init) => {
         const target = String(url);
         calls.push(`${init?.method ?? "GET"} ${target}`);
@@ -313,7 +336,13 @@ describe("ordinary provider lifecycle coverage", () => {
       text: "hello",
       threadTs: "1719999999.123456"
     };
-    const accepted = await adapter.execute(request("slack.message.send", input));
+    const slackAction = request("slack.message.send", input);
+    const slackContext = brokerContext(
+      "slack.message.send",
+      "slack-provider",
+      ["chat:write", "channels:history"]
+    );
+    const accepted = await adapter.execute(slackAction, slackContext);
     expect(accepted).toMatchObject({
       status: "accepted",
       providerOperationId: "slack:slack-primary:C123:1720000000.123456"
@@ -321,12 +350,12 @@ describe("ordinary provider lifecycle coverage", () => {
     await expect(adapter.status({
       requestId: accepted.requestId,
       providerOperationId: accepted.providerOperationId!
-    })).resolves.toMatchObject({ state: "completed" });
+    }, slackContext)).resolves.toMatchObject({ state: "completed" });
     await expect(adapter.cancel({
       requestId: accepted.requestId,
       providerOperationId: accepted.providerOperationId!,
       reason: "operator rollback"
-    })).resolves.toMatchObject({ state: "cancelled" });
+    }, slackContext)).resolves.toMatchObject({ state: "cancelled" });
     expect(calls).toHaveLength(3);
   });
 
@@ -335,37 +364,42 @@ describe("ordinary provider lifecycle coverage", () => {
       id: "slack-dev",
       companyId: "company-a",
       environment: "development" as const,
-      credentialRef: "env:SLACK",
+      credentialProviderId: "slack-dev-provider",
       baseUrl: "https://slack.example.test/api/",
       verificationMode: "provider-object-read" as const
     };
     const input = { companyId: "company-a", channelId: "C1", text: "hello" };
     const providerError = new SlackBusinessActionAdapter([config], {
-      env: { SLACK: "token" },
       fetchImpl: async () => new Response('{"ok":false,"error":"ratelimited"}', { status: 200 })
     });
-    await expect(providerError.execute(request("slack.message.send", input, {
+    const slackDevAction = request("slack.message.send", input, {
       scope: { ...baseScope, environment: "development" }
-    }))).resolves.toMatchObject({ status: "failed", retryable: true });
+    });
+    const slackDevContext = brokerContext(
+      "slack.message.send",
+      "slack-dev-provider",
+      ["chat:write", "channels:history"]
+    );
+    await expect(providerError.execute(slackDevAction, slackDevContext))
+      .resolves.toMatchObject({ status: "failed", retryable: true });
 
     const retryStatus = new SlackBusinessActionAdapter([config], {
-      env: { SLACK: "token" },
       fetchImpl: async () => new Response('{"error":"down"}', { status: 503 })
     });
     await expect(retryStatus.status({
       requestId: "action",
       providerOperationId: "slack:slack-dev:C1:1720000000.123456"
-    })).resolves.toMatchObject({ state: "running" });
+    }, slackDevContext)).resolves.toMatchObject({ state: "running" });
     await expect(retryStatus.cancel({
       requestId: "action",
       providerOperationId: "slack:slack-dev:C1:1720000000.123456",
       reason: "stop"
-    })).resolves.toMatchObject({ state: "running" });
+    }, slackDevContext)).resolves.toMatchObject({ state: "running" });
     await expect(retryStatus.cancel({
       requestId: "action",
       providerOperationId: "slack:slack-dev:C1:1720000000.123456",
       reason: " "
-    })).rejects.toThrow(/reason is required/i);
+    }, slackDevContext)).rejects.toThrow(/reason is required/i);
 
     expect(() => new SlackBusinessActionAdapter([{
       ...config,
@@ -380,7 +414,7 @@ describe("ordinary provider lifecycle coverage", () => {
       companyId: "company-a",
       environment: "production" as const,
       url: "https://hooks.example.test/send",
-      credentialRef: "env:HOOK",
+      credentialProviderId: "webhook-provider",
       consequential: true,
       verification: { url: "https://hooks.example.test/status/{providerOperationId}" },
       cancellation: { url: "https://hooks.example.test/cancel/{providerOperationId}" }
@@ -388,24 +422,24 @@ describe("ordinary provider lifecycle coverage", () => {
     const input = { companyId: "company-a", operation: "notify", payload: { id: "1" } };
 
     const transport = new ConfiguredWebhookActionAdapter([operation], {
-      env: { HOOK: "token" },
       fetchImpl: async () => { throw new Error("network"); }
     });
-    await expect(transport.execute(request("webhook.send", input))).resolves.toMatchObject({
+    const webhookAction = request("webhook.send", input);
+    const webhookContext = brokerContext("webhook.send", "webhook-provider", []);
+    await expect(transport.execute(webhookAction, webhookContext)).resolves.toMatchObject({
       status: "failed",
       retryClass: "transport"
     });
 
     let mode: "send" | "status" | "cancel" = "send";
     const adapter = new ConfiguredWebhookActionAdapter([operation], {
-      env: { HOOK: "token" },
       fetchImpl: async () => {
         if (mode === "send") return new Response("rate", { status: 429 });
         if (mode === "status") return new Response("pending", { status: 503 });
         return new Response("cancelled", { status: 200 });
       }
     });
-    await expect(adapter.execute(request("webhook.send", input))).resolves.toMatchObject({
+    await expect(adapter.execute(webhookAction, webhookContext)).resolves.toMatchObject({
       status: "failed",
       retryClass: "rate-limit"
     });
@@ -413,13 +447,13 @@ describe("ordinary provider lifecycle coverage", () => {
     await expect(adapter.status({
       requestId: "action",
       providerOperationId: "webhook:notify:provider-1"
-    })).resolves.toMatchObject({ state: "running" });
+    }, webhookContext)).resolves.toMatchObject({ state: "running" });
     mode = "cancel";
     await expect(adapter.cancel({
       requestId: "action",
       providerOperationId: "webhook:notify:provider-1",
       reason: "stop"
-    })).resolves.toMatchObject({ state: "cancelled" });
+    }, webhookContext)).resolves.toMatchObject({ state: "cancelled" });
 
     expect(() => new ConfiguredWebhookActionAdapter([{
       ...operation,

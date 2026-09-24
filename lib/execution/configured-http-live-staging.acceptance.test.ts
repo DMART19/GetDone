@@ -140,6 +140,7 @@ function actionRequest(
     input,
     inputHash: sha256Hex(input),
     authorizationConsumptionHash: authoritative.authorizationConsumption!.consumptionHash,
+    credentialLeaseId: "http-lease-" + authoritative.id,
     idempotencyKey: "http-idempotency-" + runId + "-" + name,
     timeoutMs,
     attempt: 1
@@ -147,10 +148,12 @@ function actionRequest(
 }
 
 function operations(): ConfiguredHttpOperation[] {
-  const auth = { credentialRef: "env:HTTP_STAGE_TOKEN" };
+  const auth = {
+    credentialProviderId: "configured-http-staging",
+    minimumScopes: ["execute", "verify", "cancel"]
+  };
   const follow = (path: string) => ({
     url: origin + path + "/{providerOperationId}",
-    credentialRef: "env:HTTP_STAGE_TOKEN",
     method: "GET" as const
   });
   return [
@@ -174,7 +177,6 @@ function operations(): ConfiguredHttpOperation[] {
       verification: follow("/verify"),
       cancellation: {
         url: origin + "/cancel/{providerOperationId}",
-        credentialRef: "env:HTTP_STAGE_TOKEN",
         method: "POST"
       }
     },
@@ -216,9 +218,7 @@ function operations(): ConfiguredHttpOperation[] {
 }
 
 function adapter() {
-  return new ConfiguredHttpActionAdapter(operations(), {
-    env: credentialEnv
-  });
+  return new ConfiguredHttpActionAdapter(operations());
 }
 
 function runtime(
@@ -250,7 +250,19 @@ function runtime(
     new PostgresBusinessActionExecutionStore(db),
     {
       maxStatusPolls: options.maxStatusPolls ?? 8,
-      pollIntervalMs: options.pollIntervalMs ?? 250
+      pollIntervalMs: options.pollIntervalMs ?? 250,
+      credentialBroker: {
+        resolve: async ({ request, requirement }) => ({
+          leaseId: request.credentialLeaseId!,
+          leaseHash: sha256Hex({ leaseId: request.credentialLeaseId, runId }),
+          providerId: requirement.providerId,
+          capability: request.capability,
+          grantedScopes: [...requirement.requiredScopes],
+          material: credentialEnv.HTTP_STAGE_TOKEN,
+          issuedAt: new Date(startMs).toISOString(),
+          expiresAt: new Date(startMs + 60 * 60_000).toISOString()
+        })
+      }
     }
   );
   const handler = new RoutedJobExecutionHandler(

@@ -89,7 +89,6 @@ function cleanEnvironment() {
       && !key.startsWith("NEXT_PUBLIC_")
       && key !== "DATABASE_URL"
       && key !== "NODE_ENV"
-      && key !== "PROD_HTTP_TOKEN"
     )
   );
 }
@@ -118,13 +117,14 @@ function productionEnv(connectionString: string): NodeJS.ProcessEnv {
       version: "production-1",
       routes: { STANDARD: ["standard-primary", "standard-fallback"] }
     }),
-    PROD_HTTP_TOKEN: "http-production-token-abcdefghijklmnopqrstuvwxyz",
+    GETDONE_CREDENTIAL_DELIVERY_URL: "https://credentials.getdone.example/redeem",
+    GETDONE_CREDENTIAL_BROKER_TOKEN: "broker-authentication-token-abcdefghijklmnopqrstuvwxyz",
     GETDONE_HTTP_ACTIONS_JSON: JSON.stringify([{
       name: "crm-sync",
       companyId: "company-prod",
       environment: "production",
       url: "https://api.example.com/actions",
-      credentialRef: "env:PROD_HTTP_TOKEN"
+      credentialProviderId: "crm-provider-prod"
     }])
   };
 }
@@ -206,7 +206,7 @@ integrationDescribe("production runtime validator PostgreSQL acceptance", () => 
       processRole: "web",
       database: {
         database: "reachable",
-        migration: "2026-09-23.2",
+        migration: "2026-09-23.3",
         tenantRls: "verified",
         tenantRuntimeRole: "verified",
         effectiveRuntimeRole: "verified",

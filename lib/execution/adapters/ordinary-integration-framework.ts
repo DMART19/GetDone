@@ -3,6 +3,8 @@ import type { TrustedExecutionScope } from "@/lib/control-plane/trusted-executio
 import {
   assertAuthorizedBusinessActionRequest,
   type AuthorizedBusinessActionRequest,
+  type BusinessActionExecutionContext,
+  type BusinessActionCredentialRequirement,
   type BusinessActionRetryClass
 } from "@/lib/execution/adapters/business-action";
 
@@ -23,7 +25,7 @@ export const ORDINARY_INTEGRATION_RETRY_TAXONOMY: readonly BusinessActionRetryCl
 export interface BusinessActionAdapterDeclaration {
   capability: string;
   provider: string;
-  credentialMode: "credential-reference";
+  credentialMode: "brokered-lease";
   minimumScopes: readonly string[];
   verificationScopes?: readonly string[];
   timeoutMs: Readonly<{ min: number; max: number }>;
@@ -67,6 +69,27 @@ export function resolveCredentialReference(
     throw new ControlPlaneError("UNAVAILABLE", `${label} is unavailable`);
   }
   return secret;
+}
+
+export function requireBrokeredCredential(
+  context: BusinessActionExecutionContext | undefined,
+  requirement: BusinessActionCredentialRequirement,
+  capability: string
+) {
+  const credential = context?.credential;
+  if (
+    !credential
+    || credential.providerId !== requirement.providerId
+    || credential.capability !== capability
+    || Date.parse(credential.expiresAt) <= Date.now()
+    || !requirement.requiredScopes.every((scope) => credential.grantedScopes.includes(scope))
+  ) {
+    throw new ControlPlaneError(
+      "FORBIDDEN",
+      "Adapter requires valid short-lived credential material from the governed credential broker"
+    );
+  }
+  return credential.material;
 }
 
 export function assertAdapterRequest(

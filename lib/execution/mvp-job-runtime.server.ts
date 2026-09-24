@@ -1,4 +1,8 @@
 import { timingSafeEqual } from "node:crypto";
+import {
+  GovernedBusinessActionCredentialBroker,
+  readCredentialDeliveryProviderFromEnv
+} from "@/lib/credentials/runtime-broker";
 import { sha256Hex } from "@/lib/control-plane/canonical-hash";
 import { ControlPlaneError } from "@/lib/control-plane/errors";
 import { assertTrustedExecutionScopeEqual } from "@/lib/control-plane/trusted-execution-scope";
@@ -20,6 +24,7 @@ import {
 import { createJobQueueEnvelope } from "@/lib/execution/job-runtime-contracts";
 import { planOwnerNotification } from "@/lib/mobile/notifications";
 import { PostgresBusinessActionExecutionStore } from "@/lib/persistence/postgres/execution-stores";
+import { PostgresCredentialBrokerStore } from "@/lib/persistence/postgres/credential-broker-store";
 import { PostgresJobExecutionSpecStore } from "@/lib/persistence/postgres/job-execution-spec-store";
 import { PostgresEntityStore } from "@/lib/persistence/postgres/authority-stores";
 import { PostgresJobVerificationEvidenceStore } from "@/lib/persistence/postgres/worker-runtime-stores";
@@ -131,6 +136,15 @@ export function getMvpJobRuntimeFromEnv(
 ) {
   if (installed) return installed;
   const database = getPostgresRuntimeFromEnv(env).database;
+  const credentialStore = new PostgresCredentialBrokerStore(database);
+  const credentialBroker = env.GETDONE_CREDENTIAL_DELIVERY_URL?.trim()
+    && env.GETDONE_CREDENTIAL_BROKER_TOKEN?.trim()
+    ? new GovernedBusinessActionCredentialBroker(
+        credentialStore,
+        credentialStore,
+        readCredentialDeliveryProviderFromEnv(env)
+      )
+    : undefined;
   const business = new BusinessActionExecutionOrchestrator(
     new StaticBusinessActionAdapterRegistry(createOrdinaryBusinessActionBindingsFromEnv(env)),
     new PostgresBusinessActionExecutionStore(database),
@@ -138,7 +152,8 @@ export function getMvpJobRuntimeFromEnv(
       providerConcurrencyGate: new PostgresProviderConcurrencyGate(
         database,
         readProviderConcurrencyConfigFromEnv(env)
-      )
+      ),
+      credentialBroker
     }
   );
   const specs = new PostgresJobExecutionSpecStore(database);

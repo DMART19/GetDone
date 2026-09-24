@@ -1,3 +1,4 @@
+import { createHmac } from "node:crypto";
 import { z } from "zod";
 import { sha256Hex } from "@/lib/control-plane/canonical-hash";
 import { ControlPlaneError } from "@/lib/control-plane/errors";
@@ -7,22 +8,22 @@ import {
   createBusinessActionStatus,
   type AuthorizedBusinessActionRequest,
   type BusinessActionAdapter,
+  type BusinessActionExecutionContext,
   type BusinessActionStatus
 } from "@/lib/execution/adapters/business-action";
 import {
   assertAdapterRequest,
-  assertCredentialReference,
   assertProviderOperationId,
   classifyHttpFailure,
   interpolateOperationUrl,
   providerRequestHeaders,
   readBoundedResponseBody,
-  resolveCredentialReference,
+  requireBrokeredCredential,
   ORDINARY_INTEGRATION_RETRY_TAXONOMY,
   type BusinessActionAdapterDeclaration
 } from "@/lib/execution/adapters/ordinary-integration-framework";
 
-export const CONFIGURED_WEBHOOK_ACTION_ADAPTER_VERSION = "1.0.0";
+export const CONFIGURED_WEBHOOK_ACTION_ADAPTER_VERSION = "1.1.0";
 
 const inputSchema = z.object({
   companyId: z.string().min(1),
@@ -37,23 +38,21 @@ export interface ConfiguredWebhookOperation {
   companyId: string;
   environment: z.infer<typeof environmentSchema>;
   url: string;
-  credentialRef?: string;
+  credentialProviderId?: string;
   minimumScopes?: readonly string[];
+  signatureMode?: "bearer" | "hmac-sha256";
   maxResponseBytes?: number;
   consequential?: boolean;
   verification?: {
     url: string;
-    credentialRef?: string;
   };
   cancellation?: {
     url: string;
-    credentialRef?: string;
   };
 }
 
 export interface ConfiguredWebhookActionAdapterOptions {
   fetchImpl?: typeof fetch;
-  env?: Readonly<Record<string, string | undefined>>;
   now?: () => Date;
 }
 
@@ -72,16 +71,15 @@ function validateOperation(operation: ConfiguredWebhookOperation) {
   if (!/^[A-Za-z0-9._:-]+$/.test(operation.name)) {
     throw new ControlPlaneError("VALIDATION_FAILED", "Webhook operation name is invalid");
   }
+  if (operation.credentialProviderId && !/^[A-Za-z0-9._:@+-]{1,200}$/.test(operation.credentialProviderId)) {
+    throw new ControlPlaneError("VALIDATION_FAILED", "Webhook credentialProviderId is invalid");
+  }
+  if (operation.signatureMode && !operation.credentialProviderId) {
+    throw new ControlPlaneError("VALIDATION_FAILED", "Webhook signature mode requires a credential provider");
+  }
   const maxResponseBytes = operation.maxResponseBytes ?? 256_000;
   if (!Number.isInteger(maxResponseBytes) || maxResponseBytes < 1 || maxResponseBytes > 1_000_000) {
     throw new ControlPlaneError("VALIDATION_FAILED", "Webhook maxResponseBytes must be 1-1000000");
-  }
-  if (operation.credentialRef) assertCredentialReference(operation.credentialRef);
-  if (operation.verification?.credentialRef) {
-    assertCredentialReference(operation.verification.credentialRef, "verification credential reference");
-  }
-  if (operation.cancellation?.credentialRef) {
-    assertCredentialReference(operation.cancellation.credentialRef, "cancellation credential reference");
   }
   if (operation.consequential && !operation.verification) {
     throw new ControlPlaneError(
@@ -105,6 +103,7 @@ function validateOperation(operation: ConfiguredWebhookOperation) {
         })
       : undefined,
     minimumScopes: Object.freeze([...(operation.minimumScopes ?? [])]),
+    signatureMode: operation.signatureMode ?? (operation.credentialProviderId ? "bearer" : undefined),
     maxResponseBytes
   });
 }
@@ -121,13 +120,54 @@ function operationFromProviderId(
   return operation;
 }
 
+function requirement(operation: ValidatedWebhookOperation) {
+  return operation.credentialProviderId
+    ? { providerId: operation.credentialProviderId, requiredScopes: operation.minimumScopes }
+    : null;
+}
+
+function credential(
+  operation: ValidatedWebhookOperation,
+  context: BusinessActionExecutionContext | undefined
+) {
+  const value = requirement(operation);
+  return value
+    ? requireBrokeredCredential(context, value, "webhook.send")
+    : undefined;
+}
+
+function signedHeaders(
+  operation: ValidatedWebhookOperation,
+  request: AuthorizedBusinessActionRequest,
+  body: string,
+  material: string | undefined,
+  timestamp: string
+) {
+  const headers = providerRequestHeaders({
+    request,
+    credential: operation.signatureMode === "bearer" ? material : undefined,
+    contentType: "application/json"
+  });
+  if (operation.signatureMode === "hmac-sha256") {
+    if (!material) {
+      throw new ControlPlaneError("FORBIDDEN", "Signed webhook requires brokered credential material");
+    }
+    const signature = createHmac("sha256", material)
+      .update(`${timestamp}.${body}`)
+      .digest("hex");
+    headers["x-getdone-signature"] = `sha256=${signature}`;
+    headers["x-getdone-signature-timestamp"] = timestamp;
+  }
+  return headers;
+}
+
 export class ConfiguredWebhookActionAdapter implements BusinessActionAdapter {
   readonly id = "configured-webhook-action";
   readonly version = CONFIGURED_WEBHOOK_ACTION_ADAPTER_VERSION;
   readonly declaration: BusinessActionAdapterDeclaration = Object.freeze({
     capability: "webhook.send",
     provider: "configured-webhook",
-    credentialMode: "credential-reference",
+    credentialMode: "brokered-lease",
     minimumScopes: Object.freeze([]),
     timeoutMs: Object.freeze({ min: 100, max: 120_000 }),
     idempotency: "required",
@@ -144,7 +184,6 @@ export class ConfiguredWebhookActionAdapter implements BusinessActionAdapter {
 
   private readonly operations: ReadonlyMap<string, ValidatedWebhookOperation>;
   private readonly fetchImpl: typeof fetch;
-  private readonly env: Readonly<Record<string, string | undefined>>;
   private readonly now: () => Date;
 
   constructor(
@@ -160,11 +199,22 @@ export class ConfiguredWebhookActionAdapter implements BusinessActionAdapter {
     }
     this.operations = new Map(entries);
     this.fetchImpl = options.fetchImpl ?? fetch;
-    this.env = options.env ?? process.env;
     this.now = options.now ?? (() => new Date());
   }
 
-  async execute(request: AuthorizedBusinessActionRequest) {
+  credentialRequirement(request: AuthorizedBusinessActionRequest) {
+    const input = inputSchema.parse(validateCapabilityInput("webhook.send", request.input));
+    const operation = this.operations.get(input.operation);
+    if (!operation) {
+      throw new ControlPlaneError("POLICY_BLOCKED", `Webhook operation is not configured: ${input.operation}`);
+    }
+    return requirement(operation);
+  }
+
+  async execute(
+    request: AuthorizedBusinessActionRequest,
+    context?: BusinessActionExecutionContext
+  ) {
     const input = inputSchema.parse(validateCapabilityInput("webhook.send", request.input));
     const operation = this.operations.get(input.operation);
     if (!operation) {
@@ -175,25 +225,22 @@ export class ConfiguredWebhookActionAdapter implements BusinessActionAdapter {
       throw new ControlPlaneError("FORBIDDEN", "Webhook company does not match authoritative Job scope");
     }
 
-    const credential = operation.credentialRef
-      ? resolveCredentialReference(operation.credentialRef, this.env, "webhook credential")
-      : undefined;
+    const material = credential(operation, context);
+    const body = JSON.stringify({
+      requestId: request.id,
+      jobId: request.jobId,
+      companyId: input.companyId,
+      operation: operation.name,
+      payload: input.payload
+    });
+    const timestamp = this.now().toISOString();
+
     let response: Response;
     try {
       response = await this.fetchImpl(operation.url, {
         method: "POST",
-        headers: providerRequestHeaders({
-          request,
-          credential,
-          contentType: "application/json"
-        }),
-        body: JSON.stringify({
-          requestId: request.id,
-          jobId: request.jobId,
-          companyId: input.companyId,
-          operation: operation.name,
-          payload: input.payload
-        }),
+        headers: signedHeaders(operation, request, body, material, timestamp),
+        body,
         signal: AbortSignal.timeout(request.timeoutMs)
       });
     } catch {
@@ -210,7 +257,7 @@ export class ConfiguredWebhookActionAdapter implements BusinessActionAdapter {
     }
 
     const observedAt = this.now().toISOString();
-    const body = await readBoundedResponseBody(response, operation.maxResponseBytes);
+    const responseBody = await readBoundedResponseBody(response, operation.maxResponseBytes);
     if (!response.ok) {
       const failure = classifyHttpFailure(response.status);
       return createBusinessActionAdapterResult({
@@ -234,7 +281,7 @@ export class ConfiguredWebhookActionAdapter implements BusinessActionAdapter {
     const output = {
       providerOperationId,
       responseStatus: response.status,
-      responseBodyHash: sha256Hex(body),
+      responseBodyHash: sha256Hex(responseBody),
       observedAt
     };
     return createBusinessActionAdapterResult({
@@ -251,25 +298,22 @@ export class ConfiguredWebhookActionAdapter implements BusinessActionAdapter {
     });
   }
 
-  async status(input: {
-    requestId: string;
-    providerOperationId: string;
-  }): Promise<BusinessActionStatus> {
+  async status(
+    input: { requestId: string; providerOperationId: string },
+    context?: BusinessActionExecutionContext
+  ): Promise<BusinessActionStatus> {
     const operation = operationFromProviderId(this.operations, input.providerOperationId);
     if (!operation.verification) {
       throw new ControlPlaneError("UNAVAILABLE", "Webhook operation has no verification surface");
     }
-    const credentialRef = operation.verification.credentialRef ?? operation.credentialRef;
-    const credential = credentialRef
-      ? resolveCredentialReference(credentialRef, this.env, "webhook verification credential")
-      : undefined;
+    const material = credential(operation, context);
     let response: Response;
     try {
       response = await this.fetchImpl(
         interpolateOperationUrl(operation.verification.url, input.providerOperationId),
         {
           method: "GET",
-          headers: credential ? { authorization: `Bearer ${credential}` } : undefined,
+          headers: material ? { authorization: `Bearer ${material}` } : undefined,
           signal: AbortSignal.timeout(30_000)
         }
       );
@@ -301,31 +345,43 @@ export class ConfiguredWebhookActionAdapter implements BusinessActionAdapter {
     });
   }
 
-  async cancel(input: {
-    requestId: string;
-    providerOperationId: string;
-    reason: string;
-  }): Promise<BusinessActionStatus> {
+  async cancel(
+    input: { requestId: string; providerOperationId: string; reason: string },
+    context?: BusinessActionExecutionContext
+  ): Promise<BusinessActionStatus> {
     const operation = operationFromProviderId(this.operations, input.providerOperationId);
     if (!operation.cancellation) {
       throw new ControlPlaneError("UNAVAILABLE", "Webhook operation does not support cancellation");
     }
-    const credentialRef = operation.cancellation.credentialRef ?? operation.credentialRef;
-    const credential = credentialRef
-      ? resolveCredentialReference(credentialRef, this.env, "webhook cancellation credential")
-      : undefined;
-    const response = await this.fetchImpl(
-      interpolateOperationUrl(operation.cancellation.url, input.providerOperationId),
-      {
-        method: "POST",
-        headers: {
-          ...(credential ? { authorization: `Bearer ${credential}` } : {}),
-          "content-type": "application/json"
-        },
-        body: JSON.stringify({ reason: input.reason }),
-        signal: AbortSignal.timeout(30_000)
-      }
-    );
+    if (!input.reason.trim()) {
+      throw new ControlPlaneError("VALIDATION_FAILED", "Webhook cancellation reason is required");
+    }
+    const material = credential(operation, context);
+    let response: Response;
+    try {
+      response = await this.fetchImpl(
+        interpolateOperationUrl(operation.cancellation.url, input.providerOperationId),
+        {
+          method: "POST",
+          headers: {
+            ...(material ? { authorization: `Bearer ${material}` } : {}),
+            "content-type": "application/json"
+          },
+          body: JSON.stringify({ reason: input.reason }),
+          signal: AbortSignal.timeout(30_000)
+        }
+      );
+    } catch {
+      return createBusinessActionStatus({
+        source: "business-action-adapter",
+        requestId: input.requestId,
+        providerOperationId: input.providerOperationId,
+        adapterId: this.id,
+        adapterVersion: this.version,
+        state: "running",
+        observedAt: this.now().toISOString()
+      });
+    }
     await readBoundedResponseBody(response, operation.maxResponseBytes);
     return createBusinessActionStatus({
       source: "business-action-adapter",
@@ -333,7 +389,11 @@ export class ConfiguredWebhookActionAdapter implements BusinessActionAdapter {
       providerOperationId: input.providerOperationId,
       adapterId: this.id,
       adapterVersion: this.version,
-      state: response.ok ? "cancelled" : response.status >= 500 ? "running" : "failed",
+      state: response.ok
+        ? "cancelled"
+        : response.status >= 500 || response.status === 429
+          ? "running"
+          : "failed",
       observedAt: this.now().toISOString()
     });
   }
@@ -353,17 +413,16 @@ export function readConfiguredWebhookOperationsFromEnv(
     companyId: z.string().min(1),
     environment: environmentSchema,
     url: z.string().min(1),
-    credentialRef: z.string().optional(),
+    credentialProviderId: z.string().optional(),
     minimumScopes: z.array(z.string().min(1)).optional(),
+    signatureMode: z.enum(["bearer", "hmac-sha256"]).optional(),
     maxResponseBytes: z.number().int().optional(),
     consequential: z.boolean().optional(),
     verification: z.object({
-      url: z.string().min(1),
-      credentialRef: z.string().optional()
+      url: z.string().min(1)
     }).strict().optional(),
     cancellation: z.object({
-      url: z.string().min(1),
-      credentialRef: z.string().optional()
+      url: z.string().min(1)
     }).strict().optional()
   }).strict()).min(1).parse(parsed) as readonly ConfiguredWebhookOperation[];
 }

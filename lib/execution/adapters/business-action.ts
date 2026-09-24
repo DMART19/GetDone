@@ -2,7 +2,7 @@ import { ControlPlaneError } from "@/lib/control-plane/errors";
 import { sha256Hex } from "@/lib/control-plane/canonical-hash";
 import type { TrustedExecutionScope } from "@/lib/control-plane/trusted-execution-scope";
 
-export const BUSINESS_ACTION_ADAPTER_CONTRACT_VERSION = "1.3.0";
+export const BUSINESS_ACTION_ADAPTER_CONTRACT_VERSION = "1.4.0";
 
 export type BusinessActionRetryClass =
   | "none"
@@ -26,6 +26,26 @@ export interface AuthorizedBusinessActionRequest {
   idempotencyKey: string;
   timeoutMs: number;
   attempt: number;
+}
+
+export interface BusinessActionCredentialRequirement {
+  providerId: string;
+  requiredScopes: readonly string[];
+}
+
+export interface BusinessActionCredentialMaterial {
+  leaseId: string;
+  leaseHash: string;
+  providerId: string;
+  capability: string;
+  grantedScopes: readonly string[];
+  material: string;
+  issuedAt: string;
+  expiresAt: string;
+}
+
+export interface BusinessActionExecutionContext {
+  credential?: BusinessActionCredentialMaterial;
 }
 
 export interface BusinessActionAdapterResult {
@@ -59,16 +79,20 @@ export interface BusinessActionStatus {
 export interface BusinessActionAdapter {
   readonly id: string;
   readonly version: string;
-  execute(request: AuthorizedBusinessActionRequest): Promise<BusinessActionAdapterResult>;
+  credentialRequirement?(request: AuthorizedBusinessActionRequest): BusinessActionCredentialRequirement | null;
+  execute(
+    request: AuthorizedBusinessActionRequest,
+    context?: BusinessActionExecutionContext
+  ): Promise<BusinessActionAdapterResult>;
   status(input: {
     requestId: string;
     providerOperationId: string;
-  }): Promise<BusinessActionStatus>;
+  }, context?: BusinessActionExecutionContext): Promise<BusinessActionStatus>;
   cancel?(input: {
     requestId: string;
     providerOperationId: string;
     reason: string;
-  }): Promise<BusinessActionStatus>;
+  }, context?: BusinessActionExecutionContext): Promise<BusinessActionStatus>;
 }
 
 function assertTimestamp(value: string, label: string) {

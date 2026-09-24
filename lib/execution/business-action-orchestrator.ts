@@ -12,6 +12,8 @@ import {
 import { createVerificationEvidence, type VerificationEvidence } from "@/lib/verification/verification";
 import { validateCapabilityOutput } from "@/lib/domain/capabilities";
 import type { ProviderConcurrencyGate } from "@/lib/execution/provider-concurrency.server";
+import type { BusinessActionCredentialBroker } from "@/lib/credentials/runtime-broker";
+import type { BusinessActionExecutionContext } from "@/lib/execution/adapters/business-action";
 
 export const BUSINESS_ACTION_ORCHESTRATOR_VERSION = "1.0.0";
 
@@ -113,8 +115,25 @@ export class BusinessActionExecutionOrchestrator {
       sleep?: (milliseconds: number) => Promise<void>;
       now?: () => Date;
       providerConcurrencyGate?: ProviderConcurrencyGate;
+      credentialBroker?: BusinessActionCredentialBroker;
     } = {}
   ) {}
+
+  private async credentialContext(
+    request: AuthorizedBusinessActionRequest,
+    adapter: BusinessActionAdapter
+  ): Promise<BusinessActionExecutionContext | undefined> {
+    const requirement = adapter.credentialRequirement?.(request) ?? null;
+    if (!requirement) return undefined;
+    if (!this.options.credentialBroker) {
+      throw new ControlPlaneError(
+        "UNAVAILABLE",
+        "Credential-bearing business action requires the governed credential broker"
+      );
+    }
+    const credential = await this.options.credentialBroker.resolve({ request, requirement });
+    return Object.freeze({ credential });
+  }
 
   private providerCall<T>(
     request: AuthorizedBusinessActionRequest,
@@ -168,7 +187,7 @@ export class BusinessActionExecutionOrchestrator {
       request,
       adapter,
       "execute",
-      () => adapter.execute(request)
+      async () => adapter.execute(request, await this.credentialContext(request, adapter))
     );
     assertBusinessActionAdapterResult(result);
     if (
@@ -228,11 +247,11 @@ export class BusinessActionExecutionOrchestrator {
       request,
       adapter,
       "cancel",
-      () => adapter.cancel!({
+      async () => adapter.cancel!({
         requestId: request.id,
         providerOperationId: record.providerOperationId!,
         reason
-      })
+      }, await this.credentialContext(request, adapter))
     );
     assertStatusIdentity(adapter, request, record.providerOperationId, status);
     const next = createRecord({
@@ -264,10 +283,10 @@ export class BusinessActionExecutionOrchestrator {
         request,
         adapter,
         "status",
-        () => adapter.status({
+        async () => adapter.status({
           requestId: request.id,
           providerOperationId: initial.providerOperationId!
-        })
+        }, await this.credentialContext(request, adapter))
       );
       assertStatusIdentity(adapter, request, initial.providerOperationId, status);
 
