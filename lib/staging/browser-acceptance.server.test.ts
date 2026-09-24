@@ -4,6 +4,7 @@ import type { AuthoritativeDecision } from "@/lib/domain/decision-service";
 import {
   acceptanceCommand,
   acceptanceGrant,
+  buildAcceptanceActionRequest,
   assembleAcceptanceResult,
   assertApprovedAcceptanceDecision,
   assertStagingBrowserAcceptanceRequest,
@@ -122,6 +123,37 @@ describe("staging browser acceptance authority", () => {
       { ...decision, correlationId: undefined },
       principal
     )).toThrow(/correlation lineage/i);
+  });
+
+  it("builds only the fixed safe integration dispatch request", () => {
+    const request = buildAcceptanceActionRequest({
+      principal,
+      correlationId: "corr-a",
+      decisionId: "decision-a",
+      jobId: "job-a",
+      authorizationConsumptionHash: "consumption-a"
+    });
+    expect(request).toMatchObject({
+      id: "browser-action:corr-a",
+      correlationId: "corr-a",
+      jobId: "job-a",
+      scope: principal.scope,
+      capability: "http.request",
+      authorizationConsumptionHash: "consumption-a",
+      idempotencyKey: "browser-action:corr-a",
+      timeoutMs: 10_000,
+      attempt: 1,
+      input: {
+        companyId: "company-a",
+        operation: "staging.browser.safe",
+        payload: {
+          correlationId: "corr-a",
+          decisionId: "decision-a",
+          purpose: "production-browser-e2e"
+        }
+      }
+    });
+    expect(request.inputHash).toMatch(/^[a-f0-9]{64}$/);
   });
 
   it("creates a scoped short-lived authorization grant bound to the approved decision", () => {
