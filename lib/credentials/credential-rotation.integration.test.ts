@@ -316,19 +316,34 @@ describe("credential rotation resume policy", () => {
         providerId: "openrouter",
         modelId: "openai/gpt-5.6",
         enabled: true,
-        contextWindowTokens: 128_000,
+        validationStatus: "validated",
+        roles: ["STANDARD"],
+        modalities: ["text"],
+        supportsTools: false,
         supportsStructuredOutput: true,
-        supportedCapabilities: [],
-        maxOutputTokens: 4_096,
-        cost: { inputPerMillionTokensUsd: 1, outputPerMillionTokensUsd: 1 },
-        latencyClass: "standard"
+        maxContextTokens: 128_000,
+        allowedDataClasses: ["PUBLIC"],
+        allowedEnvironments: ["staging"],
+        health: "healthy",
+        latencyClass: "standard",
+        inputCostPerMillionTokensCents: 100,
+        outputCostPerMillionTokensCents: 100,
+        profileVersion: "1.0.0"
       },
       input: "hello",
       requirements: {
-        expectedInputTokens: 10,
-        expectedOutputTokens: 10,
+        role: "STANDARD",
+        requiredModalities: ["text"],
+        requiresTools: false,
         requiresStructuredOutput: false,
-        requiredCapabilities: []
+        minimumContextTokens: 1_000,
+        estimatedInputTokens: 10,
+        expectedOutputTokens: 10,
+        dataClass: "PUBLIC",
+        environment: "staging",
+        latencyClass: "standard",
+        maxCostCents: 10,
+        allowFallback: false
       }
     });
 
