@@ -7,21 +7,21 @@ import {
   createBusinessActionStatus,
   type AuthorizedBusinessActionRequest,
   type BusinessActionAdapter,
+  type BusinessActionExecutionContext,
   type BusinessActionStatus
 } from "@/lib/execution/adapters/business-action";
 import {
   assertAdapterRequest,
-  assertCredentialReference,
   assertProviderOperationId,
   classifyHttpFailure,
   interpolateOperationUrl,
   readBoundedResponseBody,
-  resolveCredentialReference,
+  requireBrokeredCredential,
   ORDINARY_INTEGRATION_RETRY_TAXONOMY,
   type BusinessActionAdapterDeclaration
 } from "@/lib/execution/adapters/ordinary-integration-framework";
 
-export const CONFIGURED_HTTP_ACTION_ADAPTER_VERSION = "1.2.0";
+export const CONFIGURED_HTTP_ACTION_ADAPTER_VERSION = "1.3.0";
 
 const environmentSchema = z.enum(["development", "staging", "production"]);
 const inputSchema = z.object({
@@ -32,7 +32,6 @@ const inputSchema = z.object({
 
 interface ConfiguredHttpFollowUp {
   url: string;
-  credentialRef?: string;
   method?: "GET" | "POST";
 }
 
@@ -41,9 +40,7 @@ export interface ConfiguredHttpOperation {
   companyId: string;
   environment: z.infer<typeof environmentSchema>;
   url: string;
-  credentialRef?: string;
-  /** @deprecated use credentialRef=env:VARIABLE */
-  authorizationEnv?: string;
+  credentialProviderId?: string;
   authorizationScheme?: "Bearer" | "Basic";
   minimumScopes?: readonly string[];
   maxResponseBytes?: number;
@@ -54,7 +51,6 @@ export interface ConfiguredHttpOperation {
 
 export interface ConfiguredHttpActionAdapterOptions {
   fetchImpl?: typeof fetch;
-  env?: Readonly<Record<string, string | undefined>>;
   now?: () => Date;
   allowInsecureDevelopment?: boolean;
 }
@@ -89,9 +85,6 @@ function validateFollowUp(
   environment: z.infer<typeof environmentSchema>
 ) {
   if (!followUp) return undefined;
-  if (followUp.credentialRef) {
-    assertCredentialReference(followUp.credentialRef, `${label} credential reference`);
-  }
   return Object.freeze({
     ...followUp,
     url: validateUrl(followUp.url, label, allowInsecureDevelopment, environment),
@@ -106,18 +99,12 @@ function validateOperation(operation: ConfiguredHttpOperation, allowInsecureDeve
   if (!operation.companyId.trim()) {
     throw new ControlPlaneError("VALIDATION_FAILED", "HTTP operation companyId is required");
   }
+  if (operation.credentialProviderId && !/^[A-Za-z0-9._:@+-]{1,200}$/.test(operation.credentialProviderId)) {
+    throw new ControlPlaneError("VALIDATION_FAILED", "HTTP credentialProviderId is invalid");
+  }
   const maxResponseBytes = operation.maxResponseBytes ?? 1_000_000;
   if (!Number.isInteger(maxResponseBytes) || maxResponseBytes < 1 || maxResponseBytes > 5_000_000) {
     throw new ControlPlaneError("VALIDATION_FAILED", "HTTP maxResponseBytes must be from 1 to 5000000");
-  }
-  if (operation.credentialRef) {
-    assertCredentialReference(operation.credentialRef, "HTTP credential reference");
-  }
-  if (operation.authorizationEnv && !/^[A-Z][A-Z0-9_]*$/.test(operation.authorizationEnv)) {
-    throw new ControlPlaneError("VALIDATION_FAILED", "HTTP authorizationEnv must be an environment variable name");
-  }
-  if (operation.credentialRef && operation.authorizationEnv) {
-    throw new ControlPlaneError("VALIDATION_FAILED", "Configure only one HTTP credential reference mechanism");
   }
 
   const verification = validateFollowUp(
@@ -161,13 +148,32 @@ function parseProviderOperation(
   return operation;
 }
 
+function credentialRequirement(operation: ValidatedOperation) {
+  return operation.credentialProviderId
+    ? {
+        providerId: operation.credentialProviderId,
+        requiredScopes: operation.minimumScopes
+      }
+    : null;
+}
+
+function credential(
+  operation: ValidatedOperation,
+  context: BusinessActionExecutionContext | undefined
+) {
+  const requirement = credentialRequirement(operation);
+  return requirement
+    ? requireBrokeredCredential(context, requirement, "http.request")
+    : undefined;
+}
+
 export class ConfiguredHttpActionAdapter implements BusinessActionAdapter {
   readonly id = "configured-http-action";
   readonly version = CONFIGURED_HTTP_ACTION_ADAPTER_VERSION;
   readonly declaration: BusinessActionAdapterDeclaration = Object.freeze({
     capability: "http.request",
     provider: "configured-https",
-    credentialMode: "credential-reference",
+    credentialMode: "brokered-lease",
     minimumScopes: Object.freeze([]),
     timeoutMs: Object.freeze({ min: 100, max: 120_000 }),
     idempotency: "required",
@@ -184,7 +190,6 @@ export class ConfiguredHttpActionAdapter implements BusinessActionAdapter {
 
   private readonly operations: ReadonlyMap<string, ValidatedOperation>;
   private readonly fetchImpl: typeof fetch;
-  private readonly env: Readonly<Record<string, string | undefined>>;
   private readonly now: () => Date;
 
   constructor(
@@ -200,29 +205,22 @@ export class ConfiguredHttpActionAdapter implements BusinessActionAdapter {
     }
     this.operations = new Map(entries);
     this.fetchImpl = options.fetchImpl ?? fetch;
-    this.env = options.env ?? process.env;
     this.now = options.now ?? (() => new Date());
   }
 
-  private credential(operation: ValidatedOperation, reference?: string) {
-    if (reference) return resolveCredentialReference(reference, this.env, "HTTP credential");
-    if (operation.credentialRef) {
-      return resolveCredentialReference(operation.credentialRef, this.env, "HTTP credential");
+  credentialRequirement(request: AuthorizedBusinessActionRequest) {
+    const input = inputSchema.parse(validateCapabilityInput("http.request", request.input));
+    const operation = this.operations.get(input.operation);
+    if (!operation) {
+      throw new ControlPlaneError("POLICY_BLOCKED", `HTTP operation is not configured: ${input.operation}`);
     }
-    if (operation.authorizationEnv) {
-      const value = this.env[operation.authorizationEnv]?.trim();
-      if (!value) {
-        throw new ControlPlaneError(
-          "UNAVAILABLE",
-          `Credential is unavailable for HTTP operation ${operation.name}`
-        );
-      }
-      return value;
-    }
-    return undefined;
+    return credentialRequirement(operation);
   }
 
-  async execute(request: AuthorizedBusinessActionRequest) {
+  async execute(
+    request: AuthorizedBusinessActionRequest,
+    context?: BusinessActionExecutionContext
+  ) {
     const input = inputSchema.parse(validateCapabilityInput("http.request", request.input));
     const operation = this.operations.get(input.operation);
     if (!operation) {
@@ -233,15 +231,15 @@ export class ConfiguredHttpActionAdapter implements BusinessActionAdapter {
       throw new ControlPlaneError("FORBIDDEN", "HTTP action company does not match authoritative Job scope");
     }
 
-    const credential = this.credential(operation);
+    const material = credential(operation, context);
     const headers: Record<string, string> = {
       "content-type": "application/json",
       "idempotency-key": request.idempotencyKey,
       "x-getdone-job-id": request.jobId,
       "x-getdone-request-id": request.id
     };
-    if (credential) {
-      headers.authorization = `${operation.authorizationScheme ?? "Bearer"} ${credential}`;
+    if (material) {
+      headers.authorization = `${operation.authorizationScheme ?? "Bearer"} ${material}`;
     }
 
     let response: Response;
@@ -312,23 +310,23 @@ export class ConfiguredHttpActionAdapter implements BusinessActionAdapter {
     });
   }
 
-  async status(input: {
-    requestId: string;
-    providerOperationId: string;
-  }): Promise<BusinessActionStatus> {
+  async status(
+    input: { requestId: string; providerOperationId: string },
+    context?: BusinessActionExecutionContext
+  ): Promise<BusinessActionStatus> {
     const operation = parseProviderOperation(this.operations, input.providerOperationId);
     if (!operation.verification) {
       throw new ControlPlaneError("UNAVAILABLE", "HTTP operation has no verification surface");
     }
-    const credential = this.credential(operation, operation.verification.credentialRef);
+    const material = credential(operation, context);
     let response: Response;
     try {
       response = await this.fetchImpl(
         interpolateOperationUrl(operation.verification.url, input.providerOperationId),
         {
           method: operation.verification.method,
-          headers: credential
-            ? { authorization: `${operation.authorizationScheme ?? "Bearer"} ${credential}` }
+          headers: material
+            ? { authorization: `${operation.authorizationScheme ?? "Bearer"} ${material}` }
             : undefined,
           signal: AbortSignal.timeout(30_000)
         }
@@ -361,11 +359,10 @@ export class ConfiguredHttpActionAdapter implements BusinessActionAdapter {
     });
   }
 
-  async cancel(input: {
-    requestId: string;
-    providerOperationId: string;
-    reason: string;
-  }): Promise<BusinessActionStatus> {
+  async cancel(
+    input: { requestId: string; providerOperationId: string; reason: string },
+    context?: BusinessActionExecutionContext
+  ): Promise<BusinessActionStatus> {
     const operation = parseProviderOperation(this.operations, input.providerOperationId);
     if (!operation.cancellation) {
       throw new ControlPlaneError("UNAVAILABLE", "HTTP operation does not support cancellation");
@@ -373,7 +370,7 @@ export class ConfiguredHttpActionAdapter implements BusinessActionAdapter {
     if (!input.reason.trim()) {
       throw new ControlPlaneError("VALIDATION_FAILED", "HTTP cancellation reason is required");
     }
-    const credential = this.credential(operation, operation.cancellation.credentialRef);
+    const material = credential(operation, context);
     let response: Response;
     try {
       response = await this.fetchImpl(
@@ -381,8 +378,8 @@ export class ConfiguredHttpActionAdapter implements BusinessActionAdapter {
         {
           method: operation.cancellation.method,
           headers: {
-            ...(credential
-              ? { authorization: `${operation.authorizationScheme ?? "Bearer"} ${credential}` }
+            ...(material
+              ? { authorization: `${operation.authorizationScheme ?? "Bearer"} ${material}` }
               : {}),
             "content-type": "application/json"
           },
@@ -410,7 +407,11 @@ export class ConfiguredHttpActionAdapter implements BusinessActionAdapter {
       providerOperationId: input.providerOperationId,
       adapterId: this.id,
       adapterVersion: this.version,
-      state: response.ok ? "cancelled" : response.status >= 500 || response.status === 429 ? "running" : "failed",
+      state: response.ok
+        ? "cancelled"
+        : response.status >= 500 || response.status === 429
+          ? "running"
+          : "failed",
       observedAt: this.now().toISOString()
     });
   }
@@ -427,7 +428,6 @@ export function readConfiguredHttpOperationsFromEnv(
   }
   const followUp = z.object({
     url: z.string().min(1),
-    credentialRef: z.string().optional(),
     method: z.enum(["GET", "POST"]).optional()
   }).strict();
   return z.array(z.object({
@@ -435,8 +435,7 @@ export function readConfiguredHttpOperationsFromEnv(
     companyId: z.string().min(1),
     environment: environmentSchema,
     url: z.string().url(),
-    credentialRef: z.string().optional(),
-    authorizationEnv: z.string().optional(),
+    credentialProviderId: z.string().optional(),
     authorizationScheme: z.enum(["Bearer", "Basic"]).optional(),
     minimumScopes: z.array(z.string().min(1)).optional(),
     maxResponseBytes: z.number().int().optional(),
