@@ -66,7 +66,7 @@ export interface CredentialLease {
   grantedScopes: readonly string[];
   bindingId: string;
   secretReferenceId: string;
-  issuedCredentialVersion: number;
+  issuedCredentialVersion?: number;
   deliveryRef: string;
   issuedAt: string;
   expiresAt: string;
@@ -84,7 +84,7 @@ export interface CredentialUsageAudit {
   resourceId: string;
   capability: string;
   providerId: string;
-  credentialVersion: number;
+  credentialVersion?: number;
   usedAt: string;
   action: "issued" | "used" | "revoked" | "released";
   auditHash: string;
