@@ -4,7 +4,7 @@ import {
   readPostgresConfigFromEnv
 } from "@/lib/persistence/postgres/client";
 
-export const REQUIRED_POSTGRES_MIGRATION = "2026-09-23.2";
+export const REQUIRED_POSTGRES_MIGRATION = "2026-09-23.3";
 
 export const REQUIRED_POSTGRES_RELATIONS = Object.freeze([
   "getdone_schema_migrations",
@@ -44,7 +44,9 @@ export const REQUIRED_POSTGRES_RELATIONS = Object.freeze([
   "job_execution_outcomes",
   "job_worker_instances",
   "business_action_verification_evidence",
-  "provider_concurrency_leases"
+  "provider_concurrency_leases",
+  "credential_leases",
+  "credential_usage_audits"
 ] as const);
 
 export const REQUIRED_POSTGRES_INDEXES = Object.freeze([
@@ -56,7 +58,10 @@ export const REQUIRED_POSTGRES_INDEXES = Object.freeze([
   "job_worker_instances_status_idx",
   "business_action_verification_scope_idx",
   "business_action_executions_job_idx",
-  "provider_concurrency_leases_active_idx"
+  "provider_concurrency_leases_active_idx",
+  "credential_leases_scope_idx",
+  "credential_leases_job_idx",
+  "credential_usage_audits_lease_idx"
 ] as const);
 
 export const REQUIRED_POSTGRES_RLS_RELATIONS = Object.freeze([
@@ -73,7 +78,9 @@ export const REQUIRED_POSTGRES_RLS_RELATIONS = Object.freeze([
   "owner_intents",
   "resource_evidence",
   "business_action_executions",
-  "business_action_verification_evidence"
+  "business_action_verification_evidence",
+  "credential_leases",
+  "credential_usage_audits"
 ] as const);
 
 export interface PostgresRuntimeHealth {
