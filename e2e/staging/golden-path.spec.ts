@@ -23,15 +23,23 @@ test.describe("authoritative staging browser golden path", () => {
     await expect(page).toHaveURL("/");
     await expect(page.getByRole("heading", { name: /How can I/i })).toBeVisible();
 
+    // The redirect can expose server-rendered HTML before the client component is
+    // hydrated. Wait for the navigation to settle so this click exercises the
+    // React Chat composer rather than a native form submit/reload.
+    await page.waitForLoadState("networkidle");
+
     await page.getByLabel("Message GetDone").fill(
       "Run the controlled safe staging integration and show me the verified result"
     );
-    const intentResponse = page.waitForResponse((response) =>
-      response.url().includes("/api/control/chat")
-      && response.request().method() === "POST"
-    );
-    await page.getByRole("button", { name: "Send message" }).click();
-    expect((await intentResponse).status()).toBe(202);
+    const [intentResponse] = await Promise.all([
+      page.waitForResponse((response) =>
+        response.url().includes("/api/control/chat")
+        && response.request().method() === "POST"
+      ),
+      page.getByRole("button", { name: "Send message" }).click()
+    ]);
+    expect(intentResponse.status()).toBe(202);
+    await expect(page.getByRole("status")).toContainText("Accepted by GetDone");
 
     const intent = await latestIntent();
     expect(intent.correlationId).toBeTruthy();
