@@ -28,8 +28,15 @@ async function controlGet<T>(path: string): Promise<T> {
   const value = await response.json().catch(() => null) as ApiEnvelope<T> | null;
   if (response.status === 401) redirect("/sign-in");
   if (response.status === 404) notFound();
-  if (!response.ok || !value?.ok) {
-    throw new Error(value?.error?.message ?? "Authoritative Job read failed");
+  if (!value) {
+    throw new Error("Authoritative Job read failed");
+  }
+  if (!response.ok || value.ok === false) {
+    throw new Error(
+      value.ok === false
+        ? value.error.message
+        : "Authoritative Job read failed"
+    );
   }
   return value.data;
 }
