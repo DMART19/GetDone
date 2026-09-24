@@ -34,7 +34,7 @@ function breached(value: number, threshold: z.infer<typeof thresholdSchema>) {
 }
 
 export function evaluateOperationalAlert(
-  rule: OperationalAlertRule,
+  rule: Readonly<Omit<OperationalAlertRule, "labels"> & { labels: readonly string[] }>,
   value: number
 ): OperationalAlertState {
   if (!Number.isFinite(value)) return "critical";
