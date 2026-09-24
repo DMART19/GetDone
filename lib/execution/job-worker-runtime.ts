@@ -97,8 +97,7 @@ export class DurableJobWorker {
     const at = this.now().toISOString();
     const candidates = await this.store.listReady({ now: at, limit: this.batchSize });
     await getTelemetry().gauge("getdone.job.ready.count", candidates.length, "1", {
-      [OTEL_SEMANTIC.workerId]: this.config.workerId,
-      [OTEL_SEMANTIC.correlationId]: candidate.envelope.correlationId ?? null
+      [OTEL_SEMANTIC.workerId]: this.config.workerId
     });
     const results = new Array<{ jobId: string; outcome: JobExecutionOutcome } | null>(
       candidates.length
