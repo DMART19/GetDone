@@ -11,6 +11,7 @@ import { assertTransition, type StateMachineEntity } from "@/lib/domain/state-ma
 
 export interface TransitionEntity {
   id: string;
+  correlationId?: string;
   portfolioId: string;
   companyId: string;
   version: number;
@@ -96,9 +97,11 @@ export class AuthoritativeTransitionService {
       await input.beforeTransition?.(current, transaction);
 
       const patch = await input.patch?.(current, transaction);
+      const lineageCorrelationId = current.correlationId ?? input.command.correlationId;
       const patched = {
         ...current,
         ...(patch ?? {}),
+        correlationId: lineageCorrelationId,
         version: current.version + 1,
         updatedAt: now().toISOString()
       } as T;
@@ -106,7 +109,7 @@ export class AuthoritativeTransitionService {
 
       await store.save(next, current.version);
       await transaction.audit.append(createAuditEvent({
-        correlationId: input.command.correlationId,
+        correlationId: lineageCorrelationId,
         eventType: `${input.entityType}.${input.to}`,
         actor: input.command.actor,
         scope: {
