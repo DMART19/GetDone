@@ -1,0 +1,192 @@
+{
+  "schemaVersion": "1.0.0",
+  "rules": [
+    {
+      "id": "worker-offline",
+      "metric": "getdone.worker.heartbeat.age",
+      "kind": "gauge",
+      "unit": "ms",
+      "windowSeconds": 120,
+      "warning": {
+        "operator": ">=",
+        "value": 120000
+      },
+      "critical": {
+        "operator": ">=",
+        "value": 300000
+      },
+      "labels": [
+        "worker.id"
+      ],
+      "runbook": "docs/DURABLE_JOB_WORKER_RUNBOOK.md"
+    },
+    {
+      "id": "queue-depth",
+      "metric": "getdone.job.ready.count",
+      "kind": "gauge",
+      "unit": "1",
+      "windowSeconds": 300,
+      "warning": {
+        "operator": ">=",
+        "value": 250
+      },
+      "critical": {
+        "operator": ">=",
+        "value": 750
+      },
+      "labels": [
+        "deployment.environment.name"
+      ],
+      "runbook": "docs/SOL_QUEUE_BACKPRESSURE_ACCEPTANCE.md"
+    },
+    {
+      "id": "dead-letter-count",
+      "metric": "getdone.job.dead_letter.total",
+      "kind": "counter-rate",
+      "unit": "1",
+      "windowSeconds": 900,
+      "warning": {
+        "operator": ">=",
+        "value": 1
+      },
+      "critical": {
+        "operator": ">=",
+        "value": 5
+      },
+      "labels": [
+        "deployment.environment.name"
+      ],
+      "runbook": "docs/SOL_DEAD_LETTER_OPERATOR_ACCEPTANCE.md"
+    },
+    {
+      "id": "database-unavailable",
+      "metric": "getdone.db.available",
+      "kind": "gauge",
+      "unit": "1",
+      "windowSeconds": 30,
+      "warning": {
+        "operator": "<=",
+        "value": 0
+      },
+      "critical": {
+        "operator": "<=",
+        "value": 0
+      },
+      "labels": [],
+      "runbook": "docs/SOL_POSTGRES_JOB_EXECUTION_RUNTIME_REPORT.md"
+    },
+    {
+      "id": "backup-stale",
+      "metric": "getdone.backup.age",
+      "kind": "gauge",
+      "unit": "s",
+      "windowSeconds": 300,
+      "warning": {
+        "operator": ">=",
+        "value": 64800
+      },
+      "critical": {
+        "operator": ">=",
+        "value": 86400
+      },
+      "labels": [],
+      "runbook": "release/README.md"
+    },
+    {
+      "id": "verification-backlog",
+      "metric": "getdone.verification.pending.count",
+      "kind": "gauge",
+      "unit": "1",
+      "windowSeconds": 300,
+      "warning": {
+        "operator": ">=",
+        "value": 25
+      },
+      "critical": {
+        "operator": ">=",
+        "value": 100
+      },
+      "labels": [
+        "deployment.environment.name"
+      ],
+      "runbook": "docs/SOL_POSTGRES_JOB_EXECUTION_RUNTIME_REPORT.md"
+    },
+    {
+      "id": "ai-provider-failure-rate",
+      "metric": "getdone.ai.call.failure_rate",
+      "kind": "ratio",
+      "unit": "1",
+      "windowSeconds": 300,
+      "warning": {
+        "operator": ">=",
+        "value": 0.1
+      },
+      "critical": {
+        "operator": ">=",
+        "value": 0.25
+      },
+      "labels": [
+        "peer.service"
+      ],
+      "runbook": "docs/SOL_OPENROUTER_STAGING_ACCEPTANCE.md"
+    },
+    {
+      "id": "integration-failure-rate",
+      "metric": "getdone.provider.call.failure_rate",
+      "kind": "ratio",
+      "unit": "1",
+      "windowSeconds": 300,
+      "warning": {
+        "operator": ">=",
+        "value": 0.1
+      },
+      "critical": {
+        "operator": ">=",
+        "value": 0.25
+      },
+      "labels": [
+        "peer.service",
+        "rpc.method"
+      ],
+      "runbook": "docs/SOL_ORDINARY_INTEGRATIONS_REPORT.md"
+    },
+    {
+      "id": "auth-failure-spike",
+      "metric": "getdone.authorization.denial.total",
+      "kind": "counter-rate",
+      "unit": "1",
+      "windowSeconds": 300,
+      "warning": {
+        "operator": ">=",
+        "value": 20
+      },
+      "critical": {
+        "operator": ">=",
+        "value": 50
+      },
+      "labels": [
+        "getdone.capability"
+      ],
+      "runbook": "docs/SOL_CONTROL_API_OPENROUTER_SECURITY_REPORT.md"
+    },
+    {
+      "id": "resource-agent-disconnect",
+      "metric": "getdone.resource.agent.connected",
+      "kind": "gauge",
+      "unit": "1",
+      "windowSeconds": 120,
+      "warning": {
+        "operator": "<=",
+        "value": 0
+      },
+      "critical": {
+        "operator": "<=",
+        "value": 0
+      },
+      "labels": [
+        "resource.id"
+      ],
+      "runbook": "docs/ASTRA_HANDOFF.md"
+    }
+  ]
+}
