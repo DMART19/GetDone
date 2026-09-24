@@ -191,6 +191,11 @@ export class DurableJobWorker {
       throw error;
     }
     if (!claim) return null;
+    await getTelemetry().log("INFO", "job.claimed", {
+      [OTEL_SEMANTIC.jobId]: candidate.envelope.jobId,
+      [OTEL_SEMANTIC.workerId]: this.config.workerId,
+      [OTEL_SEMANTIC.jobAttempt]: claim.lease.attempt
+    });
 
     let lease = claim.lease;
     let version = claim.transaction.nextVersion;
@@ -278,6 +283,16 @@ export class DurableJobWorker {
       [OTEL_SEMANTIC.jobAttempt]: lease.attempt,
       [OTEL_SEMANTIC.workerId]: this.config.workerId
     });
+    await getTelemetry().log(
+      outcome.kind === "dead-letter" ? "ERROR" : outcome.kind === "retry" ? "WARN" : "INFO",
+      "job.execution.outcome",
+      {
+        [OTEL_SEMANTIC.jobId]: candidate.envelope.jobId,
+        [OTEL_SEMANTIC.workerId]: this.config.workerId,
+        [OTEL_SEMANTIC.jobAttempt]: lease.attempt,
+        outcome: outcome.kind
+      }
+    );
 
     if (outcome.kind === "succeeded") {
       const receipt = await this.retrySerializableConflict(() => this.store.release({
