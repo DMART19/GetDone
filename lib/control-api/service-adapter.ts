@@ -228,8 +228,8 @@ export class ServiceBackedControlApiAdapter implements ControlApiApplicationAdap
     input: DecisionMutationInput,
     correlationId?: string
   ) {
+    requireRole(principal, ["owner", "admin"], "Decision mutation");
     return this.scoped(principal, async () => {
-      requireRole(principal, ["owner", "admin"], "Decision mutation");
       const current = assertScopedEntity(
         principal,
         await this.deps.decisions.get(input.decisionId)
