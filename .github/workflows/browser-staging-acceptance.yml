@@ -68,6 +68,14 @@ jobs:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
           GETDONE_DB_SSL: "false"
 
+      - name: Record verified staging backup evidence
+        run: npm run db:record-backup
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+          GETDONE_DB_SSL: "false"
+          GETDONE_BACKUP_REF: staging-browser-preflight
+          GETDONE_BACKUP_VERIFICATION_HASH: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
 
