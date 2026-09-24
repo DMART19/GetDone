@@ -37,7 +37,7 @@ export interface BusinessActionCredentialMaterial {
   leaseId: string;
   leaseHash: string;
   providerId: string;
-  credentialVersion: number;
+  credentialVersion?: number;
   capability: string;
   grantedScopes: readonly string[];
   material: string;
