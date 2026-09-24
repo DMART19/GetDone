@@ -1,6 +1,6 @@
 {
   "registrySchemaVersion": "1.6.0",
-  "registryVersion": "2026-09-23.3",
+  "registryVersion": "2026-09-24.1",
   "appVersion": "0.1.0",
   "schemaVersions": {
     "controlApi": {
@@ -250,7 +250,7 @@
     "contractVersion": "1.2.0",
     "routingPolicyContractVersion": "1.0.0",
     "status": "runtime-wired-unconnected",
-    "adapterVersion": "1.1.0",
+    "adapterVersion": "1.2.0",
     "routingPolicyVersion": "UNCONFIGURED",
     "sourcePath": "lib/ai-gateway/contracts.ts"
   },
@@ -275,7 +275,7 @@
     },
     "businessAction": {
       "status": "contract-only",
-      "version": "1.4.0",
+      "version": "1.5.0",
       "sourcePath": "lib/execution/adapters/business-action.ts",
       "contractTracked": true,
       "contractSourcePaths": [
@@ -329,7 +329,7 @@
     },
     "openRouter": {
       "status": "implemented-unconfigured",
-      "version": "1.1.0",
+      "version": "1.2.0",
       "sourcePath": "lib/ai-gateway/openrouter-adapter.ts",
       "contractTracked": true,
       "contractSourcePaths": [
@@ -497,7 +497,12 @@
     "lib/execution/webhook-live-staging.acceptance.test.ts",
     "docs/SOL_WEBHOOK_STAGING_ACCEPTANCE.md",
     "lib/persistence/postgres/credential-broker-store.ts",
-    "migrations/2026-09-23.3_credential_broker_runtime.sql"
+    "migrations/2026-09-23.3_credential_broker_runtime.sql",
+    "lib/credentials/credential-rotation.integration.test.ts",
+    "lib/observability/telemetry.test.ts",
+    "lib/credentials/rotation-policy.ts",
+    "lib/observability/telemetry.ts",
+    "docs/SOL_CREDENTIAL_ROTATION_OBSERVABILITY.md"
   ],
   "manualSourcePaths": [
     "docs/ARCHITECTURE.md",
@@ -516,7 +521,8 @@
     "docs/SOL_OPENROUTER_STAGING_ACCEPTANCE.md",
     "docs/SOL_WORKER_CRASH_RESTART_ACCEPTANCE.md",
     "docs/SOL_QUEUE_BACKPRESSURE_ACCEPTANCE.md",
-    "docs/SOL_WEBHOOK_STAGING_ACCEPTANCE.md"
+    "docs/SOL_WEBHOOK_STAGING_ACCEPTANCE.md",
+    "docs/SOL_CREDENTIAL_ROTATION_OBSERVABILITY.md"
   ],
   "generatedArtifacts": {
     "machineManifest": "release/out/release-manifest.json",
@@ -552,7 +558,7 @@
   "execution": {
     "jobRuntimeContractVersion": "1.1.0",
     "durableJobStoreStatus": "implemented-unconnected",
-    "businessActionContractVersion": "1.4.0",
+    "businessActionContractVersion": "1.5.0",
     "businessAdaptersStatus": "implemented-unconfigured",
     "softwareWorkerContractVersion": "1.1.0",
     "softwareDeploymentStatus": "not-connected",
@@ -727,5 +733,13 @@
     "capabilityRegistryBridgeStatus": "implemented",
     "resourceCapabilityBindingStatus": "implemented-unconnected",
     "capabilityMigrationVersion": "2026-09-21.4"
+  },
+  "observability": {
+    "status": "implemented-unconfigured",
+    "version": "1.0.0",
+    "sourcePath": "lib/observability/telemetry.ts",
+    "structuredJsonLogs": true,
+    "otlpJson": true,
+    "requiredForProduction": true
   }
 }
