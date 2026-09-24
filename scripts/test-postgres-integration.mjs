@@ -293,6 +293,7 @@ const allMigrationVersions = [
   "2026-09-22.2",
   "2026-09-22.3",
   "2026-09-23.1",
+  "2026-09-23.2",
   "2026-09-23.3"
 ];
 
@@ -319,7 +320,7 @@ try {
     await assertMigrationState(
       pool,
       "2026-09-22.3",
-      allMigrationVersions.slice(0, -2)
+      allMigrationVersions.slice(0, -3)
     );
   });
   runMigrations(upgradeUrl);
