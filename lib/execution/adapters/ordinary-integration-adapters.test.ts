@@ -1,9 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { sha256Hex } from "@/lib/control-plane/canonical-hash";
-import type { AuthorizedBusinessActionRequest } from "@/lib/execution/adapters/business-action";
+import type {
+  AuthorizedBusinessActionRequest,
+  BusinessActionExecutionContext
+} from "@/lib/execution/adapters/business-action";
 import { ConfiguredHttpActionAdapter } from "@/lib/execution/adapters/configured-http-action";
 import { ConfiguredWebhookActionAdapter } from "@/lib/execution/adapters/configured-webhook-action";
-import { GmailBusinessActionAdapter } from "@/lib/execution/adapters/gmail-action";
+import {
+  GmailBusinessActionAdapter,
+  readGmailProviderConfigurationsFromEnv
+} from "@/lib/execution/adapters/gmail-action";
 import { SlackBusinessActionAdapter } from "@/lib/execution/adapters/slack-action";
 
 const scope = {
@@ -33,6 +39,26 @@ function request(
   };
 }
 
+function credentialContext(
+  capability: string,
+  providerId: string,
+  scopes: readonly string[],
+  material = "short-lived-test-material"
+): BusinessActionExecutionContext {
+  return {
+    credential: {
+      leaseId: `lease-${capability}`,
+      leaseHash: sha256Hex({ capability, providerId }),
+      providerId,
+      capability,
+      grantedScopes: [...scopes],
+      material,
+      issuedAt: "2026-09-22T15:59:00Z",
+      expiresAt: "2099-01-01T00:00:00Z"
+    }
+  };
+}
+
 describe("ordinary integration adapters", () => {
   it("declares the governed controls required by every ordinary adapter", () => {
     const http = new ConfiguredHttpActionAdapter([{
@@ -40,33 +66,33 @@ describe("ordinary integration adapters", () => {
       companyId: "company-a",
       environment: "production",
       url: "https://api.example.test/sync",
-      credentialRef: "env:HTTP_TOKEN"
-    }], { env: { HTTP_TOKEN: "secret" } });
+      credentialProviderId: "http-provider"
+    }]);
     const webhook = new ConfiguredWebhookActionAdapter([{
       name: "billing.notify",
       companyId: "company-a",
       environment: "production",
       url: "https://hooks.example.test/notify",
-      credentialRef: "env:WEBHOOK_TOKEN"
-    }], { env: { WEBHOOK_TOKEN: "secret" } });
+      credentialProviderId: "webhook-provider"
+    }]);
     const gmail = new GmailBusinessActionAdapter([{
       id: "gmail-primary",
       companyId: "company-a",
       environment: "production",
-      credentialRef: "env:GMAIL_TOKEN",
+      credentialProviderId: "gmail-provider",
       verificationMode: "provider-object-read"
-    }], { env: { GMAIL_TOKEN: "secret" } });
+    }]);
     const slack = new SlackBusinessActionAdapter([{
       id: "slack-primary",
       companyId: "company-a",
       environment: "production",
-      credentialRef: "env:SLACK_TOKEN",
+      credentialProviderId: "slack-provider",
       verificationMode: "provider-object-read"
-    }], { env: { SLACK_TOKEN: "secret" } });
+    }]);
 
     for (const adapter of [http, webhook, gmail, slack]) {
       expect(adapter.declaration).toMatchObject({
-        credentialMode: "credential-reference",
+        credentialMode: "brokered-lease",
         idempotency: "required",
         providerOperationId: "required",
         auditEvidence: "hashed-provider-evidence",
@@ -85,17 +111,12 @@ describe("ordinary integration adapters", () => {
       companyId: "company-a",
       environment: "production",
       url: "https://hooks.example.test/notify",
-      credentialRef: "env:WEBHOOK_TOKEN",
+      credentialProviderId: "webhook-provider",
       consequential: true,
       verification: {
-        url: "https://hooks.example.test/status/{providerOperationId}",
-        credentialRef: "env:WEBHOOK_VERIFY_TOKEN"
+        url: "https://hooks.example.test/status/{providerOperationId}"
       }
     }], {
-      env: {
-        WEBHOOK_TOKEN: "send-secret",
-        WEBHOOK_VERIFY_TOKEN: "verify-secret"
-      },
       fetchImpl: async (url, init) => {
         calls.push(`${init?.method ?? "GET"} ${String(url)}`);
         if (init?.method === "POST") {
@@ -113,13 +134,15 @@ describe("ordinary integration adapters", () => {
       operation: "billing.notify",
       payload: { invoiceId: "inv-1" }
     };
-    const accepted = await adapter.execute(request("webhook.send", input));
+    const action = request("webhook.send", input);
+    const context = credentialContext("webhook.send", "webhook-provider", []);
+    const accepted = await adapter.execute(action, context);
     expect(accepted.status).toBe("accepted");
     expect(accepted.providerOperationId).toBe("webhook:billing.notify:provider-123");
     const verified = await adapter.status({
       requestId: accepted.requestId,
       providerOperationId: accepted.providerOperationId!
-    });
+    }, context);
     expect(verified.state).toBe("completed");
     expect(calls).toHaveLength(2);
   });
@@ -129,11 +152,10 @@ describe("ordinary integration adapters", () => {
       id: "gmail-primary",
       companyId: "company-a",
       environment: "production",
-      credentialRef: "env:GMAIL_TOKEN",
+      credentialProviderId: "gmail-provider",
       verificationMode: "provider-object-read",
       baseUrl: "https://gmail.example.test/"
     }], {
-      env: { GMAIL_TOKEN: "secret" },
       fetchImpl: async () => new Response('{"threadId":"missing-id"}', { status: 200 }),
       now: () => new Date("2026-09-22T16:00:00Z")
     });
@@ -144,7 +166,13 @@ describe("ordinary integration adapters", () => {
       subject: "Test",
       text: "hello"
     };
-    await expect(gmail.execute(request("email.send", emailInput))).resolves.toMatchObject({
+    await expect(gmail.execute(
+      request("email.send", emailInput),
+      credentialContext("email.send", "gmail-provider", [
+        "https://www.googleapis.com/auth/gmail.send",
+        "https://www.googleapis.com/auth/gmail.readonly"
+      ])
+    )).resolves.toMatchObject({
       status: "accepted",
       retryable: true,
       retryClass: "malformed-response",
@@ -155,11 +183,10 @@ describe("ordinary integration adapters", () => {
       id: "slack-primary",
       companyId: "company-a",
       environment: "production",
-      credentialRef: "env:SLACK_TOKEN",
+      credentialProviderId: "slack-provider",
       verificationMode: "provider-object-read",
       baseUrl: "https://slack.example.test/api/"
     }], {
-      env: { SLACK_TOKEN: "secret" },
       fetchImpl: async () => new Response('{"ok":true,"channel":"C123"}', { status: 200 }),
       now: () => new Date("2026-09-22T16:00:00Z")
     });
@@ -168,14 +195,17 @@ describe("ordinary integration adapters", () => {
       channelId: "C123",
       text: "hello"
     };
-    await expect(slack.execute(request("slack.message.send", slackInput))).resolves.toMatchObject({
+    await expect(slack.execute(
+      request("slack.message.send", slackInput),
+      credentialContext("slack.message.send", "slack-provider", ["chat:write", "channels:history"])
+    )).resolves.toMatchObject({
       status: "failed",
       retryable: false,
       retryClass: "malformed-response"
     });
   });
 
-  it("stream-limits hostile webhook responses and rejects raw secret configuration", async () => {
+  it("stream-limits hostile webhook responses and rejects legacy direct-secret configuration", async () => {
     const body = new ReadableStream<Uint8Array>({
       start(controller) {
         controller.enqueue(new TextEncoder().encode("123456789"));
@@ -194,11 +224,13 @@ describe("ordinary integration adapters", () => {
     const input = { companyId: "company-a", operation: "small", payload: {} };
     await expect(adapter.execute(request("webhook.send", input))).rejects.toThrow(/size limit/i);
 
-    expect(() => new GmailBusinessActionAdapter([{
-      id: "bad",
-      companyId: "company-a",
-      environment: "production",
-      credentialRef: "raw-secret"
-    }])).toThrow(/credential reference/i);
+    expect(() => readGmailProviderConfigurationsFromEnv({
+      GETDONE_GMAIL_ACTIONS_JSON: JSON.stringify([{
+        id: "bad",
+        companyId: "company-a",
+        environment: "production",
+        credentialRef: "env:GMAIL_TOKEN"
+      }])
+    })).toThrow();
   });
 });
