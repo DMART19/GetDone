@@ -7,6 +7,7 @@ import {
   DurableJobWorker,
   type DurableJobExecutionHandler
 } from "@/lib/execution/job-worker-runtime";
+import { getTelemetry, OTEL_SEMANTIC } from "@/lib/observability/telemetry";
 import type {
   DurableJobRuntimeSnapshot,
   DurableJobWorkStore
@@ -30,7 +31,19 @@ export class DurableJobEngine {
   ) {}
 
   enqueue(envelope: JobQueueEnvelope) {
-    return this.store.enqueue(envelope);
+    return getTelemetry().withSpan("job.enqueue.persist", {
+      [OTEL_SEMANTIC.jobId]: envelope.jobId,
+      [OTEL_SEMANTIC.companyId]: envelope.scope.companyId,
+      [OTEL_SEMANTIC.environment]: envelope.scope.environment
+    }, async () => {
+      const result = await this.store.enqueue(envelope);
+      await getTelemetry().log("INFO", "job.enqueued", {
+        [OTEL_SEMANTIC.jobId]: envelope.jobId,
+        [OTEL_SEMANTIC.companyId]: envelope.scope.companyId,
+        outcome: result.status
+      });
+      return result;
+    });
   }
 
   runOnce(
