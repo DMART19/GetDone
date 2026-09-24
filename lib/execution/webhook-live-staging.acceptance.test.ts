@@ -278,7 +278,7 @@ async function provisionLease(
     secret,
     binding,
     deliveryRef: "delivery://webhook-staging/" + request.id,
-    issuedAt: new Date(now.getTime() + 1).toISOString(),
+    issuedAt: now.toISOString(),
     ttlSeconds: 600
   });
   await new PostgresCredentialBrokerStore(db).putLease(lease);
