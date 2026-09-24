@@ -1040,7 +1040,7 @@ if (
 }
 if (
   releaseRegistry.aiGateway.status !== "runtime-wired-unconnected"
-  || releaseRegistry.aiGateway.adapterVersion !== "1.1.0"
+  || releaseRegistry.aiGateway.adapterVersion !== "1.2.0"
   || releaseRegistry.aiGateway.contractVersion !== "1.2.0"
   || releaseRegistry.aiGateway.routingPolicyContractVersion !== "1.0.0"
   || releaseRegistry.aiGateway.routingPolicyVersion !== "UNCONFIGURED"
