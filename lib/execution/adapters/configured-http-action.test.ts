@@ -47,7 +47,7 @@ function brokerContext(): BusinessActionExecutionContext {
       providerId: "crm-provider",
       capability: "http.request",
       grantedScopes: ["execute"],
-      material: "short-lived-server-token",
+      material: "fixture",
       issuedAt: "2026-09-22T11:59:00Z",
       expiresAt: "2099-01-01T00:00:00Z"
     }
@@ -90,7 +90,7 @@ describe("configured HTTP business action", () => {
     });
     expect(capturedUrl).toBe("https://api.example.com/actions/contact-sync");
     const headers = captured?.headers as Record<string, string>;
-    expect(headers.authorization).toBe("Bearer short-lived-server-token");
+    expect(headers.authorization).toBe("Bearer fixture");
     expect(headers["idempotency-key"]).toBe("idempotency-1");
     expect(JSON.parse(String(captured?.body))).not.toHaveProperty("url");
   });
