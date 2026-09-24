@@ -96,7 +96,7 @@ function command(
   });
 }
 
-function acceptanceGrant(
+export function acceptanceGrant(
   principal: ControlApiPrincipal,
   decision: AuthoritativeDecision,
   correlationId: string,
@@ -247,6 +247,53 @@ export interface StagingBrowserAcceptanceResult {
   authoritativeCompletion: boolean;
 }
 
+export function assembleAcceptanceResult(input: {
+  job: Pick<JobRecord, "correlationId" | "taskId" | "state">;
+  jobId: string;
+  runtimeRow?: { runtime_state: string; envelope: { correlationId?: string } };
+  providerRow?: {
+    state: string;
+    provider_operation_id: string | null;
+    payload: { correlationId?: string };
+  };
+  evidenceRow?: {
+    evidence_id: string;
+    payload: { correlationId?: string; result?: string };
+  };
+  outcomeRow?: { kind: string; payload: { correlationId?: string } };
+}): StagingBrowserAcceptanceResult {
+  const correlationId = input.job.correlationId ?? "";
+  const lineageMatches = Boolean(
+    correlationId
+    && input.runtimeRow?.envelope.correlationId === correlationId
+    && input.providerRow?.payload.correlationId === correlationId
+    && input.evidenceRow?.payload.correlationId === correlationId
+    && input.outcomeRow?.payload.correlationId === correlationId
+  );
+  const authoritativeCompletion = Boolean(
+    lineageMatches
+    && input.runtimeRow?.runtime_state === "released"
+    && input.providerRow?.state === "completed"
+    && input.evidenceRow?.payload.result === "pass"
+    && input.outcomeRow?.kind === "succeeded"
+  );
+
+  return Object.freeze({
+    correlationId,
+    decisionId: `browser-decision:${correlationId}`,
+    taskId: input.job.taskId,
+    jobId: input.jobId,
+    controlPlaneJobState: input.job.state,
+    runtimeState: input.runtimeRow?.runtime_state ?? null,
+    providerState: input.providerRow?.state ?? null,
+    providerOperationId: input.providerRow?.provider_operation_id ?? null,
+    verificationEvidenceId: input.evidenceRow?.evidence_id ?? null,
+    verificationResult: input.evidenceRow?.payload.result ?? null,
+    durableOutcome: input.outcomeRow?.kind ?? null,
+    authoritativeCompletion
+  });
+}
+
 export async function readAcceptanceResult(
   scope: TrustedExecutionScope,
   jobId: string
@@ -293,39 +340,13 @@ export async function readAcceptanceResult(
     )
   ]);
 
-  const correlationId = job.correlationId ?? "";
-  const runtimeRow = runtime.rows[0];
-  const providerRow = provider.rows[0];
-  const evidenceRow = evidence.rows[0];
-  const outcomeRow = outcome.rows[0];
-  const lineageMatches = Boolean(
-    correlationId
-    && runtimeRow?.envelope.correlationId === correlationId
-    && providerRow?.payload.correlationId === correlationId
-    && evidenceRow?.payload.correlationId === correlationId
-    && outcomeRow?.payload.correlationId === correlationId
-  );
-  const authoritativeCompletion = Boolean(
-    lineageMatches
-    && runtimeRow?.runtime_state === "released"
-    && providerRow?.state === "completed"
-    && evidenceRow?.payload.result === "pass"
-    && outcomeRow?.kind === "succeeded"
-  );
-
-  return Object.freeze({
-    correlationId,
-    decisionId: `browser-decision:${correlationId}`,
-    taskId: job.taskId,
+  return assembleAcceptanceResult({
+    job,
     jobId,
-    controlPlaneJobState: job.state,
-    runtimeState: runtimeRow?.runtime_state ?? null,
-    providerState: providerRow?.state ?? null,
-    providerOperationId: providerRow?.provider_operation_id ?? null,
-    verificationEvidenceId: evidenceRow?.evidence_id ?? null,
-    verificationResult: evidenceRow?.payload.result ?? null,
-    durableOutcome: outcomeRow?.kind ?? null,
-    authoritativeCompletion
+    runtimeRow: runtime.rows[0],
+    providerRow: provider.rows[0],
+    evidenceRow: evidence.rows[0],
+    outcomeRow: outcome.rows[0]
   });
   });
 }
