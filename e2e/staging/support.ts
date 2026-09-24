@@ -16,7 +16,6 @@ import {
   type TaskStores
 } from "../../lib/domain/services/task-service";
 import {
-  createAuthorizationConsumptionRecord,
   type AuthorizationGrant
 } from "../../lib/authorization/grants";
 import {
