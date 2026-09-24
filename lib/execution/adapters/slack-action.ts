@@ -7,20 +7,20 @@ import {
   createBusinessActionStatus,
   type AuthorizedBusinessActionRequest,
   type BusinessActionAdapter,
+  type BusinessActionExecutionContext,
   type BusinessActionStatus
 } from "@/lib/execution/adapters/business-action";
 import {
   assertAdapterRequest,
-  assertCredentialReference,
   classifyHttpFailure,
   providerRequestHeaders,
   readBoundedJson,
-  resolveCredentialReference,
+  requireBrokeredCredential,
   ORDINARY_INTEGRATION_RETRY_TAXONOMY,
   type BusinessActionAdapterDeclaration
 } from "@/lib/execution/adapters/ordinary-integration-framework";
 
-export const SLACK_BUSINESS_ACTION_ADAPTER_VERSION = "1.0.0";
+export const SLACK_BUSINESS_ACTION_ADAPTER_VERSION = "1.1.0";
 
 const environmentSchema = z.enum(["development", "staging", "production"]);
 const slackSuccessSchema = z.object({
@@ -43,8 +43,8 @@ export interface SlackProviderConfiguration {
   id: string;
   companyId: string;
   environment: z.infer<typeof environmentSchema>;
-  credentialRef: string;
-  verificationCredentialRef?: string;
+  credentialProviderId: string;
+  verificationScopes?: readonly string[];
   baseUrl?: string;
   maxResponseBytes?: number;
   verificationMode?: "provider-acceptance-only" | "provider-object-read";
@@ -52,7 +52,6 @@ export interface SlackProviderConfiguration {
 
 export interface SlackBusinessActionAdapterOptions {
   fetchImpl?: typeof fetch;
-  env?: Readonly<Record<string, string | undefined>>;
   now?: () => Date;
 }
 
@@ -62,12 +61,8 @@ function validateConfiguration(configuration: SlackProviderConfiguration) {
   if (!/^[A-Za-z0-9._-]+$/.test(configuration.id)) {
     throw new ControlPlaneError("VALIDATION_FAILED", "Slack provider configuration id is invalid");
   }
-  assertCredentialReference(configuration.credentialRef, "Slack credential reference");
-  if (configuration.verificationCredentialRef) {
-    assertCredentialReference(
-      configuration.verificationCredentialRef,
-      "Slack verification credential reference"
-    );
+  if (!/^[A-Za-z0-9._:@+-]{1,200}$/.test(configuration.credentialProviderId)) {
+    throw new ControlPlaneError("VALIDATION_FAILED", "Slack credentialProviderId is invalid");
   }
   const baseUrl = new URL(configuration.baseUrl ?? "https://slack.com/api/");
   if (baseUrl.protocol !== "https:" || baseUrl.username || baseUrl.password || baseUrl.hash) {
@@ -90,7 +85,8 @@ function validateConfiguration(configuration: SlackProviderConfiguration) {
     ...configuration,
     baseUrl: baseUrl.toString().replace(/\/?$/, "/"),
     maxResponseBytes,
-    verificationMode: configuration.verificationMode ?? "provider-object-read"
+    verificationMode: configuration.verificationMode ?? "provider-object-read",
+    verificationScopes: Object.freeze([...(configuration.verificationScopes ?? ["channels:history"])])
   });
 }
 
@@ -134,7 +130,7 @@ export class SlackBusinessActionAdapter implements BusinessActionAdapter {
   readonly declaration: BusinessActionAdapterDeclaration = Object.freeze({
     capability: "slack.message.send",
     provider: "slack",
-    credentialMode: "credential-reference",
+    credentialMode: "brokered-lease",
     minimumScopes: Object.freeze(["chat:write"]),
     verificationScopes: Object.freeze(["channels:history or groups:history"]),
     timeoutMs: Object.freeze({ min: 100, max: 120_000 }),
@@ -152,7 +148,6 @@ export class SlackBusinessActionAdapter implements BusinessActionAdapter {
 
   private readonly configurations: ReadonlyMap<string, ValidatedSlackConfiguration>;
   private readonly fetchImpl: typeof fetch;
-  private readonly env: Readonly<Record<string, string | undefined>>;
   private readonly now: () => Date;
 
   constructor(
@@ -168,7 +163,6 @@ export class SlackBusinessActionAdapter implements BusinessActionAdapter {
     }
     this.configurations = new Map(entries);
     this.fetchImpl = options.fetchImpl ?? fetch;
-    this.env = options.env ?? process.env;
     this.now = options.now ?? (() => new Date());
   }
 
@@ -186,7 +180,34 @@ export class SlackBusinessActionAdapter implements BusinessActionAdapter {
     return matches[0];
   }
 
-  async execute(request: AuthorizedBusinessActionRequest) {
+  private requirementFor(configuration: ValidatedSlackConfiguration) {
+    return {
+      providerId: configuration.credentialProviderId,
+      requiredScopes: configuration.verificationMode === "provider-object-read"
+        ? ["chat:write", ...configuration.verificationScopes]
+        : ["chat:write"]
+    };
+  }
+
+  credentialRequirement(request: AuthorizedBusinessActionRequest) {
+    return this.requirementFor(this.configurationFor(request));
+  }
+
+  private credential(
+    configuration: ValidatedSlackConfiguration,
+    context: BusinessActionExecutionContext | undefined
+  ) {
+    return requireBrokeredCredential(
+      context,
+      this.requirementFor(configuration),
+      "slack.message.send"
+    );
+  }
+
+  async execute(
+    request: AuthorizedBusinessActionRequest,
+    context?: BusinessActionExecutionContext
+  ) {
     const configuration = this.configurationFor(request);
     assertAdapterRequest(request, this.declaration, configuration);
     const input = validateCapabilityInput<{
@@ -199,11 +220,7 @@ export class SlackBusinessActionAdapter implements BusinessActionAdapter {
       throw new ControlPlaneError("FORBIDDEN", "Slack company does not match authoritative Job scope");
     }
 
-    const credential = resolveCredentialReference(
-      configuration.credentialRef,
-      this.env,
-      "Slack send credential"
-    );
+    const credential = this.credential(configuration, context);
     let response: Response;
     try {
       response = await this.fetchImpl(new URL("chat.postMessage", configuration.baseUrl), {
@@ -317,10 +334,13 @@ export class SlackBusinessActionAdapter implements BusinessActionAdapter {
     });
   }
 
-  async status(input: {
-    requestId: string;
-    providerOperationId: string;
-  }): Promise<BusinessActionStatus> {
+  async status(
+    input: {
+      requestId: string;
+      providerOperationId: string;
+    },
+    context?: BusinessActionExecutionContext
+  ): Promise<BusinessActionStatus> {
     const { configuration, channelId, messageTs } = parseProviderOperationId(
       this.configurations,
       input.providerOperationId
@@ -328,11 +348,7 @@ export class SlackBusinessActionAdapter implements BusinessActionAdapter {
     if (configuration.verificationMode !== "provider-object-read") {
       throw new ControlPlaneError("UNAVAILABLE", "Slack object verification is not configured");
     }
-    const credential = resolveCredentialReference(
-      configuration.verificationCredentialRef ?? configuration.credentialRef,
-      this.env,
-      "Slack verification credential"
-    );
+    const credential = this.credential(configuration, context);
     const url = new URL("conversations.history", configuration.baseUrl);
     url.searchParams.set("channel", channelId);
     url.searchParams.set("latest", messageTs);
@@ -392,11 +408,14 @@ export class SlackBusinessActionAdapter implements BusinessActionAdapter {
     });
   }
 
-  async cancel(input: {
-    requestId: string;
-    providerOperationId: string;
-    reason: string;
-  }): Promise<BusinessActionStatus> {
+  async cancel(
+    input: {
+      requestId: string;
+      providerOperationId: string;
+      reason: string;
+    },
+    context?: BusinessActionExecutionContext
+  ): Promise<BusinessActionStatus> {
     const { configuration, channelId, messageTs } = parseProviderOperationId(
       this.configurations,
       input.providerOperationId
@@ -404,11 +423,7 @@ export class SlackBusinessActionAdapter implements BusinessActionAdapter {
     if (!input.reason.trim()) {
       throw new ControlPlaneError("VALIDATION_FAILED", "Slack cancellation reason is required");
     }
-    const credential = resolveCredentialReference(
-      configuration.credentialRef,
-      this.env,
-      "Slack cancellation credential"
-    );
+    const credential = this.credential(configuration, context);
     let state: BusinessActionStatus["state"] = "failed";
     try {
       const response = await this.fetchImpl(new URL("chat.delete", configuration.baseUrl), {
@@ -457,8 +472,8 @@ export function readSlackProviderConfigurationsFromEnv(
     id: z.string().min(1),
     companyId: z.string().min(1),
     environment: environmentSchema,
-    credentialRef: z.string().min(1),
-    verificationCredentialRef: z.string().optional(),
+    credentialProviderId: z.string().min(1),
+    verificationScopes: z.array(z.string().min(1)).optional(),
     baseUrl: z.string().url().optional(),
     maxResponseBytes: z.number().int().optional(),
     verificationMode: z.enum(["provider-acceptance-only", "provider-object-read"]).optional()
