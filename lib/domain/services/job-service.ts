@@ -141,6 +141,7 @@ export class JobService {
       }
       const record: JobRecord = Object.freeze({
         id: input.id,
+        correlationId: command.correlationId,
         portfolioId: command.scope.portfolioId,
         companyId: command.scope.companyId,
         state: "created",
