@@ -85,7 +85,7 @@ export function postgresDatabase() {
   return new PostgresDatabase({
     connectionString: databaseUrl(),
     maxConnections: 8,
-    ssl: process.env.GETDONE_DB_SSL === "false" ? false : { rejectUnauthorized: true }
+    ssl: process.env.GETDONE_DB_SSL !== "false"
   });
 }
 
