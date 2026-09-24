@@ -115,6 +115,10 @@ export class Telemetry {
     private readonly now: () => Date = () => new Date()
   ) {}
 
+  private async emit(operation: () => void | Promise<void>) {
+    try { await operation(); } catch {}
+  }
+
   currentContext() {
     return context.getStore();
   }
@@ -134,7 +138,7 @@ export class Telemetry {
       try {
         const result = await operation();
         const ended = this.now();
-        await this.sink.span({
+        await this.emit(() => this.sink.span({
           traceId,
           spanId,
           parentSpanId: parent?.spanId,
@@ -144,11 +148,11 @@ export class Telemetry {
           durationMs: Math.max(0, ended.getTime() - started.getTime()),
           status: "ok",
           attributes: baseAttributes
-        });
+        }));
         return result;
       } catch (error) {
         const ended = this.now();
-        await this.sink.span({
+        await this.emit(() => this.sink.span({
           traceId,
           spanId,
           parentSpanId: parent?.spanId,
@@ -159,7 +163,7 @@ export class Telemetry {
           status: "error",
           errorType: errorType(error),
           attributes: baseAttributes
-        });
+        }));
         throw error;
       }
     });
@@ -172,7 +176,7 @@ export class Telemetry {
     message?: string
   ) {
     const active = context.getStore();
-    await this.sink.log({
+    await this.emit(() => this.sink.log({
       timestamp: this.now().toISOString(),
       severity,
       event,
@@ -180,7 +184,7 @@ export class Telemetry {
       traceId: active?.traceId,
       spanId: active?.spanId,
       attributes: clean(attributes)
-    });
+    }));
   }
 
   async counter(name: string, value = 1, attributes: Record<string, unknown> = {}) {
@@ -212,14 +216,14 @@ export class Telemetry {
     attributes: Record<string, unknown>,
     unit?: string
   ) {
-    await this.sink.metric({
+    await this.emit(() => this.sink.metric({
       name,
       kind,
       value,
       unit,
       timestamp: this.now().toISOString(),
       attributes: clean(attributes)
-    });
+    }));
   }
 }
 
