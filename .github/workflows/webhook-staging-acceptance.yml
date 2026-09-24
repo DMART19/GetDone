@@ -1,0 +1,138 @@
+name: Webhook Staging Acceptance
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "lib/execution/adapters/configured-webhook-action.ts"
+      - "lib/execution/webhook-live-staging.acceptance.test.ts"
+      - "lib/credentials/runtime-broker.ts"
+      - "lib/persistence/postgres/credential-broker-store.ts"
+      - "scripts/webhook-staging-receiver.mjs"
+      - ".github/workflows/webhook-staging-acceptance.yml"
+      - "package.json"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: webhook-staging-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  NPM_CONFIG_IGNORE_SCRIPTS: "true"
+  GETDONE_WEBHOOK_STAGING_ACCEPTANCE: "true"
+
+jobs:
+  live-webhook:
+    name: live-webhook
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Generate ephemeral webhook broker material
+        shell: bash
+        run: |
+          echo "GETDONE_WEBHOOK_STAGING_SIGNING_SECRET=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+          echo "GETDONE_WEBHOOK_STAGING_CONTROL_TOKEN=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+
+      - name: Start controlled signed webhook receiver
+        shell: bash
+        run: |
+          GETDONE_WEBHOOK_STAGING_PORT=8791           GETDONE_WEBHOOK_STAGING_SIGNING_SECRET="$GETDONE_WEBHOOK_STAGING_SIGNING_SECRET"           GETDONE_WEBHOOK_STAGING_CONTROL_TOKEN="$GETDONE_WEBHOOK_STAGING_CONTROL_TOKEN"           node scripts/webhook-staging-receiver.mjs > /tmp/getdone-webhook-staging.log 2>&1 &
+          echo $! > /tmp/getdone-webhook-staging.pid
+          for i in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:8791/health >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/getdone-webhook-staging.log
+          exit 1
+
+      - name: Install Cloudflare tunnel client
+        shell: bash
+        run: |
+          curl --fail --location --silent --show-error             https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64             --output /tmp/cloudflared
+          chmod +x /tmp/cloudflared
+          /tmp/cloudflared --version
+
+      - name: Expose webhook receiver through real HTTPS
+        shell: bash
+        run: |
+          /tmp/cloudflared tunnel --no-autoupdate --protocol http2 --url http://127.0.0.1:8791             > /tmp/cloudflared-webhook.log 2>&1 &
+          echo $! > /tmp/cloudflared-webhook.pid
+          ORIGIN=""
+          for i in $(seq 1 120); do
+            ORIGIN=$(grep -Eo 'https://[-a-zA-Z0-9]+\.trycloudflare\.com' /tmp/cloudflared-webhook.log | head -n 1 || true)
+            if [ -n "$ORIGIN" ] && curl --fail --silent --show-error --connect-timeout 5 --max-time 10 "$ORIGIN/health" >/dev/null; then
+              echo "GETDONE_WEBHOOK_STAGING_ORIGIN=$ORIGIN" >> "$GITHUB_ENV"
+              echo "Controlled webhook HTTPS staging origin established."
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/cloudflared-webhook.log
+          exit 1
+
+      - name: Migrate webhook staging PostgreSQL
+        run: npm run db:migrate
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+          GETDONE_DB_SSL: "false"
+
+      - name: Run governed live webhook staging acceptance
+        run: npm run webhook:accept-staging
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+          GETDONE_DB_SSL: "false"
+          GETDONE_WEBHOOK_STAGING_ACCEPTANCE: "true"
+          GETDONE_WEBHOOK_STAGING_ORIGIN: ${{ env.GETDONE_WEBHOOK_STAGING_ORIGIN }}
+          GETDONE_WEBHOOK_STAGING_SIGNING_SECRET: ${{ env.GETDONE_WEBHOOK_STAGING_SIGNING_SECRET }}
+          GETDONE_WEBHOOK_STAGING_CONTROL_TOKEN: ${{ env.GETDONE_WEBHOOK_STAGING_CONTROL_TOKEN }}
+
+      - name: Upload webhook staging evidence
+        uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: webhook-staging-acceptance-${{ github.run_number }}
+          path: |
+            test-results/webhook-staging-acceptance.json
+            /tmp/getdone-webhook-staging.log
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Stop staging processes
+        if: always()
+        shell: bash
+        run: |
+          if [ -f /tmp/cloudflared-webhook.pid ]; then kill "$(cat /tmp/cloudflared-webhook.pid)" 2>/dev/null || true; fi
+          if [ -f /tmp/getdone-webhook-staging.pid ]; then kill "$(cat /tmp/getdone-webhook-staging.pid)" 2>/dev/null || true; fi
