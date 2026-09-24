@@ -78,7 +78,7 @@ async function principalFor(request: Request) {
   return principal;
 }
 
-function command(
+export function acceptanceCommand(
   principal: ControlApiPrincipal,
   correlationId: string,
   suffix: string,
@@ -159,6 +159,57 @@ async function intentForCorrelation(
   return result.rows[0]?.payload ?? null;
 }
 
+export function buildAcceptanceDecision(
+  principal: ControlApiPrincipal,
+  correlationId: string,
+  requiresStepUp: boolean,
+  updatedAt: string
+): DecisionPresentation {
+  return Object.freeze({
+    id: `browser-decision:${correlationId}`,
+    correlationId,
+    portfolioId: principal.scope.portfolioId,
+    companyId: principal.scope.companyId,
+    status: "pending",
+    version: 1,
+    requiresStepUp,
+    updatedAt,
+    title: requiresStepUp
+      ? "Approve secure browser acceptance"
+      : "Approve browser acceptance execution",
+    subtitle: requiresStepUp
+      ? "Staging · passkey step-up required"
+      : "Staging · safe governed integration",
+    priority: requiresStepUp ? "high" : "normal",
+    category: "growth",
+    rationale: "Exercise the authoritative staging control plane with a harmless provider object.",
+    impact: Object.freeze([
+      "Creates one bounded staging Task and Job.",
+      "Executes only the staging.browser.safe operation.",
+      "Persists provider verification evidence and durable completion."
+    ])
+  });
+}
+
+export function assertApprovedAcceptanceDecision(
+  decision: AuthoritativeDecision | null,
+  principal: ControlApiPrincipal
+): AuthoritativeDecision & { correlationId: string } {
+  if (
+    !decision
+    || decision.portfolioId !== principal.scope.portfolioId
+    || decision.companyId !== principal.scope.companyId
+    || decision.status !== "approved"
+    || !decision.correlationId
+  ) {
+    throw new ControlPlaneError(
+      "FORBIDDEN",
+      "An approved authoritative Decision with correlation lineage is required"
+    );
+  }
+  return decision as AuthoritativeDecision & { correlationId: string };
+}
+
 export async function createAcceptanceDecision(
   request: Request,
   correlationId: string,
@@ -183,30 +234,12 @@ export async function createAcceptanceDecision(
   if (existing) return existing;
 
   const now = new Date().toISOString();
-  const decision: DecisionPresentation = Object.freeze({
-    id,
+  const decision = buildAcceptanceDecision(
+    principal,
     correlationId,
-    portfolioId: principal.scope.portfolioId,
-    companyId: principal.scope.companyId,
-    status: "pending",
-    version: 1,
     requiresStepUp,
-    updatedAt: now,
-    title: requiresStepUp
-      ? "Approve secure browser acceptance"
-      : "Approve browser acceptance execution",
-    subtitle: requiresStepUp
-      ? "Staging · passkey step-up required"
-      : "Staging · safe governed integration",
-    priority: requiresStepUp ? "high" : "normal",
-    category: "growth",
-    rationale: "Exercise the authoritative staging control plane with a harmless provider object.",
-    impact: Object.freeze([
-      "Creates one bounded staging Task and Job.",
-      "Executes only the staging.browser.safe operation.",
-      "Persists provider verification evidence and durable completion."
-    ])
-  });
+    now
+  );
 
   await decisions.create(decision);
   await new PostgresAuditLedger(db).append(createAuditEvent({
@@ -360,19 +393,10 @@ export async function executeAcceptanceDecision(
   const db = getPostgresRuntimeFromEnv().database;
   return runWithPostgresTenantScope(principal.scope, async () => {
   const decisions = new PostgresEntityStore<AuthoritativeDecision>(db, "decision");
-  const decision = await decisions.get(decisionId);
-  if (
-    !decision
-    || decision.portfolioId !== principal.scope.portfolioId
-    || decision.companyId !== principal.scope.companyId
-    || decision.status !== "approved"
-    || !decision.correlationId
-  ) {
-    throw new ControlPlaneError(
-      "FORBIDDEN",
-      "An approved authoritative Decision with correlation lineage is required"
-    );
-  }
+  const decision = assertApprovedAcceptanceDecision(
+    await decisions.get(decisionId),
+    principal
+  );
   const correlationId = decision.correlationId;
   const taskId = `browser-task:${correlationId}`;
   const jobId = `browser-job:${correlationId}`;
@@ -400,15 +424,15 @@ export async function executeAcceptanceDecision(
       reason: "Production browser staging acceptance",
       capabilityRequirements: ["http.request"],
       maxRetries: 1
-    }, command(principal, correlationId, "task-create", { type: "task.create" }));
+    }, acceptanceCommand(principal, correlationId, "task-create", { type: "task.create" }));
     const authorizedTask = await taskService.authorize(
       createdTask.id,
-      command(principal, correlationId, "task-authorize", { type: "task.authorize" }),
+      acceptanceCommand(principal, correlationId, "task-authorize", { type: "task.authorize" }),
       grant
     );
     const queuedTask = await taskService.queue(
       authorizedTask.id,
-      command(principal, correlationId, "task-queue", { type: "task.queue" })
+      acceptanceCommand(principal, correlationId, "task-queue", { type: "task.queue" })
     );
     if (!queuedTask.authorizationConsumption) {
       throw new ControlPlaneError(
@@ -429,10 +453,10 @@ export async function executeAcceptanceDecision(
       id: jobId,
       taskId,
       maxAttempts: 2
-    }, command(principal, correlationId, "job-create", { type: "job.create" }));
+    }, acceptanceCommand(principal, correlationId, "job-create", { type: "job.create" }));
     const queuedJob = await jobService.queue(
       createdJob.id,
-      command(principal, correlationId, "job-queue", { type: "job.queue" }),
+      acceptanceCommand(principal, correlationId, "job-queue", { type: "job.queue" }),
       grant,
       queuedTask.authorizationConsumption
     );
