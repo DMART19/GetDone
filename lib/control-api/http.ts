@@ -98,17 +98,23 @@ async function parseJson<T>(request: Request, schema: z.ZodType<T>, label: strin
 }
 
 async function execute<T>(
-  operation: (adapter: ReturnType<typeof getControlApiAdapter>) => Promise<T>,
+  operation: (
+    adapter: ReturnType<typeof getControlApiAdapter>,
+    correlationId: string
+  ) => Promise<T>,
   options: { status?: number } = {}
 ) {
   const correlationId = createCorrelationId();
   const environment = readServerRuntimeEnvironment();
   try {
     const adapter = getControlApiAdapter();
-    const data = await operation(adapter);
+    const data = await operation(adapter, correlationId);
     return Response.json(apiSuccess(data, { correlationId, environment }), {
       status: options.status ?? 200,
-      headers: { "cache-control": "no-store" }
+      headers: {
+        "cache-control": "no-store",
+        "x-correlation-id": correlationId
+      }
     });
   } catch (error) {
     const normalized = toControlPlaneError(error, correlationId);
@@ -116,7 +122,10 @@ async function execute<T>(
       apiFailure(normalized.code, normalized.message, { correlationId, environment }),
       {
         status: normalized.status,
-        headers: { "cache-control": "no-store" }
+        headers: {
+          "cache-control": "no-store",
+          "x-correlation-id": correlationId
+        }
       }
     );
   }
@@ -155,10 +164,15 @@ export function handleVerifyStepUp(request: Request) {
 }
 
 export function handleOwnerIntent(request: Request) {
-  return execute(async (adapter) => {
+  return execute(async (adapter, correlationId) => {
     const actor = await adapter.authenticate(request);
     const input = await parseJson(request, ownerIntentSchema, "owner intent");
-    return adapter.submitOwnerIntent(actor, input, requireIdempotencyKey(request));
+    return adapter.submitOwnerIntent(
+      actor,
+      input,
+      requireIdempotencyKey(request),
+      correlationId
+    );
   }, { status: 202 });
 }
 
@@ -175,7 +189,7 @@ export function handleGetDecision(request: Request, decisionId: string) {
 }
 
 export function handleMutateDecision(request: Request, decisionId: string) {
-  return execute(async (adapter) => {
+  return execute(async (adapter, correlationId) => {
     const actor = await adapter.authenticate(request);
     const body = await parseJson(request, decisionMutationSchema, "decision mutation");
     return adapter.mutateDecision(actor, {
@@ -183,7 +197,7 @@ export function handleMutateDecision(request: Request, decisionId: string) {
       action: body.action,
       note: body.note,
       idempotencyKey: requireIdempotencyKey(request)
-    });
+    }, correlationId);
   });
 }
 
