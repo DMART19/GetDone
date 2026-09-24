@@ -168,6 +168,7 @@ export async function createAcceptanceDecision(
   const principal = await principalFor(request);
   const runtime = getPostgresRuntimeFromEnv();
   const db = runtime.database;
+  return runWithPostgresTenantScope(principal.scope, async () => {
   const intent = await intentForCorrelation(db, principal, correlationId);
   if (!intent) {
     throw new ControlPlaneError(
@@ -228,6 +229,7 @@ export async function createAcceptanceDecision(
     }
   }));
   return decision;
+  });
 }
 
 export interface StagingBrowserAcceptanceResult {
@@ -251,6 +253,7 @@ export async function readAcceptanceResult(
 ): Promise<StagingBrowserAcceptanceResult> {
   envGuard();
   const db = getPostgresRuntimeFromEnv().database;
+  return runWithPostgresTenantScope(scope, async () => {
   const jobResult = await db.query<{ payload: JobRecord }>(
     `SELECT payload FROM control_plane_entities
      WHERE entity_type='job' AND id=$1
@@ -324,6 +327,7 @@ export async function readAcceptanceResult(
     durableOutcome: outcomeRow?.kind ?? null,
     authoritativeCompletion
   });
+  });
 }
 
 export async function executeAcceptanceDecision(
@@ -333,6 +337,7 @@ export async function executeAcceptanceDecision(
   assertStagingBrowserAcceptanceRequest(request);
   const principal = await principalFor(request);
   const db = getPostgresRuntimeFromEnv().database;
+  return runWithPostgresTenantScope(principal.scope, async () => {
   const decisions = new PostgresEntityStore<AuthoritativeDecision>(db, "decision");
   const decision = await decisions.get(decisionId);
   if (
@@ -357,7 +362,6 @@ export async function executeAcceptanceDecision(
     if (prior.authoritativeCompletion) return prior;
   }
 
-  return runWithPostgresTenantScope(principal.scope, async () => {
     const grant = acceptanceGrant(principal, decision, correlationId);
     const grantStore = new PostgresAuthorizationGrantStore(db);
     await grantStore.insert(grant);
