@@ -31,6 +31,7 @@ import { PostgresJobVerificationEvidenceStore } from "@/lib/persistence/postgres
 import { getPostgresRuntimeFromEnv } from "@/lib/persistence/postgres/runtime.server";
 import { runWithPostgresTenantScope } from "@/lib/persistence/postgres/tenant-context.server";
 import { getTelemetry, OTEL_SEMANTIC } from "@/lib/observability/telemetry";
+import { stagingBrowserSafeBinding } from "@/lib/staging/browser-safe-action.server";
 
 export class MvpJobRuntime {
   constructor(
@@ -186,8 +187,33 @@ export function getMvpJobRuntimeFromEnv(
         readCredentialDeliveryProviderFromEnv(env)
       )
     : undefined;
+  const ordinaryConfigured = Boolean(
+    env.GETDONE_HTTP_ACTIONS_JSON?.trim()
+    || env.GETDONE_WEBHOOK_ACTIONS_JSON?.trim()
+    || env.GETDONE_GMAIL_ACTIONS_JSON?.trim()
+    || env.GETDONE_SLACK_ACTIONS_JSON?.trim()
+  );
+  const bindings = ordinaryConfigured
+    ? [...createOrdinaryBusinessActionBindingsFromEnv(env)]
+    : [];
+  if (env.GETDONE_STAGING_BROWSER_E2E === "true") {
+    if (env.GETDONE_RUNTIME_ENV !== "staging") {
+      throw new ControlPlaneError(
+        "FORBIDDEN",
+        "Staging browser acceptance adapter is forbidden outside staging"
+      );
+    }
+    bindings.push(stagingBrowserSafeBinding(database, env));
+  }
+  if (bindings.length === 0) {
+    throw new ControlPlaneError(
+      "UNAVAILABLE",
+      "At least one ordinary business integration must be configured"
+    );
+  }
+
   const business = new BusinessActionExecutionOrchestrator(
-    new StaticBusinessActionAdapterRegistry(createOrdinaryBusinessActionBindingsFromEnv(env)),
+    new StaticBusinessActionAdapterRegistry(bindings),
     new PostgresBusinessActionExecutionStore(database),
     {
       providerConcurrencyGate: new PostgresProviderConcurrencyGate(
