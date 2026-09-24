@@ -131,6 +131,7 @@ async function persistOutcomeAndEvent(
   db: PoolClient,
   input: {
     jobId: string;
+    correlationId?: string;
     kind: DurableJobExecutionOutcomeRecord["kind"];
     runtimeState: string;
     attempt: number;
@@ -142,6 +143,7 @@ async function persistOutcomeAndEvent(
 ) {
   const outcome = createDurableJobExecutionOutcome({
     id: crypto.randomUUID(),
+    correlationId: input.correlationId,
     jobId: input.jobId,
     kind: input.kind,
     runtimeState: input.runtimeState,
@@ -649,6 +651,7 @@ export class PostgresDurableJobStore implements DurableJobWorkStore {
       await persistTransaction(db, receipt);
       await persistOutcomeAndEvent(db, {
         jobId: row.job_id,
+        correlationId: row.envelope.correlationId,
         kind: "succeeded",
         runtimeState: "released",
         attempt: row.attempt,
@@ -707,6 +710,7 @@ export class PostgresDurableJobStore implements DurableJobWorkStore {
       await persistTransaction(db, receipt);
       await persistOutcomeAndEvent(db, {
         jobId: row.job_id,
+        correlationId: row.envelope.correlationId,
         kind: "retry-scheduled",
         runtimeState: "retry-wait",
         attempt: row.attempt,
@@ -765,6 +769,7 @@ export class PostgresDurableJobStore implements DurableJobWorkStore {
       await persistTransaction(db, receipt);
       await persistOutcomeAndEvent(db, {
         jobId: row.job_id,
+        correlationId: row.envelope.correlationId,
         kind: "dead-lettered",
         runtimeState: "dead-lettered",
         attempt: row.attempt,
@@ -830,6 +835,7 @@ export class PostgresDurableJobStore implements DurableJobWorkStore {
       await persistTransaction(db, receipt);
       await persistOutcomeAndEvent(db, {
         jobId: row.job_id,
+        correlationId: row.envelope.correlationId,
         kind: "cancelled",
         runtimeState: "cancelled",
         attempt: row.attempt,
@@ -929,6 +935,7 @@ export class PostgresDurableJobStore implements DurableJobWorkStore {
         await persistTransaction(db, receipt);
         await persistOutcomeAndEvent(db, {
           jobId: row.job_id,
+          correlationId: row.envelope.correlationId,
           kind: outcome === "retry-scheduled"
             ? "retry-scheduled"
             : outcome === "dead-lettered"
