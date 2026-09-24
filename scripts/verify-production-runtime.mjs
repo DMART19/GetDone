@@ -456,6 +456,19 @@ function validateAiRouting() {
   }
 }
 
+function validateObservability() {
+  if (env.GETDONE_OBSERVABILITY_ENABLED !== "true") {
+    fail("OBSERVABILITY_CONFIG", "GETDONE_OBSERVABILITY_ENABLED must be true in production");
+  }
+  const endpoint = required("GETDONE_OTEL_EXPORTER_OTLP_ENDPOINT");
+  if (endpoint) {
+    const url = assertHttpsUrl(endpoint, "GETDONE_OTEL_EXPORTER_OTLP_ENDPOINT");
+    if (url && url.username) {
+      fail("OBSERVABILITY_CONFIG", "OTLP endpoint must not embed credentials");
+    }
+  }
+}
+
 function validateIntegrations() {
   const configs = [
     ["GETDONE_HTTP_ACTIONS_JSON", "http"],
@@ -500,6 +513,7 @@ validateWebAuthn();
 validateWorkerConfiguration();
 validateAiRouting();
 validateIntegrations();
+validateObservability();
 
 if (failures.length > 0) {
   printFailureAndExit();
@@ -549,5 +563,6 @@ console.log(JSON.stringify({
   workerAuthentication: "configured",
   aiRouting: "configured",
   integrations: "configured",
+  observability: "configured",
   developmentSettings: "prohibited"
 }, null, 2));
