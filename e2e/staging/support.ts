@@ -714,6 +714,21 @@ export async function expireLatestStepUpProof() {
   }
 }
 
+export async function setCredentialSignCount(value: number) {
+  const db = pool();
+  try {
+    await db.query(
+      "UPDATE auth_webauthn_credentials SET sign_count=$2 WHERE credential_id=$1",
+      [(await db.query<{ credential_id: string }>(
+        "SELECT credential_id FROM auth_webauthn_credentials WHERE user_id=$1 LIMIT 1",
+        [STAGING_USER_ID]
+      )).rows[0]?.credential_id, value]
+    );
+  } finally {
+    await db.end();
+  }
+}
+
 export async function decisionStatus() {
   const db = pool();
   try {
