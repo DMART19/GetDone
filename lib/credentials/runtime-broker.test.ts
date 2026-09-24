@@ -68,7 +68,7 @@ function lease(): CredentialLease {
     secret,
     binding,
     deliveryRef: "delivery://provider/a",
-    issuedAt: new Date(now.getTime() + 1).toISOString(),
+    issuedAt: now.toISOString(),
     ttlSeconds: 300
   });
 }
