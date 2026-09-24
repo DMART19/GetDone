@@ -66,6 +66,7 @@ export interface CredentialLease {
   grantedScopes: readonly string[];
   bindingId: string;
   secretReferenceId: string;
+  issuedCredentialVersion: number;
   deliveryRef: string;
   issuedAt: string;
   expiresAt: string;
@@ -83,6 +84,7 @@ export interface CredentialUsageAudit {
   resourceId: string;
   capability: string;
   providerId: string;
+  credentialVersion: number;
   usedAt: string;
   action: "issued" | "used" | "revoked" | "released";
   auditHash: string;
@@ -251,6 +253,7 @@ export function issueCredentialLease(input: {
     grantedScopes: Object.freeze([...request.requestedScopes]),
     bindingId: binding.id,
     secretReferenceId: secret.id,
+    issuedCredentialVersion: secret.rotationVersion,
     deliveryRef: input.deliveryRef,
     issuedAt: new Date(issuedAt).toISOString(),
     expiresAt: new Date(expiresAtMs).toISOString(),
@@ -325,6 +328,7 @@ function transitionLease(
     grantedScopes: lease.grantedScopes,
     bindingId: lease.bindingId,
     secretReferenceId: lease.secretReferenceId,
+    issuedCredentialVersion: lease.issuedCredentialVersion,
     deliveryRef: lease.deliveryRef,
     issuedAt: lease.issuedAt,
     expiresAt: lease.expiresAt,
