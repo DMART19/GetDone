@@ -95,7 +95,7 @@ export class GovernedBusinessActionCredentialBroker implements BusinessActionCre
       || expiresAt > Date.parse(lease.expiresAt)
       || delivered.providerId !== lease.providerId
       || !Number.isInteger(delivered.credentialVersion)
-      || delivered.credentialVersion < lease.issuedCredentialVersion
+      || delivered.credentialVersion < (lease.issuedCredentialVersion ?? 1)
       || !requiredScopes.every((scope) => delivered.grantedScopes.includes(scope))
     ) {
       throw new ControlPlaneError("FORBIDDEN", "Credential delivery returned invalid, expired, or over-broad material");
