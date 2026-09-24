@@ -10,8 +10,7 @@ import {
 } from "@/lib/credentials/broker";
 import {
   CREDENTIAL_ROTATION_MATRIX,
-  credentialRotationDecision,
-  type RotationProvider
+  credentialRotationDecision
 } from "@/lib/credentials/rotation-policy";
 import {
   GovernedBusinessActionCredentialBroker,
