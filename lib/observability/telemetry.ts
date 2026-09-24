@@ -379,5 +379,6 @@ export const OTEL_SEMANTIC = Object.freeze({
   companyId: "getdone.company.id",
   environment: "deployment.environment.name",
   authorizationOutcome: "getdone.authorization.outcome",
-  credentialVersion: "getdone.credential.version"
+  credentialVersion: "getdone.credential.version",
+  correlationId: "getdone.correlation.id"
 });
