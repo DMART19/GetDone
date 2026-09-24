@@ -16,6 +16,7 @@ export type BusinessActionRetryClass =
 
 export interface AuthorizedBusinessActionRequest {
   id: string;
+  correlationId?: string;
   jobId: string;
   scope: TrustedExecutionScope;
   capability: string;
