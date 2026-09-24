@@ -14,6 +14,7 @@ import { validateCapabilityOutput } from "@/lib/domain/capabilities";
 import type { ProviderConcurrencyGate } from "@/lib/execution/provider-concurrency.server";
 import type { BusinessActionCredentialBroker } from "@/lib/credentials/runtime-broker";
 import type { BusinessActionExecutionContext } from "@/lib/execution/adapters/business-action";
+import { getTelemetry, OTEL_SEMANTIC } from "@/lib/observability/telemetry";
 
 export const BUSINESS_ACTION_ORCHESTRATOR_VERSION = "1.0.0";
 
@@ -141,15 +142,47 @@ export class BusinessActionExecutionOrchestrator {
     operation: "execute" | "status" | "cancel",
     call: () => Promise<T>
   ) {
+    const telemetry = getTelemetry();
+    const invoke = () => telemetry.withSpan("provider.call", {
+      [OTEL_SEMANTIC.jobId]: request.jobId,
+      [OTEL_SEMANTIC.provider]: adapter.id,
+      [OTEL_SEMANTIC.operation]: operation,
+      [OTEL_SEMANTIC.capability]: request.capability,
+      [OTEL_SEMANTIC.companyId]: request.scope.companyId,
+      [OTEL_SEMANTIC.environment]: request.scope.environment
+    }, async () => {
+      const startedAt = Date.now();
+      try {
+        const result = await call();
+        await telemetry.histogram("getdone.provider.call.duration", Date.now() - startedAt, "ms", {
+          [OTEL_SEMANTIC.provider]: adapter.id,
+          [OTEL_SEMANTIC.operation]: operation,
+          [OTEL_SEMANTIC.capability]: request.capability
+        });
+        await telemetry.counter("getdone.provider.call.total", 1, {
+          [OTEL_SEMANTIC.provider]: adapter.id,
+          [OTEL_SEMANTIC.operation]: operation,
+          outcome: "success"
+        });
+        return result;
+      } catch (error) {
+        await telemetry.counter("getdone.provider.call.total", 1, {
+          [OTEL_SEMANTIC.provider]: adapter.id,
+          [OTEL_SEMANTIC.operation]: operation,
+          outcome: "error"
+        });
+        throw error;
+      }
+    });
     const gate = this.options.providerConcurrencyGate;
-    if (!gate) return call();
+    if (!gate) return invoke();
     return gate.withPermit({
       providerKey: adapter.id,
       requestId: request.id,
       portfolioId: request.scope.portfolioId,
       companyId: request.scope.companyId,
       operation
-    }, call);
+    }, invoke);
   }
 
   async execute(request: AuthorizedBusinessActionRequest): Promise<BusinessActionExecutionResult> {
@@ -219,6 +252,11 @@ export class BusinessActionExecutionOrchestrator {
       updatedAt: result.observedAt
     });
     await this.store.save(record, existing?.recordHash);
+    await getTelemetry().counter("getdone.provider.result.total", 1, {
+      [OTEL_SEMANTIC.provider]: adapter.id,
+      [OTEL_SEMANTIC.retryClass]: result.retryClass ?? "none",
+      outcome: result.status
+    });
 
     if (result.status !== "accepted" || !result.providerOperationId) {
       return { record, verificationEvidence: verificationFor(request, record) };
@@ -298,6 +336,17 @@ export class BusinessActionExecutionOrchestrator {
         updatedAt: status.observedAt
       });
       await this.store.save(record, previousHash);
+      if (status.state === "pending" || status.state === "running") {
+        await getTelemetry().gauge(
+          "getdone.verification.pending.age",
+          Math.max(0, Date.now() - Date.parse(initial.updatedAt)),
+          "ms",
+          {
+            [OTEL_SEMANTIC.provider]: adapter.id,
+            [OTEL_SEMANTIC.capability]: request.capability
+          }
+        );
+      }
       if (["completed", "failed", "cancelled"].includes(status.state)) {
         return { record, verificationEvidence: verificationFor(request, record) };
       }
