@@ -1,5 +1,6 @@
 import { ControlPlaneError } from "@/lib/control-plane/errors";
 import { createCredentialUsageAudit, assertCredentialLease, type CredentialLease, type CredentialUsageAudit } from "@/lib/credentials/broker";
+import { getTelemetry, OTEL_SEMANTIC } from "@/lib/observability/telemetry";
 import type {
   AuthorizedBusinessActionRequest,
   BusinessActionCredentialMaterial,
@@ -112,6 +113,13 @@ export class GovernedBusinessActionCredentialBroker implements BusinessActionCre
       usedAt: now.toISOString(),
       action: "used"
     }));
+    await getTelemetry().counter("getdone.credential.redeem.total", 1, {
+      [OTEL_SEMANTIC.provider]: lease.providerId,
+      [OTEL_SEMANTIC.capability]: lease.capability,
+      [OTEL_SEMANTIC.credentialVersion]: delivered.credentialVersion,
+      [OTEL_SEMANTIC.companyId]: lease.companyId,
+      [OTEL_SEMANTIC.environment]: lease.environment
+    });
 
     return Object.freeze({
       leaseId: lease.id,
