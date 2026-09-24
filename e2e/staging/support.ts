@@ -675,7 +675,8 @@ export async function expireLatestChallenge(kind: "sign-in" | "step-up") {
       : "auth_step_up_challenges";
     await db.query(
       `UPDATE ${table}
-       SET expires_at=now() - interval '1 second'
+       SET issued_at=now() - interval '10 minutes',
+           expires_at=now() - interval '1 second'
        WHERE challenge_id=(SELECT challenge_id FROM ${table}
          ORDER BY issued_at DESC LIMIT 1)`
     );
