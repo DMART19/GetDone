@@ -26,7 +26,7 @@ export function ChatComposer() {
     setSubmitting(true);
     setPreview("Sending to GetDone...");
     try {
-      const response = await fetch("/api/control/chat", {
+      const response = await fetch("/api/control/intents", {
         method: "POST",
         cache: "no-store",
         headers: {
