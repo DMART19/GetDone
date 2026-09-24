@@ -86,6 +86,23 @@ describe("staging browser safe provider", () => {
     expect(status.state).toBe("completed");
   });
 
+  it("reports pending when independent provider verification cannot find the object", async () => {
+    const adapter = new StagingBrowserSafeActionAdapter(
+      { query: async () => ({ rows: [], rowCount: 0 }) } as never,
+      { GETDONE_RUNTIME_ENV: "staging", GETDONE_STAGING_BROWSER_E2E: "true" },
+      () => new Date("2026-09-24T12:00:00.000Z")
+    );
+    const status = await adapter.status({
+      requestId: "request-missing",
+      providerOperationId: "staging-safe:request-missing"
+    });
+    expect(status).toMatchObject({
+      state: "pending",
+      requestId: "request-missing",
+      providerOperationId: "staging-safe:request-missing"
+    });
+  });
+
   it("rejects any operation outside the dedicated acceptance surface", async () => {
     const adapter = new StagingBrowserSafeActionAdapter(
       { query: async () => ({ rows: [], rowCount: 1 }) } as never,
