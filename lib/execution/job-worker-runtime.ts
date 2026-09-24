@@ -10,6 +10,7 @@ import type {
   DurableJobCandidate,
   DurableJobWorkStore
 } from "@/lib/persistence/postgres/job-store";
+import { getTelemetry, OTEL_SEMANTIC } from "@/lib/observability/telemetry";
 
 export type JobExecutionOutcome =
   | { kind: "succeeded" }
@@ -95,6 +96,9 @@ export class DurableJobWorker {
   ) {
     const at = this.now().toISOString();
     const candidates = await this.store.listReady({ now: at, limit: this.batchSize });
+    await getTelemetry().gauge("getdone.job.ready.count", candidates.length, "1", {
+      [OTEL_SEMANTIC.workerId]: this.config.workerId
+    });
     const results = new Array<{ jobId: string; outcome: JobExecutionOutcome } | null>(
       candidates.length
     ).fill(null);
@@ -166,7 +170,12 @@ export class DurableJobWorker {
   ) {
     let claim;
     try {
-      claim = await this.retrySerializableConflict(() => this.store.claimAtomic({
+      claim = await getTelemetry().withSpan("job.claim", {
+        [OTEL_SEMANTIC.jobId]: candidate.envelope.jobId,
+        [OTEL_SEMANTIC.workerId]: this.config.workerId,
+        [OTEL_SEMANTIC.companyId]: candidate.envelope.scope.companyId,
+        [OTEL_SEMANTIC.environment]: candidate.envelope.scope.environment
+      }, () => this.retrySerializableConflict(() => this.store.claimAtomic({
         jobId: candidate.envelope.jobId,
         workerId: this.config.workerId,
         now: this.now().toISOString(),
@@ -174,7 +183,7 @@ export class DurableJobWorker {
         expectedJobVersion: candidate.version,
         expectedJobHash: candidate.stateHash,
         idempotencyKey: `claim:${candidate.envelope.jobId}:${candidate.version}:${this.config.workerId}`
-      }));
+      })));
     } catch (error) {
       if (error instanceof ControlPlaneError && error.code === "CONFLICT") {
         return null;
@@ -206,6 +215,12 @@ export class DurableJobWorker {
         version = renewed.transaction.nextVersion;
         stateHash = renewed.transaction.nextHash;
         latestTransaction = renewed.transaction;
+        await getTelemetry().gauge(
+          "getdone.worker.heartbeat.age",
+          Math.max(0, this.now().getTime() - Date.parse(lease.heartbeatAt)),
+          "ms",
+          { [OTEL_SEMANTIC.workerId]: this.config.workerId }
+        );
       } finally {
         heartbeatBusy = false;
       }
@@ -220,13 +235,19 @@ export class DurableJobWorker {
 
     let outcome: JobExecutionOutcome;
     try {
-      outcome = await handler.execute({
+      outcome = await getTelemetry().withSpan("job.execute", {
+        [OTEL_SEMANTIC.jobId]: candidate.envelope.jobId,
+        [OTEL_SEMANTIC.workerId]: this.config.workerId,
+        [OTEL_SEMANTIC.jobAttempt]: lease.attempt,
+        [OTEL_SEMANTIC.companyId]: candidate.envelope.scope.companyId,
+        [OTEL_SEMANTIC.environment]: candidate.envelope.scope.environment
+      }, () => handler.execute({
         envelope: candidate.envelope,
         get lease() { return lease; },
         heartbeat,
         runtimeVersion: () => version,
         runtimeHash: () => stateHash
-      });
+      }));
     } catch (error) {
       outcome = {
         kind: "retry",
@@ -251,6 +272,12 @@ export class DurableJobWorker {
         outcome: cancelledOutcome
       };
     }
+
+    await getTelemetry().counter("getdone.job.execution.total", 1, {
+      outcome: outcome.kind,
+      [OTEL_SEMANTIC.jobAttempt]: lease.attempt,
+      [OTEL_SEMANTIC.workerId]: this.config.workerId
+    });
 
     if (outcome.kind === "succeeded") {
       const receipt = await this.retrySerializableConflict(() => this.store.release({
@@ -283,6 +310,9 @@ export class DurableJobWorker {
         transactionHash: latestTransaction.transactionHash
       });
       latestTransaction = await this.retrySerializableConflict(() => this.store.deadLetter(record));
+      await getTelemetry().counter("getdone.job.dead_letter.total", 1, {
+        [OTEL_SEMANTIC.workerId]: this.config.workerId
+      });
     } else if (lease.attempt >= this.maxAttempts) {
       const record = createDeadLetterRecord({
         id: crypto.randomUUID(),
@@ -294,6 +324,9 @@ export class DurableJobWorker {
         transactionHash: latestTransaction.transactionHash
       });
       latestTransaction = await this.retrySerializableConflict(() => this.store.deadLetter(record));
+      await getTelemetry().counter("getdone.job.dead_letter.total", 1, {
+        [OTEL_SEMANTIC.workerId]: this.config.workerId
+      });
       outcome = { kind: "dead-letter", reason: record.reason };
     } else {
       const delay = outcome.delayMs ?? this.retryBaseDelayMs * 2 ** Math.max(0, lease.attempt - 1);
@@ -307,6 +340,10 @@ export class DurableJobWorker {
         transactionHash: latestTransaction.transactionHash
       });
       latestTransaction = await this.retrySerializableConflict(() => this.store.scheduleRetry(record));
+      await getTelemetry().counter("getdone.job.retry.total", 1, {
+        [OTEL_SEMANTIC.workerId]: this.config.workerId,
+        [OTEL_SEMANTIC.jobAttempt]: lease.attempt
+      });
     }
 
     return { jobId: candidate.envelope.jobId, outcome };
