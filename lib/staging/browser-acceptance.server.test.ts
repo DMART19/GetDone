@@ -2,9 +2,12 @@ import { describe, expect, it } from "vitest";
 import type { ControlApiPrincipal } from "@/lib/control-api/contracts";
 import type { AuthoritativeDecision } from "@/lib/domain/decision-service";
 import {
+  acceptanceCommand,
   acceptanceGrant,
   assembleAcceptanceResult,
-  assertStagingBrowserAcceptanceRequest
+  assertApprovedAcceptanceDecision,
+  assertStagingBrowserAcceptanceRequest,
+  buildAcceptanceDecision
 } from "@/lib/staging/browser-acceptance.server";
 
 const env = {
@@ -57,6 +60,68 @@ describe("staging browser acceptance authority", () => {
       ...env,
       GETDONE_STAGING_BROWSER_E2E: "false"
     })).toThrow(/unavailable/i);
+  });
+
+  it("builds deterministic Decision and command authority from the same lineage", () => {
+    const normal = buildAcceptanceDecision(
+      principal,
+      "corr-a",
+      false,
+      "2026-09-24T12:00:00.000Z"
+    );
+    expect(normal).toMatchObject({
+      id: "browser-decision:corr-a",
+      correlationId: "corr-a",
+      status: "pending",
+      requiresStepUp: false,
+      title: "Approve browser acceptance execution",
+      priority: "normal"
+    });
+
+    const strong = buildAcceptanceDecision(
+      principal,
+      "corr-b",
+      true,
+      "2026-09-24T12:00:00.000Z"
+    );
+    expect(strong).toMatchObject({
+      id: "browser-decision:corr-b",
+      requiresStepUp: true,
+      title: "Approve secure browser acceptance",
+      priority: "high"
+    });
+
+    const value = acceptanceCommand(
+      principal,
+      "corr-a",
+      "job-create",
+      { type: "job.create" }
+    );
+    expect(value).toMatchObject({
+      commandId: "staging-browser:job-create:corr-a",
+      correlationId: "corr-a",
+      environment: "staging",
+      idempotencyKey: "staging-browser:job-create:corr-a",
+      provenance: "staging-browser-acceptance"
+    });
+  });
+
+  it("accepts only an approved in-scope Decision with correlation lineage", () => {
+    expect(assertApprovedAcceptanceDecision(decision, principal)).toBe(decision);
+    expect(() => assertApprovedAcceptanceDecision(null, principal))
+      .toThrow(/approved authoritative Decision/i);
+    expect(() => assertApprovedAcceptanceDecision(
+      { ...decision, status: "pending" },
+      principal
+    )).toThrow(/approved authoritative Decision/i);
+    expect(() => assertApprovedAcceptanceDecision(
+      { ...decision, companyId: "company-b" },
+      principal
+    )).toThrow(/approved authoritative Decision/i);
+    expect(() => assertApprovedAcceptanceDecision(
+      { ...decision, correlationId: undefined },
+      principal
+    )).toThrow(/correlation lineage/i);
   });
 
   it("creates a scoped short-lived authorization grant bound to the approved decision", () => {
