@@ -36,6 +36,7 @@ export default defineConfig({
       GETDONE_CONTROL_API_URL: baseURL,
       DATABASE_URL: process.env.DATABASE_URL ?? "",
       GETDONE_DB_SSL: process.env.GETDONE_DB_SSL ?? "false",
+      GETDONE_DB_RUNTIME_ROLE: "getdone_tenant_runtime",
       GETDONE_WEBAUTHN_RP_ID: "localhost",
       GETDONE_WEBAUTHN_ORIGINS: baseURL,
       GETDONE_AUTH_COOKIE_NAME: "getdone_session",
