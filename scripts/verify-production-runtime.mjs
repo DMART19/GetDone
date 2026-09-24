@@ -196,7 +196,9 @@ function validateProhibitedSettings() {
   const prohibited = [
     "GETDONE_NODE_IDENTITY_DEV_SECRET",
     "GETDONE_OWNER_SESSION_TOKEN",
-    "GETDONE_OWNER_SESSION_ID"
+    "GETDONE_OWNER_SESSION_ID",
+    "GETDONE_STAGING_BROWSER_E2E",
+    "GETDONE_STAGING_ACCEPTANCE_TOKEN"
   ];
   for (const name of prohibited) {
     if (env[name]?.trim()) {
