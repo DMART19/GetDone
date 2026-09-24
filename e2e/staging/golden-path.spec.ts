@@ -26,8 +26,12 @@ test.describe("authoritative staging browser golden path", () => {
     await page.getByLabel("Message GetDone").fill(
       "Run the controlled safe staging integration and show me the verified result"
     );
+    const intentResponse = page.waitForResponse((response) =>
+      response.url().includes("/api/control/chat")
+      && response.request().method() === "POST"
+    );
     await page.getByRole("button", { name: "Send message" }).click();
-    await expect(page.getByRole("status")).toContainText("Accepted by GetDone");
+    expect((await intentResponse).status()).toBe(202);
 
     const intent = await latestIntent();
     expect(intent.correlationId).toBeTruthy();
