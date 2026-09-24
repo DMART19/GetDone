@@ -46,7 +46,8 @@ export class MvpJobRuntime {
       [OTEL_SEMANTIC.jobId]: job.id,
       [OTEL_SEMANTIC.capability]: request.capability,
       [OTEL_SEMANTIC.companyId]: request.scope.companyId,
-      [OTEL_SEMANTIC.environment]: request.scope.environment
+      [OTEL_SEMANTIC.environment]: request.scope.environment,
+      [OTEL_SEMANTIC.correlationId]: request.correlationId ?? job.correlationId ?? null
     }, () => runWithPostgresTenantScope(request.scope, async () => {
       try {
         const result = await this.enqueueAuthorizedBusinessActionScoped(job, request);
@@ -104,17 +105,26 @@ export class MvpJobRuntime {
       )
     });
     validateCapabilityInput(request.capability, request.input);
+    const correlationId = authoritative.correlationId ?? request.correlationId;
+    if (!correlationId) {
+      throw new ControlPlaneError(
+        "FORBIDDEN",
+        "Governed Job execution requires persisted correlation lineage"
+      );
+    }
+    const correlatedRequest = Object.freeze({ ...request, correlationId });
     const createdAt = this.now().toISOString();
     const spec = createPersistedJobExecutionSpec({
       kind: "business-action",
       jobId: authoritative.id,
       authoritativeJobVersion: authoritative.version,
       authoritativeJobHash: sha256Hex(authoritative),
-      request
+      request: correlatedRequest
     }, createdAt);
     await this.specs.put(spec);
     return this.engine.enqueue(createJobQueueEnvelope({
       id: `queue:${authoritative.id}`,
+      correlationId,
       jobId: authoritative.id,
       taskId: authoritative.taskId,
       scope: request.scope,
@@ -144,6 +154,7 @@ export class MvpJobRuntime {
     const status = await this.engine.status(jobId);
     const terminal = status.outcomes.at(-1);
     return Object.freeze({
+      correlationId: status.runtime?.envelope.correlationId,
       status,
       notification: terminal ? planOwnerNotification({
         id: `job-outcome:${terminal.recordHash}`,
