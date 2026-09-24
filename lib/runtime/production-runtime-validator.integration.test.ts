@@ -117,6 +117,8 @@ function productionEnv(connectionString: string): NodeJS.ProcessEnv {
       version: "production-1",
       routes: { STANDARD: ["standard-primary", "standard-fallback"] }
     }),
+    GETDONE_OBSERVABILITY_ENABLED: "true",
+    GETDONE_OTEL_EXPORTER_OTLP_ENDPOINT: "https://otel.getdone.example",
     GETDONE_CREDENTIAL_DELIVERY_URL: "https://credentials.getdone.example/redeem",
     GETDONE_CREDENTIAL_BROKER_TOKEN: "broker-authentication-token-abcdefghijklmnopqrstuvwxyz",
     GETDONE_HTTP_ACTIONS_JSON: JSON.stringify([{
