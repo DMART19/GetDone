@@ -10,6 +10,7 @@ import {
   assertRouteDecisionIntegrity,
   routeAIRequest
 } from "@/lib/ai-gateway/router";
+import { getTelemetry, OTEL_SEMANTIC } from "@/lib/observability/telemetry";
 import type {
   AIBudgetSnapshot,
   AIAdapterResponse,
@@ -124,15 +125,27 @@ export class AIGateway {
       estimatedTotalCostCents = Number((estimatedTotalCostCents + estimatedCostCents).toFixed(6));
       let response: AIAdapterResponse;
       try {
-        response = await adapter.invoke({
+        response = await getTelemetry().withSpan("ai.call", {
+          [OTEL_SEMANTIC.provider]: profile.providerId,
+          "gen_ai.system": profile.providerId,
+          "gen_ai.request.model": profile.modelId,
+          "getdone.ai.profile": profile.id,
+          [OTEL_SEMANTIC.companyId]: input.request.scope.companyId,
+          [OTEL_SEMANTIC.environment]: input.request.scope.environment
+        }, () => adapter.invoke({
           requestId: input.request.id,
           correlationId: input.request.correlationId,
           profile,
           input: input.payload,
           requirements: input.request.requirements
-        });
+        }));
       } catch {
         lastFailure = "MODEL_CALL_FAILED";
+        await getTelemetry().counter("getdone.ai.call.total", 1, {
+          [OTEL_SEMANTIC.provider]: profile.providerId,
+          "gen_ai.request.model": profile.modelId,
+          outcome: "failed"
+        });
         await this.usage(createAIUsageRecord({
           request: input.request,
           profile,
@@ -149,6 +162,18 @@ export class AIGateway {
       actualTotalCostCents = Number((
         actualTotalCostCents + actualResponseCostCents(profile, response)
       ).toFixed(6));
+      await getTelemetry().histogram("getdone.ai.call.duration", response.latencyMs, "ms", {
+        [OTEL_SEMANTIC.provider]: response.providerId,
+        "gen_ai.response.model": response.modelId
+      });
+      await getTelemetry().counter("getdone.ai.tokens.input", response.inputTokens, {
+        [OTEL_SEMANTIC.provider]: response.providerId,
+        "gen_ai.response.model": response.modelId
+      });
+      await getTelemetry().counter("getdone.ai.tokens.output", response.outputTokens, {
+        [OTEL_SEMANTIC.provider]: response.providerId,
+        "gen_ai.response.model": response.modelId
+      });
 
       if (
         response.profileId !== profile.id
@@ -197,6 +222,11 @@ export class AIGateway {
         response,
         outcome: "valid"
       }));
+      await getTelemetry().counter("getdone.ai.call.total", 1, {
+        [OTEL_SEMANTIC.provider]: response.providerId,
+        "gen_ai.response.model": response.modelId,
+        outcome: "success"
+      });
       return this.finish({
         kind: "success",
         output: parsed.data,
