@@ -6,7 +6,7 @@ function required(name) {
   return value;
 }
 
-const requiredMigration = "2026-09-23.2";
+const requiredMigration = "2026-09-23.3";
 const maxBackupAgeHours = Number(process.env.GETDONE_BACKUP_MAX_AGE_HOURS || "24");
 if (!Number.isFinite(maxBackupAgeHours) || maxBackupAgeHours <= 0) {
   throw new Error("GETDONE_BACKUP_MAX_AGE_HOURS must be positive");
@@ -93,7 +93,9 @@ try {
     "owner_intents",
     "resource_evidence",
     "business_action_executions",
-    "business_action_verification_evidence"
+    "business_action_verification_evidence",
+    "credential_leases",
+    "credential_usage_audits"
   ];
   const rls = await client.query(
     `SELECT required.name, relation.relrowsecurity, relation.relforcerowsecurity
@@ -169,12 +171,14 @@ try {
      FROM unnest(ARRAY[
        'job_worker_instances',
        'business_action_verification_evidence',
-       'provider_concurrency_leases'
+       'provider_concurrency_leases',
+       'credential_leases',
+       'credential_usage_audits'
      ]::text[]) AS required(name)
      WHERE to_regclass(required.name) IS NOT NULL`
   );
-  if (workerSchema.rows[0]?.count !== 3) {
-    throw new Error("Durable worker persistence schema verification failed");
+  if (workerSchema.rows[0]?.count !== 5) {
+    throw new Error("Durable worker/credential broker persistence schema verification failed");
   }
 
   const backup = await client.query(
