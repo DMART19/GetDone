@@ -29,7 +29,8 @@ const scope = Object.freeze({
   userId: "owner-slack-staging",
   portfolioId: "portfolio-slack-staging",
   companyId: "company-slack-staging",
-  environment: "staging" as const
+  environment: "staging" as const,
+  resourceId: "slack-staging-resource"
 });
 
 interface AcceptanceArtifact {
@@ -121,31 +122,32 @@ function request(authoritative: JobRecord, name: string, targetChannel = channel
     input,
     inputHash: sha256Hex(input),
     authorizationConsumptionHash: authoritative.authorizationConsumption!.consumptionHash,
+    credentialLeaseId: "slack-lease-" + authoritative.id,
     idempotencyKey: "slack-idempotency-" + runId + "-" + name,
     timeoutMs: 30_000,
     attempt: 1
   });
 }
 
+const slackAdapterMaterial = new WeakMap<SlackBusinessActionAdapter, string>();
+
 function adapter(
   fetchImpl: typeof fetch,
-  sendCredential = botToken,
-  verificationCredential = readToken
+  providerToken = botToken,
+  _verificationCredential = readToken
 ) {
-  return new SlackBusinessActionAdapter([{
+  const value = new SlackBusinessActionAdapter([{
     id: "slack-live-staging",
     companyId: scope.companyId,
     environment: "staging",
-    credentialRef: "env:SEND_TOKEN",
-    verificationCredentialRef: "env:READ_TOKEN",
+    credentialProviderId: "slack-live-staging-provider",
+    verificationScopes: ["channels:history"],
     verificationMode: "provider-object-read"
   }], {
-    env: {
-      SEND_TOKEN: sendCredential,
-      READ_TOKEN: verificationCredential
-    },
     fetchImpl
   });
+  slackAdapterMaterial.set(value, providerToken);
+  return value;
 }
 
 function runtime(
@@ -175,7 +177,22 @@ function runtime(
   const business = new BusinessActionExecutionOrchestrator(
     new StaticBusinessActionAdapterRegistry([{ capability: "slack.message.send", adapter: slack }]),
     new PostgresBusinessActionExecutionStore(db),
-    { maxStatusPolls, pollIntervalMs: 500 }
+    {
+      maxStatusPolls,
+      pollIntervalMs: 500,
+      credentialBroker: {
+        resolve: async ({ request, requirement }) => ({
+          leaseId: request.credentialLeaseId!,
+          leaseHash: sha256Hex({ leaseId: request.credentialLeaseId, runId }),
+          providerId: requirement.providerId,
+          capability: request.capability,
+          grantedScopes: [...requirement.requiredScopes],
+          material: slackAdapterMaterial.get(slack)!,
+          issuedAt: new Date(startMs).toISOString(),
+          expiresAt: new Date(startMs + 60 * 60_000).toISOString()
+        })
+      }
+    }
   );
   const handler = new RoutedJobExecutionHandler(
     specs,
