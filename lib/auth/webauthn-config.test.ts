@@ -12,7 +12,8 @@ describe("WebAuthn server configuration", () => {
       cookieName: "getdone_session",
       stepUpTtlSeconds: 300,
       signInChallengeTtlSeconds: 300,
-      sessionTtlSeconds: 86_400
+      sessionTtlSeconds: 86_400,
+      secureCookie: true
     });
   });
 
@@ -87,6 +88,14 @@ describe("WebAuthn server configuration", () => {
       GETDONE_WEBAUTHN_RP_ID: "localhost",
       GETDONE_WEBAUTHN_ORIGINS: "http://localhost"
     }).allowedOrigins).toEqual(["http://localhost"]);
+  });
+
+  it("allows an explicit insecure cookie only as runtime configuration for localhost staging tests", () => {
+    expect(readWebAuthnServerConfig({
+      GETDONE_WEBAUTHN_RP_ID: "localhost",
+      GETDONE_WEBAUTHN_ORIGINS: "http://localhost:3200",
+      GETDONE_AUTH_COOKIE_SECURE: "false"
+    }).secureCookie).toBe(false);
   });
 
   it("rejects non-positive and non-integer TTLs", () => {
