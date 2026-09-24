@@ -292,7 +292,15 @@ export class OtlpJsonHttpTelemetrySink implements TelemetrySink {
     };
     const data = record.kind === "histogram"
       ? { histogram: { dataPoints: [{ ...point, count: "1", sum: record.value }] } }
-      : { gauge: { dataPoints: [point] } };
+      : record.kind === "counter"
+        ? {
+            sum: {
+              aggregationTemporality: 2,
+              isMonotonic: true,
+              dataPoints: [point]
+            }
+          }
+        : { gauge: { dataPoints: [point] } };
     return this.send("/v1/metrics", {
       resourceMetrics: [{
         scopeMetrics: [{
