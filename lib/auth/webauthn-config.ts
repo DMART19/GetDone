@@ -7,6 +7,7 @@ export interface WebAuthnServerConfig {
   stepUpTtlSeconds: number;
   signInChallengeTtlSeconds: number;
   sessionTtlSeconds: number;
+  secureCookie: boolean;
 }
 
 function positiveInt(value: string | undefined, fallback: number, name: string) {
@@ -16,6 +17,13 @@ function positiveInt(value: string | undefined, fallback: number, name: string) 
     throw new ControlPlaneError("UNAVAILABLE", `${name} must be a positive integer`);
   }
   return parsed;
+}
+
+function booleanValue(value: string | undefined, fallback: boolean) {
+  if (value === undefined || value.trim() === "") return fallback;
+  if (value === "true") return true;
+  if (value === "false") return false;
+  throw new ControlPlaneError("UNAVAILABLE", "Boolean runtime configuration is invalid");
 }
 
 function parseOrigins(value: string | undefined, rpId: string) {
@@ -93,6 +101,7 @@ export function readWebAuthnServerConfig(
       env.GETDONE_SESSION_TTL_SECONDS,
       86_400,
       "GETDONE_SESSION_TTL_SECONDS"
-    )
+    ),
+    secureCookie: booleanValue(env.GETDONE_AUTH_COOKIE_SECURE, true)
   });
 }
