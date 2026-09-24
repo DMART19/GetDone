@@ -112,6 +112,7 @@ class MemoryDelivery implements CredentialDeliveryProvider {
       material: "ephemeral-provider-material",
       expiresAt: new Date(now.getTime() + 120_000).toISOString(),
       providerId: input.lease.providerId,
+      credentialVersion: input.lease.issuedCredentialVersion ?? 1,
       grantedScopes: [...input.requiredScopes],
       ...this.overrides
     };

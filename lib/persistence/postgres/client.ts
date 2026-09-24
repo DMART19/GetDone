@@ -1,5 +1,6 @@
 import { Pool, type PoolClient, type PoolConfig, type QueryResult, type QueryResultRow } from "pg";
 import { ControlPlaneError } from "@/lib/control-plane/errors";
+import { getTelemetry, OTEL_SEMANTIC } from "@/lib/observability/telemetry";
 import { getPostgresTenantScope } from "@/lib/persistence/postgres/tenant-context.server";
 
 export const POSTGRES_PERSISTENCE_VERSION = "1.1.0";
@@ -151,12 +152,17 @@ export class PostgresDatabase implements PostgresTransactionalDatabase {
     text: string,
     values?: readonly unknown[]
   ): Promise<QueryResult<R>> {
+    const startedAt = Date.now();
     const scope = getPostgresTenantScope();
     const client = await this.connectRuntimeClient();
     if (!scope) {
       try {
         return await client.query<R>(text, values as unknown[]);
       } finally {
+        await getTelemetry().histogram("getdone.db.query.duration", Date.now() - startedAt, "ms", {
+          "db.system": "postgresql",
+          [OTEL_SEMANTIC.companyId]: null
+        });
         await this.releaseRuntimeClient(client);
       }
     }
@@ -171,11 +177,16 @@ export class PostgresDatabase implements PostgresTransactionalDatabase {
       try { await client.query("ROLLBACK"); } catch {}
       throw error;
     } finally {
+      await getTelemetry().histogram("getdone.db.query.duration", Date.now() - startedAt, "ms", {
+        "db.system": "postgresql",
+        [OTEL_SEMANTIC.companyId]: scope.companyId
+      });
       await this.releaseRuntimeClient(client);
     }
   }
 
   async transaction<T>(operation: (client: PoolClient) => Promise<T>): Promise<T> {
+    const startedAt = Date.now();
     const client = await this.connectRuntimeClient();
     try {
       await client.query("BEGIN ISOLATION LEVEL SERIALIZABLE");
@@ -200,6 +211,9 @@ export class PostgresDatabase implements PostgresTransactionalDatabase {
       }
       throw error;
     } finally {
+      await getTelemetry().histogram("getdone.db.transaction.duration", Date.now() - startedAt, "ms", {
+        "db.system": "postgresql"
+      });
       await this.releaseRuntimeClient(client);
     }
   }

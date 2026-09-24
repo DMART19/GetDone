@@ -1,5 +1,6 @@
 import { ControlPlaneError } from "@/lib/control-plane/errors";
 import { createCredentialUsageAudit, assertCredentialLease, type CredentialLease, type CredentialUsageAudit } from "@/lib/credentials/broker";
+import { getTelemetry, OTEL_SEMANTIC } from "@/lib/observability/telemetry";
 import type {
   AuthorizedBusinessActionRequest,
   BusinessActionCredentialMaterial,
@@ -24,6 +25,7 @@ export interface CredentialDeliveryProvider {
     material: string;
     expiresAt: string;
     providerId: string;
+    credentialVersion: number;
     grantedScopes: readonly string[];
   }>;
 }
@@ -92,6 +94,8 @@ export class GovernedBusinessActionCredentialBroker implements BusinessActionCre
       || expiresAt <= now.getTime()
       || expiresAt > Date.parse(lease.expiresAt)
       || delivered.providerId !== lease.providerId
+      || !Number.isInteger(delivered.credentialVersion)
+      || delivered.credentialVersion < (lease.issuedCredentialVersion ?? 1)
       || !requiredScopes.every((scope) => delivered.grantedScopes.includes(scope))
     ) {
       throw new ControlPlaneError("FORBIDDEN", "Credential delivery returned invalid, expired, or over-broad material");
@@ -105,14 +109,23 @@ export class GovernedBusinessActionCredentialBroker implements BusinessActionCre
       resourceId: lease.resourceId,
       capability: lease.capability,
       providerId: lease.providerId,
+      credentialVersion: delivered.credentialVersion,
       usedAt: now.toISOString(),
       action: "used"
     }));
+    await getTelemetry().counter("getdone.credential.redeem.total", 1, {
+      [OTEL_SEMANTIC.provider]: lease.providerId,
+      [OTEL_SEMANTIC.capability]: lease.capability,
+      [OTEL_SEMANTIC.credentialVersion]: delivered.credentialVersion,
+      [OTEL_SEMANTIC.companyId]: lease.companyId,
+      [OTEL_SEMANTIC.environment]: lease.environment
+    });
 
     return Object.freeze({
       leaseId: lease.id,
       leaseHash: lease.leaseHash,
       providerId: lease.providerId,
+      credentialVersion: delivered.credentialVersion,
       capability: lease.capability,
       grantedScopes: Object.freeze([...delivered.grantedScopes]),
       material: delivered.material,
@@ -180,12 +193,15 @@ export class HttpCredentialDeliveryProvider implements CredentialDeliveryProvide
       material?: unknown;
       expiresAt?: unknown;
       providerId?: unknown;
+      credentialVersion?: unknown;
       grantedScopes?: unknown;
     };
     if (
       typeof value.material !== "string"
       || typeof value.expiresAt !== "string"
       || typeof value.providerId !== "string"
+      || !Number.isInteger(value.credentialVersion)
+      || (value.credentialVersion as number) < 1
       || !Array.isArray(value.grantedScopes)
       || value.grantedScopes.some((scope) => typeof scope !== "string")
     ) {
@@ -195,6 +211,7 @@ export class HttpCredentialDeliveryProvider implements CredentialDeliveryProvide
       material: value.material,
       expiresAt: value.expiresAt,
       providerId: value.providerId,
+      credentialVersion: value.credentialVersion as number,
       grantedScopes: value.grantedScopes as string[]
     };
   }

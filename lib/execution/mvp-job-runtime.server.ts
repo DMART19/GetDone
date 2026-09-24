@@ -30,6 +30,7 @@ import { PostgresEntityStore } from "@/lib/persistence/postgres/authority-stores
 import { PostgresJobVerificationEvidenceStore } from "@/lib/persistence/postgres/worker-runtime-stores";
 import { getPostgresRuntimeFromEnv } from "@/lib/persistence/postgres/runtime.server";
 import { runWithPostgresTenantScope } from "@/lib/persistence/postgres/tenant-context.server";
+import { getTelemetry, OTEL_SEMANTIC } from "@/lib/observability/telemetry";
 
 export class MvpJobRuntime {
   constructor(
@@ -41,9 +42,34 @@ export class MvpJobRuntime {
   ) {}
 
   async enqueueAuthorizedBusinessAction(job: JobRecord, request: AuthorizedBusinessActionRequest) {
-    return runWithPostgresTenantScope(request.scope, () =>
-      this.enqueueAuthorizedBusinessActionScoped(job, request)
-    );
+    return getTelemetry().withSpan("job.enqueue", {
+      [OTEL_SEMANTIC.jobId]: job.id,
+      [OTEL_SEMANTIC.capability]: request.capability,
+      [OTEL_SEMANTIC.companyId]: request.scope.companyId,
+      [OTEL_SEMANTIC.environment]: request.scope.environment
+    }, () => runWithPostgresTenantScope(request.scope, async () => {
+      try {
+        const result = await this.enqueueAuthorizedBusinessActionScoped(job, request);
+        await getTelemetry().counter("getdone.job.enqueue.total", 1, {
+          [OTEL_SEMANTIC.capability]: request.capability,
+          outcome: "accepted"
+        });
+        return result;
+      } catch (error) {
+        if (error instanceof ControlPlaneError && ["FORBIDDEN", "UNAUTHENTICATED"].includes(error.code)) {
+          await getTelemetry().counter("getdone.authorization.denial.total", 1, {
+            [OTEL_SEMANTIC.capability]: request.capability,
+            [OTEL_SEMANTIC.authorizationOutcome]: "denied"
+          });
+          await getTelemetry().log("WARN", "authorization.denied", {
+            [OTEL_SEMANTIC.jobId]: job.id,
+            [OTEL_SEMANTIC.capability]: request.capability,
+            [OTEL_SEMANTIC.authorizationOutcome]: "denied"
+          });
+        }
+        throw error;
+      }
+    }));
   }
 
   private async enqueueAuthorizedBusinessActionScoped(

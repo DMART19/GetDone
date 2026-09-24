@@ -5,7 +5,7 @@ import type {
 } from "@/lib/ai-gateway/contracts";
 import { ControlPlaneError } from "@/lib/control-plane/errors";
 
-export const OPENROUTER_ADAPTER_VERSION = "1.1.0";
+export const OPENROUTER_ADAPTER_VERSION = "1.2.0";
 export const OPENROUTER_DEFAULT_BASE_URL = "https://openrouter.ai/api/v1";
 
 type FetchLike = typeof fetch;
@@ -27,10 +27,20 @@ export interface OpenRouterAdapterConfig {
   canary?: OpenRouterCanaryConfig;
 }
 
+export interface OpenRouterCredentialMaterial {
+  material: string;
+  version: number;
+}
+
+export interface OpenRouterCredentialProvider {
+  current(): Promise<OpenRouterCredentialMaterial>;
+}
+
 export interface OpenRouterAdapterOptions {
   fetchImpl?: FetchLike;
   sleep?: Sleep;
   now?: () => Date;
+  credentialProvider?: OpenRouterCredentialProvider;
 }
 
 interface OpenRouterChatResponse {
@@ -187,6 +197,7 @@ export class OpenRouterAIGatewayAdapter implements AIGatewayAdapter {
   readonly version = OPENROUTER_ADAPTER_VERSION;
 
   private readonly apiKey: string;
+  private readonly credentialProvider?: OpenRouterCredentialProvider;
   private readonly baseUrl: string;
   private readonly timeoutMs: number;
   private readonly maxRetries: number;
@@ -200,6 +211,7 @@ export class OpenRouterAIGatewayAdapter implements AIGatewayAdapter {
 
   constructor(config: OpenRouterAdapterConfig, options: OpenRouterAdapterOptions = {}) {
     this.apiKey = requireApiKey(config.apiKey);
+    this.credentialProvider = options.credentialProvider;
     this.baseUrl = validateBaseUrl(config.baseUrl ?? OPENROUTER_DEFAULT_BASE_URL);
     this.timeoutMs = normalizeInteger(config.timeoutMs, 45_000, 1_000, 120_000, "OpenRouter timeout");
     this.maxRetries = normalizeInteger(config.maxRetries, 2, 0, 4, "OpenRouter max retries");
@@ -218,9 +230,15 @@ export class OpenRouterAIGatewayAdapter implements AIGatewayAdapter {
     this.now = options.now ?? (() => new Date());
   }
 
-  private headers() {
+  private async headers() {
+    const credential = this.credentialProvider
+      ? await this.credentialProvider.current()
+      : { material: this.apiKey, version: 1 };
+    if (!credential.material.trim() || !Number.isInteger(credential.version) || credential.version < 1) {
+      throw new ControlPlaneError("UNAUTHENTICATED", "OpenRouter credential provider returned invalid material");
+    }
     const headers: Record<string, string> = {
-      authorization: `Bearer ${this.apiKey}`,
+      authorization: `Bearer ${credential.material}`,
       "content-type": "application/json",
       "x-openrouter-metadata": "enabled",
       "x-title": this.appTitle
@@ -237,7 +255,7 @@ export class OpenRouterAIGatewayAdapter implements AIGatewayAdapter {
       try {
         response = await this.fetchImpl(`${this.baseUrl}/chat/completions`, {
           method: "POST",
-          headers: this.headers(),
+          headers: await this.headers(),
           body: JSON.stringify(body),
           signal: AbortSignal.timeout(this.timeoutMs)
         });
