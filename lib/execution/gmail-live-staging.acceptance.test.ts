@@ -150,8 +150,7 @@ const gmailAdapterMaterial = new WeakMap<GmailBusinessActionAdapter, string>();
 
 function gmailAdapter(
   fetchImpl: typeof fetch,
-  providerToken = accessToken,
-  _verificationToken = accessToken
+  providerToken = accessToken
 ) {
   const value = new GmailBusinessActionAdapter([{
     id: "gmail-live-staging",
@@ -495,7 +494,7 @@ liveDescribe("real Gmail governed staging acceptance", () => {
   it("fails closed with an invalid Gmail token and creates no provider object", async () => {
     const db = database();
     try {
-      const value = runtime(db, gmailAdapter(fetch, "definitely-invalid-token", accessToken), Date.now());
+      const value = runtime(db, gmailAdapter(fetch, "definitely-invalid-token"), Date.now());
       const authoritative = job("invalid-token", new Date().toISOString());
       const request = actionRequest(authoritative, "invalid-token");
       await value.jobs.create(authoritative);
@@ -517,7 +516,7 @@ liveDescribe("real Gmail governed staging acceptance", () => {
     const db = database();
     try {
       const revoked = required("GETDONE_GMAIL_STAGING_REVOKED_TOKEN");
-      const value = runtime(db, gmailAdapter(fetch, revoked, accessToken), Date.now());
+      const value = runtime(db, gmailAdapter(fetch, revoked), Date.now());
       const authoritative = job("revoked-token", new Date().toISOString());
       const request = actionRequest(authoritative, "revoked-token");
       await value.jobs.create(authoritative);
