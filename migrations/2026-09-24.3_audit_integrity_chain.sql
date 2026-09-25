@@ -116,6 +116,9 @@ ALTER TABLE audit_events
   ALTER COLUMN event_hash SET NOT NULL;
 
 ALTER TABLE audit_events
+  DROP CONSTRAINT IF EXISTS audit_events_chain_sequence_check,
+  ADD CONSTRAINT audit_events_chain_sequence_check
+    CHECK (chain_sequence >= 1),
   DROP CONSTRAINT IF EXISTS audit_events_previous_event_hash_check,
   ADD CONSTRAINT audit_events_previous_event_hash_check
     CHECK (previous_event_hash ~ '^[a-f0-9]{64}$'),
