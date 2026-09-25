@@ -12,7 +12,6 @@ import { getControlApiAdapter } from "@/lib/control-api/runtime.server";
 import { readOwnerAIGatewayHealth } from "@/lib/ai-gateway/health.server";
 import {
   RATE_LIMIT_POLICIES,
-  clientNetworkIdentity,
   enforceRateLimit,
   rateLimitHeaders,
   tenantRateLimitKey
@@ -208,8 +207,7 @@ export function handleVerifyStepUp(request: Request) {
           companyId: principal.scope.companyId,
           userId: principal.scope.userId,
           sessionId: principal.sessionId
-        }, input.challengeId),
-        clientNetworkIdentity(request)
+        }, input.challengeId)
       ]
     );
     const result = await adapter.verifyStepUp(request, input.challengeId, input.credential);
