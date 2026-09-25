@@ -102,8 +102,7 @@ export function handleCreateNodeEnrollment(request: Request) {
       tenantRateLimitKey({
         portfolioId: principal.scope.portfolioId,
         companyId: principal.scope.companyId,
-        userId: principal.scope.userId,
-        sessionId: principal.sessionId
+        userId: principal.scope.userId
       }, "node-enrollment-create")
     );
     const body = await parseJson(
@@ -126,8 +125,7 @@ export function handleNodeEnrollmentAction(request: Request, challengeId: string
       tenantRateLimitKey({
         portfolioId: principal.scope.portfolioId,
         companyId: principal.scope.companyId,
-        userId: principal.scope.userId,
-        sessionId: principal.sessionId
+        userId: principal.scope.userId
       }, safeId(challengeId, "challengeId"))
     );
     const body = await parseJson(
@@ -164,12 +162,11 @@ export function handleAgentNodeEnrollment(request: Request) {
     );
     await enforceRateLimit(
       RATE_LIMIT_POLICIES.agentEnrollment,
-      [
-        "ip",
-        clientNetworkIdentity(request),
-        "enrollment-token",
-        body.enrollmentToken
-      ]
+      ["enrollment-token", body.enrollmentToken]
+    );
+    await enforceRateLimit(
+      RATE_LIMIT_POLICIES.agentEnrollment,
+      ["network", clientNetworkIdentity(request)]
     );
     return getNodeEnrollmentAdapter().enrollAgent(body);
   }, 201);
