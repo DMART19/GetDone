@@ -126,7 +126,7 @@ CREATE OR REPLACE FUNCTION getdone_append_audit_event(
   p_payload jsonb
 ) RETURNS TABLE(chain_sequence bigint,event_hash text)
 LANGUAGE plpgsql
-AS $
+AS $getdone$
 DECLARE
   v_previous_hash text;
   v_next_sequence bigint;
@@ -179,7 +179,7 @@ BEGIN
 
   RETURN QUERY SELECT v_next_sequence,v_event_hash;
 END
-$;
+$getdone$;
 
 REVOKE ALL ON FUNCTION getdone_append_audit_event(
   text,text,text,text,text,text,timestamptz,jsonb
