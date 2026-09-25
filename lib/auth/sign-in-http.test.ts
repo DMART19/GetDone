@@ -10,6 +10,22 @@ vi.mock("@/lib/persistence/postgres/runtime.server", () => ({
   getPostgresRuntimeFromEnv: vi.fn(() => ({ database: {} }))
 }));
 
+vi.mock("@/lib/security/rate-limit.server", () => ({
+  RATE_LIMIT_POLICIES: {
+    authBegin: { id: "auth.sign-in.begin", limit: 30, windowSeconds: 60 },
+    authVerify: { id: "auth.sign-in.verify", limit: 45, windowSeconds: 60 }
+  },
+  clientNetworkIdentity: vi.fn(() => "test-client"),
+  enforceRateLimit: vi.fn(async () => ({
+    allowed: true,
+    limit: 30,
+    remaining: 29,
+    resetAt: "2099-01-01T00:00:00.000Z",
+    retryAfterSeconds: 60
+  })),
+  rateLimitHeaders: vi.fn(() => ({}))
+}));
+
 vi.mock("@/lib/auth/postgres-sign-in", () => ({
   PostgresPasskeySignInService: class {
     begin(userId: string) {
