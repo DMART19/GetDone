@@ -454,31 +454,6 @@ export class CrmBusinessActionAdapter implements BusinessActionAdapter {
     context?:BusinessActionExecutionContext
   ):Promise<BusinessActionStatus>{
     const parsed=parseProviderOperationId(this.configurations,input.providerOperationId);
-    const synthetic:AuthorizedBusinessActionRequest={
-      id:input.requestId,
-      jobId:"crm-verification",
-      scope:{
-        userId:"crm-verification",
-        portfolioId:"crm-verification",
-        companyId:parsed.configuration.companyId,
-        environment:parsed.configuration.environment
-      },
-      capability:"crm.record.write",
-      input:{
-        companyId:parsed.configuration.companyId,
-        connectionId:parsed.configuration.id,
-        objectType:parsed.objectType,
-        operation:"update",
-        recordId:parsed.recordId,
-        properties:Object.fromEntries(parsed.fields.map((field)=>[field,null]))
-      },
-      inputHash:"",
-      authorizationConsumptionHash:"verification",
-      credentialLeaseId:context?.credential?.leaseId,
-      idempotencyKey:"verification",
-      timeoutMs:30_000,
-      attempt:1
-    };
     const requirement={
       providerId:parsed.configuration.credentialProviderId,
       requiredScopes:parsed.configuration.readScopes
@@ -505,7 +480,6 @@ export class CrmBusinessActionAdapter implements BusinessActionAdapter {
       if(error instanceof ControlPlaneError && error.code==="UNAVAILABLE") state="failed";
       else state="running";
     }
-    void synthetic;
     return createBusinessActionStatus({
       source:"business-action-adapter",
       requestId:input.requestId,
