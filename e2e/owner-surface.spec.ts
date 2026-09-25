@@ -1,6 +1,21 @@
 import { expect, test } from "@playwright/test";
 
 test.describe("existing owner surface", () => {
+  test("applies browser response security headers", async ({ request }) => {
+    const response = await request.get("/");
+    expect(response.ok()).toBeTruthy();
+    const headers = response.headers();
+    expect(headers["content-security-policy"]).toContain("default-src 'self'");
+    expect(headers["content-security-policy"]).toContain("frame-ancestors 'none'");
+    expect(headers["x-frame-options"]).toBe("DENY");
+    expect(headers["x-content-type-options"]).toBe("nosniff");
+    expect(headers["referrer-policy"]).toBe("strict-origin-when-cross-origin");
+    expect(headers["permissions-policy"]).toContain("camera=()");
+    expect(headers["cross-origin-opener-policy"]).toBe("same-origin");
+    expect(headers["cross-origin-resource-policy"]).toBe("same-origin");
+    expect(headers["strict-transport-security"]).toBeUndefined();
+  });
+
   test("primary Chat / Decisions / Resources navigation stays usable", async ({ page }) => {
     await page.goto("/");
 
