@@ -67,7 +67,7 @@ function classify(row) {
     }
     if (!business) {
       return { ...base, decision:"reconcile", reasonCode:"provider-boundary-unknown",
-        reason:"Job was claimed but no provider execution record survived; external side-effect state is ambiguous." };
+        reason:"Job was claimed but no provider execution record survived; an external side effect may have crossed the boundary before persistence." };
     }
     if (business.providerOperationId) {
       return { ...base, decision:"resume", reasonCode:"provider-operation-known",
@@ -78,17 +78,17 @@ function classify(row) {
       || (business.state === "failed" && !business.retryable)
     ) {
       return { ...base, decision:"resume", reasonCode:"provider-terminal-result-persisted",
-        reason:"A terminal provider result is durable and can be finalized without replay." };
+        reason:"A terminal provider result is durable and can be finalized without replaying the external mutation." };
     }
     return { ...base, decision:"reconcile", reasonCode:"provider-boundary-unknown",
-      reason:"Provider state is nonterminal without durable operation identity." };
+      reason:"Provider state is nonterminal without a durable operation identity, so replay is ambiguous." };
   }
   if (["software-deploy","software-rollback"].includes(spec.spec.kind)) {
     return { ...base, decision:"blocked", reasonCode:"software-mutation-replay-unsafe",
-      reason:"A claimed deployment or rollback may have partially mutated production and is blocked from automatic replay." };
+      reason:"A claimed deployment or rollback may have partially mutated production and is explicitly blocked from automatic replay." };
   }
   return { ...base, decision:"reconcile", reasonCode:"software-step-ambiguous",
-    reason:"A claimed software execution step requires operator reconciliation." };
+    reason:"A claimed software execution step requires operator reconciliation before the worker may continue." };
 }
 
 const connectionString = required("DATABASE_URL");
