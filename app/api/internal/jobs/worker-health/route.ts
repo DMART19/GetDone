@@ -29,7 +29,7 @@ export async function GET(request: Request) {
       { ok: ready, worker: snapshot },
       {
         status: ready ? 200 : 503,
-        headers: { "cache-control": "no-store", ...rateLimitHeaders(normalized) }
+        headers: { "cache-control": "no-store" }
       }
     );
   } catch (error) {
@@ -38,7 +38,7 @@ export async function GET(request: Request) {
       { ok: false, error: { code: normalized.code, message: normalized.message } },
       {
         status: normalized.status,
-        headers: { "cache-control": "no-store" }
+        headers: { "cache-control": "no-store", ...rateLimitHeaders(normalized) }
       }
     );
   }
