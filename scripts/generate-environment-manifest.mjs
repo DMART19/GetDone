@@ -213,7 +213,7 @@ for (const [name,state] of Object.entries(manifest.environments)) {
 
   state.controlApi.applicationAdapterStatus=status(connections.controlApiPersistence);
   state.controlApi.persistenceStatus=status(connections.controlApiPersistence);
-  state.database.adapterStatus=status(connections.database);
+  state.database.adapterStatus=connections.database ? "connected" : "implemented-unconnected";
   state.nodeAgent.authenticatedAgentTransportStatus=status(connections.resourceAgent);
   state.nodeAgent.productionReady=Boolean(connections.resourceAgent);
 }
