@@ -33,8 +33,13 @@ export const ORDINARY_INTEGRATION_IMPLEMENTATION_ORDER = Object.freeze([
   "saas-specific"
 ] as const);
 
+export interface OrdinaryIntegrationRegistryOptions {
+  analyticsStore?: AnalyticsIngestionEvidenceStore;
+}
+
 export function createOrdinaryBusinessActionBindingsFromEnv(
-  env: Readonly<Record<string, string | undefined>> = process.env
+  env: Readonly<Record<string, string | undefined>> = process.env,
+  options: OrdinaryIntegrationRegistryOptions = {}
 ): readonly BusinessActionAdapterBinding[] {
   const bindings: BusinessActionAdapterBinding[] = [];
 
@@ -82,6 +87,37 @@ export function createOrdinaryBusinessActionBindingsFromEnv(
       { capability: "crm.record.read", adapter: crm },
       { capability: "crm.record.write", adapter: crm }
     );
+  }
+
+  if (env.GETDONE_GITHUB_ACTIONS_JSON?.trim()) {
+    const github = new GithubStandardOperationAdapter(
+      readGithubProviderConfigurationsFromEnv(env)
+    );
+    bindings.push(
+      { capability: "github.repository.read", adapter: github },
+      { capability: "github.branch.create", adapter: github },
+      { capability: "github.commit.create", adapter: github },
+      { capability: "github.protected-branch.commit", adapter: github },
+      { capability: "github.pull-request.write", adapter: github },
+      { capability: "github.issue.write", adapter: github },
+      { capability: "github.pull-request.merge", adapter: github }
+    );
+  }
+
+  if (env.GETDONE_ANALYTICS_SOURCES_JSON?.trim()) {
+    if (!options.analyticsStore) {
+      throw new ControlPlaneError(
+        "UNAVAILABLE",
+        "Analytics ingestion requires durable evidence/checkpoint persistence"
+      );
+    }
+    bindings.push({
+      capability: "analytics.ingest.read",
+      adapter: new AnalyticsDataIngestionAdapter(
+        readAnalyticsSourceConfigurationsFromEnv(env),
+        options.analyticsStore
+      )
+    });
   }
 
   if (bindings.length === 0) {
