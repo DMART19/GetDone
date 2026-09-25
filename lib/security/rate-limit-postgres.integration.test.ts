@@ -6,19 +6,26 @@ const enabled = process.env.GETDONE_POSTGRES_INTEGRATION === "true";
 const describeIntegration = enabled ? describe : describe.skip;
 
 describeIntegration("PostgreSQL rate limiting", () => {
-  const database = new PostgresDatabase(readPostgresConfigFromEnv(process.env));
+  let database: PostgresDatabase | undefined;
+
+  function db() {
+    if (!database) throw new Error("PostgreSQL rate limit test database is not initialized");
+    return database;
+  }
 
   beforeAll(async () => {
-    await database.query("DELETE FROM rate_limit_buckets");
+    database = new PostgresDatabase(readPostgresConfigFromEnv(process.env));
+    await db().query("DELETE FROM rate_limit_buckets");
   });
 
   afterAll(async () => {
+    if (!database) return;
     await database.query("DELETE FROM rate_limit_buckets");
     await database.close();
   });
 
   it("keeps tenant buckets independent and resets fixed windows deterministically", async () => {
-    const limiter = new PostgresRateLimiter(database);
+    const limiter = new PostgresRateLimiter(db());
     const policy = { id: "integration.owner-intent", limit: 2, windowSeconds: 60 };
     const start = new Date("2026-09-25T02:00:00.000Z");
 
@@ -42,7 +49,7 @@ describeIntegration("PostgreSQL rate limiting", () => {
   });
 
   it("is concurrency-safe across parallel consumers", async () => {
-    const limiter = new PostgresRateLimiter(database);
+    const limiter = new PostgresRateLimiter(db());
     const policy = { id: "integration.concurrent", limit: 5, windowSeconds: 60 };
     const now = new Date("2026-09-25T03:00:00.000Z");
     const decisions = await Promise.all(
