@@ -532,7 +532,10 @@
     "deploy/production/kubernetes.template.json",
     "scripts/verify-production-topology.mjs",
     "scripts/render-production-deployment.mjs",
-    "Dockerfile.web"
+    "Dockerfile.web",
+    "lib/deployment/production-topology.test.ts",
+    "lib/persistence/postgres/disaster-recovery-store.ts",
+    "scripts/plan-disaster-recovery.mjs"
   ],
   "manualSourcePaths": [
     "docs/ARCHITECTURE.md",
