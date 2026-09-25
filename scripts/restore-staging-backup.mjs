@@ -90,14 +90,25 @@ async function waitForHealth(url, child) {
   throw new Error(`Restored application health verification failed: ${lastError}`);
 }
 
+async function waitForChildExit(child, timeoutMs) {
+  if (!child || child.exitCode !== null) return;
+  await Promise.race([
+    new Promise((resolve) => child.once("exit", resolve)),
+    new Promise((resolve) => setTimeout(resolve, timeoutMs))
+  ]);
+}
+
 async function stopChild(child) {
   if (!child || child.exitCode !== null) return;
   child.kill("SIGTERM");
-  await Promise.race([
-    new Promise((resolve) => child.once("exit", resolve)),
-    new Promise((resolve) => setTimeout(resolve, 2_000))
-  ]);
-  if (child.exitCode === null) child.kill("SIGKILL");
+  await waitForChildExit(child, 2_000);
+  if (child.exitCode === null) {
+    child.kill("SIGKILL");
+    await waitForChildExit(child, 2_000);
+  }
+  if (child.exitCode === null) {
+    throw new Error("Restored application process did not terminate");
+  }
 }
 
 const runtime = required("GETDONE_RUNTIME_ENV");
@@ -318,9 +329,10 @@ try {
     throw new Error("Application bootability requires a completed Next.js production build");
   }
 
+  const nextCli = path.join(process.cwd(), "node_modules", "next", "dist", "bin", "next");
   appProcess = spawn(
-    "npm",
-    ["run", "start", "--", "--hostname", "127.0.0.1", "--port", String(port)],
+    process.execPath,
+    [nextCli, "start", "--hostname", "127.0.0.1", "--port", String(port)],
     {
       cwd: process.cwd(),
       env: appEnv,
