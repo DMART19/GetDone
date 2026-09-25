@@ -238,6 +238,14 @@
     "persistentJobWorkerService": {
       "version": "1.0.0",
       "sourcePath": "lib/execution/persistent-job-worker.server.ts"
+    },
+    "disasterRecovery": {
+      "version": "1.0.0",
+      "sourcePath": "lib/execution/disaster-recovery.ts",
+      "contractTracked": true,
+      "contractSourcePaths": [
+        "lib/execution/disaster-recovery.ts"
+      ]
     }
   },
   "policy": {
@@ -515,7 +523,16 @@
     "e2e/staging/golden-path.spec.ts",
     "e2e/staging/webauthn.spec.ts",
     "e2e/staging/support.ts",
-    "docs/SOL_BROWSER_STAGING_WEBAUTHN_ACCEPTANCE.md"
+    "docs/SOL_BROWSER_STAGING_WEBAUTHN_ACCEPTANCE.md",
+    "lib/execution/disaster-recovery.test.ts",
+    "lib/execution/disaster-recovery-postgres.integration.test.ts",
+    "lib/persistence/postgres/disaster-recovery-store.test.ts",
+    "migrations/2026-09-25.1_disaster_recovery.sql",
+    "deploy/production/topology.json",
+    "deploy/production/kubernetes.template.json",
+    "scripts/verify-production-topology.mjs",
+    "scripts/render-production-deployment.mjs",
+    "Dockerfile.web"
   ],
   "manualSourcePaths": [
     "docs/ARCHITECTURE.md",
@@ -547,9 +564,9 @@
     "status": "implemented-unconnected",
     "engine": "postgresql",
     "minimumEngineVersion": "16",
-    "migrationVersion": "2026-09-24.3",
-    "schemaVersion": "1.9.0",
-    "sourcePath": "migrations/2026-09-24.3_audit_integrity_chain.sql",
+    "migrationVersion": "2026-09-25.1",
+    "schemaVersion": "2.0.0",
+    "sourcePath": "migrations/2026-09-25.1_disaster_recovery.sql",
     "adapterSourcePath": "lib/persistence/postgres/client.ts"
   },
   "voice": {
