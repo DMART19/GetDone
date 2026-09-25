@@ -507,7 +507,9 @@ if (failures.length === 0) {
       || environmentState.execution.liveJobExecutionBridgeStoreStatus !== connectedStatus("controlApiPersistence")
       || environmentState.execution.persistentWorkerServiceStatus !== connectedStatus("durableJobEngine")
       || environmentState.database?.engine !== "postgresql"
-      || environmentState.database?.adapterStatus !== connectedStatus("database")
+      || environmentState.database?.adapterStatus !== (
+        environmentState.connections?.database ? "connected" : "implemented-unconnected"
+      )
       || !environmentState.resourceFabric
       || environmentState.resourceFabric.storageRuntimeStatus !== connectedStatus("storageFabricRuntime")
       || environmentState.resourceFabric.failoverRuntimeStatus !== connectedStatus("resilienceFailoverRuntime")
