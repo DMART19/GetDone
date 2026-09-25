@@ -58,6 +58,16 @@ function expectNoMutation(result: QueryResult) {
   expect(result.rowCount).toBe(0);
 }
 
+async function expectPermissionDenied(client: PoolClient, sql: string) {
+  await client.query("SAVEPOINT permission_probe");
+  try {
+    await expect(client.query(sql)).rejects.toMatchObject({ code: "42501" });
+  } finally {
+    await client.query("ROLLBACK TO SAVEPOINT permission_probe");
+    await client.query("RELEASE SAVEPOINT permission_probe");
+  }
+}
+
 integrationDescribe("PostgreSQL tenant RLS", () => {
   const databaseName = `getdone_rls_${process.pid}_${Date.now()}`;
   let adminPool: Pool;
@@ -353,18 +363,21 @@ integrationDescribe("PostgreSQL tenant RLS", () => {
       expectNoMutation(await client.query(
         "DELETE FROM business_action_verification_evidence WHERE evidence_id='evidence-b'"
       ));
-      expectNoMutation(await client.query(
+      await expectPermissionDenied(
+        client,
         "UPDATE audit_events SET occurred_at=now() WHERE id='audit-b'"
-      ));
-      expectNoMutation(await client.query(
+      );
+      await expectPermissionDenied(
+        client,
         "DELETE FROM audit_events WHERE id='audit-b'"
-      ));
+      );
       expectNoMutation(await client.query(
         "UPDATE audit_chain_heads SET head_hash=repeat('f',64) WHERE company_id='company-b'"
       ));
-      expectNoMutation(await client.query(
+      await expectPermissionDenied(
+        client,
         "DELETE FROM audit_chain_heads WHERE company_id='company-b'"
-      ));
+      );
     } finally {
       try { await client.query("ROLLBACK"); } catch {}
       try { await client.query("RESET ROLE"); } catch {}
