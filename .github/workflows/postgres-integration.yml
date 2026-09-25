@@ -21,7 +21,7 @@ env:
 jobs:
   postgres16:
     runs-on: ubuntu-latest
-    timeout-minutes: 50
+    timeout-minutes: 65
 
     services:
       postgres:
@@ -58,6 +58,12 @@ jobs:
 
       - name: Run PostgreSQL 16 migration and concurrency acceptance
         run: npm run db:test-integration
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+          GETDONE_DB_SSL: "false"
+
+      - name: Run zero-downtime rolling migration acceptance
+        run: npm run db:test-zero-downtime
         env:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
           GETDONE_DB_SSL: "false"
