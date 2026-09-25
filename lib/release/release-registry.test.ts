@@ -23,6 +23,7 @@ import { CONFIGURED_HTTP_ACTION_ADAPTER_VERSION } from "@/lib/execution/adapters
 import { CONFIGURED_WEBHOOK_ACTION_ADAPTER_VERSION } from "@/lib/execution/adapters/configured-webhook-action";
 import { GMAIL_BUSINESS_ACTION_ADAPTER_VERSION } from "@/lib/execution/adapters/gmail-action";
 import { SLACK_BUSINESS_ACTION_ADAPTER_VERSION } from "@/lib/execution/adapters/slack-action";
+import { CRM_BUSINESS_ACTION_ADAPTER_VERSION } from "@/lib/execution/adapters/crm-action";
 import {
   NODE_AGENT_PROTOCOL_VERSION,
   NODE_DOMAIN_VERSION
@@ -277,8 +278,8 @@ const packageJson = readJson<{ version: string }>("package.json");
 describe("Phase 41 release/version registry", () => {
   it("binds application policy and machine-readable schema versions", () => {
     expect(registry.registrySchemaVersion).toBe("1.6.0");
-    expect(registry.environmentManifestSchemaVersion).toBe("1.6.0");
-    expect(environment.manifestSchemaVersion).toBe("1.6.0");
+    expect(registry.environmentManifestSchemaVersion).toBe("1.7.0");
+    expect(environment.manifestSchemaVersion).toBe("1.7.0");
     expect(registry.schemaVersions.releaseManifest.version).toBe("1.6.0");
     expect(registry.appVersion).toBe(packageJson.version);
     expect(registry.policy.registryVersion).toBe(CURRENT_POLICY_VERSION);
@@ -441,6 +442,15 @@ describe("Phase 41 release/version registry", () => {
     expect(registry.adapters.slackBusinessAction).toMatchObject({
       status: "implemented-unconfigured",
       version: SLACK_BUSINESS_ACTION_ADAPTER_VERSION
+    });
+    expect(registry.adapters.crmBusinessAction).toMatchObject({
+      status: "implemented-unconfigured",
+      version: CRM_BUSINESS_ACTION_ADAPTER_VERSION
+    });
+    expect(registry.schemaVersions.environmentEvidence).toMatchObject({
+      version: "1.0.0",
+      sourcePath: "config/environment-evidence-policy.json",
+      contractTracked: true
     });
     expect(registry.execution).toMatchObject({
       jobRuntimeContractVersion: JOB_RUNTIME_CONTRACT_VERSION,
