@@ -1,0 +1,113 @@
+{
+  "policyVersion": "1.0.0",
+  "manifestSchemaVersion": "1.7.0",
+  "evidenceSchemaVersion": "1.0.0",
+  "defaultMaxAgeHours": 24,
+  "targets": {
+    "auth": {
+      "acceptanceIds": [
+        "browser-webauthn-live",
+        "production-auth-live"
+      ]
+    },
+    "database": {
+      "acceptanceIds": [
+        "postgres-live-readiness",
+        "production-release-postgres"
+      ]
+    },
+    "aiGateway": {
+      "acceptanceIds": [
+        "openrouter-live-canary"
+      ]
+    },
+    "durableJobEngine": {
+      "acceptanceIds": [
+        "worker-live-readiness"
+      ]
+    },
+    "resourceAgent": {
+      "acceptanceIds": [
+        "resource-agent-live-acceptance"
+      ]
+    },
+    "transactionalReservationStore": {
+      "acceptanceIds": [
+        "reservation-store-live-acceptance"
+      ]
+    },
+    "resourceDispatchAdapters": {
+      "acceptanceIds": [
+        "resource-dispatch-live-acceptance"
+      ]
+    },
+    "liveTelemetry": {
+      "acceptanceIds": [
+        "telemetry-live-acceptance"
+      ]
+    },
+    "billingUsageFeeds": {
+      "acceptanceIds": [
+        "billing-live-acceptance"
+      ]
+    },
+    "voiceAdapter": {
+      "acceptanceIds": [
+        "voice-live-acceptance"
+      ]
+    },
+    "businessIntegrationAdapters": {
+      "acceptanceIds": [
+        "crm-live-acceptance",
+        "gmail-live-acceptance",
+        "slack-live-acceptance",
+        "webhook-live-acceptance",
+        "configured-business-live-acceptance"
+      ]
+    },
+    "businessActionAdapters": {
+      "acceptanceIds": [
+        "crm-live-acceptance",
+        "gmail-live-acceptance",
+        "slack-live-acceptance",
+        "webhook-live-acceptance",
+        "configured-business-live-acceptance"
+      ]
+    },
+    "softwareDeploymentExecutor": {
+      "acceptanceIds": [
+        "software-deployment-live-acceptance"
+      ]
+    },
+    "storageFabricRuntime": {
+      "acceptanceIds": [
+        "storage-fabric-live-acceptance"
+      ]
+    },
+    "resilienceFailoverRuntime": {
+      "acceptanceIds": [
+        "resilience-live-acceptance"
+      ]
+    },
+    "secondResourceProvider": {
+      "acceptanceIds": [
+        "second-resource-provider-live-acceptance"
+      ]
+    },
+    "partnerPoolRuntime": {
+      "acceptanceIds": [
+        "partner-pool-live-acceptance"
+      ]
+    },
+    "controlApiPersistence": {
+      "acceptanceIds": [
+        "control-api-live-acceptance"
+      ]
+    },
+    "deployment": {
+      "acceptanceIds": [
+        "deployment-live-acceptance"
+      ]
+    }
+  }
+}
