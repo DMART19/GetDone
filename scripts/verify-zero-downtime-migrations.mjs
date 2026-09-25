@@ -23,6 +23,8 @@ for (const file of governed) {
   const destructivePatterns = [
     /\bDROP\s+TABLE\b/i,
     /\bDROP\s+COLUMN\b/i,
+    /\bDROP\s+CONSTRAINT\b/i,
+    /\bDROP\s+INDEX\b/i,
     /\bRENAME\s+(?:COLUMN|TO)\b/i,
     /\bALTER\s+COLUMN\b[^;]*\bTYPE\b/i,
     /\bSET\s+NOT\s+NULL\b/i
