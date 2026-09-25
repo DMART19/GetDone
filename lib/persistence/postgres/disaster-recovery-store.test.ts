@@ -16,7 +16,7 @@ function envelope(jobId: string) {
 }
 
 class FakeDatabase {
-  incident: { hash:string; payload:any } | null = null;
+  incident: { hash:string; payload:unknown } | null = null;
   decisions = new Map<string,string>();
   cleared = false;
   async transaction<T>(operation:(client:FakeDatabase)=>Promise<T>) { return operation(this); }
@@ -90,7 +90,7 @@ describe("PostgresDisasterRecoveryPlanner", () => {
 
   it("requires hashed reconciliation evidence", async () => {
     const db=new FakeDatabase();
-    const planner=new PostgresDisasterRecoveryPlanner(db as never);
+    const planner=new PostgresDisasterRecoveryPlanner(db as unknown as import("@/lib/persistence/postgres/client").PostgresTransactionalDatabase);
     await expect(planner.clearReconciliation({
       incidentId:"i",jobId:"j",clearedAt:"2026-09-25T10:00:00.000Z",evidenceHash:"bad"
     })).rejects.toMatchObject({code:"VALIDATION_FAILED"});
