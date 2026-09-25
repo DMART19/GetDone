@@ -1,0 +1,124 @@
+{
+  "schemaVersion": "1.0.0",
+  "topologyId": "getdone-production-kubernetes-v1",
+  "platform": "kubernetes",
+  "namespace": "getdone",
+  "database": {
+    "engine": "postgresql",
+    "minimumVersion": "16",
+    "mode": "managed-external",
+    "connectionSecret": "DATABASE_URL",
+    "tlsRequired": true,
+    "migrationCommand": "npm run db:migrate",
+    "readinessCommand": "npm run db:verify-production"
+  },
+  "images": {
+    "web": {
+      "environmentVariable": "GETDONE_WEB_IMAGE",
+      "immutableDigestRequired": true,
+      "dockerfile": "Dockerfile.web"
+    },
+    "worker": {
+      "environmentVariable": "GETDONE_WORKER_IMAGE",
+      "immutableDigestRequired": true,
+      "dockerfile": "Dockerfile.worker"
+    }
+  },
+  "services": {
+    "web": {
+      "replicas": 2,
+      "minReplicas": 2,
+      "maxReplicas": 6,
+      "port": 3000,
+      "livenessPath": "/api/health",
+      "readinessPath": "/api/control/health",
+      "rollout": {
+        "maxUnavailable": 0,
+        "maxSurge": 1
+      },
+      "disruptionBudget": {
+        "minAvailable": 1
+      }
+    },
+    "worker": {
+      "replicas": 2,
+      "minReplicas": 2,
+      "maxReplicas": 10,
+      "healthPort": 3001,
+      "livenessPath": "/livez",
+      "readinessPath": "/readyz",
+      "rollout": {
+        "maxUnavailable": 0,
+        "maxSurge": 1
+      },
+      "disruptionBudget": {
+        "minAvailable": 1
+      },
+      "terminationGracePeriodSeconds": 120
+    }
+  },
+  "tls": {
+    "required": true,
+    "ingressClass": "nginx",
+    "certificateManager": "cert-manager",
+    "clusterIssuer": "letsencrypt-production",
+    "secretName": "getdone-tls"
+  },
+  "networking": {
+    "defaultDeny": true,
+    "webIngressFrom": "ingress-nginx",
+    "egress": [
+      {
+        "protocol": "UDP",
+        "port": 53,
+        "purpose": "dns"
+      },
+      {
+        "protocol": "TCP",
+        "port": 53,
+        "purpose": "dns"
+      },
+      {
+        "protocol": "TCP",
+        "port": 443,
+        "purpose": "providers-otel-tls"
+      },
+      {
+        "protocol": "TCP",
+        "port": 5432,
+        "purpose": "managed-postgresql"
+      }
+    ]
+  },
+  "requiredSecrets": [
+    "DATABASE_URL",
+    "GETDONE_INTERNAL_WORKER_TOKEN",
+    "OPENROUTER_API_KEY"
+  ],
+  "optionalSecrets": [
+    "GETDONE_CREDENTIAL_BROKER_TOKEN"
+  ],
+  "requiredRenderInputs": [
+    "GETDONE_PUBLIC_HOST",
+    "GETDONE_WEB_IMAGE",
+    "GETDONE_WORKER_IMAGE",
+    "DATABASE_URL",
+    "GETDONE_INTERNAL_WORKER_TOKEN",
+    "OPENROUTER_API_KEY",
+    "GETDONE_AI_MODEL_PROFILES_JSON",
+    "GETDONE_AI_ROUTING_POLICY_JSON",
+    "OPENROUTER_CANARY_MODEL",
+    "GETDONE_OTEL_EXPORTER_OTLP_ENDPOINT"
+  ],
+  "rolloutPolicy": {
+    "migrationBeforeRuntime": true,
+    "requireReadinessBeforeTraffic": true,
+    "workerDrainOnTermination": true,
+    "requireImmutableImages": true
+  },
+  "disasterRecovery": {
+    "workersRemainStoppedUntilPlanPersisted": true,
+    "recoveryCommand": "npm run dr:plan",
+    "acceptanceCommand": "npm run dr:test-acceptance"
+  }
+}
