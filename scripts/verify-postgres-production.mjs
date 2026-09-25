@@ -7,7 +7,7 @@ function required(name) {
   return value;
 }
 
-const requiredMigration = "2026-09-25.2";
+const requiredMigration = "2026-09-25.3";
 const maxBackupAgeHours = Number(process.env.GETDONE_BACKUP_MAX_AGE_HOURS || "24");
 if (!Number.isFinite(maxBackupAgeHours) || maxBackupAgeHours <= 0) {
   throw new Error("GETDONE_BACKUP_MAX_AGE_HOURS must be positive");
@@ -250,6 +250,33 @@ try {
     throw new Error("Production release gate index verification failed");
   }
 
+  const analyticsSchema = await client.query(
+    `SELECT COUNT(*)::int AS count
+     FROM unnest(ARRAY[
+       'analytics_ingestion_checkpoints',
+       'analytics_ingestion_evidence',
+       'analytics_ingestion_runs'
+     ]::text[]) AS required(name)
+     WHERE to_regclass(required.name) IS NOT NULL`
+  );
+  if (analyticsSchema.rows[0]?.count !== 3) {
+    throw new Error("Analytics ingestion persistence schema verification failed");
+  }
+
+  const analyticsIndexes = await client.query(
+    `SELECT COUNT(*)::int AS count
+     FROM pg_indexes
+     WHERE schemaname=current_schema()
+       AND indexname IN (
+         'analytics_ingestion_evidence_source_idx',
+         'analytics_ingestion_checkpoint_updated_idx',
+         'analytics_ingestion_runs_scope_idx'
+       )`
+  );
+  if (analyticsIndexes.rows[0]?.count !== 3) {
+    throw new Error("Analytics ingestion index verification failed");
+  }
+
   const backup = await client.query(
     `SELECT completed_at,verification_hash
      FROM database_backup_evidence
@@ -314,6 +341,7 @@ try {
     rateLimitSchema: "verified",
     disasterRecoverySchema: "verified",
     releaseGateSchema: "verified",
+    analyticsSchema: "verified",
     backupFresh: true
   }, null, 2));
 } finally {
