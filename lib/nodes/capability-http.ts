@@ -16,8 +16,10 @@ import {
 } from "@/lib/control-plane/schemas";
 import {
   RATE_LIMIT_POLICIES,
+  clientNetworkIdentity,
   enforceRateLimit,
   rateLimitHeaders,
+  requestCredentialFingerprint,
   tenantRateLimitKey
 } from "@/lib/security/rate-limit.server";
 import {
@@ -60,6 +62,14 @@ export async function handleNodeCapabilities(request: Request) {
         "Idempotency-Key header is required"
       );
     }
+    await enforceRateLimit(
+      RATE_LIMIT_POLICIES.agentAuthentication,
+      ["network", clientNetworkIdentity(request)]
+    );
+    await enforceRateLimit(
+      RATE_LIMIT_POLICIES.agentAuthentication,
+      ["credential", requestCredentialFingerprint(request)]
+    );
     const principal = await getNodeAgentAuthenticator().authenticate(request);
     await enforceRateLimit(
       RATE_LIMIT_POLICIES.agentMutation,
