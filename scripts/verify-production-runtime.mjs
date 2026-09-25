@@ -240,6 +240,10 @@ function validateWebAuthn() {
   if (env.GETDONE_AUTH_COOKIE_SECURE === "false") {
     fail("WEBAUTHN_CONFIG", "Production auth cookies must use Secure transport");
   }
+  const cookieName = env.GETDONE_AUTH_COOKIE_NAME?.trim() || "getdone_session";
+  if (!/^[!#$%&'*+.^_`|~0-9A-Za-z-]{1,128}$/.test(cookieName)) {
+    fail("WEBAUTHN_CONFIG", "GETDONE_AUTH_COOKIE_NAME is invalid");
+  }
   const rpId = required("GETDONE_WEBAUTHN_RP_ID");
   if (rpId && (!/^[A-Za-z0-9.-]+$/.test(rpId) || rpId === "localhost")) {
     fail("WEBAUTHN_CONFIG", "GETDONE_WEBAUTHN_RP_ID must be a production DNS RP ID");
