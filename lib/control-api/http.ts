@@ -1,4 +1,9 @@
 import { z } from "zod";
+import {
+  serializeClearedSessionCookie,
+  serializeSessionCookie
+} from "@/lib/auth/cookies";
+import { readWebAuthnServerConfig } from "@/lib/auth/webauthn-config";
 import { ControlPlaneError, toControlPlaneError } from "@/lib/control-plane/errors";
 import { createCorrelationId, readIdempotencyKey } from "@/lib/control-plane/request-context";
 import { readServerRuntimeEnvironment } from "@/lib/control-plane/runtime-environment.server";
@@ -97,23 +102,24 @@ async function parseJson<T>(request: Request, schema: z.ZodType<T>, label: strin
   return parsed.data;
 }
 
-async function execute<T>(
+async function executeWithHeaders<T>(
   operation: (
     adapter: ReturnType<typeof getControlApiAdapter>,
     correlationId: string
-  ) => Promise<T>,
+  ) => Promise<{ data: T; headers?: Record<string, string> }>,
   options: { status?: number } = {}
 ) {
   const correlationId = createCorrelationId();
   const environment = readServerRuntimeEnvironment();
   try {
     const adapter = getControlApiAdapter();
-    const data = await operation(adapter, correlationId);
-    return Response.json(apiSuccess(data, { correlationId, environment }), {
+    const result = await operation(adapter, correlationId);
+    return Response.json(apiSuccess(result.data, { correlationId, environment }), {
       status: options.status ?? 200,
       headers: {
         "cache-control": "no-store",
-        "x-correlation-id": correlationId
+        "x-correlation-id": correlationId,
+        ...(result.headers ?? {})
       }
     });
   } catch (error) {
@@ -129,6 +135,18 @@ async function execute<T>(
       }
     );
   }
+}
+
+async function execute<T>(
+  operation: (
+    adapter: ReturnType<typeof getControlApiAdapter>,
+    correlationId: string
+  ) => Promise<T>,
+  options: { status?: number } = {}
+) {
+  return executeWithHeaders(async (adapter, correlationId) => ({
+    data: await operation(adapter, correlationId)
+  }), options);
 }
 
 
@@ -157,10 +175,37 @@ export function handleBeginStepUp(request: Request) {
 }
 
 export function handleVerifyStepUp(request: Request) {
-  return execute(async (adapter) => {
+  return executeWithHeaders(async (adapter) => {
     const input = await parseJson(request, stepUpVerifySchema, "step-up verification");
-    return adapter.verifyStepUp(request, input.challengeId, input.credential);
+    const result = await adapter.verifyStepUp(request, input.challengeId, input.credential);
+    const config = readWebAuthnServerConfig();
+    return {
+      data: result.session,
+      headers: {
+        "set-cookie": serializeSessionCookie(
+          config,
+          result.rotatedSessionToken,
+          result.expiresAt
+        )
+      }
+    };
   });
+}
+
+export function handleLogout(request: Request) {
+  return executeWithHeaders(async (adapter) => {
+    const result = await adapter.logout(request);
+    return {
+      data: result,
+      headers: {
+        "set-cookie": serializeClearedSessionCookie(readWebAuthnServerConfig())
+      }
+    };
+  });
+}
+
+export function handleRevokeOtherSessions(request: Request) {
+  return execute((adapter) => adapter.revokeOtherSessions(request));
 }
 
 export function handleOwnerIntent(request: Request) {
