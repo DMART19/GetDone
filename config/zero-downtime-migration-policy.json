@@ -2,7 +2,7 @@
   "schemaVersion": "1.0.0",
   "policyId": "getdone-zero-downtime-migrations-v1",
   "enforcedAfterVersion": "2026-09-25.1",
-  "previousReleaseRef": "1b78e9d9d1dcfc3e084224ebb8ff1017fb9492f3",
+  "previousReleaseRef": "97fe5a547eaad702b552711410afb58e00f920b5",
   "compatibilityWindowReleases": 1,
   "phases": {
     "expand": {
@@ -60,6 +60,15 @@
       "version": "2026-09-25.2",
       "file": "migrations/2026-09-25.2_release_gate_evidence.sql",
       "releaseId": "requirements-30-31",
+      "phase": "expand",
+      "transitionSchema": false,
+      "destructive": false,
+      "authorityCompatibilityRequired": true
+    },
+    {
+      "version": "2026-09-25.3",
+      "file": "migrations/2026-09-25.3_analytics_ingestion.sql",
+      "releaseId": "requirements-34-35",
       "phase": "expand",
       "transitionSchema": true,
       "destructive": false,
