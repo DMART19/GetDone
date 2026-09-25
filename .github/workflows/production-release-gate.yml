@@ -186,10 +186,6 @@ jobs:
           GETDONE_HTTP_STAGING_ACCEPTANCE: "true"
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
           GETDONE_DB_SSL: "false"
-          GETDONE_HTTP_STAGING_ORIGIN: ${{ env.GETDONE_HTTP_STAGING_ORIGIN }}
-          GETDONE_HTTP_STAGING_TOKEN_A: ${{ env.GETDONE_HTTP_STAGING_TOKEN_A }}
-          GETDONE_HTTP_STAGING_TOKEN_B: ${{ env.GETDONE_HTTP_STAGING_TOKEN_B }}
-          GETDONE_HTTP_STAGING_CONTROL_TOKEN: ${{ env.GETDONE_HTTP_STAGING_CONTROL_TOKEN }}
 
       - name: Build dedicated worker
         run: npm run build:worker
