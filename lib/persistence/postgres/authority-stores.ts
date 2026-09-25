@@ -234,53 +234,10 @@ export class PostgresAuditLedger implements AuditLedger {
       chain_sequence: string | number;
       event_hash: string;
     }>(
-      `WITH gate AS MATERIALIZED (
-         SELECT pg_advisory_xact_lock(
-           hashtextextended($3 || E'\\x1f' || $4, 0)
-         ) AS locked
-       ),
-       current_head AS MATERIALIZED (
-         SELECT head_sequence,head_hash,event_count
-         FROM audit_chain_heads,gate
-         WHERE portfolio_id=$3 AND company_id=$4
-         FOR UPDATE
-       ),
-       next_event AS MATERIALIZED (
-         SELECT
-           COALESCE((SELECT head_sequence FROM current_head),0) + 1 AS chain_sequence,
-           COALESCE((SELECT head_hash FROM current_head),repeat('0',64)) AS previous_event_hash,
-           COALESCE((SELECT event_count FROM current_head),0) + 1 AS event_count
-         FROM gate
-       ),
-       inserted AS (
-         INSERT INTO audit_events
-           (id,correlation_id,portfolio_id,company_id,entity_type,entity_id,occurred_at,payload,
-            chain_sequence,previous_event_hash,event_hash)
-         SELECT
-           $1,$2,$3,$4,$5,$6,$7,$8::jsonb,
-           next_event.chain_sequence,
-           next_event.previous_event_hash,
-           getdone_audit_event_hash(
-             $3,$4,next_event.chain_sequence,next_event.previous_event_hash,$1,$7,$8::jsonb
-           )
-         FROM next_event
-         RETURNING chain_sequence,event_hash,occurred_at
-       ),
-       advanced AS (
-         INSERT INTO audit_chain_heads
-           (portfolio_id,company_id,head_sequence,head_hash,event_count,updated_at)
-         SELECT
-           $3,$4,inserted.chain_sequence,inserted.event_hash,inserted.chain_sequence,inserted.occurred_at
-         FROM inserted
-         ON CONFLICT(portfolio_id,company_id) DO UPDATE
-         SET head_sequence=excluded.head_sequence,
-             head_hash=excluded.head_hash,
-             event_count=excluded.event_count,
-             updated_at=excluded.updated_at
-         RETURNING head_sequence,head_hash
-       )
-       SELECT inserted.chain_sequence,inserted.event_hash
-       FROM inserted,advanced`,
+      `SELECT chain_sequence,event_hash
+       FROM getdone_append_audit_event(
+         $1,$2,$3,$4,$5,$6,$7,$8::jsonb
+       )`,
       [
         event.id,
         event.correlationId,
