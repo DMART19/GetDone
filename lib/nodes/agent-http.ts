@@ -45,7 +45,7 @@ export async function handleNodeInventory(request: Request) {
       tenantRateLimitKey({
         portfolioId: principal.portfolioId,
         companyId: principal.companyId
-      }, `inventory:${principal.nodeId}:${principal.credentialId}`)
+      }, `inventory:${principal.nodeId}`)
     );
     const inventory = await parseJson(request, hardwareInventorySchema);
     const data = await getNodeInventoryAdapter().submit(principal, inventory);
