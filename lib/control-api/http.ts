@@ -10,6 +10,13 @@ import { readServerRuntimeEnvironment } from "@/lib/control-plane/runtime-enviro
 import { apiFailure, apiSuccess } from "@/lib/control-plane/schemas";
 import { getControlApiAdapter } from "@/lib/control-api/runtime.server";
 import { readOwnerAIGatewayHealth } from "@/lib/ai-gateway/health.server";
+import {
+  RATE_LIMIT_POLICIES,
+  clientNetworkIdentity,
+  enforceRateLimit,
+  rateLimitHeaders,
+  tenantRateLimitKey
+} from "@/lib/security/rate-limit.server";
 
 const stepUpVerifySchema = z.object({
   challengeId: z.string().uuid(),
@@ -130,7 +137,8 @@ async function executeWithHeaders<T>(
         status: normalized.status,
         headers: {
           "cache-control": "no-store",
-          "x-correlation-id": correlationId
+          "x-correlation-id": correlationId,
+          ...rateLimitHeaders(normalized)
         }
       }
     );
@@ -171,12 +179,40 @@ export function handleAIGatewayHealth(
 }
 
 export function handleBeginStepUp(request: Request) {
-  return execute((adapter) => adapter.beginStepUp(request), { status: 201 });
+  return execute(async (adapter) => {
+    const principal = await adapter.authenticate(request);
+    await enforceRateLimit(
+      RATE_LIMIT_POLICIES.stepUpBegin,
+      [
+        ...tenantRateLimitKey({
+          portfolioId: principal.scope.portfolioId,
+          companyId: principal.scope.companyId,
+          userId: principal.scope.userId,
+          sessionId: principal.sessionId
+        }, "step-up-begin"),
+        clientNetworkIdentity(request)
+      ]
+    );
+    return adapter.beginStepUp(request);
+  }, { status: 201 });
 }
 
 export function handleVerifyStepUp(request: Request) {
   return executeWithHeaders(async (adapter) => {
+    const principal = await adapter.authenticate(request);
     const input = await parseJson(request, stepUpVerifySchema, "step-up verification");
+    await enforceRateLimit(
+      RATE_LIMIT_POLICIES.stepUpVerify,
+      [
+        ...tenantRateLimitKey({
+          portfolioId: principal.scope.portfolioId,
+          companyId: principal.scope.companyId,
+          userId: principal.scope.userId,
+          sessionId: principal.sessionId
+        }, input.challengeId),
+        clientNetworkIdentity(request)
+      ]
+    );
     const result = await adapter.verifyStepUp(request, input.challengeId, input.credential);
     const config = readWebAuthnServerConfig();
     return {
@@ -211,6 +247,15 @@ export function handleRevokeOtherSessions(request: Request) {
 export function handleOwnerIntent(request: Request) {
   return execute(async (adapter, correlationId) => {
     const actor = await adapter.authenticate(request);
+    await enforceRateLimit(
+      RATE_LIMIT_POLICIES.ownerIntent,
+      tenantRateLimitKey({
+        portfolioId: actor.scope.portfolioId,
+        companyId: actor.scope.companyId,
+        userId: actor.scope.userId,
+        sessionId: actor.sessionId
+      }, "owner-intent")
+    );
     const input = await parseJson(request, ownerIntentSchema, "owner intent");
     return adapter.submitOwnerIntent(
       actor,
@@ -236,6 +281,15 @@ export function handleGetDecision(request: Request, decisionId: string) {
 export function handleMutateDecision(request: Request, decisionId: string) {
   return execute(async (adapter, correlationId) => {
     const actor = await adapter.authenticate(request);
+    await enforceRateLimit(
+      RATE_LIMIT_POLICIES.decisionMutation,
+      tenantRateLimitKey({
+        portfolioId: actor.scope.portfolioId,
+        companyId: actor.scope.companyId,
+        userId: actor.scope.userId,
+        sessionId: actor.sessionId
+      }, safeId(decisionId, "decisionId"))
+    );
     const body = await parseJson(request, decisionMutationSchema, "decision mutation");
     return adapter.mutateDecision(actor, {
       decisionId: safeId(decisionId, "decisionId"),
@@ -261,6 +315,15 @@ export function handleGetResource(request: Request, resourceId: string) {
 export function handleDiscoverResource(request: Request) {
   return execute(async (adapter) => {
     const actor = await adapter.authenticate(request);
+    await enforceRateLimit(
+      RATE_LIMIT_POLICIES.enrollmentMutation,
+      tenantRateLimitKey({
+        portfolioId: actor.scope.portfolioId,
+        companyId: actor.scope.companyId,
+        userId: actor.scope.userId,
+        sessionId: actor.sessionId
+      }, "resource-discovery")
+    );
     const body = await parseJson(request, resourceDiscoverySchema, "resource discovery");
     return adapter.discoverResource(actor, {
       ...body,
@@ -289,6 +352,15 @@ export function handleGetResourceEnrollment(request: Request, enrollmentId: stri
 export function handleStartResourceEnrollment(request: Request) {
   return execute(async (adapter) => {
     const actor = await adapter.authenticate(request);
+    await enforceRateLimit(
+      RATE_LIMIT_POLICIES.enrollmentMutation,
+      tenantRateLimitKey({
+        portfolioId: actor.scope.portfolioId,
+        companyId: actor.scope.companyId,
+        userId: actor.scope.userId,
+        sessionId: actor.sessionId
+      }, "resource-enrollment-start")
+    );
     const body = await parseJson(request, resourceEnrollmentStartSchema, "resource enrollment");
     return adapter.startResourceEnrollment(actor, {
       ...body,
@@ -300,6 +372,15 @@ export function handleStartResourceEnrollment(request: Request) {
 export function handleAdvanceResourceEnrollment(request: Request, enrollmentId: string) {
   return execute(async (adapter) => {
     const actor = await adapter.authenticate(request);
+    await enforceRateLimit(
+      RATE_LIMIT_POLICIES.enrollmentMutation,
+      tenantRateLimitKey({
+        portfolioId: actor.scope.portfolioId,
+        companyId: actor.scope.companyId,
+        userId: actor.scope.userId,
+        sessionId: actor.sessionId
+      }, safeId(enrollmentId, "enrollmentId"))
+    );
     const body = await parseJson(request, resourceEnrollmentActionSchema, "resource enrollment action");
     return adapter.advanceResourceEnrollment(
       actor,
