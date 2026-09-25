@@ -7,6 +7,12 @@ import { createCorrelationId } from "@/lib/control-plane/request-context";
 import { readServerRuntimeEnvironment } from "@/lib/control-plane/runtime-environment.server";
 import { apiFailure, apiSuccess } from "@/lib/control-plane/schemas";
 import { getPostgresRuntimeFromEnv } from "@/lib/persistence/postgres/runtime.server";
+import {
+  RATE_LIMIT_POLICIES,
+  clientNetworkIdentity,
+  enforceRateLimit,
+  rateLimitHeaders
+} from "@/lib/security/rate-limit.server";
 
 const beginSchema = z.object({
   userId: z.string().min(1).max(200)
@@ -74,7 +80,7 @@ async function execute<T>(
       apiFailure(normalized.code, normalized.message, { correlationId, environment }),
       {
         status: normalized.status,
-        headers: { "cache-control": "no-store" }
+        headers: { "cache-control": "no-store", ...rateLimitHeaders(normalized) }
       }
     );
   }
@@ -83,6 +89,10 @@ async function execute<T>(
 export function handleBeginPasskeySignIn(request: Request) {
   return execute(async () => {
     const input = await json(request, beginSchema, "passkey sign-in begin");
+    await enforceRateLimit(
+      RATE_LIMIT_POLICIES.authBegin,
+      ["ip", clientNetworkIdentity(request), "user", input.userId]
+    );
     const auth = service();
     return { data: await auth.service.begin(input.userId) };
   }, 201);
@@ -91,6 +101,17 @@ export function handleBeginPasskeySignIn(request: Request) {
 export function handleVerifyPasskeySignIn(request: Request) {
   return execute(async () => {
     const input = await json(request, verifySchema, "passkey sign-in verification");
+    await enforceRateLimit(
+      RATE_LIMIT_POLICIES.authVerify,
+      [
+        "ip",
+        clientNetworkIdentity(request),
+        "challenge",
+        input.challengeId,
+        "credential",
+        input.credential.id
+      ]
+    );
     const auth = service();
     const result = await auth.service.verify(input.challengeId, input.credential);
     return {
