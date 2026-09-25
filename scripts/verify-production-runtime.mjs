@@ -87,7 +87,7 @@ function walkHttpsUrls(value, label) {
     return;
   }
   for (const [key, item] of Object.entries(value)) {
-    if ((key === "url" || key === "baseUrl") && typeof item === "string") {
+    if ((key === "url" || key === "baseUrl" || key === "apiBaseUrl") && typeof item === "string") {
       const probe = item.replaceAll("{providerOperationId}", "provider-operation");
       assertHttpsUrl(probe, `${label}.${key}`);
     } else {
@@ -165,6 +165,59 @@ function validateIntegrationArray(name, type) {
               `${label}.objects.${objectType} requires collectionPath and itemPath with {recordId}`
             );
           }
+        }
+      }
+      if (type === "github") {
+        if (
+          entry.apiBaseUrl !== undefined
+          && typeof entry.apiBaseUrl !== "string"
+        ) {
+          fail("INVALID_INTEGRATION_CONFIG", `${label}.apiBaseUrl must be a URL string`);
+        }
+        if (
+          !Array.isArray(entry.repositories)
+          || entry.repositories.length === 0
+          || entry.repositories.some(
+            (repository) => typeof repository !== "string"
+              || !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository)
+          )
+        ) {
+          fail("INVALID_INTEGRATION_CONFIG", `${label}.repositories must be a non-empty repository allowlist`);
+        }
+        if (
+          entry.protectedBranches !== undefined
+          && (
+            !Array.isArray(entry.protectedBranches)
+            || entry.protectedBranches.some((branch) => typeof branch !== "string" || !branch.trim())
+          )
+        ) {
+          fail("INVALID_INTEGRATION_CONFIG", `${label}.protectedBranches is invalid`);
+        }
+      }
+      if (type === "analytics") {
+        if (typeof entry.url !== "string") {
+          fail("INVALID_INTEGRATION_CONFIG", `${label}.url is required`);
+        }
+        if (
+          !entry.schema
+          || typeof entry.schema !== "object"
+          || Array.isArray(entry.schema)
+          || !entry.schema.fields
+          || typeof entry.schema.fields !== "object"
+          || Array.isArray(entry.schema.fields)
+          || Object.keys(entry.schema.fields).length === 0
+        ) {
+          fail("INVALID_INTEGRATION_CONFIG", `${label}.schema.fields must be a non-empty object`);
+        }
+        if (
+          entry.maxResponseBytes !== undefined
+          && (
+            !Number.isInteger(entry.maxResponseBytes)
+            || entry.maxResponseBytes < 1
+            || entry.maxResponseBytes > 2_000_000
+          )
+        ) {
+          fail("INVALID_INTEGRATION_CONFIG", `${label}.maxResponseBytes is invalid`);
         }
       }
     }
@@ -501,7 +554,9 @@ function validateIntegrations() {
     ["GETDONE_WEBHOOK_ACTIONS_JSON", "webhook"],
     ["GETDONE_GMAIL_ACTIONS_JSON", "gmail"],
     ["GETDONE_SLACK_ACTIONS_JSON", "slack"],
-    ["GETDONE_CRM_ACTIONS_JSON", "crm"]
+    ["GETDONE_CRM_ACTIONS_JSON", "crm"],
+    ["GETDONE_GITHUB_ACTIONS_JSON", "github"],
+    ["GETDONE_ANALYTICS_SOURCES_JSON", "analytics"]
   ];
 
   let configured = 0;
