@@ -20,7 +20,7 @@ env:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
         with:
@@ -37,12 +37,14 @@ jobs:
       - run: npm run verify:runtime
       - run: npm run verify:secrets
       - run: npm run verify:architecture
+      - run: npm run verify:deployment
       - run: npm run verify:contract-versions
       - run: npm run typecheck
       - run: npm run lint
       - run: npm run verify:coverage
       - run: npm run build:worker
       - run: docker build --file Dockerfile.worker --tag getdone-job-worker:ci .
+      - run: docker build --file Dockerfile.web --tag getdone-web:ci --build-arg NEXT_PUBLIC_APP_ENV=development .
       - run: npm run build
         env:
           NEXT_PUBLIC_APP_ENV: development
