@@ -7,7 +7,7 @@ function required(name) {
   return value;
 }
 
-const requiredMigration = "2026-09-25.1";
+const requiredMigration = "2026-09-25.2";
 const maxBackupAgeHours = Number(process.env.GETDONE_BACKUP_MAX_AGE_HOURS || "24");
 if (!Number.isFinite(maxBackupAgeHours) || maxBackupAgeHours <= 0) {
   throw new Error("GETDONE_BACKUP_MAX_AGE_HOURS must be positive");
@@ -225,6 +225,31 @@ try {
     throw new Error("Disaster recovery hold/index verification failed");
   }
 
+  const releaseGateSchema = await client.query(
+    `SELECT COUNT(*)::int AS count
+     FROM unnest(ARRAY[
+       'production_release_gate_evidence',
+       'migration_compatibility_evidence'
+     ]::text[]) AS required(name)
+     WHERE to_regclass(required.name) IS NOT NULL`
+  );
+  if (releaseGateSchema.rows[0]?.count !== 2) {
+    throw new Error("Production release gate persistence schema verification failed");
+  }
+
+  const releaseGateIndexes = await client.query(
+    `SELECT COUNT(*)::int AS count
+     FROM pg_indexes
+     WHERE schemaname=current_schema()
+       AND indexname IN (
+         'production_release_gate_passed_sha_idx',
+         'migration_compatibility_release_idx'
+       )`
+  );
+  if (releaseGateIndexes.rows[0]?.count !== 2) {
+    throw new Error("Production release gate index verification failed");
+  }
+
   const backup = await client.query(
     `SELECT completed_at,verification_hash
      FROM database_backup_evidence
@@ -288,6 +313,7 @@ try {
     durableWorkerSchema: "verified",
     rateLimitSchema: "verified",
     disasterRecoverySchema: "verified",
+    releaseGateSchema: "verified",
     backupFresh: true
   }, null, 2));
 } finally {
