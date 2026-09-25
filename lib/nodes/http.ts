@@ -6,6 +6,13 @@ import { apiFailure, apiSuccess } from "@/lib/control-plane/schemas";
 import { getControlApiAdapter } from "@/lib/control-api/runtime.server";
 import { getNodeEnrollmentAdapter } from "@/lib/nodes/runtime.server";
 import {
+  RATE_LIMIT_POLICIES,
+  clientNetworkIdentity,
+  enforceRateLimit,
+  rateLimitHeaders,
+  tenantRateLimitKey
+} from "@/lib/security/rate-limit.server";
+import {
   nodeAgentBootstrapSchema,
   nodeControlEnrollmentActionSchema,
   nodeControlEnrollmentCreateSchema
@@ -60,7 +67,7 @@ async function execute<T>(
       apiFailure(normalized.code, normalized.message, { correlationId, environment }),
       {
         status: normalized.status,
-        headers: { "cache-control": "no-store" }
+        headers: { "cache-control": "no-store", ...rateLimitHeaders(normalized) }
       }
     );
   }
@@ -90,6 +97,15 @@ export function handleGetNodeEnrollment(request: Request, challengeId: string) {
 export function handleCreateNodeEnrollment(request: Request) {
   return execute(async () => {
     const principal = await ownerPrincipal(request);
+    await enforceRateLimit(
+      RATE_LIMIT_POLICIES.enrollmentMutation,
+      tenantRateLimitKey({
+        portfolioId: principal.scope.portfolioId,
+        companyId: principal.scope.companyId,
+        userId: principal.scope.userId,
+        sessionId: principal.sessionId
+      }, "node-enrollment-create")
+    );
     const body = await parseJson(
       request,
       nodeControlEnrollmentCreateSchema,
@@ -105,6 +121,15 @@ export function handleCreateNodeEnrollment(request: Request) {
 export function handleNodeEnrollmentAction(request: Request, challengeId: string) {
   return execute(async () => {
     const principal = await ownerPrincipal(request);
+    await enforceRateLimit(
+      RATE_LIMIT_POLICIES.enrollmentMutation,
+      tenantRateLimitKey({
+        portfolioId: principal.scope.portfolioId,
+        companyId: principal.scope.companyId,
+        userId: principal.scope.userId,
+        sessionId: principal.sessionId
+      }, safeId(challengeId, "challengeId"))
+    );
     const body = await parseJson(
       request,
       nodeControlEnrollmentActionSchema,
@@ -136,6 +161,15 @@ export function handleAgentNodeEnrollment(request: Request) {
       request,
       nodeAgentBootstrapSchema,
       "Node Agent enrollment"
+    );
+    await enforceRateLimit(
+      RATE_LIMIT_POLICIES.agentEnrollment,
+      [
+        "ip",
+        clientNetworkIdentity(request),
+        "enrollment-token",
+        body.enrollmentToken
+      ]
     );
     return getNodeEnrollmentAdapter().enrollAgent(body);
   }, 201);
