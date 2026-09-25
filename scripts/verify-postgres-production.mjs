@@ -7,7 +7,7 @@ function required(name) {
   return value;
 }
 
-const requiredMigration = "2026-09-24.3";
+const requiredMigration = "2026-09-25.1";
 const maxBackupAgeHours = Number(process.env.GETDONE_BACKUP_MAX_AGE_HOURS || "24");
 if (!Number.isFinite(maxBackupAgeHours) || maxBackupAgeHours <= 0) {
   throw new Error("GETDONE_BACKUP_MAX_AGE_HOURS must be positive");
@@ -65,7 +65,8 @@ try {
          'job_leases',
          'job_runtime_transactions',
          'provider_concurrency_leases',
-         'rate_limit_buckets'
+         'rate_limit_buckets',
+         'job_disaster_recovery_decisions'
        )`
   );
   const indexText = constraints.rows.map((row) => row.indexdef).join("\n");
@@ -74,7 +75,8 @@ try {
     "job_leases",
     "job_runtime_transactions",
     "provider_concurrency_leases",
-    "rate_limit_buckets"
+    "rate_limit_buckets",
+    "job_disaster_recovery_decisions"
   ]) {
     if (!indexText.includes(requiredFragment)) {
       throw new Error(`Concurrency/idempotency index verification missing: ${requiredFragment}`);
@@ -198,6 +200,31 @@ try {
     throw new Error("Rate limit persistence schema verification failed");
   }
 
+  const disasterRecoverySchema = await client.query(
+    `SELECT COUNT(*)::int AS count
+     FROM unnest(ARRAY[
+       'disaster_recovery_incidents',
+       'job_disaster_recovery_decisions'
+     ]::text[]) AS required(name)
+     WHERE to_regclass(required.name) IS NOT NULL`
+  );
+  if (disasterRecoverySchema.rows[0]?.count !== 2) {
+    throw new Error("Disaster recovery persistence schema verification failed");
+  }
+
+  const disasterRecoveryIndexes = await client.query(
+    `SELECT COUNT(*)::int AS count
+     FROM pg_indexes
+     WHERE schemaname=current_schema()
+       AND indexname IN (
+         'job_disaster_recovery_active_hold_idx',
+         'job_disaster_recovery_incident_decision_idx'
+       )`
+  );
+  if (disasterRecoveryIndexes.rows[0]?.count !== 2) {
+    throw new Error("Disaster recovery hold/index verification failed");
+  }
+
   const backup = await client.query(
     `SELECT completed_at,verification_hash
      FROM database_backup_evidence
@@ -260,6 +287,7 @@ try {
     authSchema: "verified",
     durableWorkerSchema: "verified",
     rateLimitSchema: "verified",
+    disasterRecoverySchema: "verified",
     backupFresh: true
   }, null, 2));
 } finally {
