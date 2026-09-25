@@ -104,7 +104,7 @@ integrationDescribe("tamper-evident PostgreSQL audit ledger", () => {
     await database?.close();
     await pool?.end();
     if (admin) {
-      await admin.query(`DROP DATABASE IF EXISTS ${quoteIdentifier(databaseName)} WITH (FORCE)`);
+      await admin.query(`DROP DATABASE IF EXISTS ${quoteIdentifier(databaseName)}`);
       await admin.end();
     }
   });
