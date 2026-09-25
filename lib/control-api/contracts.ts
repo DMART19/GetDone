@@ -115,6 +115,23 @@ export interface StepUpSessionView {
   stepUpAuthenticatedAt: string;
 }
 
+export interface StepUpVerificationResult {
+  session: StepUpSessionView;
+  expiresAt: string;
+  /** Server-only credential; HTTP handlers must set it as a cookie and never serialize it. */
+  rotatedSessionToken: string;
+}
+
+export interface SessionRevocationView {
+  sessionId: string;
+  revoked: true;
+}
+
+export interface OtherSessionRevocationView {
+  sessionId: string;
+  revokedOtherSessions: number;
+}
+
 export interface ControlApiHealth {
   service: "getdone-control-api";
   surfaceVersion: string;
@@ -134,7 +151,9 @@ export interface ControlApiApplicationAdapter {
     request: Request,
     challengeId: string,
     response: unknown
-  ): Promise<StepUpSessionView>;
+  ): Promise<StepUpVerificationResult>;
+  logout(request: Request): Promise<SessionRevocationView>;
+  revokeOtherSessions(request: Request): Promise<OtherSessionRevocationView>;
 
   submitOwnerIntent(
     principal: ControlApiPrincipal,
