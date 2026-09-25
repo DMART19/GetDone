@@ -529,6 +529,16 @@ describe("Phase 41 release/version registry", () => {
       sourcePath: "lib/execution/disaster-recovery.ts",
       contractTracked: true
     });
+    expect(registry.schemaVersions.zeroDowntimeMigrationPolicy).toMatchObject({
+      version: "1.0.0",
+      sourcePath: "config/zero-downtime-migration-policy.json",
+      contractTracked: true
+    });
+    expect(registry.schemaVersions.productionReleaseGate).toMatchObject({
+      version: "1.0.0",
+      sourcePath: "scripts/verify-production-promotion.mjs",
+      contractTracked: true
+    });
     for (const state of Object.values(environment.environments)) {
       expect(state.connections.database).toBe(false);
       expect(state.database).toMatchObject({
