@@ -98,7 +98,8 @@ try {
     "business_action_executions",
     "business_action_verification_evidence",
     "credential_leases",
-    "credential_usage_audits"
+    "credential_usage_audits",
+    "audit_chain_heads"
   ];
   const rls = await client.query(
     `SELECT required.name, relation.relrowsecurity, relation.relforcerowsecurity
