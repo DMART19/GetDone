@@ -78,6 +78,49 @@ export const SlackMessageSendResultSchema = z.object({
   acceptedAt: isoDateTime
 }).strict();
 
+const crmScalar = z.union([z.string(), z.number(), z.boolean(), z.null()]);
+const crmProperties = z.record(z.string().min(1).max(160), crmScalar);
+
+export const CrmRecordReadInputSchema = z.object({
+  companyId,
+  connectionId: id,
+  objectType: z.enum(["contact", "company", "deal"]),
+  recordId: z.string().min(1).max(300)
+}).strict();
+
+export const CrmRecordWriteInputSchema = z.object({
+  companyId,
+  connectionId: id,
+  objectType: z.enum(["contact", "company", "deal"]),
+  operation: z.enum(["create", "update"]),
+  recordId: z.string().min(1).max(300).optional(),
+  properties: crmProperties.refine((value) => Object.keys(value).length > 0, {
+    message: "CRM mutation properties cannot be empty"
+  })
+}).strict().superRefine((value, ctx) => {
+  if (value.operation === "update" && !value.recordId) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["recordId"],
+      message: "CRM update requires recordId"
+    });
+  }
+  if (value.operation === "create" && value.recordId) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["recordId"],
+      message: "CRM create recordId is provider-assigned"
+    });
+  }
+});
+
+export const CrmRecordResultSchema = z.object({
+  objectType: z.enum(["contact", "company", "deal"]),
+  recordId: z.string().min(1).max(300),
+  properties: crmProperties,
+  observedAt: isoDateTime
+}).strict();
+
 export const RepositoryInspectInputSchema = z.object({
   companyId,
   repository,
@@ -275,6 +318,14 @@ export const capabilitySchemaRegistry = {
   "slack.message.send": {
     input: SlackMessageSendInputSchema,
     output: SlackMessageSendResultSchema
+  },
+  "crm.record.read": {
+    input: CrmRecordReadInputSchema,
+    output: CrmRecordResultSchema
+  },
+  "crm.record.write": {
+    input: CrmRecordWriteInputSchema,
+    output: CrmRecordResultSchema
   },
   "repository.inspect": {
     input: RepositoryInspectInputSchema,
