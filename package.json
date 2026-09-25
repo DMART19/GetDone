@@ -50,7 +50,12 @@
     "verify:deployment": "node scripts/verify-production-topology.mjs",
     "deploy:render": "node scripts/render-production-deployment.mjs",
     "dr:plan": "node scripts/plan-disaster-recovery.mjs",
-    "dr:test-acceptance": "vitest run lib/execution/disaster-recovery-postgres.integration.test.ts"
+    "dr:test-acceptance": "vitest run lib/execution/disaster-recovery-postgres.integration.test.ts",
+    "verify:zero-downtime-migrations": "node scripts/verify-zero-downtime-migrations.mjs",
+    "db:test-zero-downtime": "node scripts/test-zero-downtime-migrations.mjs",
+    "release:collect-ci-evidence": "node scripts/collect-github-release-evidence.mjs",
+    "release:worker-health-canary": "node scripts/run-worker-health-canary.mjs",
+    "release:gate-production": "node scripts/verify-production-promotion.mjs"
   },
   "dependencies": {
     "lucide-react": "0.468.0",
