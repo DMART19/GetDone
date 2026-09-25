@@ -98,6 +98,16 @@ describe("WebAuthn server configuration", () => {
     }).secureCookie).toBe(false);
   });
 
+  it("rejects unsafe cookie names that could alter Set-Cookie syntax", () => {
+    for (const name of ["session; Domain=evil.test", "bad cookie", "bad\nheader"]) {
+      expect(() => readWebAuthnServerConfig({
+        GETDONE_WEBAUTHN_RP_ID: "getdone.test",
+        GETDONE_WEBAUTHN_ORIGINS: "https://getdone.test",
+        GETDONE_AUTH_COOKIE_NAME: name
+      })).toThrow(/cookie_name is invalid/i);
+    }
+  });
+
   it("rejects non-positive and non-integer TTLs", () => {
     for (const [name, value] of [
       ["GETDONE_STEP_UP_TTL_SECONDS", "0"],
