@@ -91,6 +91,13 @@ jobs:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
           GETDONE_DB_SSL: "false"
 
+      - name: Run PostgreSQL rate limit acceptance
+        run: npx vitest run lib/security/rate-limit-postgres.integration.test.ts
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+          GETDONE_DB_SSL: "false"
+          GETDONE_POSTGRES_INTEGRATION: "true"
+
       - name: Run owner-safe AI Gateway health PostgreSQL acceptance
         run: npx vitest run lib/ai-gateway/health-postgres.integration.test.ts
         env:
