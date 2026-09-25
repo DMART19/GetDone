@@ -73,7 +73,7 @@
         "minimumEngineVersion": "16",
         "migrationVersion": "2026-09-25.2",
         "schemaVersion": "2.1.0",
-        "adapterStatus": "not-connected"
+        "adapterStatus": "implemented-unconnected"
       },
       "nodeAgent": {
         "status": "implemented-development-only",
@@ -199,7 +199,7 @@
         "minimumEngineVersion": "16",
         "migrationVersion": "2026-09-25.2",
         "schemaVersion": "2.1.0",
-        "adapterStatus": "not-connected"
+        "adapterStatus": "implemented-unconnected"
       },
       "nodeAgent": {
         "status": "implemented-development-only",
@@ -325,7 +325,7 @@
         "minimumEngineVersion": "16",
         "migrationVersion": "2026-09-25.2",
         "schemaVersion": "2.1.0",
-        "adapterStatus": "not-connected"
+        "adapterStatus": "implemented-unconnected"
       },
       "nodeAgent": {
         "status": "implemented-development-only",
