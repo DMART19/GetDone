@@ -14,14 +14,14 @@ export const runtime = "nodejs";
 
 export async function GET(request: Request) {
   try {
+    await enforceRateLimit(
+      RATE_LIMIT_POLICIES.workerHealth,
+      ["network", clientNetworkIdentity(request)]
+    );
     assertInternalWorkerToken(request);
     await enforceRateLimit(
       RATE_LIMIT_POLICIES.workerHealth,
       ["credential", requestCredentialFingerprint(request)]
-    );
-    await enforceRateLimit(
-      RATE_LIMIT_POLICIES.workerHealth,
-      ["network", clientNetworkIdentity(request)]
     );
     const worker = getInstalledPersistentJobWorker();
     if (!worker) {
