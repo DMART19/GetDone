@@ -353,9 +353,11 @@ if (failures.length === 0) {
     registry.database.status !== "implemented-unconnected"
     || registry.database.engine !== "postgresql"
     || registry.database.minimumEngineVersion !== "16"
-    || registry.database.migrationVersion !== "2026-09-24.3"
-    || registry.database.schemaVersion !== "1.9.0"
+    || registry.database.migrationVersion !== "2026-09-25.1"
+    || registry.database.schemaVersion !== "2.0.0"
     || registry.schemaVersions.postgresPersistence?.version !== "1.1.0"
+    || registry.schemaVersions.disasterRecovery?.version !== "1.0.0"
+    || registry.schemaVersions.disasterRecovery?.sourcePath !== "lib/execution/disaster-recovery.ts"
     || registry.adapters.postgresPersistence?.version !== "1.1.0"
     || manifest.database.status !== registry.database.status
     || manifest.database.engine !== registry.database.engine
