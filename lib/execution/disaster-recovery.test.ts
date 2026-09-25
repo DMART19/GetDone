@@ -64,12 +64,12 @@ function businessSpec(jobId: string) {
 }
 
 function businessRecord(jobId: string, providerOperationId?: string): BusinessActionExecutionRecord {
+  const persisted = businessSpec(jobId);
+  if (persisted.spec.kind !== "business-action") throw new Error("business spec expected");
   const base = {
     requestId: `request:${jobId}`,
     jobId,
-    requestHash: sha256Hex(businessSpec(jobId).spec.kind === "business-action"
-      ? businessSpec(jobId).spec.request
-      : {}),
+    requestHash: sha256Hex(persisted.spec.request),
     adapterId: "provider",
     adapterVersion: "1.0.0",
     providerOperationId,
