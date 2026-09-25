@@ -264,6 +264,16 @@
         "scripts/verify-production-promotion.mjs",
         ".github/workflows/production-release-gate.yml"
       ]
+    },
+    "environmentEvidence": {
+      "version": "1.0.0",
+      "sourcePath": "config/environment-evidence-policy.json",
+      "contractTracked": true,
+      "contractSourcePaths": [
+        "config/environment-evidence-policy.json",
+        "scripts/generate-environment-manifest.mjs",
+        "scripts/record-environment-evidence.mjs"
+      ]
     }
   },
   "policy": {
@@ -406,6 +416,16 @@
       "status": "implemented-unconfigured",
       "version": "1.1.0",
       "sourcePath": "lib/execution/adapters/slack-action.ts"
+    },
+    "crmBusinessAction": {
+      "status": "implemented-unconfigured",
+      "version": "1.0.0",
+      "sourcePath": "lib/execution/adapters/crm-action.ts",
+      "contractTracked": true,
+      "contractSourcePaths": [
+        "lib/execution/adapters/crm-action.ts",
+        "lib/domain/capability-schemas.ts"
+      ]
     }
   },
   "environmentManifestPath": "release/environment-manifest.json",
@@ -563,7 +583,14 @@
     "scripts/run-worker-health-canary.mjs",
     "scripts/verify-production-promotion.mjs",
     ".github/workflows/production-release-gate.yml",
-    "lib/release/production-release-gate.test.ts"
+    "lib/release/production-release-gate.test.ts",
+    "release/environment-manifest.template.json",
+    "config/environment-evidence-policy.json",
+    "scripts/generate-environment-manifest.mjs",
+    "scripts/record-environment-evidence.mjs",
+    "lib/release/environment-manifest-evidence.test.ts",
+    "lib/execution/adapters/crm-action.ts",
+    "lib/execution/adapters/crm-action.test.ts"
   ],
   "manualSourcePaths": [
     "docs/ARCHITECTURE.md",
@@ -611,7 +638,7 @@
     "credentialHandling": "secure-provider-or-phone-only",
     "sourcePath": "lib/voice/voice-intents.ts"
   },
-  "environmentManifestSchemaVersion": "1.6.0",
+  "environmentManifestSchemaVersion": "1.7.0",
   "integrations": {
     "registryContractVersion": "1.0.0",
     "liveAdaptersStatus": "not-connected",
@@ -639,7 +666,9 @@
       "lib/persistence/postgres/worker-runtime-stores.ts",
       "instrumentation.ts",
       "middleware.ts",
-      "Dockerfile.worker"
+      "Dockerfile.worker",
+      "lib/execution/adapters/crm-action.ts",
+      "lib/execution/adapters/ordinary-integration-registry.ts"
     ],
     "jobExecutionBridgeContractVersion": "1.0.0",
     "jobExecutionBridgeStatus": "deterministic-contract",
