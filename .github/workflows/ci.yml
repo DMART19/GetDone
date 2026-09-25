@@ -37,6 +37,7 @@ jobs:
       - run: npm run verify:runtime
       - run: npm run verify:secrets
       - run: npm run verify:architecture
+      - run: npm run verify:zero-downtime-migrations
       - run: npm run verify:deployment
       - run: npm run verify:contract-versions
       - run: npm run typecheck
