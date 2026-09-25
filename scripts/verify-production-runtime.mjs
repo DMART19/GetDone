@@ -148,6 +148,25 @@ function validateIntegrationArray(name, type) {
           `${label} must use provider-object verification in production`
         );
       }
+      if (type === "crm") {
+        if (typeof entry.baseUrl !== "string") {
+          fail("INVALID_INTEGRATION_CONFIG", `${label}.baseUrl is required`);
+        }
+        for (const objectType of ["contact", "company", "deal"]) {
+          const endpoint = entry.objects?.[objectType];
+          if (
+            !endpoint
+            || typeof endpoint.collectionPath !== "string"
+            || typeof endpoint.itemPath !== "string"
+            || !endpoint.itemPath.includes("{recordId}")
+          ) {
+            fail(
+              "INVALID_INTEGRATION_CONFIG",
+              `${label}.objects.${objectType} requires collectionPath and itemPath with {recordId}`
+            );
+          }
+        }
+      }
     }
 
     if (entry.credentialProviderId !== undefined) {
@@ -481,7 +500,8 @@ function validateIntegrations() {
     ["GETDONE_HTTP_ACTIONS_JSON", "http"],
     ["GETDONE_WEBHOOK_ACTIONS_JSON", "webhook"],
     ["GETDONE_GMAIL_ACTIONS_JSON", "gmail"],
-    ["GETDONE_SLACK_ACTIONS_JSON", "slack"]
+    ["GETDONE_SLACK_ACTIONS_JSON", "slack"],
+    ["GETDONE_CRM_ACTIONS_JSON", "crm"]
   ];
 
   let configured = 0;
