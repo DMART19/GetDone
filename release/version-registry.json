@@ -547,9 +547,9 @@
     "status": "implemented-unconnected",
     "engine": "postgresql",
     "minimumEngineVersion": "16",
-    "migrationVersion": "2026-09-24.2",
-    "schemaVersion": "1.8.0",
-    "sourcePath": "migrations/2026-09-24.2_rate_limits.sql",
+    "migrationVersion": "2026-09-24.3",
+    "schemaVersion": "1.9.0",
+    "sourcePath": "migrations/2026-09-24.3_audit_integrity_chain.sql",
     "adapterSourcePath": "lib/persistence/postgres/client.ts"
   },
   "voice": {
