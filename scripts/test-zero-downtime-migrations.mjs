@@ -119,30 +119,40 @@ try {
     authoritySemanticsEqual:true
   };
   const evidenceHash = sha256Hex(payload);
-  await admin.query(
-    `INSERT INTO migration_compatibility_evidence
-      (id,release_id,previous_ref,transition_migration,verified_at,
-       old_on_new_hash,new_on_transition_hash,evidence_hash,payload)
-     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb)
-     ON CONFLICT(release_id,transition_migration) DO UPDATE
-     SET previous_ref=excluded.previous_ref,
-         verified_at=excluded.verified_at,
-         old_on_new_hash=excluded.old_on_new_hash,
-         new_on_transition_hash=excluded.new_on_transition_hash,
-         evidence_hash=excluded.evidence_hash,
-         payload=excluded.payload`,
-    [
-      `migration-compatibility:${transition.releaseId}`,
-      transition.releaseId,
-      policy.previousReleaseRef,
-      transition.version,
-      verifiedAt,
-      oldEvidence.semanticHash,
-      newEvidence.semanticHash,
-      evidenceHash,
-      JSON.stringify(payload)
-    ]
-  );
+  const evidencePool = new pg.Pool({
+    connectionString:dbUrl(newDbName),
+    max:1,
+    application_name:"getdone-rolling-migration-evidence",
+    ssl:process.env.GETDONE_DB_SSL === "false" ? false : {rejectUnauthorized:true}
+  });
+  try {
+    await evidencePool.query(
+      `INSERT INTO migration_compatibility_evidence
+        (id,release_id,previous_ref,transition_migration,verified_at,
+         old_on_new_hash,new_on_transition_hash,evidence_hash,payload)
+       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb)
+       ON CONFLICT(release_id,transition_migration) DO UPDATE
+       SET previous_ref=excluded.previous_ref,
+           verified_at=excluded.verified_at,
+           old_on_new_hash=excluded.old_on_new_hash,
+           new_on_transition_hash=excluded.new_on_transition_hash,
+           evidence_hash=excluded.evidence_hash,
+           payload=excluded.payload`,
+      [
+        `migration-compatibility:${transition.releaseId}`,
+        transition.releaseId,
+        policy.previousReleaseRef,
+        transition.version,
+        verifiedAt,
+        oldEvidence.semanticHash,
+        newEvidence.semanticHash,
+        evidenceHash,
+        JSON.stringify(payload)
+      ]
+    );
+  } finally {
+    await evidencePool.end();
+  }
 
   fs.writeFileSync(
     path.join(evidenceDir,"summary.json"),
