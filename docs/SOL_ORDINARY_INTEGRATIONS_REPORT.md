@@ -18,7 +18,7 @@ Implementation order is encoded in `ORDINARY_INTEGRATION_IMPLEMENTATION_ORDER`:
 8. scheduling/calendar
 9. other SaaS-specific adapters
 
-Items 1-4 are implemented in this tranche. Items 5-9 remain ordered follow-on work.
+Items 1-5 are implemented. Items 6-9 remain ordered follow-on work.
 
 ## Shared governance
 
@@ -60,6 +60,12 @@ Raw credentials are never part of Job input or persisted execution specs. Creden
 
 `slack.message.send` uses `chat.postMessage`, a deterministic client message ID derived from GetDone idempotency lineage, optional provider-object verification, and `chat.delete` cancellation. Initial Slack `ok` means the provider accepted the request; it is not treated as independent business truth.
 
+### CRM
+
+`crm.record.read` and `crm.record.write` provide one provider-neutral CRM surface for contacts, companies, and deals. Provider endpoints, credential provider, response ID/property paths, and object collection/item paths are server-configured and tenant/environment bound.
+
+Reads can complete from the bounded provider read response. Creates and updates cannot: a successful provider mutation only returns `accepted`. The provider operation lineage stores the provider record ID plus a hash of the exact fields that must be observed. `status()` performs a fresh object read and reaches `completed` only when the independently read record matches those authorized mutation fields. Eventual-consistency mismatches remain `running`; malformed or non-retryable verification responses fail closed.
+
 ## Credential runtime path
 
 Credential-bearing ordinary integrations follow:
@@ -99,4 +105,4 @@ Provider-specific hostile/malformed response tests are in `lib/execution/adapter
 
 ## Release truth
 
-The repository contains production-wirable adapters and governed integration code. Live provider acceptance is not claimed until real provider credentials/configuration are installed and the deployment runs the adapters against the providers. The controlled configured-HTTPS and signed-webhook staging suites exercise real external HTTPS/DNS with ephemeral runtime credentials. Gmail and Slack real-provider acceptance remains credential-gated and is intentionally deferred to the final credential provisioning sweep.
+The repository contains production-wirable adapters and governed integration code. Live provider acceptance is not claimed until real provider credentials/configuration are installed and the deployment runs the adapters against the providers. The controlled configured-HTTPS and signed-webhook staging suites exercise real external HTTPS/DNS with ephemeral runtime credentials. Gmail, Slack, and CRM real-provider acceptance remains credential-gated. CRM implementation evidence does not mark an environment connected; only a fresh exact-SHA `crm-live-acceptance` artifact that satisfies the environment evidence policy can do that.
