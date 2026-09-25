@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import pg from "pg";
 
 function required(name) {
@@ -6,7 +7,7 @@ function required(name) {
   return value;
 }
 
-const requiredMigration = "2026-09-24.2";
+const requiredMigration = "2026-09-24.3";
 const maxBackupAgeHours = Number(process.env.GETDONE_BACKUP_MAX_AGE_HOURS || "24");
 if (!Number.isFinite(maxBackupAgeHours) || maxBackupAgeHours <= 0) {
   throw new Error("GETDONE_BACKUP_MAX_AGE_HOURS must be positive");
@@ -219,10 +220,28 @@ try {
     `SELECT COUNT(*)::int AS count
      FROM information_schema.columns
      WHERE table_name='audit_events'
-       AND column_name IN ('id','correlation_id','entity_type','entity_id','occurred_at','payload')`
+       AND column_name IN (
+         'id','correlation_id','entity_type','entity_id','occurred_at','payload',
+         'chain_sequence','previous_event_hash','event_hash'
+       )`
   );
-  if (audit.rows[0]?.count !== 6) {
+  if (audit.rows[0]?.count !== 9) {
     throw new Error("Audit ledger schema integrity verification failed");
+  }
+
+  const auditIntegrity = spawnSync(
+    process.execPath,
+    ["scripts/verify-audit-ledger-integrity.mjs"],
+    {
+      cwd: process.cwd(),
+      env: process.env,
+      encoding: "utf8"
+    }
+  );
+  if (auditIntegrity.status !== 0) {
+    throw new Error(
+      `Audit ledger integrity verification failed\nSTDOUT:\n${auditIntegrity.stdout}\nSTDERR:\n${auditIntegrity.stderr}`
+    );
   }
 
   console.log(JSON.stringify({
@@ -236,6 +255,7 @@ try {
     tenantRuntimeRole: "verified",
     effectiveRuntimeRole: "verified",
     auditSchema: "verified",
+    auditLedgerIntegrity: "verified",
     authSchema: "verified",
     durableWorkerSchema: "verified",
     rateLimitSchema: "verified",
