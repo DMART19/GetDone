@@ -6,6 +6,7 @@ import {
   expireLatestChallenge,
   expireLatestStepUpProof,
   installVirtualAuthenticator,
+  insertAdditionalSession,
   materializeDecisionFromIntent,
   postJson,
   resetAuthoritativeStaging,
@@ -143,10 +144,15 @@ function mutateAuthenticatorData(
 }
 
 test.describe.serial("real browser WebAuthn ceremony", () => {
-  test("completes sign-in and step-up and rejects challenge replay", async ({ page }) => {
+  test("completes sign-in and step-up, rotates the session, and rejects challenge replay", async ({ page, request }) => {
     await fixture(page);
 
     const signedIn = await signIn(page);
+    const oldCookie = (await page.context().cookies()).find(
+      (cookie) => cookie.name === "getdone_session"
+    )?.value;
+    expect(oldCookie).toBeTruthy();
+
     const signInReplay = await verifySignIn(
       page,
       signedIn.challenge.challengeId,
@@ -165,6 +171,26 @@ test.describe.serial("real browser WebAuthn ceremony", () => {
     expect(verified.value.ok).toBe(true);
     expect(verified.value.data?.stepUpAuthenticatedAt).toBeTruthy();
 
+    const rotatedCookie = (await page.context().cookies()).find(
+      (cookie) => cookie.name === "getdone_session"
+    )?.value;
+    expect(rotatedCookie).toBeTruthy();
+    expect(rotatedCookie).not.toBe(oldCookie);
+
+    const stolenOldSession = await request.get("/api/control/decisions", {
+      headers: { cookie: `getdone_session=${oldCookie}` }
+    });
+    expect(stolenOldSession.status()).toBe(401);
+
+    const currentSession = await page.evaluate(async () => {
+      const response = await fetch("/api/control/decisions", {
+        credentials: "same-origin",
+        cache: "no-store"
+      });
+      return response.status;
+    });
+    expect(currentSession).toBe(200);
+
     const replay = await verifyStepUp(
       page,
       stepped.challenge.challengeId,
@@ -172,6 +198,101 @@ test.describe.serial("real browser WebAuthn ceremony", () => {
     );
     expect(replay.status).toBe(403);
     expect(replay.value.ok).toBe(false);
+  });
+
+  test("logout revokes the current session and clears the browser cookie", async ({ page }) => {
+    await fixture(page);
+    await signIn(page);
+
+    const result = await postJson<Envelope<{ revoked: boolean }>>(
+      page,
+      "/api/control/auth/logout"
+    );
+    expect(result.status).toBe(200);
+    expect(result.value).toMatchObject({
+      ok: true,
+      data: { revoked: true }
+    });
+
+    const sessionCookie = (await page.context().cookies()).find(
+      (cookie) => cookie.name === "getdone_session"
+    );
+    expect(sessionCookie).toBeUndefined();
+
+    const protectedStatus = await page.evaluate(async () => {
+      const response = await fetch("/api/control/decisions", {
+        credentials: "same-origin",
+        cache: "no-store"
+      });
+      return response.status;
+    });
+    expect(protectedStatus).toBe(401);
+  });
+
+  test("fresh step-up revokes another device session but preserves the current session", async ({ page, request }) => {
+    await fixture(page);
+    await signIn(page);
+
+    const beforeStepUp = await postJson<Envelope<{ revokedOtherSessions: number }>>(
+      page,
+      "/api/control/auth/sessions/revoke-others"
+    );
+    expect(beforeStepUp.status).toBe(403);
+
+    const stepped = await beginStepUp(page);
+    expect((await verifyStepUp(
+      page,
+      stepped.challenge.challengeId,
+      stepped.credential
+    )).status).toBe(200);
+
+    const otherToken = "other-device-session-token";
+    await insertAdditionalSession(otherToken);
+
+    const revoked = await postJson<Envelope<{ revokedOtherSessions: number }>>(
+      page,
+      "/api/control/auth/sessions/revoke-others"
+    );
+    expect(revoked.status).toBe(200);
+    expect(revoked.value.data?.revokedOtherSessions).toBe(1);
+
+    const otherDevice = await request.get("/api/control/decisions", {
+      headers: { cookie: `getdone_session=${otherToken}` }
+    });
+    expect(otherDevice.status()).toBe(401);
+
+    const currentDevice = await page.evaluate(async () => {
+      const response = await fetch("/api/control/decisions", {
+        credentials: "same-origin",
+        cache: "no-store"
+      });
+      return response.status;
+    });
+    expect(currentDevice).toBe(200);
+  });
+
+  test("rejects cross-origin cookie-authenticated mutations", async ({ page, request }) => {
+    await fixture(page);
+    await signIn(page);
+    const cookie = (await page.context().cookies()).find(
+      (value) => value.name === "getdone_session"
+    )?.value;
+    expect(cookie).toBeTruthy();
+
+    const attack = await request.post("/api/control/chat", {
+      headers: {
+        cookie: `getdone_session=${cookie}`,
+        origin: "https://attacker.invalid",
+        "content-type": "application/json",
+        "idempotency-key": "csrf-attack"
+      },
+      data: { message: "cross-site mutation" }
+    });
+    expect(attack.status()).toBe(403);
+    expect(await attack.json()).toMatchObject({
+      ok: false,
+      error: { code: "FORBIDDEN" }
+    });
   });
 
   test("rejects wrong origin", async ({ page }) => {
