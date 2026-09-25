@@ -649,6 +649,29 @@ export async function createTaskJobAndExecute(
   }
 }
 
+export async function insertAdditionalSession(token: string) {
+  const db = pool();
+  try {
+    const sessionId = randomUUID();
+    const now = new Date();
+    await db.query(
+      `INSERT INTO auth_sessions
+        (session_id,user_id,token_hash,issued_at,expires_at,authenticated_at)
+       VALUES($1,$2,$3,$4,$5,$4)`,
+      [
+        sessionId,
+        STAGING_USER_ID,
+        sha256Hex(token),
+        now.toISOString(),
+        new Date(now.getTime() + 60 * 60_000).toISOString()
+      ]
+    );
+    return sessionId;
+  } finally {
+    await db.end();
+  }
+}
+
 export async function latestSession() {
   const db = pool();
   try {
