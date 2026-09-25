@@ -1109,8 +1109,8 @@ if (
   releaseRegistry.database?.status !== "implemented-unconnected"
   || releaseRegistry.database?.engine !== "postgresql"
   || releaseRegistry.database?.minimumEngineVersion !== "16"
-  || releaseRegistry.database?.migrationVersion !== "2026-09-24.1"
-  || releaseRegistry.database?.schemaVersion !== "1.7.0"
+  || releaseRegistry.database?.migrationVersion !== "2026-09-24.2"
+  || releaseRegistry.database?.schemaVersion !== "1.8.0"
   || releaseRegistry.schemaVersions?.postgresPersistence?.version !== "1.1.0"
   || releaseRegistry.adapters?.postgresPersistence?.status !== "implemented-unconnected"
   || releaseRegistry.adapters?.postgresPersistence?.version !== "1.1.0"
@@ -1244,8 +1244,8 @@ for (const [name, state] of Object.entries(releaseEnvironment.environments ?? {}
     || state.connections?.database !== false
     || state.database?.engine !== "postgresql"
     || state.database?.adapterStatus !== "implemented-unconnected"
-    || state.database?.migrationVersion !== "2026-09-24.1"
-    || state.database?.schemaVersion !== "1.7.0"
+    || state.database?.migrationVersion !== "2026-09-24.2"
+    || state.database?.schemaVersion !== "1.8.0"
     || state.composition?.goldenPathHarnessStatus !== "deterministic-simulation-only"
     || state.composition?.productionExecutionClaimed !== false
     || state.resourceFabric?.storageFabricContractStatus !== "deterministic-contract"
