@@ -66,7 +66,7 @@ export async function handleNodeCapabilities(request: Request) {
       tenantRateLimitKey({
         portfolioId: principal.portfolioId,
         companyId: principal.companyId
-      }, `capabilities:${principal.nodeId}:${principal.credentialId}`)
+      }, `capabilities:${principal.nodeId}`)
     );
     const profile = await parseJson(request, nodeCapabilityProfileSchema);
     const data = await getNodeCapabilityAdapter().submit(principal, profile);
