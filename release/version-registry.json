@@ -562,7 +562,8 @@
     "scripts/collect-github-release-evidence.mjs",
     "scripts/run-worker-health-canary.mjs",
     "scripts/verify-production-promotion.mjs",
-    ".github/workflows/production-release-gate.yml"
+    ".github/workflows/production-release-gate.yml",
+    "lib/release/production-release-gate.test.ts"
   ],
   "manualSourcePaths": [
     "docs/ARCHITECTURE.md",
