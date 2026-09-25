@@ -17,7 +17,7 @@
     "verify:runtime": "node scripts/verify-runtime.mjs",
     "verify:secrets": "node scripts/verify-no-secrets.mjs",
     "verify:architecture": "node scripts/verify-architecture.mjs",
-    "release:generate": "node scripts/generate-release-artifacts.mjs",
+    "release:generate": "npm run environment:generate && node scripts/generate-release-artifacts.mjs",
     "verify:release": "node scripts/verify-release-artifacts.mjs",
     "verify:coverage": "npm run test:coverage && npm run verify:module-coverage",
     "verify:contract-versions": "node scripts/verify-contract-versions.mjs",
@@ -55,7 +55,10 @@
     "db:test-zero-downtime": "node scripts/test-zero-downtime-migrations.mjs",
     "release:collect-ci-evidence": "node scripts/collect-github-release-evidence.mjs",
     "release:worker-health-canary": "node scripts/run-worker-health-canary.mjs",
-    "release:gate-production": "node scripts/verify-production-promotion.mjs"
+    "release:gate-production": "node scripts/verify-production-promotion.mjs",
+    "environment:generate": "node scripts/generate-environment-manifest.mjs",
+    "environment:check": "node scripts/generate-environment-manifest.mjs --check",
+    "environment:record-evidence": "node scripts/record-environment-evidence.mjs"
   },
   "dependencies": {
     "lucide-react": "0.468.0",
