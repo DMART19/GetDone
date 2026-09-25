@@ -15,6 +15,12 @@ import {
   apiSuccess
 } from "@/lib/control-plane/schemas";
 import {
+  RATE_LIMIT_POLICIES,
+  enforceRateLimit,
+  rateLimitHeaders,
+  tenantRateLimitKey
+} from "@/lib/security/rate-limit.server";
+import {
   getNodeAgentAuthenticator
 } from "@/lib/nodes/agent-runtime.server";
 import {
@@ -55,13 +61,20 @@ export async function handleNodeCapabilities(request: Request) {
       );
     }
     const principal = await getNodeAgentAuthenticator().authenticate(request);
+    await enforceRateLimit(
+      RATE_LIMIT_POLICIES.agentMutation,
+      tenantRateLimitKey({
+        portfolioId: principal.portfolioId,
+        companyId: principal.companyId
+      }, `capabilities:${principal.nodeId}:${principal.credentialId}`)
+    );
     const profile = await parseJson(request, nodeCapabilityProfileSchema);
     const data = await getNodeCapabilityAdapter().submit(principal, profile);
     return Response.json(
       apiSuccess(data, { correlationId, environment }),
       {
         status: 201,
-        headers: { "cache-control": "no-store" }
+        headers: { "cache-control": "no-store", ...rateLimitHeaders(normalized) }
       }
     );
   } catch (error) {
