@@ -17,7 +17,11 @@ export async function GET(request: Request) {
     assertInternalWorkerToken(request);
     await enforceRateLimit(
       RATE_LIMIT_POLICIES.workerHealth,
-      [requestCredentialFingerprint(request), clientNetworkIdentity(request)]
+      ["credential", requestCredentialFingerprint(request)]
+    );
+    await enforceRateLimit(
+      RATE_LIMIT_POLICIES.workerHealth,
+      ["network", clientNetworkIdentity(request)]
     );
     const worker = getInstalledPersistentJobWorker();
     if (!worker) {
