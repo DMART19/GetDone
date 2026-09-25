@@ -109,7 +109,6 @@ try {
     [
       "--format=custom",
       "--no-owner",
-      "--no-acl",
       `--snapshot=${snapshotId}`,
       `--file=${backupFile}`
     ],
