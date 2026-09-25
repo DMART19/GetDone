@@ -33,6 +33,7 @@ export const RATE_LIMIT_POLICIES = Object.freeze({
   workerRun: { id: "worker.run-once", limit: 30, windowSeconds: 60 },
   workerHealth: { id: "worker.health", limit: 60, windowSeconds: 60 },
   agentEnrollment: { id: "agent.enrollment", limit: 20, windowSeconds: 60 },
+  agentAuthentication: { id: "agent.authentication", limit: 60, windowSeconds: 60 },
   agentMutation: { id: "agent.mutation", limit: 120, windowSeconds: 60 }
 } satisfies Record<string, RateLimitPolicy>);
 
