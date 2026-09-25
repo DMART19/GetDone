@@ -181,7 +181,7 @@ export async function enforceRateLimit(
   return decision;
 }
 
-export function rateLimitHeaders(error: unknown) {
+export function rateLimitHeaders(error: unknown): Record<string, string> {
   if (!(error instanceof ControlPlaneError) || error.code !== "RATE_LIMITED") {
     return {};
   }
