@@ -185,16 +185,28 @@ integrationDescribe("tamper-evident PostgreSQL audit ledger", () => {
   });
 
   it("detects reordered chain positions", async () => {
-    await pool.query("UPDATE audit_events SET chain_sequence=99 WHERE id='audit-1'");
-    await pool.query("UPDATE audit_events SET chain_sequence=1 WHERE id='audit-2'");
-    await pool.query("UPDATE audit_events SET chain_sequence=2 WHERE id='audit-1'");
+    const ordered = await pool.query<{ id: string; chain_sequence: number | string }>(
+      `SELECT id,chain_sequence
+       FROM audit_events
+       WHERE portfolio_id='portfolio-a' AND company_id='company-a'
+       ORDER BY chain_sequence
+       LIMIT 2`
+    );
+    const firstId = ordered.rows[0]?.id;
+    const secondId = ordered.rows[1]?.id;
+    expect(firstId).toBeTruthy();
+    expect(secondId).toBeTruthy();
+
+    await pool.query("UPDATE audit_events SET chain_sequence=99 WHERE id=$1", [firstId]);
+    await pool.query("UPDATE audit_events SET chain_sequence=1 WHERE id=$1", [secondId]);
+    await pool.query("UPDATE audit_events SET chain_sequence=2 WHERE id=$1", [firstId]);
 
     const result = runVerifier(connectionString);
     expect(result.status).not.toBe(0);
     expect(result.stderr).toMatch(/EVENT_HASH_MISMATCH|PREVIOUS_HASH_MISMATCH|STORAGE_SEQUENCE_REORDER/);
 
-    await pool.query("UPDATE audit_events SET chain_sequence=99 WHERE id='audit-1'");
-    await pool.query("UPDATE audit_events SET chain_sequence=2 WHERE id='audit-2'");
-    await pool.query("UPDATE audit_events SET chain_sequence=1 WHERE id='audit-1'");
+    await pool.query("UPDATE audit_events SET chain_sequence=99 WHERE id=$1", [firstId]);
+    await pool.query("UPDATE audit_events SET chain_sequence=2 WHERE id=$1", [secondId]);
+    await pool.query("UPDATE audit_events SET chain_sequence=1 WHERE id=$1", [firstId]);
   });
 });
