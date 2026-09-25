@@ -26,6 +26,14 @@ function booleanValue(value: string | undefined, fallback: boolean) {
   throw new ControlPlaneError("UNAVAILABLE", "Boolean runtime configuration is invalid");
 }
 
+function cookieName(value: string | undefined) {
+  const name = value?.trim() || "getdone_session";
+  if (!/^[!#$%&'*+.^_`|~0-9A-Za-z-]{1,128}$/.test(name)) {
+    throw new ControlPlaneError("UNAVAILABLE", "GETDONE_AUTH_COOKIE_NAME is invalid");
+  }
+  return name;
+}
+
 function parseOrigins(value: string | undefined, rpId: string) {
   if (!value?.trim()) {
     throw new ControlPlaneError("UNAVAILABLE", "GETDONE_WEBAUTHN_ORIGINS is required");
@@ -86,7 +94,7 @@ export function readWebAuthnServerConfig(
   return Object.freeze({
     rpId,
     allowedOrigins: parseOrigins(env.GETDONE_WEBAUTHN_ORIGINS, rpId),
-    cookieName: env.GETDONE_AUTH_COOKIE_NAME?.trim() || "getdone_session",
+    cookieName: cookieName(env.GETDONE_AUTH_COOKIE_NAME),
     stepUpTtlSeconds: positiveInt(
       env.GETDONE_STEP_UP_TTL_SECONDS,
       300,
