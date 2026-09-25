@@ -115,6 +115,79 @@ ALTER TABLE audit_events
   ALTER COLUMN previous_event_hash SET NOT NULL,
   ALTER COLUMN event_hash SET NOT NULL;
 
+CREATE OR REPLACE FUNCTION getdone_append_audit_event(
+  p_id text,
+  p_correlation_id text,
+  p_portfolio_id text,
+  p_company_id text,
+  p_entity_type text,
+  p_entity_id text,
+  p_occurred_at timestamptz,
+  p_payload jsonb
+) RETURNS TABLE(chain_sequence bigint,event_hash text)
+LANGUAGE plpgsql
+AS $
+DECLARE
+  v_previous_hash text;
+  v_next_sequence bigint;
+  v_event_hash text;
+BEGIN
+  PERFORM pg_advisory_xact_lock(
+    hashtextextended(p_portfolio_id || E'\\x1f' || p_company_id, 0)
+  );
+
+  SELECT head_sequence + 1, head_hash
+  INTO v_next_sequence, v_previous_hash
+  FROM audit_chain_heads
+  WHERE portfolio_id=p_portfolio_id
+    AND company_id=p_company_id
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    v_next_sequence := 1;
+    v_previous_hash := repeat('0',64);
+  END IF;
+
+  v_event_hash := getdone_audit_event_hash(
+    p_portfolio_id,
+    p_company_id,
+    v_next_sequence,
+    v_previous_hash,
+    p_id,
+    p_occurred_at,
+    p_payload
+  );
+
+  INSERT INTO audit_events(
+    id,correlation_id,portfolio_id,company_id,entity_type,entity_id,
+    occurred_at,payload,chain_sequence,previous_event_hash,event_hash
+  ) VALUES(
+    p_id,p_correlation_id,p_portfolio_id,p_company_id,p_entity_type,p_entity_id,
+    p_occurred_at,p_payload,v_next_sequence,v_previous_hash,v_event_hash
+  );
+
+  INSERT INTO audit_chain_heads(
+    portfolio_id,company_id,head_sequence,head_hash,event_count,updated_at
+  ) VALUES(
+    p_portfolio_id,p_company_id,v_next_sequence,v_event_hash,v_next_sequence,p_occurred_at
+  )
+  ON CONFLICT(portfolio_id,company_id) DO UPDATE
+  SET head_sequence=excluded.head_sequence,
+      head_hash=excluded.head_hash,
+      event_count=excluded.event_count,
+      updated_at=excluded.updated_at;
+
+  RETURN QUERY SELECT v_next_sequence,v_event_hash;
+END
+$;
+
+REVOKE ALL ON FUNCTION getdone_append_audit_event(
+  text,text,text,text,text,text,timestamptz,jsonb
+) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION getdone_append_audit_event(
+  text,text,text,text,text,text,timestamptz,jsonb
+) TO getdone_tenant_runtime;
+
 ALTER TABLE audit_events
   DROP CONSTRAINT IF EXISTS audit_events_chain_sequence_check,
   ADD CONSTRAINT audit_events_chain_sequence_check
