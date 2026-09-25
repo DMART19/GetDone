@@ -128,6 +128,173 @@ export const CrmMutationAcceptedResultSchema = z.object({
   acceptedAt: isoDateTime
 }).strict();
 
+const githubBranch = z.string().min(1).max(255).regex(/^(?!\/)(?!.*\.\.)(?!.*\/\/)[A-Za-z0-9._\/-]+$/);
+const githubPath = z.string().min(1).max(1024).refine(
+  (value) => !value.startsWith("/") && !value.split("/").includes("..") && !value.includes("\\"),
+  { message: "GitHub path must be repository-relative and traversal-free" }
+);
+
+export const GithubRepositoryReadInputSchema = z.object({
+  companyId,
+  connectionId: id,
+  repository,
+  operation: z.enum(["repository", "branch", "file", "pull-request", "issue", "checks"]),
+  branch: githubBranch.optional(),
+  path: githubPath.optional(),
+  number: z.number().int().positive().optional(),
+  ref: z.string().min(1).max(255).optional()
+}).strict();
+
+export const GithubRepositoryReadResultSchema = z.object({
+  repository,
+  operation: z.enum(["repository", "branch", "file", "pull-request", "issue", "checks"]),
+  data: z.unknown(),
+  dataHash: z.string().regex(/^[a-f0-9]{64}$/),
+  observedAt: isoDateTime
+}).strict();
+
+export const GithubBranchCreateInputSchema = z.object({
+  companyId,
+  connectionId: id,
+  repository,
+  branch: githubBranch,
+  fromRef: z.string().min(1).max(255)
+}).strict();
+
+export const GithubFileChangeSchema = z.object({
+  path: githubPath,
+  operation: z.enum(["upsert", "delete"]),
+  content: z.string().max(1_000_000).optional()
+}).strict().superRefine((value, ctx) => {
+  if (value.operation === "upsert" && value.content === undefined) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["content"],
+      message: "GitHub upsert requires content"
+    });
+  }
+  if (value.operation === "delete" && value.content !== undefined) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["content"],
+      message: "GitHub delete must not include content"
+    });
+  }
+});
+
+export const GithubCommitCreateInputSchema = z.object({
+  companyId,
+  connectionId: id,
+  repository,
+  branch: githubBranch,
+  message: z.string().min(1).max(1000),
+  files: z.array(GithubFileChangeSchema).min(1).max(100)
+}).strict();
+
+export const GithubPullRequestWriteInputSchema = z.object({
+  companyId,
+  connectionId: id,
+  repository,
+  operation: z.enum(["create", "update"]),
+  number: z.number().int().positive().optional(),
+  title: z.string().min(1).max(500).optional(),
+  body: z.string().max(100_000).optional(),
+  head: githubBranch.optional(),
+  base: githubBranch.optional(),
+  draft: z.boolean().optional(),
+  state: z.enum(["open", "closed"]).optional()
+}).strict().superRefine((value, ctx) => {
+  if (value.operation === "create" && (!value.title || !value.head || !value.base)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "GitHub PR create requires title, head, and base"
+    });
+  }
+  if (value.operation === "update" && !value.number) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["number"],
+      message: "GitHub PR update requires number"
+    });
+  }
+});
+
+export const GithubIssueWriteInputSchema = z.object({
+  companyId,
+  connectionId: id,
+  repository,
+  operation: z.enum(["create", "update"]),
+  number: z.number().int().positive().optional(),
+  title: z.string().min(1).max(500).optional(),
+  body: z.string().max(100_000).optional(),
+  state: z.enum(["open", "closed"]).optional(),
+  labels: z.array(z.string().min(1).max(100)).max(100).optional()
+}).strict().superRefine((value, ctx) => {
+  if (value.operation === "create" && !value.title) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["title"],
+      message: "GitHub issue create requires title"
+    });
+  }
+  if (value.operation === "update" && !value.number) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["number"],
+      message: "GitHub issue update requires number"
+    });
+  }
+});
+
+export const GithubPullRequestMergeInputSchema = z.object({
+  companyId,
+  connectionId: id,
+  repository,
+  number: z.number().int().positive(),
+  method: z.enum(["merge", "squash", "rebase"]).default("merge"),
+  commitTitle: z.string().min(1).max(500).optional(),
+  commitMessage: z.string().max(10_000).optional()
+}).strict();
+
+export const GithubMutationAcceptedResultSchema = z.object({
+  repository,
+  operation: z.string().min(1).max(80),
+  providerAccepted: z.literal(true),
+  providerReference: z.string().min(1).max(500),
+  acceptedAt: isoDateTime
+}).strict();
+
+export const AnalyticsIngestReadInputSchema = z.object({
+  companyId,
+  sourceId: id,
+  limit: z.number().int().positive().max(500).default(100)
+}).strict();
+
+export const AnalyticsEvidenceRecordSchema = z.object({
+  externalId: z.string().min(1).max(500),
+  sourceUpdatedAt: isoDateTime,
+  observedAt: isoDateTime,
+  fresh: z.boolean(),
+  dedupeKey: z.string().regex(/^[a-f0-9]{64}$/),
+  payloadHash: z.string().regex(/^[a-f0-9]{64}$/),
+  payload: z.record(z.unknown()),
+  provenance: z.object({
+    sourceId: id,
+    sourceUrlHash: z.string().regex(/^[a-f0-9]{64}$/),
+    cursorHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+    providerBatchHash: z.string().regex(/^[a-f0-9]{64}$/)
+  }).strict()
+}).strict();
+
+export const AnalyticsIngestReadResultSchema = z.object({
+  sourceId: id,
+  checkpointBefore: z.string().max(2000).optional(),
+  nextCursor: z.string().max(2000).optional(),
+  records: z.array(AnalyticsEvidenceRecordSchema).max(500),
+  batchHash: z.string().regex(/^[a-f0-9]{64}$/),
+  observedAt: isoDateTime
+}).strict();
+
 export const RepositoryInspectInputSchema = z.object({
   companyId,
   repository,
@@ -333,6 +500,38 @@ export const capabilitySchemaRegistry = {
   "crm.record.write": {
     input: CrmRecordWriteInputSchema,
     output: CrmMutationAcceptedResultSchema
+  },
+  "github.repository.read": {
+    input: GithubRepositoryReadInputSchema,
+    output: GithubRepositoryReadResultSchema
+  },
+  "github.branch.create": {
+    input: GithubBranchCreateInputSchema,
+    output: GithubMutationAcceptedResultSchema
+  },
+  "github.commit.create": {
+    input: GithubCommitCreateInputSchema,
+    output: GithubMutationAcceptedResultSchema
+  },
+  "github.protected-branch.commit": {
+    input: GithubCommitCreateInputSchema,
+    output: GithubMutationAcceptedResultSchema
+  },
+  "github.pull-request.write": {
+    input: GithubPullRequestWriteInputSchema,
+    output: GithubMutationAcceptedResultSchema
+  },
+  "github.issue.write": {
+    input: GithubIssueWriteInputSchema,
+    output: GithubMutationAcceptedResultSchema
+  },
+  "github.pull-request.merge": {
+    input: GithubPullRequestMergeInputSchema,
+    output: GithubMutationAcceptedResultSchema
+  },
+  "analytics.ingest.read": {
+    input: AnalyticsIngestReadInputSchema,
+    output: AnalyticsIngestReadResultSchema
   },
   "repository.inspect": {
     input: RepositoryInspectInputSchema,
