@@ -46,7 +46,11 @@
     "db:verify-audit-ledger": "node scripts/verify-audit-ledger-integrity.mjs",
     "db:create-staging-backup": "node scripts/create-staging-backup.mjs",
     "db:restore-staging-backup": "node scripts/restore-staging-backup.mjs",
-    "db:test-backup-restore": "node scripts/test-staging-backup-restore.mjs"
+    "db:test-backup-restore": "node scripts/test-staging-backup-restore.mjs",
+    "verify:deployment": "node scripts/verify-production-topology.mjs",
+    "deploy:render": "node scripts/render-production-deployment.mjs",
+    "dr:plan": "node scripts/plan-disaster-recovery.mjs",
+    "dr:test-acceptance": "vitest run lib/execution/disaster-recovery-postgres.integration.test.ts"
   },
   "dependencies": {
     "lucide-react": "0.468.0",
