@@ -74,7 +74,7 @@ export async function handleNodeCapabilities(request: Request) {
       apiSuccess(data, { correlationId, environment }),
       {
         status: 201,
-        headers: { "cache-control": "no-store", ...rateLimitHeaders(normalized) }
+        headers: { "cache-control": "no-store" }
       }
     );
   } catch (error) {
@@ -86,7 +86,7 @@ export async function handleNodeCapabilities(request: Request) {
       }),
       {
         status: normalized.status,
-        headers: { "cache-control": "no-store" }
+        headers: { "cache-control": "no-store", ...rateLimitHeaders(normalized) }
       }
     );
   }
