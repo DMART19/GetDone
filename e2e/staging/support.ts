@@ -92,6 +92,7 @@ export async function resetAuthoritativeStaging() {
   const db = pool();
   try {
     await db.query(`TRUNCATE
+      rate_limit_buckets,
       auth_sign_in_challenges,
       auth_step_up_challenges,
       auth_sessions,
@@ -667,6 +668,38 @@ export async function insertAdditionalSession(token: string) {
       ]
     );
     return sessionId;
+  } finally {
+    await db.end();
+  }
+}
+
+export async function saturateRateLimit(
+  policyId: string,
+  keyParts: readonly string[],
+  requestCount: number,
+  windowSeconds = 60
+) {
+  const db = pool();
+  try {
+    const now = new Date();
+    await db.query(
+      `INSERT INTO rate_limit_buckets
+        (policy_id,bucket_key_hash,window_started_at,window_expires_at,request_count,updated_at)
+       VALUES($1,$2,$3,$4,$5,$3)
+       ON CONFLICT(policy_id,bucket_key_hash)
+       DO UPDATE SET
+         window_started_at=excluded.window_started_at,
+         window_expires_at=excluded.window_expires_at,
+         request_count=excluded.request_count,
+         updated_at=excluded.updated_at`,
+      [
+        policyId,
+        sha256Hex({ policy: policyId, keyParts: [...keyParts] }),
+        now.toISOString(),
+        new Date(now.getTime() + windowSeconds * 1000).toISOString(),
+        requestCount
+      ]
+    );
   } finally {
     await db.end();
   }
