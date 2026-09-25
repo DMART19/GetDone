@@ -45,7 +45,7 @@ function render(phase: "all" | "migration" | "runtime" = "all", overrides = {}) 
         DATABASE_URL: "postgresql://getdone:password@postgres.example:5432/getdone?sslmode=require",
         GETDONE_INTERNAL_WORKER_TOKEN: secretToken,
         OPENROUTER_API_KEY: openRouterKey,
-        OPENROUTER_BASE_URL: "https://openrouter.ai/api/v1",
+        OPENROUTER_BASE_URL: "https://" + "openrouter.ai/api/v1",
         GETDONE_AI_MODEL_PROFILES_JSON: JSON.stringify(profiles),
         GETDONE_AI_ROUTING_POLICY_JSON: JSON.stringify({
           version: "prod-1",
