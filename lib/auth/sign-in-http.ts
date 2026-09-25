@@ -91,7 +91,11 @@ export function handleBeginPasskeySignIn(request: Request) {
     const input = await json(request, beginSchema, "passkey sign-in begin");
     await enforceRateLimit(
       RATE_LIMIT_POLICIES.authBegin,
-      ["ip", clientNetworkIdentity(request), "user", input.userId]
+      ["user", input.userId]
+    );
+    await enforceRateLimit(
+      RATE_LIMIT_POLICIES.authBegin,
+      ["network", clientNetworkIdentity(request)]
     );
     const auth = service();
     return { data: await auth.service.begin(input.userId) };
@@ -103,14 +107,11 @@ export function handleVerifyPasskeySignIn(request: Request) {
     const input = await json(request, verifySchema, "passkey sign-in verification");
     await enforceRateLimit(
       RATE_LIMIT_POLICIES.authVerify,
-      [
-        "ip",
-        clientNetworkIdentity(request),
-        "challenge",
-        input.challengeId,
-        "credential",
-        input.credential.id
-      ]
+      ["challenge", input.challengeId, "credential", input.credential.id]
+    );
+    await enforceRateLimit(
+      RATE_LIMIT_POLICIES.authVerify,
+      ["network", clientNetworkIdentity(request)]
     );
     const auth = service();
     const result = await auth.service.verify(input.challengeId, input.credential);
