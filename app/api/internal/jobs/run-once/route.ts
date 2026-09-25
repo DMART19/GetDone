@@ -15,14 +15,14 @@ export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
   try {
+    await enforceRateLimit(
+      RATE_LIMIT_POLICIES.workerRun,
+      ["network", clientNetworkIdentity(request)]
+    );
     assertInternalWorkerToken(request);
     await enforceRateLimit(
       RATE_LIMIT_POLICIES.workerRun,
       ["credential", requestCredentialFingerprint(request)]
-    );
-    await enforceRateLimit(
-      RATE_LIMIT_POLICIES.workerRun,
-      ["network", clientNetworkIdentity(request)]
     );
     const results = await getMvpJobRuntimeFromEnv().runOnce();
     return Response.json({ ok: true, results }, { headers: { "cache-control": "no-store" } });
