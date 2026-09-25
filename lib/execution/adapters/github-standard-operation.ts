@@ -53,8 +53,7 @@ type GithubCapability=typeof CAPABILITIES[number];
 
 function declaration(
   capability:GithubCapability,
-  read:boolean,
-  strong:boolean
+  read:boolean
 ):BusinessActionAdapterDeclaration{
   return Object.freeze({
     capability,
@@ -76,15 +75,14 @@ function declaration(
   });
 }
 const DECLARATIONS=new Map<GithubCapability,BusinessActionAdapterDeclaration>([
-  ["github.repository.read",declaration("github.repository.read",true,false)],
-  ["github.branch.create",declaration("github.branch.create",false,false)],
-  ["github.commit.create",declaration("github.commit.create",false,false)],
-  ["github.protected-branch.commit",declaration("github.protected-branch.commit",false,true)],
-  ["github.pull-request.write",declaration("github.pull-request.write",false,false)],
-  ["github.issue.write",declaration("github.issue.write",false,false)],
-  ["github.pull-request.merge",declaration("github.pull-request.merge",false,true)]
+  ["github.repository.read",declaration("github.repository.read",true)],
+  ["github.branch.create",declaration("github.branch.create",false)],
+  ["github.commit.create",declaration("github.commit.create",false)],
+  ["github.protected-branch.commit",declaration("github.protected-branch.commit",false)],
+  ["github.pull-request.write",declaration("github.pull-request.write",false)],
+  ["github.issue.write",declaration("github.issue.write",false)],
+  ["github.pull-request.merge",declaration("github.pull-request.merge",false)]
 ]);
-void declaration;
 
 function validateConfiguration(configuration:GithubProviderConfiguration){
   if(!/^[A-Za-z0-9._-]{1,160}$/.test(configuration.id)){
@@ -229,11 +227,6 @@ async function requestJson(
 function isObject(value:unknown):value is Record<string,unknown>{
   return Boolean(value)&&typeof value==="object"&&!Array.isArray(value);
 }
-function stringField(value:unknown,key:string){
-  const raw=isObject(value)?value[key]:undefined;
-  if(typeof raw!=="string"||!raw) throw new ControlPlaneError("UNAVAILABLE",`GitHub response is missing ${key}`);
-  return raw;
-}
 function numberField(value:unknown,key:string){
   const raw=isObject(value)?value[key]:undefined;
   if(typeof raw!=="number"||!Number.isInteger(raw)||raw<1){
@@ -347,31 +340,32 @@ export class GithubStandardOperationAdapter implements BusinessActionAdapter {
       }>("github.repository.read",request.input);
       const base=`repos/${repository}/`;
       let body:unknown;
+      let readResponse:Response|undefined;
       try{
         if(input.operation==="repository"){
-          ({body}=await requestJson(this.fetchImpl,apiUrl(configuration,`repos/${repository}`),{
+          ({body,response:readResponse}=await requestJson(this.fetchImpl,apiUrl(configuration,`repos/${repository}`),{
             method:"GET",headers:githubHeaders(request,credential)
           },configuration.maxResponseBytes));
         }else if(input.operation==="branch"){
           if(!input.branch) throw new ControlPlaneError("VALIDATION_FAILED","GitHub branch read requires branch");
-          ({body}=await requestJson(this.fetchImpl,apiUrl(configuration,base+`branches/${encodeURIComponent(input.branch)}`),{
+          ({body,response:readResponse}=await requestJson(this.fetchImpl,apiUrl(configuration,base+`branches/${encodeURIComponent(input.branch)}`),{
             method:"GET",headers:githubHeaders(request,credential)
           },configuration.maxResponseBytes));
         }else if(input.operation==="file"){
           if(!input.path) throw new ControlPlaneError("VALIDATION_FAILED","GitHub file read requires path");
           const url=apiUrl(configuration,base+`contents/${safeRepoPath(input.path)}`);
           if(input.ref) url.searchParams.set("ref",input.ref);
-          ({body}=await requestJson(this.fetchImpl,url,{
+          ({body,response:readResponse}=await requestJson(this.fetchImpl,url,{
             method:"GET",headers:githubHeaders(request,credential)
           },configuration.maxResponseBytes));
         }else if(input.operation==="pull-request"){
           if(!input.number) throw new ControlPlaneError("VALIDATION_FAILED","GitHub pull request read requires number");
-          ({body}=await requestJson(this.fetchImpl,apiUrl(configuration,base+`pulls/${input.number}`),{
+          ({body,response:readResponse}=await requestJson(this.fetchImpl,apiUrl(configuration,base+`pulls/${input.number}`),{
             method:"GET",headers:githubHeaders(request,credential)
           },configuration.maxResponseBytes));
         }else if(input.operation==="issue"){
           if(!input.number) throw new ControlPlaneError("VALIDATION_FAILED","GitHub issue read requires number");
-          ({body}=await requestJson(this.fetchImpl,apiUrl(configuration,base+`issues/${input.number}`),{
+          ({body,response:readResponse}=await requestJson(this.fetchImpl,apiUrl(configuration,base+`issues/${input.number}`),{
             method:"GET",headers:githubHeaders(request,credential)
           },configuration.maxResponseBytes));
         }else{
@@ -403,6 +397,13 @@ export class GithubStandardOperationAdapter implements BusinessActionAdapter {
         });
       }
       const observedAt=this.now().toISOString();
+      if(input.operation!=="checks" && (!readResponse || !readResponse.ok)){
+        const failure=classifyHttpFailure(readResponse?.status ?? 503);
+        return createBusinessActionAdapterResult({
+          source:"business-action-adapter",requestId:request.id,adapterId:this.id,adapterVersion:this.version,
+          status:failure.resultStatus,retryable:failure.retryable,retryClass:failure.retryClass,observedAt
+        });
+      }
       return createBusinessActionAdapterResult({
         source:"business-action-adapter",requestId:request.id,adapterId:this.id,adapterVersion:this.version,
         status:"completed",
