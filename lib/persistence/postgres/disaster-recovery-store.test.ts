@@ -19,7 +19,7 @@ class FakeDatabase {
   incident: { hash:string; payload:any } | null = null;
   decisions = new Map<string,string>();
   cleared = false;
-  async transaction<T>(operation:(client:any)=>Promise<T>) { return operation(this); }
+  async transaction<T>(operation:(client:FakeDatabase)=>Promise<T>) { return operation(this); }
   async query(text:string, values:readonly unknown[] = []) {
     if (text.includes("INSERT INTO disaster_recovery_incidents")) {
       if (this.incident) return { rows:[], rowCount:0 };
@@ -72,7 +72,7 @@ class FakeDatabase {
 describe("PostgresDisasterRecoveryPlanner", () => {
   it("persists idempotent incident evidence and deterministic Job decisions", async () => {
     const db=new FakeDatabase();
-    const planner=new PostgresDisasterRecoveryPlanner(db as never);
+    const planner=new PostgresDisasterRecoveryPlanner(db as unknown as import("@/lib/persistence/postgres/client").PostgresTransactionalDatabase);
     const input={
       id:"incident-a",
       declaredAt:"2026-09-25T10:00:00.000Z",
