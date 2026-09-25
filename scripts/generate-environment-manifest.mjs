@@ -151,7 +151,7 @@ manifest.generation={
   ...manifest.generation,
   mode:"acceptance-evidence-derived",
   policyVersion:policy.policyVersion,
-  candidateSha,
+  candidateSha:accepted.size > 0 ? candidateSha : null,
   acceptedEvidenceCount:accepted.size,
   rejectedEvidenceCount:rejected.length
 };
