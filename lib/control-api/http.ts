@@ -189,8 +189,7 @@ export function handleBeginStepUp(request: Request) {
           companyId: principal.scope.companyId,
           userId: principal.scope.userId,
           sessionId: principal.sessionId
-        }, "step-up-begin"),
-        clientNetworkIdentity(request)
+        }, "step-up-begin")
       ]
     );
     return adapter.beginStepUp(request);
@@ -253,7 +252,6 @@ export function handleOwnerIntent(request: Request) {
         portfolioId: actor.scope.portfolioId,
         companyId: actor.scope.companyId,
         userId: actor.scope.userId,
-        sessionId: actor.sessionId
       }, "owner-intent")
     );
     const input = await parseJson(request, ownerIntentSchema, "owner intent");
@@ -287,7 +285,6 @@ export function handleMutateDecision(request: Request, decisionId: string) {
         portfolioId: actor.scope.portfolioId,
         companyId: actor.scope.companyId,
         userId: actor.scope.userId,
-        sessionId: actor.sessionId
       }, safeId(decisionId, "decisionId"))
     );
     const body = await parseJson(request, decisionMutationSchema, "decision mutation");
@@ -321,7 +318,6 @@ export function handleDiscoverResource(request: Request) {
         portfolioId: actor.scope.portfolioId,
         companyId: actor.scope.companyId,
         userId: actor.scope.userId,
-        sessionId: actor.sessionId
       }, "resource-discovery")
     );
     const body = await parseJson(request, resourceDiscoverySchema, "resource discovery");
@@ -358,7 +354,6 @@ export function handleStartResourceEnrollment(request: Request) {
         portfolioId: actor.scope.portfolioId,
         companyId: actor.scope.companyId,
         userId: actor.scope.userId,
-        sessionId: actor.sessionId
       }, "resource-enrollment-start")
     );
     const body = await parseJson(request, resourceEnrollmentStartSchema, "resource enrollment");
@@ -378,7 +373,6 @@ export function handleAdvanceResourceEnrollment(request: Request, enrollmentId: 
         portfolioId: actor.scope.portfolioId,
         companyId: actor.scope.companyId,
         userId: actor.scope.userId,
-        sessionId: actor.sessionId
       }, safeId(enrollmentId, "enrollmentId"))
     );
     const body = await parseJson(request, resourceEnrollmentActionSchema, "resource enrollment action");
