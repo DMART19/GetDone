@@ -6,7 +6,7 @@ function required(name) {
   return value;
 }
 
-const requiredMigration = "2026-09-24.1";
+const requiredMigration = "2026-09-24.2";
 const maxBackupAgeHours = Number(process.env.GETDONE_BACKUP_MAX_AGE_HOURS || "24");
 if (!Number.isFinite(maxBackupAgeHours) || maxBackupAgeHours <= 0) {
   throw new Error("GETDONE_BACKUP_MAX_AGE_HOURS must be positive");
@@ -63,7 +63,8 @@ try {
          'authorization_consumptions',
          'job_leases',
          'job_runtime_transactions',
-         'provider_concurrency_leases'
+         'provider_concurrency_leases',
+         'rate_limit_buckets'
        )`
   );
   const indexText = constraints.rows.map((row) => row.indexdef).join("\n");
@@ -71,7 +72,8 @@ try {
     "authorization_consumptions",
     "job_leases",
     "job_runtime_transactions",
-    "provider_concurrency_leases"
+    "provider_concurrency_leases",
+    "rate_limit_buckets"
   ]) {
     if (!indexText.includes(requiredFragment)) {
       throw new Error(`Concurrency/idempotency index verification missing: ${requiredFragment}`);
@@ -181,6 +183,19 @@ try {
     throw new Error("Durable worker/credential broker persistence schema verification failed");
   }
 
+  const rateLimitSchema = await client.query(
+    `SELECT COUNT(*)::int AS count
+     FROM information_schema.columns
+     WHERE table_name='rate_limit_buckets'
+       AND column_name IN (
+         'policy_id','bucket_key_hash','window_started_at',
+         'window_expires_at','request_count','updated_at'
+       )`
+  );
+  if (rateLimitSchema.rows[0]?.count !== 6) {
+    throw new Error("Rate limit persistence schema verification failed");
+  }
+
   const backup = await client.query(
     `SELECT completed_at,verification_hash
      FROM database_backup_evidence
@@ -223,6 +238,7 @@ try {
     auditSchema: "verified",
     authSchema: "verified",
     durableWorkerSchema: "verified",
+    rateLimitSchema: "verified",
     backupFresh: true
   }, null, 2));
 } finally {
