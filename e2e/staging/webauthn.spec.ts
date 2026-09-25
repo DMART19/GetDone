@@ -1,6 +1,8 @@
 import { createHash, randomBytes } from "node:crypto";
 import { expect, test, type Page } from "@playwright/test";
 import {
+  STAGING_COMPANY_ID,
+  STAGING_PORTFOLIO_ID,
   STAGING_USER_ID,
   browserAssertion,
   expireLatestChallenge,
@@ -11,6 +13,7 @@ import {
   postJson,
   resetAuthoritativeStaging,
   revokeLatestSession,
+  saturateRateLimit,
   seedPasskeyOwner,
   setCredentialSignCount
 } from "./support";
@@ -292,6 +295,53 @@ test.describe.serial("real browser WebAuthn ceremony", () => {
     expect(await attack.json()).toMatchObject({
       ok: false,
       error: { code: "FORBIDDEN" }
+    });
+  });
+
+  test("returns 429 with retry metadata when a tenant mutation bucket is exhausted", async ({ page }) => {
+    await fixture(page);
+    await signIn(page);
+
+    await saturateRateLimit(
+      "owner.intent",
+      [
+        "tenant",
+        STAGING_PORTFOLIO_ID,
+        STAGING_COMPANY_ID,
+        STAGING_USER_ID,
+        "no-session",
+        "owner-intent"
+      ],
+      60
+    );
+
+    const result = await page.evaluate(async () => {
+      const response = await fetch("/api/control/chat", {
+        method: "POST",
+        cache: "no-store",
+        credentials: "same-origin",
+        headers: {
+          "content-type": "application/json",
+          "idempotency-key": "rate-limit-owner-intent"
+        },
+        body: JSON.stringify({ message: "rate limit acceptance" })
+      });
+      return {
+        status: response.status,
+        retryAfter: response.headers.get("retry-after"),
+        limit: response.headers.get("ratelimit-limit"),
+        remaining: response.headers.get("ratelimit-remaining"),
+        body: await response.json()
+      };
+    });
+
+    expect(result.status).toBe(429);
+    expect(Number(result.retryAfter)).toBeGreaterThan(0);
+    expect(result.limit).toBe("60");
+    expect(result.remaining).toBe("0");
+    expect(result.body).toMatchObject({
+      ok: false,
+      error: { code: "RATE_LIMITED" }
     });
   });
 
