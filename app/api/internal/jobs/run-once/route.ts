@@ -18,10 +18,11 @@ export async function POST(request: Request) {
     assertInternalWorkerToken(request);
     await enforceRateLimit(
       RATE_LIMIT_POLICIES.workerRun,
-      [
-        requestCredentialFingerprint(request),
-        clientNetworkIdentity(request)
-      ]
+      ["credential", requestCredentialFingerprint(request)]
+    );
+    await enforceRateLimit(
+      RATE_LIMIT_POLICIES.workerRun,
+      ["network", clientNetworkIdentity(request)]
     );
     const results = await getMvpJobRuntimeFromEnv().runOnce();
     return Response.json({ ok: true, results }, { headers: { "cache-control": "no-store" } });
