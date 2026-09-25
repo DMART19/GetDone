@@ -236,19 +236,32 @@ describeIntegration("disaster recovery from real PostgreSQL backup", () => {
       ssl: process.env.GETDONE_DB_SSL !== "false"
     });
     try {
+      const incidentId = `dr-incident-${suffix}`;
+      const cliPlan = JSON.parse(runNode("scripts/plan-disaster-recovery.mjs", {
+        DATABASE_URL: restoredUrl,
+        GETDONE_DB_SSL: process.env.GETDONE_DB_SSL ?? "false",
+        GETDONE_DR_INCIDENT_ID: incidentId,
+        GETDONE_DR_DECLARED_AT: "2026-09-25T10:00:10.000Z",
+        GETDONE_DR_LOST_PRIMARY_AT: "2026-09-25T10:00:05.000Z",
+        GETDONE_DR_DECIDED_AT: "2026-09-25T10:00:10.000Z",
+        GETDONE_DR_BACKUP_SHA256: backup.backupSha256,
+        GETDONE_DR_SNAPSHOT_HASH: backup.snapshot.hashes.composite
+      }));
+      expect(cliPlan.counts).toEqual({ resume: 2, reconcile: 1, blocked: 1 });
+
       const planner = new PostgresDisasterRecoveryPlanner(restoredDb);
       await planner.declareIncident({
-        id: `dr-incident-${suffix}`,
+        id: incidentId,
         declaredAt: "2026-09-25T10:00:10.000Z",
         lostPrimaryAt: "2026-09-25T10:00:05.000Z",
         sourceBackupSha256: backup.backupSha256,
         sourceSnapshotHash: backup.snapshot.hashes.composite
       });
       const plan = await planner.planIncident(
-        `dr-incident-${suffix}`,
+        incidentId,
         "2026-09-25T10:00:10.000Z"
       );
-      expect(plan.counts).toEqual({ resume: 2, reconcile: 1, blocked: 1 });
+      expect(plan.counts).toEqual(cliPlan.counts);
       expect(Object.fromEntries(plan.decisions.map((item) => [item.jobId,item.decision]))).toEqual({
         [safeQueued]: "resume",
         [safeProvider]: "resume",
@@ -301,7 +314,7 @@ describeIntegration("disaster recovery from real PostgreSQL backup", () => {
       ]);
 
       await planner.clearReconciliation({
-        incidentId: `dr-incident-${suffix}`,
+        incidentId,
         jobId: reconcile,
         clearedAt: "2026-09-25T10:00:12.000Z",
         evidenceHash: "d".repeat(64)
@@ -313,7 +326,7 @@ describeIntegration("disaster recovery from real PostgreSQL backup", () => {
       expect(afterReconciliation.map((item) => item.jobId)).toEqual([reconcile]);
 
       await expect(planner.clearReconciliation({
-        incidentId: `dr-incident-${suffix}`,
+        incidentId,
         jobId: blocked,
         clearedAt: "2026-09-25T10:00:14.000Z",
         evidenceHash: "e".repeat(64)
