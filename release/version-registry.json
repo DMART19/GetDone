@@ -1,6 +1,6 @@
 {
   "registrySchemaVersion": "1.6.0",
-  "registryVersion": "2026-09-24.4",
+  "registryVersion": "2026-09-24.5",
   "appVersion": "0.1.0",
   "schemaVersions": {
     "controlApi": {
@@ -547,9 +547,9 @@
     "status": "implemented-unconnected",
     "engine": "postgresql",
     "minimumEngineVersion": "16",
-    "migrationVersion": "2026-09-24.1",
-    "schemaVersion": "1.7.0",
-    "sourcePath": "migrations/2026-09-24.1_correlation_lineage.sql",
+    "migrationVersion": "2026-09-24.2",
+    "schemaVersion": "1.8.0",
+    "sourcePath": "migrations/2026-09-24.2_rate_limits.sql",
     "adapterSourcePath": "lib/persistence/postgres/client.ts"
   },
   "voice": {
