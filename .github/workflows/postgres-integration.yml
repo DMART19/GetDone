@@ -21,7 +21,7 @@ env:
 jobs:
   postgres16:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 50
 
     services:
       postgres:
@@ -115,6 +115,13 @@ jobs:
         env:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
           GETDONE_DB_SSL: "false"
+
+      - name: Run disaster recovery primary-loss acceptance
+        run: npm run dr:test-acceptance
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+          GETDONE_DB_SSL: "false"
+          GETDONE_POSTGRES_INTEGRATION: "true"
 
       - name: Run owner-safe AI Gateway health PostgreSQL acceptance
         run: npx vitest run lib/ai-gateway/health-postgres.integration.test.ts
