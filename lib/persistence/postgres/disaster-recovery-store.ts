@@ -1,3 +1,4 @@
+import type { QueryResultRow } from "pg";
 import { sha256Hex } from "@/lib/control-plane/canonical-hash";
 import { ControlPlaneError } from "@/lib/control-plane/errors";
 import type { BusinessActionExecutionRecord } from "@/lib/execution/business-action-orchestrator";
@@ -10,7 +11,7 @@ import type { PersistedJobExecutionSpec } from "@/lib/execution/job-execution-ro
 import type { DurableJobRuntimeSnapshot } from "@/lib/persistence/postgres/job-store";
 import type { PostgresTransactionalDatabase } from "@/lib/persistence/postgres/client";
 
-interface RuntimeRow {
+interface RuntimeRow extends QueryResultRow {
   job_id: string;
   envelope: DurableJobRuntimeSnapshot["envelope"];
   envelope_hash: string;
