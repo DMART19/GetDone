@@ -9,7 +9,10 @@ const files = fs.readdirSync(migrationDir).filter((name)=>name.endsWith(".sql"))
 
 const failures = [];
 const after = policy.enforcedAfterVersion;
-const governed = files.filter((name)=>name.localeCompare(after + "_") > 0);
+const governed = files.filter((name)=>{
+  const version = name.split("_",1)[0];
+  return version.localeCompare(after) > 0;
+});
 const entries = new Map((policy.migrations ?? []).map((item)=>[item.file,item]));
 
 for (const file of governed) {
