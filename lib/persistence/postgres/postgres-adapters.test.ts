@@ -228,9 +228,7 @@ describe("PostgreSQL production persistence adapters", () => {
     const ledger = new PostgresAuditLedger(sql);
     await ledger.append(event);
     expect(await ledger.listByCorrelationId(event.correlationId)).toEqual([event]);
-    expect(sql.calls[0].text).toContain("audit_chain_heads");
-    expect(sql.calls[0].text).toContain("getdone_audit_event_hash");
-    expect(sql.calls[0].text).toContain("pg_advisory_xact_lock");
+    expect(sql.calls[0].text).toContain("getdone_append_audit_event");
   });
 
   it("runs stores, audit, and idempotency on the same transaction client", async () => {
