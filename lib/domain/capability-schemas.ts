@@ -283,7 +283,8 @@ export const AnalyticsEvidenceRecordSchema = z.object({
     sourceUrlHash: z.string().regex(/^[a-f0-9]{64}$/),
     cursorHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
     providerBatchHash: z.string().regex(/^[a-f0-9]{64}$/)
-  }).strict()
+  }).strict(),
+  evidenceHash: z.string().regex(/^[a-f0-9]{64}$/)
 }).strict();
 
 export const AnalyticsIngestReadResultSchema = z.object({
