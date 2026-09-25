@@ -115,7 +115,7 @@ if (usesBroker) {
   exactHttps("GETDONE_CREDENTIAL_DELIVERY_URL");
 }
 
-const openRouterBase = exactHttps("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1");
+const openRouterBase = exactHttps("OPENROUTER_BASE_URL");
 if (!["openrouter.ai", "eu.openrouter.ai"].includes(new URL(openRouterBase).hostname)) {
   throw new Error("OPENROUTER_BASE_URL must use an approved OpenRouter hostname");
 }
