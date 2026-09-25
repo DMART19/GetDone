@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { serializeSessionCookie } from "@/lib/auth/cookies";
 import { readWebAuthnServerConfig } from "@/lib/auth/webauthn-config";
 import { PostgresPasskeySignInService } from "@/lib/auth/postgres-sign-in";
 import { ControlPlaneError, toControlPlaneError } from "@/lib/control-plane/errors";
@@ -92,25 +93,19 @@ export function handleVerifyPasskeySignIn(request: Request) {
     const input = await json(request, verifySchema, "passkey sign-in verification");
     const auth = service();
     const result = await auth.service.verify(input.challengeId, input.credential);
-    const maxAge = Math.max(
-      1,
-      Math.floor((Date.parse(result.session.expiresAt) - Date.now()) / 1000)
-    );
-    const cookie = [
-      `${auth.config.cookieName}=${encodeURIComponent(result.token)}`,
-      "Path=/",
-      "HttpOnly",
-      auth.config.secureCookie ? "Secure" : null,
-      "SameSite=Strict",
-      `Max-Age=${maxAge}`
-    ].filter(Boolean).join("; ");
     return {
       data: {
         sessionId: result.session.sessionId,
         userId: result.session.userId,
         expiresAt: result.session.expiresAt
       },
-      headers: { "set-cookie": cookie }
+      headers: {
+        "set-cookie": serializeSessionCookie(
+          auth.config,
+          result.token,
+          result.session.expiresAt
+        )
+      }
     };
   });
 }
