@@ -369,7 +369,7 @@ export class CrmBusinessActionAdapter implements BusinessActionAdapter {
         const properties=normalizeProviderProperties(raw,configuration);
         return createBusinessActionAdapterResult({
           source:"business-action-adapter",requestId:request.id,adapterId:this.id,adapterVersion:this.version,
-          status:"completed",providerOperationId:`crm:${configuration.id}:${input.objectType}:${encode(recordId)}:read:${encode("[]")}`,
+          status:"completed",
           output:{objectType:input.objectType,recordId,properties,observedAt},
           retryable:false,retryClass:"none",observedAt
         });
