@@ -246,6 +246,24 @@
       "contractSourcePaths": [
         "lib/execution/disaster-recovery.ts"
       ]
+    },
+    "zeroDowntimeMigrationPolicy": {
+      "version": "1.0.0",
+      "sourcePath": "config/zero-downtime-migration-policy.json",
+      "contractTracked": true,
+      "contractSourcePaths": [
+        "config/zero-downtime-migration-policy.json",
+        "scripts/verify-zero-downtime-migrations.mjs"
+      ]
+    },
+    "productionReleaseGate": {
+      "version": "1.0.0",
+      "sourcePath": "scripts/verify-production-promotion.mjs",
+      "contractTracked": true,
+      "contractSourcePaths": [
+        "scripts/verify-production-promotion.mjs",
+        ".github/workflows/production-release-gate.yml"
+      ]
     }
   },
   "policy": {
@@ -535,7 +553,16 @@
     "Dockerfile.web",
     "lib/deployment/production-topology.test.ts",
     "lib/persistence/postgres/disaster-recovery-store.ts",
-    "scripts/plan-disaster-recovery.mjs"
+    "scripts/plan-disaster-recovery.mjs",
+    "migrations/2026-09-25.2_release_gate_evidence.sql",
+    "config/zero-downtime-migration-policy.json",
+    "scripts/verify-zero-downtime-migrations.mjs",
+    "scripts/test-zero-downtime-migrations.mjs",
+    "lib/migrations/authority-rolling-probe.integration.test.ts",
+    "scripts/collect-github-release-evidence.mjs",
+    "scripts/run-worker-health-canary.mjs",
+    "scripts/verify-production-promotion.mjs",
+    ".github/workflows/production-release-gate.yml"
   ],
   "manualSourcePaths": [
     "docs/ARCHITECTURE.md",
@@ -567,9 +594,9 @@
     "status": "implemented-unconnected",
     "engine": "postgresql",
     "minimumEngineVersion": "16",
-    "migrationVersion": "2026-09-25.1",
-    "schemaVersion": "2.0.0",
-    "sourcePath": "migrations/2026-09-25.1_disaster_recovery.sql",
+    "migrationVersion": "2026-09-25.2",
+    "schemaVersion": "2.1.0",
+    "sourcePath": "migrations/2026-09-25.2_release_gate_evidence.sql",
     "adapterSourcePath": "lib/persistence/postgres/client.ts"
   },
   "voice": {
