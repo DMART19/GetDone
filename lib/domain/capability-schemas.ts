@@ -121,6 +121,13 @@ export const CrmRecordResultSchema = z.object({
   observedAt: isoDateTime
 }).strict();
 
+export const CrmMutationAcceptedResultSchema = z.object({
+  objectType: z.enum(["contact", "company", "deal"]),
+  recordId: z.string().min(1).max(300),
+  providerAccepted: z.literal(true),
+  acceptedAt: isoDateTime
+}).strict();
+
 export const RepositoryInspectInputSchema = z.object({
   companyId,
   repository,
@@ -325,7 +332,7 @@ export const capabilitySchemaRegistry = {
   },
   "crm.record.write": {
     input: CrmRecordWriteInputSchema,
-    output: CrmRecordResultSchema
+    output: CrmMutationAcceptedResultSchema
   },
   "repository.inspect": {
     input: RepositoryInspectInputSchema,
