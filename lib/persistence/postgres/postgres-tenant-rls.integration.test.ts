@@ -255,10 +255,13 @@ integrationDescribe("PostgreSQL tenant RLS", () => {
         "verification_receipts",
         "business_action_executions",
         "business_action_verification_evidence",
-        "audit_chain_heads"
+        "audit_chain_heads",
+        "analytics_ingestion_checkpoints",
+        "analytics_ingestion_evidence",
+        "analytics_ingestion_runs"
       ]]
     );
-    expect(result.rows).toHaveLength(8);
+    expect(result.rows).toHaveLength(11);
     expect(result.rows.every((row) => row.relrowsecurity && row.relforcerowsecurity)).toBe(true);
 
     const role = await pool.query<{ rolsuper: boolean; rolbypassrls: boolean }>(
