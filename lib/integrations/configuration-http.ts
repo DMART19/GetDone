@@ -51,6 +51,18 @@ export const integrationConfigurationActionSchema=z.object({
   expectedVersion:z.number().int().positive()
 }).strict();
 
+export function assertIntegrationOwnerPrincipal(input:{
+  role:string;
+  stepUpProof?:unknown;
+},options:{requireStepUp?:boolean}={}){
+  if(input.role!=="owner"){
+    throw new ControlPlaneError("FORBIDDEN","Owner role is required for integration configuration");
+  }
+  if(options.requireStepUp&&!input.stepUpProof){
+    throw new ControlPlaneError("STEP_UP_REQUIRED","Fresh step-up authentication is required");
+  }
+}
+
 function safeId(value:string){
   if(!/^[A-Za-z0-9._:-]{1,160}$/.test(value)){
     throw new ControlPlaneError("VALIDATION_FAILED","Integration id is invalid");
@@ -93,12 +105,7 @@ async function execute<T>(
     if(options.mutation) requireMutationOrigin(request);
     const adapter=getControlApiAdapter();
     const principal=await adapter.authenticate(request);
-    if(principal.role!=="owner"){
-      throw new ControlPlaneError("FORBIDDEN","Owner role is required for integration configuration");
-    }
-    if(options.stepUp&&!principal.stepUpProof){
-      throw new ControlPlaneError("STEP_UP_REQUIRED","Fresh step-up authentication is required");
-    }
+    assertIntegrationOwnerPrincipal(principal,{requireStepUp:options.stepUp});
     if(options.mutation){
       await enforceRateLimit(
         RATE_LIMIT_POLICIES.integrationMutation,
@@ -201,8 +208,8 @@ export function handleIntegrationConfigurationAction(
     if(current.version!==parsed.data.expectedVersion){
       throw new ControlPlaneError("CONFLICT","Integration configuration version changed");
     }
-    if(parsed.data.action==="revoke"&&!principal.stepUpProof){
-      throw new ControlPlaneError("STEP_UP_REQUIRED","Fresh step-up authentication is required to revoke an integration");
+    if(parsed.data.action==="revoke"){
+      assertIntegrationOwnerPrincipal(principal,{requireStepUp:true});
     }
     const updated=transitionIntegrationConfiguration(current,{
       action:parsed.data.action,
