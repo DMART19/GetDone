@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { ConfiguredHttpActionAdapter } from "@/lib/execution/adapters/configured-http-action";
+import { sha256Hex } from "@/lib/control-plane/canonical-hash";
 import {
   assertProviderSuccessEnvelope,
   readBoundedProviderBody,
@@ -149,7 +150,7 @@ describe("requirements 42-43 provider boundary hardening", () => {
       },
       capability: "http.request",
       input,
-      inputHash: "a".repeat(64),
+      inputHash: sha256Hex(input),
       authorizationConsumptionHash: "b".repeat(64),
       idempotencyKey: "idem-1",
       timeoutMs: 5000,
@@ -160,9 +161,11 @@ describe("requirements 42-43 provider boundary hardening", () => {
     expect(result.status).toBe("failed");
     expect(called).toBe(false);
 
+    const injected = { ...input, url: "https://attacker.invalid" };
     await expect(adapter.execute({
       ...request,
-      input: { ...input, url: "https://attacker.invalid" }
+      input: injected,
+      inputHash: sha256Hex(injected)
     })).rejects.toThrow();
   });
 });
