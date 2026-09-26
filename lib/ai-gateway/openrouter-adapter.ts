@@ -279,6 +279,9 @@ export class OpenRouterAIGatewayAdapter implements AIGatewayAdapter {
         if (!parsed.model || !Array.isArray(parsed.choices) || parsed.choices.length === 0) {
           throw new ControlPlaneError("UNAVAILABLE", "OpenRouter returned an invalid completion envelope");
         }
+        if (!/^[A-Za-z0-9][A-Za-z0-9._:/+-]{0,299}$/.test(parsed.model)) {
+          throw new ControlPlaneError("UNAVAILABLE", "OpenRouter returned a malformed model identity");
+        }
         return parsed;
       }
 
