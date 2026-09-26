@@ -21,6 +21,7 @@ import type {
   ResourceEnrollmentStores
 } from "@/lib/resources/enrollment";
 import { ResourceEnrollmentService } from "@/lib/resources/enrollment";
+import { IntegrationConfigurationService } from "@/lib/integrations/management-service";
 import { PostgresEntityStore } from "@/lib/persistence/postgres/authority-stores";
 import {
   PostgresOwnerIntentStore,
@@ -28,6 +29,7 @@ import {
   PostgresResourceEvidenceStore
 } from "@/lib/persistence/postgres/control-api-stores";
 import { PostgresControlPlaneTransactionManager } from "@/lib/persistence/postgres/transaction-manager";
+import { PostgresIntegrationConfigurationStore } from "@/lib/persistence/postgres/integration-configuration-store";
 import { getPostgresRuntimeFromEnv } from "@/lib/persistence/postgres/runtime.server";
 import { runWithPostgresTenantScope } from "@/lib/persistence/postgres/tenant-context.server";
 
@@ -91,6 +93,10 @@ export function createPostgresControlApiAdapter(
     )
   );
 
+  const integrations = new IntegrationConfigurationService(
+    new PostgresIntegrationConfigurationStore(db)
+  );
+
   return new ServiceBackedControlApiAdapter({
     auth: new PostgresAuthAdapter(db, {
       cookieName: webAuthn.cookieName,
@@ -107,6 +113,7 @@ export function createPostgresControlApiAdapter(
     resourceRegistry,
     resourceEnrollments,
     resourceEnrollmentService,
+    integrations,
     jobs,
     verifications,
     tenantScopeRunner: (scope, operation) =>
@@ -132,7 +139,10 @@ export function createPostgresControlApiAdapter(
             "idempotency_records",
             "audit_events",
             "owner_intents",
-            "verification_receipts"
+            "verification_receipts",
+            "integration_configurations",
+            "integration_configuration_commands",
+            "integration_verification_evidence"
           ]),
           requiredRelationsReady([
             "auth_users",
