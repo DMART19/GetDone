@@ -46,7 +46,8 @@ const config = {
   cookieName: "getdone_session",
   stepUpTtlSeconds: 300,
   signInChallengeTtlSeconds: 300,
-  sessionTtlSeconds: 3600
+  sessionTtlSeconds: 3600,
+  secureCookie: true
 } as const;
 
 function assertionFor(

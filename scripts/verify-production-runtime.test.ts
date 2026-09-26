@@ -130,6 +130,14 @@ describe("verify-production-runtime static fail-closed validation", () => {
     expect(output(result)).toContain("WEBAUTHN_CONFIG");
   });
 
+  it("rejects unsafe production auth cookie names", () => {
+    const result = run({
+      GETDONE_AUTH_COOKIE_NAME: "session; Domain=attacker.example"
+    });
+    expect(result.status).not.toBe(0);
+    expect(output(result)).toContain("GETDONE_AUTH_COOKIE_NAME is invalid");
+  });
+
   it("rejects missing worker control-plane secret", () => {
     const result = run({ GETDONE_INTERNAL_WORKER_TOKEN: "" });
     expect(result.status).not.toBe(0);
