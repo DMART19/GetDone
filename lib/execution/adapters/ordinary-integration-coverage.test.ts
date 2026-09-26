@@ -395,7 +395,7 @@ describe("ordinary provider lifecycle coverage", () => {
       requestId: accepted.requestId,
       providerOperationId: accepted.providerOperationId!,
       reason: "operator rollback"
-    }, slackContext)).resolves.toMatchObject({ state: "cancelled" });
+    }, slackContext)).resolves.toMatchObject({ state: "compensated" });
     expect(calls).toHaveLength(3);
   });
 
@@ -493,7 +493,7 @@ describe("ordinary provider lifecycle coverage", () => {
       requestId: "action",
       providerOperationId: "webhook:notify:provider-1",
       reason: "stop"
-    }, webhookContext)).resolves.toMatchObject({ state: "cancelled" });
+    }, webhookContext)).resolves.toMatchObject({ state: "compensated" });
 
     expect(() => new ConfiguredWebhookActionAdapter([{
       ...operation,
