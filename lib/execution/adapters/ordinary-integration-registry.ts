@@ -1,5 +1,6 @@
 import { ControlPlaneError } from "@/lib/control-plane/errors";
 import type { BusinessActionAdapterBinding } from "@/lib/execution/adapters/business-action-registry";
+import type { BusinessActionAdapter } from "@/lib/execution/adapters/business-action";
 import {
   ConfiguredHttpActionAdapter,
   readConfiguredHttpOperationsFromEnv
@@ -58,7 +59,7 @@ export function createOrdinaryBusinessActionBindingsFromEnv(
   options: OrdinaryIntegrationRegistryOptions = {}
 ): readonly BusinessActionAdapterBinding[] {
   const bindings: BusinessActionAdapterBinding[] = [];
-  const managed = <T extends { id: string; version: string } & import("@/lib/execution/adapters/business-action").BusinessActionAdapter>(
+  const managed = <T extends BusinessActionAdapter>(
     provider: IntegrationProvider,
     adapter: T
   ) => options.integrationStore
