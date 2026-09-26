@@ -76,6 +76,8 @@ function baseEnv(): Record<string, string | undefined> {
     GETDONE_WEBAUTHN_RP_ID: "getdone.example",
     GETDONE_WEBAUTHN_ORIGINS: JSON.stringify(["https://app.getdone.example"]),
     GETDONE_INTERNAL_WORKER_TOKEN: "w".repeat(40),
+    GETDONE_OBSERVABILITY_ENABLED: "true",
+    GETDONE_OTEL_EXPORTER_OTLP_ENDPOINT: "https://otel.getdone.example",
     OPENROUTER_API_KEY: "k".repeat(32),
     OPENROUTER_BASE_URL: "https://" + "openrouter.ai/api/v1",
     OPENROUTER_CANARY_ENABLED: "true",
@@ -85,13 +87,14 @@ function baseEnv(): Record<string, string | undefined> {
       version: "production-1",
       routes: { STANDARD: ["standard-primary", "standard-fallback"] }
     }),
-    PROD_HTTP_TOKEN: "t".repeat(40),
+    GETDONE_CREDENTIAL_DELIVERY_URL: "https://credentials.getdone.example/redeem",
+    GETDONE_CREDENTIAL_BROKER_TOKEN: "b".repeat(40),
     GETDONE_HTTP_ACTIONS_JSON: JSON.stringify([{
       name: "crm-sync",
       companyId: "company-prod",
       environment: "production",
       url: "https://api.example.com/actions",
-      credentialRef: "env:PROD_HTTP_TOKEN"
+      credentialProviderId: "crm-provider-prod"
     }])
   };
 }
@@ -166,27 +169,39 @@ describe("verify-production-runtime static fail-closed validation", () => {
     expect(output(result)).toContain("unknown profile missing-profile");
   });
 
-  it("rejects absent ordinary integration configuration", () => {
-    const result = run({ GETDONE_HTTP_ACTIONS_JSON: "" });
+  it("allows optional AI and integrations to be absent and proceeds to database readiness", () => {
+    const result = run({
+      OPENROUTER_API_KEY: "",
+      OPENROUTER_CANARY_ENABLED: "false",
+      OPENROUTER_CANARY_MODEL: "",
+      GETDONE_AI_MODEL_PROFILES_JSON: "",
+      GETDONE_AI_ROUTING_POLICY_JSON: "",
+      GETDONE_HTTP_ACTIONS_JSON: "",
+      GETDONE_WEBHOOK_ACTIONS_JSON: "",
+      GETDONE_GMAIL_ACTIONS_JSON: "",
+      GETDONE_SLACK_ACTIONS_JSON: ""
+    });
     expect(result.status).not.toBe(0);
-    expect(output(result)).toContain("At least one governed ordinary production integration");
+    const text = output(result);
+    expect(text).toContain("DATABASE_READINESS");
+    expect(text).not.toContain("AI_ROUTING");
+    expect(text).not.toContain("OPENROUTER_API_KEY is required");
+    expect(text).not.toContain("INTEGRATION_CONFIG");
   });
 
-  it("rejects non-production integration bindings and unresolved credential references", () => {
+  it("rejects non-production integration bindings and insecure URLs when integrations are configured", () => {
     const result = run({
-      PROD_HTTP_TOKEN: "",
       GETDONE_HTTP_ACTIONS_JSON: JSON.stringify([{
         name: "crm-sync",
         companyId: "company-prod",
         environment: "development",
         url: "http://localhost:3000/actions",
-        credentialRef: "env:PROD_HTTP_TOKEN"
+        credentialProviderId: "crm-provider-prod"
       }])
     });
     expect(result.status).not.toBe(0);
     const text = output(result);
     expect(text).toContain("NON_PRODUCTION_INTEGRATION");
-    expect(text).toContain("MISSING_CREDENTIAL");
     expect(text).toContain("INSECURE_URL");
   });
 
