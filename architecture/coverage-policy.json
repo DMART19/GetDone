@@ -405,6 +405,11 @@
       "source": "lib/persistence/postgres/integration-configuration-store.ts",
       "test": "lib/integrations/integration-configuration-postgres.integration.test.ts",
       "critical": true
+    },
+    {
+      "source": "lib/integrations/configuration-http.ts",
+      "test": "lib/integrations/configuration-http.test.ts",
+      "critical": true
     }
   ]
 }
