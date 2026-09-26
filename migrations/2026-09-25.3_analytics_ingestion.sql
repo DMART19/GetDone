@@ -75,8 +75,13 @@ CREATE POLICY getdone_tenant_isolation ON analytics_ingestion_runs
   WITH CHECK (getdone_tenant_scope_matches(portfolio_id,company_id));
 
 GRANT SELECT,INSERT,UPDATE ON analytics_ingestion_checkpoints TO getdone_tenant_runtime;
+REVOKE DELETE ON analytics_ingestion_checkpoints FROM getdone_tenant_runtime;
+
 GRANT SELECT,INSERT ON analytics_ingestion_evidence TO getdone_tenant_runtime;
+REVOKE UPDATE,DELETE ON analytics_ingestion_evidence FROM getdone_tenant_runtime;
+
 GRANT SELECT,INSERT ON analytics_ingestion_runs TO getdone_tenant_runtime;
+REVOKE UPDATE,DELETE ON analytics_ingestion_runs FROM getdone_tenant_runtime;
 
 INSERT INTO getdone_schema_migrations(version)
 VALUES ('2026-09-25.3')
