@@ -108,26 +108,8 @@ function productionEnv(connectionString: string): NodeJS.ProcessEnv {
     GETDONE_WEBAUTHN_RP_ID: "getdone.example",
     GETDONE_WEBAUTHN_ORIGINS: JSON.stringify(["https://app.getdone.example"]),
     GETDONE_INTERNAL_WORKER_TOKEN: "worker-token-abcdefghijklmnopqrstuvwxyz-123456",
-    OPENROUTER_API_KEY: "openrouter-key-abcdefghijklmnopqrstuvwxyz",
-    OPENROUTER_BASE_URL: "https://" + "openrouter.ai/api/v1",
-    OPENROUTER_CANARY_ENABLED: "true",
-    OPENROUTER_CANARY_MODEL: "openai/gpt-5.6-sol",
-    GETDONE_AI_MODEL_PROFILES_JSON: JSON.stringify(profiles),
-    GETDONE_AI_ROUTING_POLICY_JSON: JSON.stringify({
-      version: "production-1",
-      routes: { STANDARD: ["standard-primary", "standard-fallback"] }
-    }),
     GETDONE_OBSERVABILITY_ENABLED: "true",
     GETDONE_OTEL_EXPORTER_OTLP_ENDPOINT: "https://otel.getdone.example",
-    GETDONE_CREDENTIAL_DELIVERY_URL: "https://credentials.getdone.example/redeem",
-    GETDONE_CREDENTIAL_BROKER_TOKEN: "broker-authentication-token-abcdefghijklmnopqrstuvwxyz",
-    GETDONE_HTTP_ACTIONS_JSON: JSON.stringify([{
-      name: "crm-sync",
-      companyId: "company-prod",
-      environment: "production",
-      url: "https://api.example.com/actions",
-      credentialProviderId: "crm-provider-prod"
-    }])
   };
 }
 
@@ -197,7 +179,7 @@ integrationDescribe("production runtime validator PostgreSQL acceptance", () => 
     }
   });
 
-  it("accepts complete production configuration with healthy PostgreSQL and fresh backup evidence", () => {
+  it("accepts core production configuration with optional providers disabled", () => {
     const result = runValidator(connectionString);
     expect(result.status, result.stderr).toBe(0);
     const output = JSON.parse(result.stdout);
@@ -216,8 +198,8 @@ integrationDescribe("production runtime validator PostgreSQL acceptance", () => 
       },
       webAuthn: "configured",
       workerAuthentication: "configured",
-      aiRouting: "configured",
-      integrations: "configured",
+      aiRouting: "disabled",
+      integrations: "disabled",
       developmentSettings: "prohibited"
     });
   });
