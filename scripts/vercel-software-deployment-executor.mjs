@@ -63,6 +63,8 @@ export function deployVercelStaging(input) {
     "--target=staging",
     "--yes",
     "--env",
+    "GETDONE_RUNTIME_ENV=staging",
+    "--env",
     `GETDONE_DEPLOYMENT_ACCEPTANCE_MODE=${input.mode}`,
     "--meta",
     `getdoneAcceptanceRun=${input.runId}`,
