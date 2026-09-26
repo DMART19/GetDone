@@ -23,7 +23,11 @@ class MemoryStore implements AnalyticsIngestionEvidenceStore {
   evidence=new Set<string>();
   commits=0;
 
-  async getCheckpoint(_scope:Scope,_sourceId:string){return this.checkpoint;}
+  async getCheckpoint(_scope:Scope,_sourceId:string){
+    void _scope;
+    void _sourceId;
+    return this.checkpoint;
+  }
   async getRun(_scope:Scope,_sourceId:string,requestId:string){
     void _scope;
     void _sourceId;
