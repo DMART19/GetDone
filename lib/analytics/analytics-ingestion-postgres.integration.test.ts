@@ -47,6 +47,7 @@ suite("PostgreSQL analytics ingestion persistence",()=>{
 
   function evidence(externalId:string,metric:number){
     return createAnalyticsEvidenceRecord({
+      scope,
       sourceId,
       sourceUrlHash:"1".repeat(64),
       providerBatchHash:"2".repeat(64),
@@ -77,7 +78,7 @@ suite("PostgreSQL analytics ingestion persistence",()=>{
     });
     expect(first.insertedEvidence).toBe(1);
     expect(first.checkpoint).toMatchObject({cursor:"cursor-2",version:1});
-    expect(await store.getRun("analytics-run-1")).toMatchObject({
+    expect(await store.getRun(scope,sourceId,"analytics-run-1")).toMatchObject({
       inputHash:"3".repeat(64),
       result:firstResult
     });
@@ -144,7 +145,7 @@ suite("PostgreSQL analytics ingestion persistence",()=>{
       }
     })).rejects.toMatchObject({code:"CONFLICT"});
 
-    const existing=await store.getRun("analytics-run-1");
+    const existing=await store.getRun(scope,sourceId,"analytics-run-1");
     expect(existing).not.toBeNull();
     await expect(store.commitPage({
       requestId:"analytics-run-1",
