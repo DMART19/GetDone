@@ -1,7 +1,6 @@
 import { sha256Hex } from "@/lib/control-plane/canonical-hash";
 import { ControlPlaneError } from "@/lib/control-plane/errors";
 import type {
-  AnalyticsEvidenceRecord,
   AnalyticsIngestionCheckpoint,
   AnalyticsIngestionEvidenceStore,
   AnalyticsIngestionResult,
