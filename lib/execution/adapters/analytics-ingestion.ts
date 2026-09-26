@@ -223,7 +223,7 @@ export class AnalyticsDataIngestionAdapter implements BusinessActionAdapter {
       throw new ControlPlaneError("FORBIDDEN","Analytics company does not match authoritative Job scope");
     }
 
-    const existing=await this.store.getRun(request.id);
+    const existing=await this.store.getRun(request.scope,input.sourceId,request.id);
     if(existing){
       if(existing.inputHash!==request.inputHash){
         throw new ControlPlaneError("IDEMPOTENCY_CONFLICT","Analytics request ID was reused with different input");
@@ -325,6 +325,7 @@ export class AnalyticsDataIngestionAdapter implements BusinessActionAdapter {
         throw new ControlPlaneError("UNAVAILABLE","Analytics source timestamp is implausibly in the future");
       }
       const record=createAnalyticsEvidenceRecord({
+        scope:request.scope,
         sourceId:input.sourceId,
         sourceUrlHash,
         cursor:checkpoint?.cursor,
