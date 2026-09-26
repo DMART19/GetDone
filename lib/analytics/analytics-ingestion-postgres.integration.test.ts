@@ -22,7 +22,10 @@ suite("PostgreSQL analytics ingestion persistence",()=>{
   }
 
   beforeAll(async()=>{
-    database=new PostgresDatabase(readPostgresConfigFromEnv(process.env));
+    database=new PostgresDatabase({
+      ...readPostgresConfigFromEnv(process.env),
+      runtimeRole: undefined
+    });
     await db().query(
       "DELETE FROM analytics_ingestion_runs WHERE company_id=$1",
       [scope.companyId]
