@@ -142,6 +142,7 @@ export class SlackBusinessActionAdapter implements BusinessActionAdapter {
     auditEvidence: "hashed-provider-evidence",
     verificationStrategy: "provider-object-read",
     cancellation: "supported",
+    cancellationSemantics: "provider-compensation-not-reversal",
     tenantEnvironmentBinding: true,
     truthSemantics: "provider-acceptance-is-not-business-truth"
   });
@@ -438,7 +439,7 @@ export class SlackBusinessActionAdapter implements BusinessActionAdapter {
       if (response.ok) {
         const raw = await readBoundedJson(response, configuration.maxResponseBytes);
         state = z.object({ ok: z.literal(true) }).passthrough().safeParse(raw).success
-          ? "cancelled"
+          ? "compensated"
           : "failed";
       } else if (response.status >= 500 || response.status === 429) {
         state = "running";
