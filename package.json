@@ -41,7 +41,9 @@
     "start:worker": "node --require ./scripts/register-worker-alias.cjs dist-worker/lib/execution/job-worker-entry.js",
     "worker:test-crash-restart": "vitest run lib/execution/worker-crash-restart.integration.test.ts",
     "worker:test-backpressure": "vitest run lib/execution/queue-backpressure-postgres.integration.test.ts",
-    "build:worker-acceptance": "tsc -p tsconfig.worker-acceptance.json"
+    "build:worker-acceptance": "tsc -p tsconfig.worker-acceptance.json",
+    "software:accept-staging": "node scripts/run-vercel-staging-acceptance.mjs",
+    "production:acceptance-report": "node scripts/generate-production-acceptance-report.mjs"
   },
   "dependencies": {
     "lucide-react": "0.468.0",
