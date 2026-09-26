@@ -301,6 +301,82 @@ export const capabilityRegistry: readonly CapabilityDefinition[] = [
     authorityBindings: { companyId: true, environment: true }
   },
   {
+    name: "calendar.event.read",
+    description: "Read a governed calendar event with provider version and timezone metadata",
+    access: "read",
+    sensitivity: "customer",
+    productionEffect: false,
+    reversible: true,
+    risk: "low",
+    blastRadius: "single-object",
+    approval: "auto",
+    adapterBinding: "business.calendar",
+    rateLimitPerMinute: 120,
+    enabled: true,
+    inputSchema: capabilitySchemaRegistry["calendar.event.read"].input,
+    outputSchema: capabilitySchemaRegistry["calendar.event.read"].output,
+    costModel: "provider",
+    schemaVersion: "1.0.0",
+    authorityBindings: { companyId: true, environment: true }
+  },
+  {
+    name: "calendar.event.create",
+    description: "Create a timezone-safe calendar event with deterministic provider identity and verification",
+    access: "write",
+    sensitivity: "customer",
+    productionEffect: true,
+    reversible: true,
+    risk: "medium",
+    blastRadius: "single-object",
+    approval: "approval",
+    adapterBinding: "business.calendar",
+    rateLimitPerMinute: 60,
+    enabled: true,
+    inputSchema: capabilitySchemaRegistry["calendar.event.create"].input,
+    outputSchema: capabilitySchemaRegistry["calendar.event.create"].output,
+    costModel: "provider",
+    schemaVersion: "1.0.0",
+    authorityBindings: { companyId: true, environment: true }
+  },
+  {
+    name: "calendar.event.update",
+    description: "Update a calendar event using provider version preconditions and follow-up verification",
+    access: "write",
+    sensitivity: "customer",
+    productionEffect: true,
+    reversible: true,
+    risk: "medium",
+    blastRadius: "single-object",
+    approval: "approval",
+    adapterBinding: "business.calendar",
+    rateLimitPerMinute: 60,
+    enabled: true,
+    inputSchema: capabilitySchemaRegistry["calendar.event.update"].input,
+    outputSchema: capabilitySchemaRegistry["calendar.event.update"].output,
+    costModel: "provider",
+    schemaVersion: "1.0.0",
+    authorityBindings: { companyId: true, environment: true }
+  },
+  {
+    name: "calendar.event.cancel",
+    description: "Cancel a calendar event using provider version preconditions and verification",
+    access: "write",
+    sensitivity: "customer",
+    productionEffect: true,
+    reversible: true,
+    risk: "medium",
+    blastRadius: "single-object",
+    approval: "approval",
+    adapterBinding: "business.calendar",
+    rateLimitPerMinute: 60,
+    enabled: true,
+    inputSchema: capabilitySchemaRegistry["calendar.event.cancel"].input,
+    outputSchema: capabilitySchemaRegistry["calendar.event.cancel"].output,
+    costModel: "provider",
+    schemaVersion: "1.0.0",
+    authorityBindings: { companyId: true, environment: true }
+  },
+  {
     name: "repository.inspect",
     description: "Read repository metadata and code",
     access: "read",
@@ -492,7 +568,7 @@ export const capabilityRegistry: readonly CapabilityDefinition[] = [
   }
 ];
 
-export const CAPABILITY_REGISTRY_VERSION = "2026-09-25.4";
+export const CAPABILITY_REGISTRY_VERSION = "2026-09-25.5";
 
 function stableRegistryManifest() {
   return capabilityRegistry.map((capability) => ({
