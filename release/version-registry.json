@@ -8,7 +8,7 @@
       "sourcePath": "lib/control-plane/schemas.ts"
     },
     "capabilityRegistry": {
-      "version": "1.1.0",
+      "version": "1.2.0",
       "sourcePath": "lib/domain/capabilities.ts"
     },
     "planSchema": {
@@ -274,6 +274,16 @@
         "scripts/generate-environment-manifest.mjs",
         "scripts/record-environment-evidence.mjs"
       ]
+    },
+    "analyticsIngestion": {
+      "version": "1.0.0",
+      "sourcePath": "lib/analytics/ingestion.ts",
+      "contractTracked": true,
+      "contractSourcePaths": [
+        "lib/analytics/ingestion.ts",
+        "lib/execution/adapters/analytics-ingestion.ts",
+        "lib/persistence/postgres/analytics-ingestion-store.ts"
+      ]
     }
   },
   "policy": {
@@ -425,6 +435,27 @@
       "contractSourcePaths": [
         "lib/execution/adapters/crm-action.ts",
         "lib/domain/capability-schemas.ts"
+      ]
+    },
+    "githubStandardOperation": {
+      "status": "implemented-unconfigured",
+      "version": "1.0.0",
+      "sourcePath": "lib/execution/adapters/github-standard-operation.ts",
+      "contractTracked": true,
+      "contractSourcePaths": [
+        "lib/execution/adapters/github-standard-operation.ts",
+        "lib/domain/capability-schemas.ts"
+      ]
+    },
+    "analyticsDataIngestion": {
+      "status": "implemented-unconfigured",
+      "version": "1.0.0",
+      "sourcePath": "lib/execution/adapters/analytics-ingestion.ts",
+      "contractTracked": true,
+      "contractSourcePaths": [
+        "lib/analytics/ingestion.ts",
+        "lib/execution/adapters/analytics-ingestion.ts",
+        "lib/persistence/postgres/analytics-ingestion-store.ts"
       ]
     }
   },
@@ -590,7 +621,15 @@
     "scripts/record-environment-evidence.mjs",
     "lib/release/environment-manifest-evidence.test.ts",
     "lib/execution/adapters/crm-action.ts",
-    "lib/execution/adapters/crm-action.test.ts"
+    "lib/execution/adapters/crm-action.test.ts",
+    "lib/execution/adapters/github-standard-operation.ts",
+    "lib/execution/adapters/github-standard-operation.test.ts",
+    "lib/execution/adapters/analytics-ingestion.ts",
+    "lib/execution/adapters/analytics-ingestion.test.ts",
+    "lib/analytics/ingestion.ts",
+    "lib/analytics/analytics-ingestion-postgres.integration.test.ts",
+    "lib/persistence/postgres/analytics-ingestion-store.ts",
+    "migrations/2026-09-25.3_analytics_ingestion.sql"
   ],
   "manualSourcePaths": [
     "docs/ARCHITECTURE.md",
@@ -622,9 +661,9 @@
     "status": "implemented-unconnected",
     "engine": "postgresql",
     "minimumEngineVersion": "16",
-    "migrationVersion": "2026-09-25.2",
-    "schemaVersion": "2.1.0",
-    "sourcePath": "migrations/2026-09-25.2_release_gate_evidence.sql",
+    "migrationVersion": "2026-09-25.3",
+    "schemaVersion": "2.2.0",
+    "sourcePath": "migrations/2026-09-25.3_analytics_ingestion.sql",
     "adapterSourcePath": "lib/persistence/postgres/client.ts"
   },
   "voice": {
@@ -668,7 +707,11 @@
       "middleware.ts",
       "Dockerfile.worker",
       "lib/execution/adapters/crm-action.ts",
-      "lib/execution/adapters/ordinary-integration-registry.ts"
+      "lib/execution/adapters/ordinary-integration-registry.ts",
+      "lib/execution/adapters/github-standard-operation.ts",
+      "lib/execution/adapters/analytics-ingestion.ts",
+      "lib/analytics/ingestion.ts",
+      "lib/persistence/postgres/analytics-ingestion-store.ts"
     ],
     "jobExecutionBridgeContractVersion": "1.0.0",
     "jobExecutionBridgeStatus": "deterministic-contract",
