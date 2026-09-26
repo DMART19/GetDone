@@ -57,9 +57,20 @@ suite("PostgreSQL integration configuration persistence",()=>{
     expect(replay.configurationHash).toBe(first.configurationHash);
     expect(await store.list(scope)).toEqual([first]);
 
-    const different={...record,displayName:"Different",configurationHash:"0".repeat(64)};
+    const different=createIntegrationConfiguration({
+      scope,
+      value:{
+        id:"calendar-integration-it",
+        provider:"calendar",
+        displayName:"Different",
+        capabilityNames:["calendar.event.read","calendar.event.create"],
+        grantedScopes:["calendar.read","calendar.write"],
+        credentialBindingId:"binding:calendar:it"
+      },
+      now:"2026-09-25T20:00:00Z"
+    });
     await expect(store.create(different,"idem-calendar-it"))
-      .rejects.toMatchObject({code:"FORBIDDEN"});
+      .rejects.toMatchObject({code:"IDEMPOTENCY_CONFLICT"});
   });
 
   it("enforces optimistic versions and persists verification evidence append-only",async()=>{
