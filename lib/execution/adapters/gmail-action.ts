@@ -13,6 +13,7 @@ import {
 } from "@/lib/execution/adapters/business-action";
 import {
   assertAdapterRequest,
+  assertProviderOperationId,
   classifyHttpFailure,
   providerRequestHeaders,
   readBoundedJson,
@@ -195,7 +196,7 @@ function parseProviderOperationId(
     }
     return { configuration, kind: "rfc822" as const, value: rfc822MessageId };
   }
-  return { configuration, kind: "message" as const, value };
+  return { configuration, kind: "message" as const, value: assertProviderOperationId(value) };
 }
 
 export class GmailBusinessActionAdapter implements BusinessActionAdapter {
@@ -331,7 +332,8 @@ export class GmailBusinessActionAdapter implements BusinessActionAdapter {
     recipients: readonly string[],
     observedAt: string
   ) {
-    const providerOperationId = "gmail:" + configuration.id + ":" + messageId;
+    const safeMessageId = assertProviderOperationId(messageId);
+    const providerOperationId = "gmail:" + configuration.id + ":" + safeMessageId;
     return createBusinessActionAdapterResult({
       source: "business-action-adapter",
       requestId: request.id,
@@ -340,7 +342,7 @@ export class GmailBusinessActionAdapter implements BusinessActionAdapter {
       status: "accepted",
       providerOperationId,
       output: {
-        messageId,
+        messageId: safeMessageId,
         providerReference: providerOperationId,
         accepted: [...recipients],
         rejected: [],
