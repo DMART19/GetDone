@@ -18,7 +18,7 @@ import type { SoftwareWorkerRuntime } from "@/lib/execution/software-worker-runt
 import type { JobVerificationEvidenceStore } from "@/lib/persistence/postgres/worker-runtime-stores";
 import { runWithPostgresTenantScope } from "@/lib/persistence/postgres/tenant-context.server";
 
-export const JOB_EXECUTION_ROUTER_VERSION = "1.1.0";
+export const JOB_EXECUTION_ROUTER_VERSION = "1.2.0";
 
 export type JobExecutionSpec =
   | {
@@ -128,7 +128,10 @@ export class RoutedJobExecutionHandler implements DurableJobExecutionHandler {
       return { kind: "dead-letter", reason: "Authoritative Job was not found before execution" };
     }
     if (authoritative.state === "cancelled") {
-      return { kind: "cancelled", reason: "Authoritative Job was cancelled before execution" };
+      return {
+        kind: "cancelled",
+        reason: "Authoritative Job was locally cancelled before this execution attempt; no provider call was made by this attempt"
+      };
     }
     if (authoritative.state !== "queued") {
       return {
@@ -223,7 +226,21 @@ export class RoutedJobExecutionHandler implements DurableJobExecutionHandler {
             }
             return { kind: "succeeded" };
           case "cancelled":
-            return { kind: "cancelled", reason: "Provider operation was cancelled" };
+            return {
+              kind: "cancelled",
+              reason: "Provider confirmed cancellation of the provider operation; GetDone does not infer reversal beyond that provider status"
+            };
+          case "compensated":
+            return {
+              kind: "cancelled",
+              reason: "Provider compensation was applied. The original side effect may have occurred and is not represented as unsent or reversed"
+            };
+          case "uncertain":
+            return {
+              kind: "uncertain",
+              reason: result.record.uncertaintyReason
+                ?? "Provider result remained uncertain after durable verification reconciliation"
+            };
           case "rejected":
             return { kind: "dead-letter", reason: "Provider rejected the authorized action" };
           case "failed":
