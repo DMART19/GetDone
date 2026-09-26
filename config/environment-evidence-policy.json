@@ -64,7 +64,8 @@
         "webhook-live-acceptance",
         "configured-business-live-acceptance",
         "github-live-acceptance",
-        "analytics-live-acceptance"
+        "analytics-live-acceptance",
+        "calendar-live-acceptance"
       ]
     },
     "businessActionAdapters": {
@@ -75,7 +76,8 @@
         "webhook-live-acceptance",
         "configured-business-live-acceptance",
         "github-live-acceptance",
-        "analytics-live-acceptance"
+        "analytics-live-acceptance",
+        "calendar-live-acceptance"
       ]
     },
     "softwareDeploymentExecutor": {
@@ -266,6 +268,12 @@
       }
     },
     "analytics-live-acceptance": {
+      "artifactAssertion": {
+        "path": "accepted",
+        "equals": true
+      }
+    },
+    "calendar-live-acceptance": {
       "artifactAssertion": {
         "path": "accepted",
         "equals": true
