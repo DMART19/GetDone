@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { createHash } from "node:crypto";
 import { ControlPlaneError } from "@/lib/control-plane/errors";
+import { assertProviderJsonSuccess } from "@/lib/security/provider-response-boundary";
 import { validateCapabilityInput } from "@/lib/domain/capabilities";
 import {
   createBusinessActionAdapterResult,
@@ -20,7 +21,7 @@ import {
   type BusinessActionAdapterDeclaration
 } from "@/lib/execution/adapters/ordinary-integration-framework";
 
-export const SLACK_BUSINESS_ACTION_ADAPTER_VERSION = "1.1.0";
+export const SLACK_BUSINESS_ACTION_ADAPTER_VERSION = "1.2.0";
 
 const environmentSchema = z.enum(["development", "staging", "production"]);
 const slackSuccessSchema = z.object({
@@ -299,6 +300,7 @@ export class SlackBusinessActionAdapter implements BusinessActionAdapter {
       });
     }
 
+    assertProviderJsonSuccess(raw);
     const parsed = slackSuccessSchema.safeParse(raw);
     if (!parsed.success) {
       return createBusinessActionAdapterResult({
@@ -389,6 +391,7 @@ export class SlackBusinessActionAdapter implements BusinessActionAdapter {
         if (providerError.success) {
           state = classifySlackError(providerError.data.error) ? "running" : "failed";
         } else {
+          assertProviderJsonSuccess(raw);
           const parsed = historySchema.parse(raw);
           state = parsed.messages.some((message) => message.ts === messageTs)
             ? "completed"
@@ -440,6 +443,7 @@ export class SlackBusinessActionAdapter implements BusinessActionAdapter {
       });
       if (response.ok) {
         const raw = await readBoundedJson(response, configuration.maxResponseBytes);
+        assertProviderJsonSuccess(raw);
         state = z.object({ ok: z.literal(true) }).passthrough().safeParse(raw).success
           ? "cancelled"
           : "failed";
