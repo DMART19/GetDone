@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { sha256Hex } from "@/lib/control-plane/canonical-hash";
 import { ControlPlaneError } from "@/lib/control-plane/errors";
+import { assertProviderJsonSuccess } from "@/lib/security/provider-response-boundary";
 import { validateCapabilityInput } from "@/lib/domain/capabilities";
 import {
   createBusinessActionAdapterResult,
@@ -20,7 +21,7 @@ import {
   type BusinessActionAdapterDeclaration
 } from "@/lib/execution/adapters/ordinary-integration-framework";
 
-export const GMAIL_BUSINESS_ACTION_ADAPTER_VERSION = "1.2.0";
+export const GMAIL_BUSINESS_ACTION_ADAPTER_VERSION = "1.3.0";
 
 const gmailSendResponseSchema = z.object({
   id: z.string().min(1).max(500),
@@ -313,9 +314,9 @@ export class GmailBusinessActionAdapter implements BusinessActionAdapter {
     }
 
     try {
-      const parsed = gmailListResponseSchema.parse(
-        await readBoundedJson(response, configuration.maxResponseBytes)
-      );
+      const raw = await readBoundedJson(response, configuration.maxResponseBytes);
+      assertProviderJsonSuccess(raw);
+      const parsed = gmailListResponseSchema.parse(raw);
       const message = parsed.messages?.[0];
       return message ? { kind: "found", messageId: message.id } : { kind: "not-found" };
     } catch {
@@ -455,7 +456,8 @@ export class GmailBusinessActionAdapter implements BusinessActionAdapter {
             contentType: "application/json"
           }),
           body: JSON.stringify({ raw: buildMime(input, request.id) }),
-          signal: AbortSignal.timeout(request.timeoutMs)
+          signal: AbortSignal.timeout(request.timeoutMs),
+          redirect: "manual"
         }
       );
     } catch {
@@ -492,9 +494,9 @@ export class GmailBusinessActionAdapter implements BusinessActionAdapter {
 
     let parsed: z.infer<typeof gmailSendResponseSchema>;
     try {
-      parsed = gmailSendResponseSchema.parse(
-        await readBoundedJson(response, configuration.maxResponseBytes)
-      );
+      const raw = await readBoundedJson(response, configuration.maxResponseBytes);
+      assertProviderJsonSuccess(raw);
+      parsed = gmailSendResponseSchema.parse(raw);
     } catch {
       if (configuration.verificationMode === "provider-object-read") {
         return this.ambiguousAcceptance(request, configuration, rfc822MessageId, "malformed-response");
@@ -583,9 +585,9 @@ export class GmailBusinessActionAdapter implements BusinessActionAdapter {
     let state: BusinessActionStatus["state"];
     if (response.ok) {
       try {
-        const parsed = gmailGetResponseSchema.parse(
-          await readBoundedJson(response, configuration.maxResponseBytes)
-        );
+        const raw = await readBoundedJson(response, configuration.maxResponseBytes);
+        assertProviderJsonSuccess(raw);
+        const parsed = gmailGetResponseSchema.parse(raw);
         state = parsed.id === operation.value ? "completed" : "failed";
       } catch {
         state = "failed";
