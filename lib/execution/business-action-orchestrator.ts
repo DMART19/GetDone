@@ -16,7 +16,7 @@ import type { BusinessActionCredentialBroker } from "@/lib/credentials/runtime-b
 import type { BusinessActionExecutionContext } from "@/lib/execution/adapters/business-action";
 import { getTelemetry, OTEL_SEMANTIC } from "@/lib/observability/telemetry";
 
-export const BUSINESS_ACTION_ORCHESTRATOR_VERSION = "1.0.0";
+export const BUSINESS_ACTION_ORCHESTRATOR_VERSION = "1.1.0";
 
 export interface BusinessActionAdapterRegistry {
   resolve(request: AuthorizedBusinessActionRequest): Promise<BusinessActionAdapter | null>;
@@ -29,7 +29,9 @@ export type BusinessActionExecutionState =
   | "completed"
   | "rejected"
   | "failed"
-  | "cancelled";
+  | "cancelled"
+  | "compensated"
+  | "uncertain";
 
 export interface BusinessActionExecutionRecord {
   requestId: string;
@@ -46,6 +48,11 @@ export interface BusinessActionExecutionRecord {
   outputHash?: string;
   retryable: boolean;
   retryClass?: BusinessActionRetryClass;
+  acceptedAt?: string;
+  verificationDeadlineAt?: string;
+  reconciliationAttempts?: number;
+  ownerAttentionRequired?: boolean;
+  uncertaintyReason?: string;
   updatedAt: string;
   recordHash: string;
 }
@@ -90,7 +97,9 @@ function verificationFor(
   request: AuthorizedBusinessActionRequest,
   record: BusinessActionExecutionRecord
 ): VerificationEvidence | undefined {
-  if (!["completed", "failed", "cancelled"].includes(record.state)) return undefined;
+  if (!["completed", "failed", "cancelled", "compensated", "uncertain"].includes(record.state)) {
+    return undefined;
+  }
   return createVerificationEvidence({
     id: `business-action-evidence:${request.id}:${record.recordHash}`,
     correlationId: request.correlationId,
@@ -98,7 +107,11 @@ function verificationFor(
     companyId: request.scope.companyId,
     subject: { type: "job", id: request.jobId },
     strategy: "business",
-    result: record.state === "completed" ? "pass" : "fail",
+    result: record.state === "completed"
+      ? "pass"
+      : record.state === "uncertain"
+        ? "unknown"
+        : "fail",
     sourceType: "provider",
     sourceId: `${record.adapterId}:${record.providerOperationId ?? request.id}`,
     independenceKey: record.providerOperationId ?? request.id,
@@ -115,6 +128,8 @@ export class BusinessActionExecutionOrchestrator {
     private readonly options: {
       maxStatusPolls?: number;
       pollIntervalMs?: number;
+      verificationTimeoutMs?: number;
+      maxReconciliationAttempts?: number;
       sleep?: (milliseconds: number) => Promise<void>;
       now?: () => Date;
       providerConcurrencyGate?: ProviderConcurrencyGate;
@@ -200,7 +215,7 @@ export class BusinessActionExecutionOrchestrator {
         );
       }
       if (
-        ["completed", "rejected", "cancelled"].includes(existing.state)
+        ["completed", "rejected", "cancelled", "compensated", "uncertain"].includes(existing.state)
         || (existing.state === "failed" && (!existing.retryable || existing.providerOperationId))
       ) {
         return { record: existing, verificationEvidence: verificationFor(request, existing) };
@@ -237,6 +252,16 @@ export class BusinessActionExecutionOrchestrator {
       );
     }
 
+    const acceptedAt = result.status === "accepted"
+      ? (this.options.now?.() ?? new Date()).toISOString()
+      : undefined;
+    const verificationTimeoutMs = this.options.verificationTimeoutMs ?? 120_000;
+    if (!Number.isFinite(verificationTimeoutMs) || verificationTimeoutMs < 1_000) {
+      throw new ControlPlaneError(
+        "VALIDATION_FAILED",
+        "Business action verification timeout must be at least 1000ms"
+      );
+    }
     const record = createRecord({
       requestId: request.id,
       correlationId: request.correlationId,
@@ -253,6 +278,12 @@ export class BusinessActionExecutionOrchestrator {
       outputHash: result.outputHash,
       retryable: result.retryable,
       retryClass: result.retryClass,
+      acceptedAt,
+      verificationDeadlineAt: acceptedAt
+        ? new Date(Date.parse(acceptedAt) + verificationTimeoutMs).toISOString()
+        : undefined,
+      reconciliationAttempts: acceptedAt ? 0 : undefined,
+      ownerAttentionRequired: false,
       updatedAt: result.observedAt
     });
     await this.store.save(record, existing?.recordHash);
@@ -314,6 +345,23 @@ export class BusinessActionExecutionOrchestrator {
     if (!initial.providerOperationId) {
       throw new ControlPlaneError("CONFLICT", "Accepted business action is missing provider operation lineage");
     }
+    const verificationTimeoutMs = this.options.verificationTimeoutMs ?? 120_000;
+    const maxReconciliationAttempts = this.options.maxReconciliationAttempts ?? 3;
+    if (
+      !Number.isFinite(verificationTimeoutMs)
+      || verificationTimeoutMs < 1_000
+      || !Number.isInteger(maxReconciliationAttempts)
+      || maxReconciliationAttempts < 1
+    ) {
+      throw new ControlPlaneError(
+        "VALIDATION_FAILED",
+        "Business action reconciliation timeout and attempt budget are invalid"
+      );
+    }
+
+    const acceptedAt = initial.acceptedAt ?? (this.options.now?.() ?? new Date()).toISOString();
+    const verificationDeadlineAt = initial.verificationDeadlineAt
+      ?? new Date(Date.parse(acceptedAt) + verificationTimeoutMs).toISOString();
     let record = initial;
     const polls = this.options.maxStatusPolls ?? 30;
     const interval = this.options.pollIntervalMs ?? 1_000;
@@ -337,6 +385,11 @@ export class BusinessActionExecutionOrchestrator {
         ...record,
         state: status.state,
         latestStatusHash: status.statusHash,
+        acceptedAt,
+        verificationDeadlineAt,
+        reconciliationAttempts: record.reconciliationAttempts ?? 0,
+        ownerAttentionRequired: false,
+        uncertaintyReason: undefined,
         updatedAt: status.observedAt
       });
       await this.store.save(record, previousHash);
@@ -351,10 +404,56 @@ export class BusinessActionExecutionOrchestrator {
           }
         );
       }
-      if (["completed", "failed", "cancelled"].includes(status.state)) {
+      if (["completed", "failed", "cancelled", "compensated"].includes(status.state)) {
         return { record, verificationEvidence: verificationFor(request, record) };
       }
     }
+
+    const reconciliationAttempts = (record.reconciliationAttempts ?? 0) + 1;
+    const reconciledAt = (this.options.now?.() ?? new Date()).toISOString();
+    const timedOut = Date.parse(reconciledAt) >= Date.parse(verificationDeadlineAt);
+    const exhausted = reconciliationAttempts >= maxReconciliationAttempts;
+    const previousHash = record.recordHash;
+
+    if (timedOut || exhausted) {
+      const uncertaintyReason = timedOut
+        ? "Provider operation exceeded its verification deadline without authoritative completion evidence"
+        : "Provider operation exhausted its durable reconciliation attempt budget without authoritative completion evidence";
+      record = createRecord({
+        ...record,
+        state: "uncertain",
+        retryable: false,
+        retryClass: "verification-pending",
+        acceptedAt,
+        verificationDeadlineAt,
+        reconciliationAttempts,
+        ownerAttentionRequired: true,
+        uncertaintyReason,
+        updatedAt: reconciledAt
+      });
+      await this.store.save(record, previousHash);
+      await getTelemetry().counter("getdone.verification.reconciliation.total", 1, {
+        [OTEL_SEMANTIC.provider]: adapter.id,
+        [OTEL_SEMANTIC.capability]: request.capability,
+        outcome: "uncertain"
+      });
+      return { record, verificationEvidence: verificationFor(request, record) };
+    }
+
+    record = createRecord({
+      ...record,
+      acceptedAt,
+      verificationDeadlineAt,
+      reconciliationAttempts,
+      ownerAttentionRequired: false,
+      updatedAt: reconciledAt
+    });
+    await this.store.save(record, previousHash);
+    await getTelemetry().counter("getdone.verification.reconciliation.total", 1, {
+      [OTEL_SEMANTIC.provider]: adapter.id,
+      [OTEL_SEMANTIC.capability]: request.capability,
+      outcome: "re-poll"
+    });
     return { record };
   }
 }

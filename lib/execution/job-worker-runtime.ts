@@ -16,7 +16,8 @@ export type JobExecutionOutcome =
   | { kind: "succeeded" }
   | { kind: "retry"; reason: string; delayMs?: number }
   | { kind: "dead-letter"; reason: string }
-  | { kind: "cancelled"; reason: string };
+  | { kind: "cancelled"; reason: string }
+  | { kind: "uncertain"; reason: string };
 
 export interface DurableJobExecutionContext {
   envelope: JobQueueEnvelope;
@@ -132,9 +133,11 @@ export class DurableJobWorker {
   async cancel(jobId: string, reason: string) {
     const snapshot = await this.store.getRuntimeSnapshot(jobId);
     if (!snapshot) throw new ControlPlaneError("NOT_FOUND", "Durable Job runtime state was not found");
+    const localReason =
+      `Local execution cancelled: ${reason}. This stops GetDone work only; it does not unsend, reverse, or compensate provider side effects already accepted or completed.`;
     return this.retrySerializableConflict(() => this.store.cancel({
       jobId,
-      reason,
+      reason: localReason,
       cancelledAt: this.now().toISOString(),
       expectedJobVersion: snapshot.version,
       expectedJobHash: snapshot.stateHash,
@@ -272,7 +275,8 @@ export class DurableJobWorker {
     if (postExecution?.state === "cancelled") {
       const cancelledOutcome: JobExecutionOutcome = {
         kind: "cancelled",
-        reason: postExecution.cancelledReason ?? "Job was cancelled during execution"
+        reason: postExecution.cancelledReason
+          ?? "Local execution was cancelled during execution; provider side effects are not represented as reversed"
       };
       return {
         jobId: candidate.envelope.jobId,
@@ -286,7 +290,11 @@ export class DurableJobWorker {
       [OTEL_SEMANTIC.workerId]: this.config.workerId
     });
     await getTelemetry().log(
-      outcome.kind === "dead-letter" ? "ERROR" : outcome.kind === "retry" ? "WARN" : "INFO",
+      outcome.kind === "dead-letter"
+        ? "ERROR"
+        : outcome.kind === "retry" || outcome.kind === "uncertain"
+          ? "WARN"
+          : "INFO",
       "job.execution.outcome",
       {
         [OTEL_SEMANTIC.jobId]: candidate.envelope.jobId,
@@ -317,6 +325,19 @@ export class DurableJobWorker {
         idempotencyKey: `cancel:${candidate.envelope.jobId}:${version}`
       }));
       latestTransaction = receipt;
+    } else if (outcome.kind === "uncertain") {
+      const receipt = await this.retrySerializableConflict(() => this.store.markUncertain({
+        jobId: candidate.envelope.jobId,
+        reason: outcome.reason,
+        uncertainAt: this.now().toISOString(),
+        expectedJobVersion: version,
+        expectedJobHash: stateHash,
+        idempotencyKey: `uncertain:${candidate.envelope.jobId}:${version}`
+      }));
+      latestTransaction = receipt;
+      await getTelemetry().counter("getdone.job.verification_uncertain.total", 1, {
+        [OTEL_SEMANTIC.workerId]: this.config.workerId
+      });
     } else if (outcome.kind === "dead-letter") {
       const record = createDeadLetterRecord({
         id: crypto.randomUUID(),

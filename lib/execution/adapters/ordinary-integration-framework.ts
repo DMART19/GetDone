@@ -40,6 +40,11 @@ export interface BusinessActionAdapterDeclaration {
     | "provider-object-read"
     | "configured-independent-endpoint";
   cancellation: "supported" | "not-supported" | "configured";
+  cancellationSemantics?:
+    | "local-stop-only-after-dispatch"
+    | "provider-cancel-pending-operation"
+    | "provider-compensation-not-reversal"
+    | "configured-provider-defined";
   tenantEnvironmentBinding: true;
   truthSemantics: "provider-acceptance-is-not-business-truth";
 }

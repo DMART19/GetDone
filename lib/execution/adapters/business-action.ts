@@ -2,7 +2,7 @@ import { ControlPlaneError } from "@/lib/control-plane/errors";
 import { sha256Hex } from "@/lib/control-plane/canonical-hash";
 import type { TrustedExecutionScope } from "@/lib/control-plane/trusted-execution-scope";
 
-export const BUSINESS_ACTION_ADAPTER_CONTRACT_VERSION = "1.6.0";
+export const BUSINESS_ACTION_ADAPTER_CONTRACT_VERSION = "1.7.0";
 
 export type BusinessActionRetryClass =
   | "none"
@@ -13,6 +13,12 @@ export type BusinessActionRetryClass =
   | "provider-5xx"
   | "malformed-response"
   | "verification-pending";
+
+export type BusinessActionCancellationSemantics =
+  | "local-stop-only-after-dispatch"
+  | "provider-cancel-pending-operation"
+  | "provider-compensation-not-reversal"
+  | "configured-provider-defined";
 
 export interface AuthorizedBusinessActionRequest {
   id: string;
@@ -72,7 +78,7 @@ export interface BusinessActionStatus {
   providerOperationId: string;
   adapterId: string;
   adapterVersion: string;
-  state: "pending" | "running" | "completed" | "failed" | "cancelled";
+  state: "pending" | "running" | "completed" | "failed" | "cancelled" | "compensated";
   observedAt: string;
   jobStateMutationApplied: false;
   statusHash: string;

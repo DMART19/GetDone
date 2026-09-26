@@ -55,6 +55,8 @@ class FakeWorkStore implements DurableJobWorkStore {
   retries: JobRetryScheduleRecord[] = [];
   deadLetters: DeadLetterRecord[] = [];
   cancellations: string[] = [];
+  cancelledReason: string | undefined;
+  uncertainties: string[] = [];
   heartbeats = 0;
   recoveries: JobRecoveryRecord[] = [];
 
@@ -96,7 +98,8 @@ class FakeWorkStore implements DurableJobWorkStore {
       stateHash: this.hash,
       attempt: this.attempt,
       state: this.state,
-      scheduledAt: envelope.scheduledAt
+      scheduledAt: envelope.scheduledAt,
+      cancelledReason: this.cancelledReason
     };
   }
 
@@ -195,8 +198,22 @@ class FakeWorkStore implements DurableJobWorkStore {
     idempotencyKey: string;
   }) {
     this.cancellations.push(input.reason);
+    this.cancelledReason = input.reason;
     this.state = "cancelled";
     return this.receipt("cancel", input.idempotencyKey, input.cancelledAt);
+  }
+
+  async markUncertain(input: {
+    jobId: string;
+    reason: string;
+    uncertainAt: string;
+    expectedJobVersion: number;
+    expectedJobHash: string;
+    idempotencyKey: string;
+  }) {
+    this.uncertainties.push(input.reason);
+    this.state = "uncertain";
+    return this.receipt("uncertain", input.idempotencyKey, input.uncertainAt);
   }
 
   async recoverExpired() {
@@ -312,9 +329,17 @@ describe("DurableJobWorker", () => {
       jobId: "job-1",
       outcome: {
         kind: "cancelled",
-        reason: "Job was cancelled during execution"
+        reason: "owner cancelled during execution"
       }
     }]);
+    expect(store.state).toBe("cancelled");
+  });
+
+  it("labels owner cancellation as a local stop that does not imply provider reversal", async () => {
+    const store = new FakeWorkStore();
+    await worker(store).cancel("job-1", "owner requested stop");
+    expect(store.cancellations[0]).toContain("Local execution cancelled: owner requested stop");
+    expect(store.cancellations[0]).toContain("does not unsend, reverse, or compensate provider side effects");
     expect(store.state).toBe("cancelled");
   });
 
@@ -325,6 +350,27 @@ describe("DurableJobWorker", () => {
     });
     expect(store.cancellations).toEqual(["owner cancelled"]);
     expect(store.state).toBe("cancelled");
+  });
+
+  it("persists terminal uncertainty instead of retrying provider work forever", async () => {
+    const store = new FakeWorkStore();
+    const results = await worker(store).runOnce({
+      execute: async () => ({
+        kind: "uncertain",
+        reason: "provider verification deadline exceeded"
+      })
+    });
+    expect(results).toEqual([{
+      jobId: "job-1",
+      outcome: {
+        kind: "uncertain",
+        reason: "provider verification deadline exceeded"
+      }
+    }]);
+    expect(store.uncertainties).toEqual(["provider verification deadline exceeded"]);
+    expect(store.state).toBe("uncertain");
+    expect(store.retries).toHaveLength(0);
+    expect(store.deadLetters).toHaveLength(0);
   });
 
   it("stops claiming additional candidates after drain is requested", async () => {

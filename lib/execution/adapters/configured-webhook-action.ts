@@ -23,7 +23,7 @@ import {
   type BusinessActionAdapterDeclaration
 } from "@/lib/execution/adapters/ordinary-integration-framework";
 
-export const CONFIGURED_WEBHOOK_ACTION_ADAPTER_VERSION = "1.1.0";
+export const CONFIGURED_WEBHOOK_ACTION_ADAPTER_VERSION = "1.2.0";
 
 const inputSchema = z.object({
   companyId: z.string().min(1),
@@ -178,6 +178,7 @@ export class ConfiguredWebhookActionAdapter implements BusinessActionAdapter {
     auditEvidence: "hashed-provider-evidence",
     verificationStrategy: "configured-independent-endpoint",
     cancellation: "configured",
+    cancellationSemantics: "provider-compensation-not-reversal",
     tenantEnvironmentBinding: true,
     truthSemantics: "provider-acceptance-is-not-business-truth"
   });
@@ -390,7 +391,7 @@ export class ConfiguredWebhookActionAdapter implements BusinessActionAdapter {
       adapterId: this.id,
       adapterVersion: this.version,
       state: response.ok
-        ? "cancelled"
+        ? "compensated"
         : response.status >= 500 || response.status === 429
           ? "running"
           : "failed",

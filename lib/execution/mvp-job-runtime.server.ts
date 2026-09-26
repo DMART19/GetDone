@@ -162,7 +162,9 @@ export class MvpJobRuntime {
       status,
       notification: terminal ? planOwnerNotification({
         id: `job-outcome:${terminal.recordHash}`,
-        attention: terminal.kind === "dead-lettered" ? "high" : "fyi",
+        attention: terminal.kind === "dead-lettered" || terminal.kind === "uncertain"
+          ? "high"
+          : "fyi",
         target: { kind: "task-result", taskId },
         sensitive: true
       }) : null

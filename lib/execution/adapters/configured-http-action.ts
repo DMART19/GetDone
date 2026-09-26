@@ -21,7 +21,7 @@ import {
   type BusinessActionAdapterDeclaration
 } from "@/lib/execution/adapters/ordinary-integration-framework";
 
-export const CONFIGURED_HTTP_ACTION_ADAPTER_VERSION = "1.3.0";
+export const CONFIGURED_HTTP_ACTION_ADAPTER_VERSION = "1.4.0";
 
 const environmentSchema = z.enum(["development", "staging", "production"]);
 const inputSchema = z.object({
@@ -184,6 +184,7 @@ export class ConfiguredHttpActionAdapter implements BusinessActionAdapter {
     auditEvidence: "hashed-provider-evidence",
     verificationStrategy: "configured-independent-endpoint",
     cancellation: "configured",
+    cancellationSemantics: "provider-compensation-not-reversal",
     tenantEnvironmentBinding: true,
     truthSemantics: "provider-acceptance-is-not-business-truth"
   });
@@ -408,7 +409,7 @@ export class ConfiguredHttpActionAdapter implements BusinessActionAdapter {
       adapterId: this.id,
       adapterVersion: this.version,
       state: response.ok
-        ? "cancelled"
+        ? "compensated"
         : response.status >= 500 || response.status === 429
           ? "running"
           : "failed",

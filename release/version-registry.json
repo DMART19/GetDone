@@ -1,6 +1,6 @@
 {
   "registrySchemaVersion": "1.6.0",
-  "registryVersion": "2026-09-24.2",
+  "registryVersion": "2026-09-26.1",
   "appVersion": "0.1.0",
   "schemaVersions": {
     "controlApi": {
@@ -88,7 +88,7 @@
       ]
     },
     "jobRuntime": {
-      "version": "1.2.0",
+      "version": "1.3.0",
       "sourcePath": "lib/execution/job-runtime-contracts.ts",
       "contractTracked": true,
       "contractSourcePaths": [
@@ -184,7 +184,7 @@
       "sourcePath": "lib/execution/job-worker-runtime.ts"
     },
     "businessActionOrchestrator": {
-      "version": "1.0.0",
+      "version": "1.1.0",
       "sourcePath": "lib/execution/business-action-orchestrator.ts"
     },
     "softwareWorkerRuntime": {
@@ -192,7 +192,7 @@
       "sourcePath": "lib/execution/software-worker-runtime.ts"
     },
     "jobExecutionRouter": {
-      "version": "1.1.0",
+      "version": "1.2.0",
       "sourcePath": "lib/execution/job-execution-router.ts"
     },
     "nodeDomain": {
@@ -275,7 +275,7 @@
     },
     "businessAction": {
       "status": "contract-only",
-      "version": "1.6.0",
+      "version": "1.7.0",
       "sourcePath": "lib/execution/adapters/business-action.ts",
       "contractTracked": true,
       "contractSourcePaths": [
@@ -338,7 +338,7 @@
     },
     "configuredHttpAction": {
       "status": "implemented-unconfigured",
-      "version": "1.3.0",
+      "version": "1.4.0",
       "sourcePath": "lib/execution/adapters/configured-http-action.ts"
     },
     "postgresPersistence": {
@@ -353,7 +353,7 @@
     },
     "businessActionOrchestrator": {
       "status": "implemented",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "sourcePath": "lib/execution/business-action-orchestrator.ts"
     },
     "softwareWorkerRuntime": {
@@ -363,22 +363,22 @@
     },
     "jobExecutionRouter": {
       "status": "implemented",
-      "version": "1.0.0",
+      "version": "1.2.0",
       "sourcePath": "lib/execution/job-execution-router.ts"
     },
     "configuredWebhookAction": {
       "status": "implemented-unconfigured",
-      "version": "1.1.0",
+      "version": "1.2.0",
       "sourcePath": "lib/execution/adapters/configured-webhook-action.ts"
     },
     "gmailBusinessAction": {
       "status": "implemented-unconfigured",
-      "version": "1.2.0",
+      "version": "1.3.0",
       "sourcePath": "lib/execution/adapters/gmail-action.ts"
     },
     "slackBusinessAction": {
       "status": "implemented-unconfigured",
-      "version": "1.1.0",
+      "version": "1.2.0",
       "sourcePath": "lib/execution/adapters/slack-action.ts"
     }
   },
@@ -509,7 +509,9 @@
     "lib/persistence/postgres/correlation-lineage-store.ts",
     "migrations/2026-09-24.1_correlation_lineage.sql",
     "docs/SOL_OPERATIONAL_ALERTS_CORRELATION.md",
-    "lib/observability/correlation-lineage-postgres.integration.test.ts"
+    "lib/observability/correlation-lineage-postgres.integration.test.ts",
+    "migrations/2026-09-26.1_verification_reconciliation.sql",
+    "lib/execution/adapters/ordinary-integration-coverage.test.ts"
   ],
   "manualSourcePaths": [
     "docs/ARCHITECTURE.md",
@@ -540,9 +542,9 @@
     "status": "implemented-unconnected",
     "engine": "postgresql",
     "minimumEngineVersion": "16",
-    "migrationVersion": "2026-09-24.1",
-    "schemaVersion": "1.7.0",
-    "sourcePath": "migrations/2026-09-24.1_correlation_lineage.sql",
+    "migrationVersion": "2026-09-26.1",
+    "schemaVersion": "1.8.0",
+    "sourcePath": "migrations/2026-09-26.1_verification_reconciliation.sql",
     "adapterSourcePath": "lib/persistence/postgres/client.ts"
   },
   "voice": {
@@ -564,9 +566,9 @@
     "adapterImplementationStatus": "implemented-unconfigured"
   },
   "execution": {
-    "jobRuntimeContractVersion": "1.2.0",
+    "jobRuntimeContractVersion": "1.3.0",
     "durableJobStoreStatus": "implemented-unconnected",
-    "businessActionContractVersion": "1.6.0",
+    "businessActionContractVersion": "1.7.0",
     "businessAdaptersStatus": "implemented-unconfigured",
     "softwareWorkerContractVersion": "1.1.0",
     "softwareDeploymentStatus": "not-connected",
@@ -591,11 +593,11 @@
     "liveJobExecutionBridgeStoreStatus": "not-connected",
     "durableJobStoreVersion": "1.0.0",
     "businessActionOrchestratorStatus": "implemented",
-    "businessActionOrchestratorVersion": "1.0.0",
+    "businessActionOrchestratorVersion": "1.1.0",
     "softwareWorkerRuntimeStatus": "implemented",
     "softwareWorkerRuntimeVersion": "1.0.0",
     "jobExecutionRouterStatus": "implemented",
-    "jobExecutionRouterVersion": "1.1.0",
+    "jobExecutionRouterVersion": "1.2.0",
     "jobExecutionBridgeStoreImplementationStatus": "implemented-unconnected",
     "persistenceBackend": "postgresql",
     "persistentWorkerServiceStatus": "implemented-unconnected",
