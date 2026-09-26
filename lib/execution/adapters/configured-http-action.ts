@@ -21,7 +21,7 @@ import {
   type BusinessActionAdapterDeclaration
 } from "@/lib/execution/adapters/ordinary-integration-framework";
 
-export const CONFIGURED_HTTP_ACTION_ADAPTER_VERSION = "1.3.0";
+export const CONFIGURED_HTTP_ACTION_ADAPTER_VERSION = "1.4.0";
 
 const environmentSchema = z.enum(["development", "staging", "production"]);
 const inputSchema = z.object({
