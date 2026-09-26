@@ -2,7 +2,7 @@ import { ControlPlaneError } from "@/lib/control-plane/errors";
 import { sha256Hex } from "@/lib/control-plane/canonical-hash";
 import type { TrustedExecutionScope } from "@/lib/control-plane/trusted-execution-scope";
 
-export const JOB_RUNTIME_CONTRACT_VERSION = "1.2.0";
+export const JOB_RUNTIME_CONTRACT_VERSION = "1.3.0";
 
 export interface JobQueueEnvelope {
   id: string;
@@ -40,6 +40,7 @@ export type JobStoreTransactionOperation =
   | "retry"
   | "dead-letter"
   | "cancel"
+  | "uncertain"
   | "recover-expired";
 
 export interface JobStoreTransactionReceipt {
@@ -148,6 +149,14 @@ export interface DurableJobStore {
     jobId: string;
     reason: string;
     cancelledAt: string;
+    expectedJobVersion: number;
+    expectedJobHash: string;
+    idempotencyKey: string;
+  }): Promise<JobStoreTransactionReceipt>;
+  markUncertain(input: {
+    jobId: string;
+    reason: string;
+    uncertainAt: string;
     expectedJobVersion: number;
     expectedJobHash: string;
     idempotencyKey: string;
