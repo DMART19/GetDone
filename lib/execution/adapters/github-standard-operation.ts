@@ -315,7 +315,9 @@ export class GithubStandardOperationAdapter implements BusinessActionAdapter {
     const read=request.capability==="github.repository.read";
     return {
       providerId:configuration.credentialProviderId,
-      requiredScopes:read?configuration.readScopes:configuration.writeScopes
+      requiredScopes:read
+        ? configuration.readScopes
+        : [...new Set([...configuration.writeScopes,...configuration.readScopes])]
     };
   }
 
