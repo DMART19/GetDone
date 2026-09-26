@@ -274,6 +274,8 @@ const postgresJobStore = read("lib/persistence/postgres/job-store.ts");
 const jobWorkerRuntime = read("lib/execution/job-worker-runtime.ts");
 const businessActionOrchestrator = read("lib/execution/business-action-orchestrator.ts");
 const softwareWorkerRuntime = read("lib/execution/software-worker-runtime.ts");
+const outcomeReconciliation = read("lib/execution/outcome-reconciliation.ts");
+const gitSoftwareWorker = read("lib/execution/git-software-worker-tooling.server.ts");
 const jobExecutionRouter = read("lib/execution/job-execution-router.ts");
 
 for (const required of [
@@ -350,6 +352,27 @@ for (const required of [
   "rollback"
 ]) {
   if (!softwareWorkerRuntime.includes(required)) fail(`Software worker runtime invariant missing: ${required}`);
+}
+for (const required of [
+  'OUTCOME_RECONCILIATION_VERSION = "1.0.0"',
+  "listDue",
+  "expectedExternalStateHash",
+  "outcome.external-state-drift",
+  "Historical Outcome truth remains unchanged",
+  "investigations.consider"
+]) {
+  if (!outcomeReconciliation.includes(required)) fail(`Outcome reconciliation invariant missing: ${required}`);
+}
+for (const required of [
+  'GIT_SOFTWARE_WORKER_ADAPTER_VERSION = "1.0.0"',
+  "GETDONE_GITHUB_TOKEN",
+  "ensurePullRequest",
+  "collectCiEvidence",
+  '"push"',
+  "GitHub CI did not verify the software branch",
+  "Production promotion is intentionally not performed by this pull request."
+]) {
+  if (!gitSoftwareWorker.includes(required)) fail(`Git software-worker adapter invariant missing: ${required}`);
 }
 for (const required of [
   'JOB_EXECUTION_ROUTER_VERSION = "1.1.0"',
