@@ -8,6 +8,7 @@ export type IntegrationKind =
   | "sentry"
   | "analytics"
   | "hubspot"
+  | "calendar"
   | "gmail"
   | "slack"
   | "notion"
