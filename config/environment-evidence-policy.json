@@ -1,0 +1,275 @@
+{
+  "policyVersion": "1.0.0",
+  "manifestSchemaVersion": "1.7.0",
+  "evidenceSchemaVersion": "1.0.0",
+  "defaultMaxAgeHours": 24,
+  "targets": {
+    "auth": {
+      "acceptanceIds": [
+        "browser-webauthn-live",
+        "production-auth-live"
+      ]
+    },
+    "database": {
+      "acceptanceIds": [
+        "postgres-live-readiness",
+        "production-release-postgres"
+      ]
+    },
+    "aiGateway": {
+      "acceptanceIds": [
+        "openrouter-live-canary"
+      ]
+    },
+    "durableJobEngine": {
+      "acceptanceIds": [
+        "worker-live-readiness"
+      ]
+    },
+    "resourceAgent": {
+      "acceptanceIds": [
+        "resource-agent-live-acceptance"
+      ]
+    },
+    "transactionalReservationStore": {
+      "acceptanceIds": [
+        "reservation-store-live-acceptance"
+      ]
+    },
+    "resourceDispatchAdapters": {
+      "acceptanceIds": [
+        "resource-dispatch-live-acceptance"
+      ]
+    },
+    "liveTelemetry": {
+      "acceptanceIds": [
+        "telemetry-live-acceptance"
+      ]
+    },
+    "billingUsageFeeds": {
+      "acceptanceIds": [
+        "billing-live-acceptance"
+      ]
+    },
+    "voiceAdapter": {
+      "acceptanceIds": [
+        "voice-live-acceptance"
+      ]
+    },
+    "businessIntegrationAdapters": {
+      "acceptanceIds": [
+        "crm-live-acceptance",
+        "gmail-live-acceptance",
+        "slack-live-acceptance",
+        "webhook-live-acceptance",
+        "configured-business-live-acceptance",
+        "github-live-acceptance",
+        "analytics-live-acceptance"
+      ]
+    },
+    "businessActionAdapters": {
+      "acceptanceIds": [
+        "crm-live-acceptance",
+        "gmail-live-acceptance",
+        "slack-live-acceptance",
+        "webhook-live-acceptance",
+        "configured-business-live-acceptance",
+        "github-live-acceptance",
+        "analytics-live-acceptance"
+      ]
+    },
+    "softwareDeploymentExecutor": {
+      "acceptanceIds": [
+        "software-deployment-live-acceptance"
+      ]
+    },
+    "storageFabricRuntime": {
+      "acceptanceIds": [
+        "storage-fabric-live-acceptance"
+      ]
+    },
+    "resilienceFailoverRuntime": {
+      "acceptanceIds": [
+        "resilience-live-acceptance"
+      ]
+    },
+    "secondResourceProvider": {
+      "acceptanceIds": [
+        "second-resource-provider-live-acceptance"
+      ]
+    },
+    "partnerPoolRuntime": {
+      "acceptanceIds": [
+        "partner-pool-live-acceptance"
+      ]
+    },
+    "controlApiPersistence": {
+      "acceptanceIds": [
+        "control-api-live-acceptance"
+      ]
+    },
+    "deployment": {
+      "acceptanceIds": [
+        "deployment-live-acceptance"
+      ]
+    }
+  },
+  "acceptances": {
+    "browser-webauthn-live": {
+      "artifactAssertion": {
+        "path": "stats.unexpected",
+        "equals": 0
+      }
+    },
+    "production-auth-live": {
+      "artifactAssertion": {
+        "path": "accepted",
+        "equals": true
+      }
+    },
+    "postgres-live-readiness": {
+      "artifactAssertion": {
+        "path": "ready",
+        "equals": true
+      }
+    },
+    "production-release-postgres": {
+      "artifactAssertion": {
+        "path": "backupFresh",
+        "equals": true
+      }
+    },
+    "openrouter-live-canary": {
+      "artifactAssertion": {
+        "path": "accepted",
+        "equals": true
+      }
+    },
+    "worker-live-readiness": {
+      "artifactAssertion": {
+        "path": "ready",
+        "equals": true
+      }
+    },
+    "resource-agent-live-acceptance": {
+      "artifactAssertion": {
+        "path": "accepted",
+        "equals": true
+      }
+    },
+    "reservation-store-live-acceptance": {
+      "artifactAssertion": {
+        "path": "accepted",
+        "equals": true
+      }
+    },
+    "resource-dispatch-live-acceptance": {
+      "artifactAssertion": {
+        "path": "accepted",
+        "equals": true
+      }
+    },
+    "telemetry-live-acceptance": {
+      "artifactAssertion": {
+        "path": "accepted",
+        "equals": true
+      }
+    },
+    "billing-live-acceptance": {
+      "artifactAssertion": {
+        "path": "accepted",
+        "equals": true
+      }
+    },
+    "voice-live-acceptance": {
+      "artifactAssertion": {
+        "path": "accepted",
+        "equals": true
+      }
+    },
+    "crm-live-acceptance": {
+      "artifactAssertion": {
+        "path": "accepted",
+        "equals": true
+      }
+    },
+    "gmail-live-acceptance": {
+      "artifactAssertion": {
+        "path": "accepted",
+        "equals": true
+      }
+    },
+    "slack-live-acceptance": {
+      "artifactAssertion": {
+        "path": "accepted",
+        "equals": true
+      }
+    },
+    "webhook-live-acceptance": {
+      "artifactAssertion": {
+        "path": "accepted",
+        "equals": true
+      }
+    },
+    "configured-business-live-acceptance": {
+      "artifactAssertion": {
+        "path": "accepted",
+        "equals": true
+      }
+    },
+    "software-deployment-live-acceptance": {
+      "artifactAssertion": {
+        "path": "accepted",
+        "equals": true
+      }
+    },
+    "storage-fabric-live-acceptance": {
+      "artifactAssertion": {
+        "path": "accepted",
+        "equals": true
+      }
+    },
+    "resilience-live-acceptance": {
+      "artifactAssertion": {
+        "path": "accepted",
+        "equals": true
+      }
+    },
+    "second-resource-provider-live-acceptance": {
+      "artifactAssertion": {
+        "path": "accepted",
+        "equals": true
+      }
+    },
+    "partner-pool-live-acceptance": {
+      "artifactAssertion": {
+        "path": "accepted",
+        "equals": true
+      }
+    },
+    "control-api-live-acceptance": {
+      "artifactAssertion": {
+        "path": "accepted",
+        "equals": true
+      }
+    },
+    "deployment-live-acceptance": {
+      "artifactAssertion": {
+        "path": "accepted",
+        "equals": true
+      }
+    },
+    "github-live-acceptance": {
+      "artifactAssertion": {
+        "path": "accepted",
+        "equals": true
+      }
+    },
+    "analytics-live-acceptance": {
+      "artifactAssertion": {
+        "path": "accepted",
+        "equals": true
+      }
+    }
+  }
+}

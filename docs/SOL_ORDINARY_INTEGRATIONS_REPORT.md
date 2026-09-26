@@ -18,7 +18,7 @@ Implementation order is encoded in `ORDINARY_INTEGRATION_IMPLEMENTATION_ORDER`:
 8. scheduling/calendar
 9. other SaaS-specific adapters
 
-Items 1-4 are implemented in this tranche. Items 5-9 remain ordered follow-on work.
+Items 1-7 are implemented. Items 8-9 remain ordered follow-on work.
 
 ## Shared governance
 
@@ -60,6 +60,12 @@ Raw credentials are never part of Job input or persisted execution specs. Creden
 
 `slack.message.send` uses `chat.postMessage`, a deterministic client message ID derived from GetDone idempotency lineage, optional provider-object verification, and `chat.delete` cancellation. Initial Slack `ok` means the provider accepted the request; it is not treated as independent business truth.
 
+### CRM
+
+`crm.record.read` and `crm.record.write` provide one provider-neutral CRM surface for contacts, companies, and deals. Provider endpoints, credential provider, response ID/property paths, and object collection/item paths are server-configured and tenant/environment bound.
+
+Reads can complete from the bounded provider read response. Creates and updates cannot: a successful provider mutation only returns `accepted`. The provider operation lineage stores the provider record ID plus a hash of the exact fields that must be observed. `status()` performs a fresh object read and reaches `completed` only when the independently read record matches those authorized mutation fields. Eventual-consistency mismatches remain `running`; malformed or non-retryable verification responses fail closed.
+
 ## Credential runtime path
 
 Credential-bearing ordinary integrations follow:
@@ -99,4 +105,23 @@ Provider-specific hostile/malformed response tests are in `lib/execution/adapter
 
 ## Release truth
 
-The repository contains production-wirable adapters and governed integration code. Live provider acceptance is not claimed until real provider credentials/configuration are installed and the deployment runs the adapters against the providers. The controlled configured-HTTPS and signed-webhook staging suites exercise real external HTTPS/DNS with ephemeral runtime credentials. Gmail and Slack real-provider acceptance remains credential-gated and is intentionally deferred to the final credential provisioning sweep.
+The repository contains production-wirable adapters and governed integration code. Live provider acceptance is not claimed until real provider credentials/configuration are installed and the deployment runs the adapters against the providers. The controlled configured-HTTPS and signed-webhook staging suites exercise real external HTTPS/DNS with ephemeral runtime credentials. Gmail, Slack, and CRM real-provider acceptance remains credential-gated. CRM implementation evidence does not mark an environment connected; only a fresh exact-SHA `crm-live-acceptance` artifact that satisfies the environment evidence policy can do that.
+
+
+### GitHub standard operations
+
+`github.repository.read` covers governed repository metadata, branch, file, pull-request, issue, checks, and commit-status retrieval. Mutating capabilities cover branch creation, multi-file commit creation, pull-request create/update, issue create/update, and pull-request merge. All GitHub configuration is server-side, repository-allowlisted, tenant/environment bound, and uses brokered short-lived credential material.
+
+Provider mutation responses are never authoritative Job completion. Branch, commit, PR, issue, and merge operations return `accepted` plus bounded provider-operation lineage; `status()` performs a fresh GitHub read and only reaches `completed` when the independently observed provider state matches the authorized mutation.
+
+Protected branches are not writable through ordinary `github.commit.create`. They require the separate `github.protected-branch.commit` capability, which is registered as critical risk with strong approval. Pull-request merge is likewise a strong-approval capability.
+
+### Analytics / data ingestion
+
+`analytics.ingest.read` performs bounded HTTPS reads against a configured source, validates every row against the declared source schema, enforces tenant/environment binding, records source freshness, and hashes source URL, provider batch, payload, cursor lineage, dedupe key, and evidence record.
+
+Cursor advancement and evidence insertion are committed atomically in PostgreSQL. The checkpoint store uses compare-and-swap semantics, request IDs are idempotent, and duplicate evidence keys are ignored rather than reinserted. A repeated durable Job cannot silently advance a cursor twice.
+
+Ingested analytics are evidence only. The adapter result retains `jobStateMutationApplied: false`; analytics evidence/checkpoint tables are separate from authoritative control-plane entities and cannot establish Goal/Plan/Decision/Task/Job truth.
+
+Real GitHub and analytics provider acceptance remains credential/provider gated. Static implementation or environment configuration does not mark either subsystem connected; only qualifying exact-SHA acceptance evidence can do that.

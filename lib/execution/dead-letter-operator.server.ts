@@ -663,21 +663,33 @@ export class DeadLetterOperatorService {
         freshAuthorizationRequired: input.action === "retry"
       })
     });
-    await this.db.query(
-      "INSERT INTO audit_events" +
-      " (id,correlation_id,portfolio_id,company_id,entity_type,entity_id,occurred_at,payload)" +
-      " VALUES($1,$2,$3,$4,$5,$6,$7,$8::jsonb) ON CONFLICT (id) DO NOTHING",
-      [
-        event.id,
-        event.correlationId,
-        event.scope.portfolioId,
-        event.scope.companyId,
-        event.entityType,
-        event.entityId,
-        event.occurredAt,
-        JSON.stringify(event)
-      ]
-    );
+    try {
+      await this.db.query(
+        `SELECT chain_sequence,event_hash
+         FROM getdone_append_audit_event(
+           $1,$2,$3,$4,$5,$6,$7,$8::jsonb
+         )`,
+        [
+          event.id,
+          event.correlationId,
+          event.scope.portfolioId,
+          event.scope.companyId,
+          event.entityType,
+          event.entityId,
+          event.occurredAt,
+          JSON.stringify(event)
+        ]
+      );
+    } catch (error) {
+      const postgresError = error as { code?: string; constraint?: string };
+      if (
+        postgresError.code === "23505"
+        && postgresError.constraint === "audit_events_id_key"
+      ) {
+        return;
+      }
+      throw error;
+    }
   }
 }
 

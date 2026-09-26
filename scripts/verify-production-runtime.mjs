@@ -87,7 +87,7 @@ function walkHttpsUrls(value, label) {
     return;
   }
   for (const [key, item] of Object.entries(value)) {
-    if ((key === "url" || key === "baseUrl") && typeof item === "string") {
+    if ((key === "url" || key === "baseUrl" || key === "apiBaseUrl") && typeof item === "string") {
       const probe = item.replaceAll("{providerOperationId}", "provider-operation");
       assertHttpsUrl(probe, `${label}.${key}`);
     } else {
@@ -147,6 +147,78 @@ function validateIntegrationArray(name, type) {
           "UNVERIFIED_PRODUCTION_INTEGRATION",
           `${label} must use provider-object verification in production`
         );
+      }
+      if (type === "crm") {
+        if (typeof entry.baseUrl !== "string") {
+          fail("INVALID_INTEGRATION_CONFIG", `${label}.baseUrl is required`);
+        }
+        for (const objectType of ["contact", "company", "deal"]) {
+          const endpoint = entry.objects?.[objectType];
+          if (
+            !endpoint
+            || typeof endpoint.collectionPath !== "string"
+            || typeof endpoint.itemPath !== "string"
+            || !endpoint.itemPath.includes("{recordId}")
+          ) {
+            fail(
+              "INVALID_INTEGRATION_CONFIG",
+              `${label}.objects.${objectType} requires collectionPath and itemPath with {recordId}`
+            );
+          }
+        }
+      }
+      if (type === "github") {
+        if (
+          entry.apiBaseUrl !== undefined
+          && typeof entry.apiBaseUrl !== "string"
+        ) {
+          fail("INVALID_INTEGRATION_CONFIG", `${label}.apiBaseUrl must be a URL string`);
+        }
+        if (
+          !Array.isArray(entry.repositories)
+          || entry.repositories.length === 0
+          || entry.repositories.some(
+            (repository) => typeof repository !== "string"
+              || !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository)
+          )
+        ) {
+          fail("INVALID_INTEGRATION_CONFIG", `${label}.repositories must be a non-empty repository allowlist`);
+        }
+        if (
+          entry.protectedBranches !== undefined
+          && (
+            !Array.isArray(entry.protectedBranches)
+            || entry.protectedBranches.some((branch) => typeof branch !== "string" || !branch.trim())
+          )
+        ) {
+          fail("INVALID_INTEGRATION_CONFIG", `${label}.protectedBranches is invalid`);
+        }
+      }
+      if (type === "analytics") {
+        if (typeof entry.url !== "string") {
+          fail("INVALID_INTEGRATION_CONFIG", `${label}.url is required`);
+        }
+        if (
+          !entry.schema
+          || typeof entry.schema !== "object"
+          || Array.isArray(entry.schema)
+          || !entry.schema.fields
+          || typeof entry.schema.fields !== "object"
+          || Array.isArray(entry.schema.fields)
+          || Object.keys(entry.schema.fields).length === 0
+        ) {
+          fail("INVALID_INTEGRATION_CONFIG", `${label}.schema.fields must be a non-empty object`);
+        }
+        if (
+          entry.maxResponseBytes !== undefined
+          && (
+            !Number.isInteger(entry.maxResponseBytes)
+            || entry.maxResponseBytes < 1
+            || entry.maxResponseBytes > 2_000_000
+          )
+        ) {
+          fail("INVALID_INTEGRATION_CONFIG", `${label}.maxResponseBytes is invalid`);
+        }
       }
     }
 
@@ -237,6 +309,13 @@ function validateDatabaseConfiguration() {
 }
 
 function validateWebAuthn() {
+  if (env.GETDONE_AUTH_COOKIE_SECURE === "false") {
+    fail("WEBAUTHN_CONFIG", "Production auth cookies must use Secure transport");
+  }
+  const cookieName = env.GETDONE_AUTH_COOKIE_NAME?.trim() || "getdone_session";
+  if (!/^[!#$%&'*+.^_`|~0-9A-Za-z-]{1,128}$/.test(cookieName)) {
+    fail("WEBAUTHN_CONFIG", "GETDONE_AUTH_COOKIE_NAME is invalid");
+  }
   const rpId = required("GETDONE_WEBAUTHN_RP_ID");
   if (rpId && (!/^[A-Za-z0-9.-]+$/.test(rpId) || rpId === "localhost")) {
     fail("WEBAUTHN_CONFIG", "GETDONE_WEBAUTHN_RP_ID must be a production DNS RP ID");
@@ -474,7 +553,10 @@ function validateIntegrations() {
     ["GETDONE_HTTP_ACTIONS_JSON", "http"],
     ["GETDONE_WEBHOOK_ACTIONS_JSON", "webhook"],
     ["GETDONE_GMAIL_ACTIONS_JSON", "gmail"],
-    ["GETDONE_SLACK_ACTIONS_JSON", "slack"]
+    ["GETDONE_SLACK_ACTIONS_JSON", "slack"],
+    ["GETDONE_CRM_ACTIONS_JSON", "crm"],
+    ["GETDONE_GITHUB_ACTIONS_JSON", "github"],
+    ["GETDONE_ANALYTICS_SOURCES_JSON", "analytics"]
   ];
 
   let configured = 0;

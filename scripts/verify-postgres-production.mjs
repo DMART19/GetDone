@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import pg from "pg";
 
 function required(name) {
@@ -6,7 +7,7 @@ function required(name) {
   return value;
 }
 
-const requiredMigration = "2026-09-24.1";
+const requiredMigration = "2026-09-25.3";
 const maxBackupAgeHours = Number(process.env.GETDONE_BACKUP_MAX_AGE_HOURS || "24");
 if (!Number.isFinite(maxBackupAgeHours) || maxBackupAgeHours <= 0) {
   throw new Error("GETDONE_BACKUP_MAX_AGE_HOURS must be positive");
@@ -63,7 +64,9 @@ try {
          'authorization_consumptions',
          'job_leases',
          'job_runtime_transactions',
-         'provider_concurrency_leases'
+         'provider_concurrency_leases',
+         'rate_limit_buckets',
+         'job_disaster_recovery_decisions'
        )`
   );
   const indexText = constraints.rows.map((row) => row.indexdef).join("\n");
@@ -71,7 +74,9 @@ try {
     "authorization_consumptions",
     "job_leases",
     "job_runtime_transactions",
-    "provider_concurrency_leases"
+    "provider_concurrency_leases",
+    "rate_limit_buckets",
+    "job_disaster_recovery_decisions"
   ]) {
     if (!indexText.includes(requiredFragment)) {
       throw new Error(`Concurrency/idempotency index verification missing: ${requiredFragment}`);
@@ -95,7 +100,11 @@ try {
     "business_action_executions",
     "business_action_verification_evidence",
     "credential_leases",
-    "credential_usage_audits"
+    "credential_usage_audits",
+    "audit_chain_heads",
+    "analytics_ingestion_checkpoints",
+    "analytics_ingestion_evidence",
+    "analytics_ingestion_runs"
   ];
   const rls = await client.query(
     `SELECT required.name, relation.relrowsecurity, relation.relforcerowsecurity
@@ -181,6 +190,96 @@ try {
     throw new Error("Durable worker/credential broker persistence schema verification failed");
   }
 
+  const rateLimitSchema = await client.query(
+    `SELECT COUNT(*)::int AS count
+     FROM information_schema.columns
+     WHERE table_name='rate_limit_buckets'
+       AND column_name IN (
+         'policy_id','bucket_key_hash','window_started_at',
+         'window_expires_at','request_count','updated_at'
+       )`
+  );
+  if (rateLimitSchema.rows[0]?.count !== 6) {
+    throw new Error("Rate limit persistence schema verification failed");
+  }
+
+  const disasterRecoverySchema = await client.query(
+    `SELECT COUNT(*)::int AS count
+     FROM unnest(ARRAY[
+       'disaster_recovery_incidents',
+       'job_disaster_recovery_decisions'
+     ]::text[]) AS required(name)
+     WHERE to_regclass(required.name) IS NOT NULL`
+  );
+  if (disasterRecoverySchema.rows[0]?.count !== 2) {
+    throw new Error("Disaster recovery persistence schema verification failed");
+  }
+
+  const disasterRecoveryIndexes = await client.query(
+    `SELECT COUNT(*)::int AS count
+     FROM pg_indexes
+     WHERE schemaname=current_schema()
+       AND indexname IN (
+         'job_disaster_recovery_active_hold_idx',
+         'job_disaster_recovery_incident_decision_idx'
+       )`
+  );
+  if (disasterRecoveryIndexes.rows[0]?.count !== 2) {
+    throw new Error("Disaster recovery hold/index verification failed");
+  }
+
+  const releaseGateSchema = await client.query(
+    `SELECT COUNT(*)::int AS count
+     FROM unnest(ARRAY[
+       'production_release_gate_evidence',
+       'migration_compatibility_evidence'
+     ]::text[]) AS required(name)
+     WHERE to_regclass(required.name) IS NOT NULL`
+  );
+  if (releaseGateSchema.rows[0]?.count !== 2) {
+    throw new Error("Production release gate persistence schema verification failed");
+  }
+
+  const releaseGateIndexes = await client.query(
+    `SELECT COUNT(*)::int AS count
+     FROM pg_indexes
+     WHERE schemaname=current_schema()
+       AND indexname IN (
+         'production_release_gate_passed_sha_idx',
+         'migration_compatibility_release_idx'
+       )`
+  );
+  if (releaseGateIndexes.rows[0]?.count !== 2) {
+    throw new Error("Production release gate index verification failed");
+  }
+
+  const analyticsSchema = await client.query(
+    `SELECT COUNT(*)::int AS count
+     FROM unnest(ARRAY[
+       'analytics_ingestion_checkpoints',
+       'analytics_ingestion_evidence',
+       'analytics_ingestion_runs'
+     ]::text[]) AS required(name)
+     WHERE to_regclass(required.name) IS NOT NULL`
+  );
+  if (analyticsSchema.rows[0]?.count !== 3) {
+    throw new Error("Analytics ingestion persistence schema verification failed");
+  }
+
+  const analyticsIndexes = await client.query(
+    `SELECT COUNT(*)::int AS count
+     FROM pg_indexes
+     WHERE schemaname=current_schema()
+       AND indexname IN (
+         'analytics_ingestion_evidence_source_idx',
+         'analytics_ingestion_checkpoint_updated_idx',
+         'analytics_ingestion_runs_scope_idx'
+       )`
+  );
+  if (analyticsIndexes.rows[0]?.count !== 3) {
+    throw new Error("Analytics ingestion index verification failed");
+  }
+
   const backup = await client.query(
     `SELECT completed_at,verification_hash
      FROM database_backup_evidence
@@ -204,10 +303,28 @@ try {
     `SELECT COUNT(*)::int AS count
      FROM information_schema.columns
      WHERE table_name='audit_events'
-       AND column_name IN ('id','correlation_id','entity_type','entity_id','occurred_at','payload')`
+       AND column_name IN (
+         'id','correlation_id','entity_type','entity_id','occurred_at','payload',
+         'chain_sequence','previous_event_hash','event_hash'
+       )`
   );
-  if (audit.rows[0]?.count !== 6) {
+  if (audit.rows[0]?.count !== 9) {
     throw new Error("Audit ledger schema integrity verification failed");
+  }
+
+  const auditIntegrity = spawnSync(
+    process.execPath,
+    ["scripts/verify-audit-ledger-integrity.mjs"],
+    {
+      cwd: process.cwd(),
+      env: process.env,
+      encoding: "utf8"
+    }
+  );
+  if (auditIntegrity.status !== 0) {
+    throw new Error(
+      `Audit ledger integrity verification failed\nSTDOUT:\n${auditIntegrity.stdout}\nSTDERR:\n${auditIntegrity.stderr}`
+    );
   }
 
   console.log(JSON.stringify({
@@ -221,8 +338,13 @@ try {
     tenantRuntimeRole: "verified",
     effectiveRuntimeRole: "verified",
     auditSchema: "verified",
+    auditLedgerIntegrity: "verified",
     authSchema: "verified",
     durableWorkerSchema: "verified",
+    rateLimitSchema: "verified",
+    disasterRecoverySchema: "verified",
+    releaseGateSchema: "verified",
+    analyticsSchema: "verified",
     backupFresh: true
   }, null, 2));
 } finally {

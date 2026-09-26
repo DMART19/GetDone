@@ -21,7 +21,7 @@ env:
 jobs:
   postgres16:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 65
 
     services:
       postgres:
@@ -51,8 +51,19 @@ jobs:
 
       - run: npm ci --ignore-scripts --no-audit --no-fund
 
+      - name: Install PostgreSQL client tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
       - name: Run PostgreSQL 16 migration and concurrency acceptance
         run: npm run db:test-integration
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+          GETDONE_DB_SSL: "false"
+
+      - name: Run zero-downtime rolling migration acceptance
+        run: npm run db:test-zero-downtime
         env:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
           GETDONE_DB_SSL: "false"
@@ -90,6 +101,40 @@ jobs:
         env:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
           GETDONE_DB_SSL: "false"
+
+      - name: Run PostgreSQL rate limit acceptance
+        run: npx vitest run lib/security/rate-limit-postgres.integration.test.ts
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+          GETDONE_DB_SSL: "false"
+          GETDONE_POSTGRES_INTEGRATION: "true"
+
+      - name: Run analytics ingestion checkpoint and dedupe acceptance
+        run: npx vitest run lib/analytics/analytics-ingestion-postgres.integration.test.ts
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+          GETDONE_DB_SSL: "false"
+          GETDONE_POSTGRES_INTEGRATION: "true"
+
+      - name: Run audit ledger tamper detection acceptance
+        run: npx vitest run lib/security/audit-ledger-integrity-postgres.integration.test.ts
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+          GETDONE_DB_SSL: "false"
+          GETDONE_POSTGRES_INTEGRATION: "true"
+
+      - name: Run real staging backup restore and app boot acceptance
+        run: npm run db:test-backup-restore
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+          GETDONE_DB_SSL: "false"
+
+      - name: Run disaster recovery primary-loss acceptance
+        run: npm run dr:test-acceptance
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+          GETDONE_DB_SSL: "false"
+          GETDONE_POSTGRES_INTEGRATION: "true"
 
       - name: Run owner-safe AI Gateway health PostgreSQL acceptance
         run: npx vitest run lib/ai-gateway/health-postgres.integration.test.ts

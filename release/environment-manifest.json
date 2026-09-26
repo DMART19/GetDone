@@ -1,10 +1,109 @@
 {
-  "manifestSchemaVersion": "1.6.0",
+  "manifestSchemaVersion": "1.7.0",
   "environments": {
     "development": {
       "authorityMode": "deterministic-foundation",
-      "productionReady": false,
       "dataMode": "development-seed-allowed",
+      "deployment": {
+        "deploymentId": null,
+        "region": null,
+        "status": "local-development"
+      },
+      "voice": {
+        "contractStatus": "deterministic-contract",
+        "strongApprovalAllowed": false,
+        "rawCredentialInputAllowed": false,
+        "secureHandoff": "iphone-control-surface",
+        "adapterStatus": "not-connected"
+      },
+      "aiGateway": {
+        "contractStatus": "deterministic-contract",
+        "routingPolicyStatus": "unconfigured",
+        "provider": "OPENROUTER_UNCONFIGURED",
+        "adapterImplementationStatus": "implemented-unconfigured",
+        "adapterStatus": "not-connected"
+      },
+      "integrations": {
+        "registryStatus": "deterministic-contract",
+        "mockAllowed": true,
+        "adapterStatus": "not-connected"
+      },
+      "execution": {
+        "jobRuntimeContractStatus": "deterministic-contract",
+        "jobExecutionBridgeStatus": "deterministic-contract",
+        "durableJobStoreImplementationStatus": "implemented-unconnected",
+        "businessActionOrchestratorStatus": "implemented",
+        "softwareWorkerRuntimeStatus": "implemented",
+        "jobExecutionRouterStatus": "implemented",
+        "jobExecutionBridgeStoreImplementationStatus": "implemented-unconnected",
+        "durableJobStoreStatus": "not-connected",
+        "businessActionAdapterStatus": "not-connected",
+        "softwareDeploymentStatus": "not-connected",
+        "liveJobExecutionBridgeStoreStatus": "not-connected",
+        "persistentWorkerServiceStatus": "not-connected"
+      },
+      "resourceFabric": {
+        "storageFabricContractStatus": "deterministic-contract",
+        "resilienceContractStatus": "deterministic-contract",
+        "resourceAdapterSdkStatus": "deterministic-contract",
+        "resourcePoolContractStatus": "deterministic-contract",
+        "developmentMockAdapterAllowed": true,
+        "reservationStoreImplementationStatus": "implemented-unconnected",
+        "storageRuntimeStatus": "not-connected",
+        "failoverRuntimeStatus": "not-connected",
+        "secondProviderStatus": "not-connected",
+        "partnerPoolRuntimeStatus": "not-connected"
+      },
+      "phase44": {
+        "deterministicHarnessStatus": "offline-blocking-suite",
+        "productionAcceptanceStatus": "not-run"
+      },
+      "composition": {
+        "goldenPathHarnessStatus": "deterministic-simulation-only",
+        "productionExecutionClaimed": false
+      },
+      "controlApi": {
+        "surfaceStatus": "implemented",
+        "authStatus": "implemented-unconnected",
+        "applicationAdapterStatus": "not-connected",
+        "persistenceStatus": "not-connected"
+      },
+      "database": {
+        "engine": "postgresql",
+        "minimumEngineVersion": "16",
+        "migrationVersion": "2026-09-25.3",
+        "schemaVersion": "2.2.0",
+        "adapterStatus": "implemented-unconnected"
+      },
+      "nodeAgent": {
+        "status": "implemented-development-only",
+        "domainVersion": "1.0.0",
+        "protocolVersion": "1.0.0",
+        "dispatchContractVersion": "1.0.0",
+        "linuxX64": "capability-profile-build",
+        "linuxArm64": "capability-profile-build",
+        "agentVersion": "0.4.0-development",
+        "enrollmentStatus": "implemented-unconnected",
+        "nodePersistenceStatus": "implemented-unconnected",
+        "identityIssuerStatus": "development-only",
+        "productionCaStatus": "not-connected",
+        "productionMtlsStatus": "not-connected",
+        "enrollmentMigrationVersion": "2026-09-21.2",
+        "bootstrapAuthentication": "one-time-token",
+        "inventoryDiscoveryStatus": "implemented",
+        "inventoryApiStatus": "implemented-unconnected",
+        "inventoryPersistenceStatus": "implemented-unconnected",
+        "inventoryMigrationVersion": "2026-09-21.3",
+        "capabilityProfilingStatus": "implemented",
+        "capabilityValidationStatus": "implemented",
+        "capabilityApiStatus": "implemented-unconnected",
+        "capabilityPersistenceStatus": "implemented-unconnected",
+        "capabilityRegistryBridgeStatus": "implemented",
+        "resourceCapabilityBindingStatus": "implemented-unconnected",
+        "capabilityMigrationVersion": "2026-09-21.4",
+        "authenticatedAgentTransportStatus": "not-connected",
+        "productionReady": false
+      },
       "connections": {
         "auth": false,
         "database": false,
@@ -25,111 +124,112 @@
         "partnerPoolRuntime": false,
         "controlApiPersistence": false
       },
-      "deployment": {
-        "status": "local-development",
-        "deploymentId": null,
-        "region": null
-      },
-      "voice": {
-        "contractStatus": "deterministic-contract",
-        "adapterStatus": "not-connected",
-        "strongApprovalAllowed": false,
-        "rawCredentialInputAllowed": false,
-        "secureHandoff": "iphone-control-surface"
-      },
-      "aiGateway": {
-        "contractStatus": "deterministic-contract",
-        "adapterStatus": "not-connected",
-        "routingPolicyStatus": "unconfigured",
-        "provider": "OPENROUTER_UNCONFIGURED",
-        "adapterImplementationStatus": "implemented-unconfigured"
-      },
-      "integrations": {
-        "registryStatus": "deterministic-contract",
-        "adapterStatus": "not-connected",
-        "mockAllowed": true
-      },
-      "execution": {
-        "jobRuntimeContractStatus": "deterministic-contract",
-        "durableJobStoreStatus": "not-connected",
-        "businessActionAdapterStatus": "not-connected",
-        "softwareDeploymentStatus": "not-connected",
-        "jobExecutionBridgeStatus": "deterministic-contract",
-        "liveJobExecutionBridgeStoreStatus": "not-connected",
-        "durableJobStoreImplementationStatus": "implemented-unconnected",
-        "businessActionOrchestratorStatus": "implemented",
-        "softwareWorkerRuntimeStatus": "implemented",
-        "jobExecutionRouterStatus": "implemented",
-        "jobExecutionBridgeStoreImplementationStatus": "implemented-unconnected",
-        "persistentWorkerServiceStatus": "implemented-unconnected"
-      },
-      "resourceFabric": {
-        "storageFabricContractStatus": "deterministic-contract",
-        "storageRuntimeStatus": "not-connected",
-        "resilienceContractStatus": "deterministic-contract",
-        "failoverRuntimeStatus": "not-connected",
-        "resourceAdapterSdkStatus": "deterministic-contract",
-        "secondProviderStatus": "not-connected",
-        "resourcePoolContractStatus": "deterministic-contract",
-        "partnerPoolRuntimeStatus": "not-connected",
-        "developmentMockAdapterAllowed": true,
-        "reservationStoreImplementationStatus": "implemented-unconnected"
-      },
-      "phase44": {
-        "deterministicHarnessStatus": "offline-blocking-suite",
-        "productionAcceptanceStatus": "not-run"
-      },
-      "composition": {
-        "goldenPathHarnessStatus": "deterministic-simulation-only",
-        "productionExecutionClaimed": false
-      },
-      "controlApi": {
-        "surfaceStatus": "implemented",
-        "applicationAdapterStatus": "not-connected",
-        "authStatus": "implemented-unconnected",
-        "persistenceStatus": "not-connected"
-      },
-      "database": {
-        "engine": "postgresql",
-        "minimumEngineVersion": "16",
-        "adapterStatus": "implemented-unconnected",
-        "migrationVersion": "2026-09-24.1",
-        "schemaVersion": "1.7.0"
-      },
-      "nodeAgent": {
-        "status": "implemented-development-only",
-        "domainVersion": "1.0.0",
-        "protocolVersion": "1.0.0",
-        "dispatchContractVersion": "1.0.0",
-        "linuxX64": "capability-profile-build",
-        "linuxArm64": "capability-profile-build",
-        "productionReady": false,
-        "agentVersion": "0.4.0-development",
-        "enrollmentStatus": "implemented-unconnected",
-        "nodePersistenceStatus": "implemented-unconnected",
-        "identityIssuerStatus": "development-only",
-        "productionCaStatus": "not-connected",
-        "productionMtlsStatus": "not-connected",
-        "enrollmentMigrationVersion": "2026-09-21.2",
-        "bootstrapAuthentication": "one-time-token",
-        "inventoryDiscoveryStatus": "implemented",
-        "inventoryApiStatus": "implemented-unconnected",
-        "inventoryPersistenceStatus": "implemented-unconnected",
-        "authenticatedAgentTransportStatus": "not-connected",
-        "inventoryMigrationVersion": "2026-09-21.3",
-        "capabilityProfilingStatus": "implemented",
-        "capabilityValidationStatus": "implemented",
-        "capabilityApiStatus": "implemented-unconnected",
-        "capabilityPersistenceStatus": "implemented-unconnected",
-        "capabilityRegistryBridgeStatus": "implemented",
-        "resourceCapabilityBindingStatus": "implemented-unconnected",
-        "capabilityMigrationVersion": "2026-09-21.4"
-      }
+      "connectionEvidence": {},
+      "productionReady": false
     },
     "staging": {
       "authorityMode": "not-connected",
-      "productionReady": false,
       "dataMode": "authoritative-persistence-required",
+      "deployment": {
+        "deploymentId": null,
+        "region": null,
+        "status": "not-connected"
+      },
+      "voice": {
+        "contractStatus": "deterministic-contract",
+        "strongApprovalAllowed": false,
+        "rawCredentialInputAllowed": false,
+        "secureHandoff": "iphone-control-surface",
+        "adapterStatus": "not-connected"
+      },
+      "aiGateway": {
+        "contractStatus": "deterministic-contract",
+        "routingPolicyStatus": "unconfigured",
+        "provider": "OPENROUTER_UNCONFIGURED",
+        "adapterImplementationStatus": "implemented-unconfigured",
+        "adapterStatus": "not-connected"
+      },
+      "integrations": {
+        "registryStatus": "deterministic-contract",
+        "mockAllowed": false,
+        "adapterStatus": "not-connected"
+      },
+      "execution": {
+        "jobRuntimeContractStatus": "deterministic-contract",
+        "jobExecutionBridgeStatus": "deterministic-contract",
+        "durableJobStoreImplementationStatus": "implemented-unconnected",
+        "businessActionOrchestratorStatus": "implemented",
+        "softwareWorkerRuntimeStatus": "implemented",
+        "jobExecutionRouterStatus": "implemented",
+        "jobExecutionBridgeStoreImplementationStatus": "implemented-unconnected",
+        "durableJobStoreStatus": "not-connected",
+        "businessActionAdapterStatus": "not-connected",
+        "softwareDeploymentStatus": "not-connected",
+        "liveJobExecutionBridgeStoreStatus": "not-connected",
+        "persistentWorkerServiceStatus": "not-connected"
+      },
+      "resourceFabric": {
+        "storageFabricContractStatus": "deterministic-contract",
+        "resilienceContractStatus": "deterministic-contract",
+        "resourceAdapterSdkStatus": "deterministic-contract",
+        "resourcePoolContractStatus": "deterministic-contract",
+        "developmentMockAdapterAllowed": false,
+        "reservationStoreImplementationStatus": "implemented-unconnected",
+        "storageRuntimeStatus": "not-connected",
+        "failoverRuntimeStatus": "not-connected",
+        "secondProviderStatus": "not-connected",
+        "partnerPoolRuntimeStatus": "not-connected"
+      },
+      "phase44": {
+        "deterministicHarnessStatus": "offline-blocking-suite",
+        "productionAcceptanceStatus": "not-run"
+      },
+      "composition": {
+        "goldenPathHarnessStatus": "deterministic-simulation-only",
+        "productionExecutionClaimed": false
+      },
+      "controlApi": {
+        "surfaceStatus": "implemented",
+        "authStatus": "implemented-unconnected",
+        "applicationAdapterStatus": "not-connected",
+        "persistenceStatus": "not-connected"
+      },
+      "database": {
+        "engine": "postgresql",
+        "minimumEngineVersion": "16",
+        "migrationVersion": "2026-09-25.3",
+        "schemaVersion": "2.2.0",
+        "adapterStatus": "implemented-unconnected"
+      },
+      "nodeAgent": {
+        "status": "implemented-development-only",
+        "domainVersion": "1.0.0",
+        "protocolVersion": "1.0.0",
+        "dispatchContractVersion": "1.0.0",
+        "linuxX64": "capability-profile-build",
+        "linuxArm64": "capability-profile-build",
+        "agentVersion": "0.4.0-development",
+        "enrollmentStatus": "implemented-unconnected",
+        "nodePersistenceStatus": "implemented-unconnected",
+        "identityIssuerStatus": "development-only",
+        "productionCaStatus": "not-connected",
+        "productionMtlsStatus": "not-connected",
+        "enrollmentMigrationVersion": "2026-09-21.2",
+        "bootstrapAuthentication": "one-time-token",
+        "inventoryDiscoveryStatus": "implemented",
+        "inventoryApiStatus": "implemented-unconnected",
+        "inventoryPersistenceStatus": "implemented-unconnected",
+        "inventoryMigrationVersion": "2026-09-21.3",
+        "capabilityProfilingStatus": "implemented",
+        "capabilityValidationStatus": "implemented",
+        "capabilityApiStatus": "implemented-unconnected",
+        "capabilityPersistenceStatus": "implemented-unconnected",
+        "capabilityRegistryBridgeStatus": "implemented",
+        "resourceCapabilityBindingStatus": "implemented-unconnected",
+        "capabilityMigrationVersion": "2026-09-21.4",
+        "authenticatedAgentTransportStatus": "not-connected",
+        "productionReady": false
+      },
       "connections": {
         "auth": false,
         "database": false,
@@ -150,111 +250,112 @@
         "partnerPoolRuntime": false,
         "controlApiPersistence": false
       },
-      "deployment": {
-        "status": "not-connected",
-        "deploymentId": null,
-        "region": null
-      },
-      "voice": {
-        "contractStatus": "deterministic-contract",
-        "adapterStatus": "not-connected",
-        "strongApprovalAllowed": false,
-        "rawCredentialInputAllowed": false,
-        "secureHandoff": "iphone-control-surface"
-      },
-      "aiGateway": {
-        "contractStatus": "deterministic-contract",
-        "adapterStatus": "not-connected",
-        "routingPolicyStatus": "unconfigured",
-        "provider": "OPENROUTER_UNCONFIGURED",
-        "adapterImplementationStatus": "implemented-unconfigured"
-      },
-      "integrations": {
-        "registryStatus": "deterministic-contract",
-        "adapterStatus": "not-connected",
-        "mockAllowed": false
-      },
-      "execution": {
-        "jobRuntimeContractStatus": "deterministic-contract",
-        "durableJobStoreStatus": "not-connected",
-        "businessActionAdapterStatus": "not-connected",
-        "softwareDeploymentStatus": "not-connected",
-        "jobExecutionBridgeStatus": "deterministic-contract",
-        "liveJobExecutionBridgeStoreStatus": "not-connected",
-        "durableJobStoreImplementationStatus": "implemented-unconnected",
-        "businessActionOrchestratorStatus": "implemented",
-        "softwareWorkerRuntimeStatus": "implemented",
-        "jobExecutionRouterStatus": "implemented",
-        "jobExecutionBridgeStoreImplementationStatus": "implemented-unconnected",
-        "persistentWorkerServiceStatus": "implemented-unconnected"
-      },
-      "resourceFabric": {
-        "storageFabricContractStatus": "deterministic-contract",
-        "storageRuntimeStatus": "not-connected",
-        "resilienceContractStatus": "deterministic-contract",
-        "failoverRuntimeStatus": "not-connected",
-        "resourceAdapterSdkStatus": "deterministic-contract",
-        "secondProviderStatus": "not-connected",
-        "resourcePoolContractStatus": "deterministic-contract",
-        "partnerPoolRuntimeStatus": "not-connected",
-        "developmentMockAdapterAllowed": false,
-        "reservationStoreImplementationStatus": "implemented-unconnected"
-      },
-      "phase44": {
-        "deterministicHarnessStatus": "offline-blocking-suite",
-        "productionAcceptanceStatus": "not-run"
-      },
-      "composition": {
-        "goldenPathHarnessStatus": "deterministic-simulation-only",
-        "productionExecutionClaimed": false
-      },
-      "controlApi": {
-        "surfaceStatus": "implemented",
-        "applicationAdapterStatus": "not-connected",
-        "authStatus": "implemented-unconnected",
-        "persistenceStatus": "not-connected"
-      },
-      "database": {
-        "engine": "postgresql",
-        "minimumEngineVersion": "16",
-        "adapterStatus": "implemented-unconnected",
-        "migrationVersion": "2026-09-24.1",
-        "schemaVersion": "1.7.0"
-      },
-      "nodeAgent": {
-        "status": "implemented-development-only",
-        "domainVersion": "1.0.0",
-        "protocolVersion": "1.0.0",
-        "dispatchContractVersion": "1.0.0",
-        "linuxX64": "capability-profile-build",
-        "linuxArm64": "capability-profile-build",
-        "productionReady": false,
-        "agentVersion": "0.4.0-development",
-        "enrollmentStatus": "implemented-unconnected",
-        "nodePersistenceStatus": "implemented-unconnected",
-        "identityIssuerStatus": "development-only",
-        "productionCaStatus": "not-connected",
-        "productionMtlsStatus": "not-connected",
-        "enrollmentMigrationVersion": "2026-09-21.2",
-        "bootstrapAuthentication": "one-time-token",
-        "inventoryDiscoveryStatus": "implemented",
-        "inventoryApiStatus": "implemented-unconnected",
-        "inventoryPersistenceStatus": "implemented-unconnected",
-        "authenticatedAgentTransportStatus": "not-connected",
-        "inventoryMigrationVersion": "2026-09-21.3",
-        "capabilityProfilingStatus": "implemented",
-        "capabilityValidationStatus": "implemented",
-        "capabilityApiStatus": "implemented-unconnected",
-        "capabilityPersistenceStatus": "implemented-unconnected",
-        "capabilityRegistryBridgeStatus": "implemented",
-        "resourceCapabilityBindingStatus": "implemented-unconnected",
-        "capabilityMigrationVersion": "2026-09-21.4"
-      }
+      "connectionEvidence": {},
+      "productionReady": false
     },
     "production": {
       "authorityMode": "not-connected",
-      "productionReady": false,
       "dataMode": "authoritative-persistence-required",
+      "deployment": {
+        "deploymentId": null,
+        "region": null,
+        "status": "not-connected"
+      },
+      "voice": {
+        "contractStatus": "deterministic-contract",
+        "strongApprovalAllowed": false,
+        "rawCredentialInputAllowed": false,
+        "secureHandoff": "iphone-control-surface",
+        "adapterStatus": "not-connected"
+      },
+      "aiGateway": {
+        "contractStatus": "deterministic-contract",
+        "routingPolicyStatus": "unconfigured",
+        "provider": "OPENROUTER_UNCONFIGURED",
+        "adapterImplementationStatus": "implemented-unconfigured",
+        "adapterStatus": "not-connected"
+      },
+      "integrations": {
+        "registryStatus": "deterministic-contract",
+        "mockAllowed": false,
+        "adapterStatus": "not-connected"
+      },
+      "execution": {
+        "jobRuntimeContractStatus": "deterministic-contract",
+        "jobExecutionBridgeStatus": "deterministic-contract",
+        "durableJobStoreImplementationStatus": "implemented-unconnected",
+        "businessActionOrchestratorStatus": "implemented",
+        "softwareWorkerRuntimeStatus": "implemented",
+        "jobExecutionRouterStatus": "implemented",
+        "jobExecutionBridgeStoreImplementationStatus": "implemented-unconnected",
+        "durableJobStoreStatus": "not-connected",
+        "businessActionAdapterStatus": "not-connected",
+        "softwareDeploymentStatus": "not-connected",
+        "liveJobExecutionBridgeStoreStatus": "not-connected",
+        "persistentWorkerServiceStatus": "not-connected"
+      },
+      "resourceFabric": {
+        "storageFabricContractStatus": "deterministic-contract",
+        "resilienceContractStatus": "deterministic-contract",
+        "resourceAdapterSdkStatus": "deterministic-contract",
+        "resourcePoolContractStatus": "deterministic-contract",
+        "developmentMockAdapterAllowed": false,
+        "reservationStoreImplementationStatus": "implemented-unconnected",
+        "storageRuntimeStatus": "not-connected",
+        "failoverRuntimeStatus": "not-connected",
+        "secondProviderStatus": "not-connected",
+        "partnerPoolRuntimeStatus": "not-connected"
+      },
+      "phase44": {
+        "deterministicHarnessStatus": "offline-blocking-suite",
+        "productionAcceptanceStatus": "not-run"
+      },
+      "composition": {
+        "goldenPathHarnessStatus": "deterministic-simulation-only",
+        "productionExecutionClaimed": false
+      },
+      "controlApi": {
+        "surfaceStatus": "implemented",
+        "authStatus": "implemented-unconnected",
+        "applicationAdapterStatus": "not-connected",
+        "persistenceStatus": "not-connected"
+      },
+      "database": {
+        "engine": "postgresql",
+        "minimumEngineVersion": "16",
+        "migrationVersion": "2026-09-25.3",
+        "schemaVersion": "2.2.0",
+        "adapterStatus": "implemented-unconnected"
+      },
+      "nodeAgent": {
+        "status": "implemented-development-only",
+        "domainVersion": "1.0.0",
+        "protocolVersion": "1.0.0",
+        "dispatchContractVersion": "1.0.0",
+        "linuxX64": "capability-profile-build",
+        "linuxArm64": "capability-profile-build",
+        "agentVersion": "0.4.0-development",
+        "enrollmentStatus": "implemented-unconnected",
+        "nodePersistenceStatus": "implemented-unconnected",
+        "identityIssuerStatus": "development-only",
+        "productionCaStatus": "not-connected",
+        "productionMtlsStatus": "not-connected",
+        "enrollmentMigrationVersion": "2026-09-21.2",
+        "bootstrapAuthentication": "one-time-token",
+        "inventoryDiscoveryStatus": "implemented",
+        "inventoryApiStatus": "implemented-unconnected",
+        "inventoryPersistenceStatus": "implemented-unconnected",
+        "inventoryMigrationVersion": "2026-09-21.3",
+        "capabilityProfilingStatus": "implemented",
+        "capabilityValidationStatus": "implemented",
+        "capabilityApiStatus": "implemented-unconnected",
+        "capabilityPersistenceStatus": "implemented-unconnected",
+        "capabilityRegistryBridgeStatus": "implemented",
+        "resourceCapabilityBindingStatus": "implemented-unconnected",
+        "capabilityMigrationVersion": "2026-09-21.4",
+        "authenticatedAgentTransportStatus": "not-connected",
+        "productionReady": false
+      },
       "connections": {
         "auth": false,
         "database": false,
@@ -275,123 +376,24 @@
         "partnerPoolRuntime": false,
         "controlApiPersistence": false
       },
-      "deployment": {
-        "status": "not-connected",
-        "deploymentId": null,
-        "region": null
-      },
-      "voice": {
-        "contractStatus": "deterministic-contract",
-        "adapterStatus": "not-connected",
-        "strongApprovalAllowed": false,
-        "rawCredentialInputAllowed": false,
-        "secureHandoff": "iphone-control-surface"
-      },
-      "aiGateway": {
-        "contractStatus": "deterministic-contract",
-        "adapterStatus": "not-connected",
-        "routingPolicyStatus": "unconfigured",
-        "provider": "OPENROUTER_UNCONFIGURED",
-        "adapterImplementationStatus": "implemented-unconfigured"
-      },
-      "integrations": {
-        "registryStatus": "deterministic-contract",
-        "adapterStatus": "not-connected",
-        "mockAllowed": false
-      },
-      "execution": {
-        "jobRuntimeContractStatus": "deterministic-contract",
-        "durableJobStoreStatus": "not-connected",
-        "businessActionAdapterStatus": "not-connected",
-        "softwareDeploymentStatus": "not-connected",
-        "jobExecutionBridgeStatus": "deterministic-contract",
-        "liveJobExecutionBridgeStoreStatus": "not-connected",
-        "durableJobStoreImplementationStatus": "implemented-unconnected",
-        "businessActionOrchestratorStatus": "implemented",
-        "softwareWorkerRuntimeStatus": "implemented",
-        "jobExecutionRouterStatus": "implemented",
-        "jobExecutionBridgeStoreImplementationStatus": "implemented-unconnected",
-        "persistentWorkerServiceStatus": "implemented-unconnected"
-      },
-      "resourceFabric": {
-        "storageFabricContractStatus": "deterministic-contract",
-        "storageRuntimeStatus": "not-connected",
-        "resilienceContractStatus": "deterministic-contract",
-        "failoverRuntimeStatus": "not-connected",
-        "resourceAdapterSdkStatus": "deterministic-contract",
-        "secondProviderStatus": "not-connected",
-        "resourcePoolContractStatus": "deterministic-contract",
-        "partnerPoolRuntimeStatus": "not-connected",
-        "developmentMockAdapterAllowed": false,
-        "reservationStoreImplementationStatus": "implemented-unconnected"
-      },
-      "phase44": {
-        "deterministicHarnessStatus": "offline-blocking-suite",
-        "productionAcceptanceStatus": "not-run"
-      },
-      "composition": {
-        "goldenPathHarnessStatus": "deterministic-simulation-only",
-        "productionExecutionClaimed": false
-      },
-      "controlApi": {
-        "surfaceStatus": "implemented",
-        "applicationAdapterStatus": "not-connected",
-        "authStatus": "implemented-unconnected",
-        "persistenceStatus": "not-connected"
-      },
-      "database": {
-        "engine": "postgresql",
-        "minimumEngineVersion": "16",
-        "adapterStatus": "implemented-unconnected",
-        "migrationVersion": "2026-09-24.1",
-        "schemaVersion": "1.7.0"
-      },
-      "nodeAgent": {
-        "status": "implemented-development-only",
-        "domainVersion": "1.0.0",
-        "protocolVersion": "1.0.0",
-        "dispatchContractVersion": "1.0.0",
-        "linuxX64": "capability-profile-build",
-        "linuxArm64": "capability-profile-build",
-        "productionReady": false,
-        "agentVersion": "0.4.0-development",
-        "enrollmentStatus": "implemented-unconnected",
-        "nodePersistenceStatus": "implemented-unconnected",
-        "identityIssuerStatus": "development-only",
-        "productionCaStatus": "not-connected",
-        "productionMtlsStatus": "not-connected",
-        "enrollmentMigrationVersion": "2026-09-21.2",
-        "bootstrapAuthentication": "one-time-token",
-        "inventoryDiscoveryStatus": "implemented",
-        "inventoryApiStatus": "implemented-unconnected",
-        "inventoryPersistenceStatus": "implemented-unconnected",
-        "authenticatedAgentTransportStatus": "not-connected",
-        "inventoryMigrationVersion": "2026-09-21.3",
-        "capabilityProfilingStatus": "implemented",
-        "capabilityValidationStatus": "implemented",
-        "capabilityApiStatus": "implemented-unconnected",
-        "capabilityPersistenceStatus": "implemented-unconnected",
-        "capabilityRegistryBridgeStatus": "implemented",
-        "resourceCapabilityBindingStatus": "implemented-unconnected",
-        "capabilityMigrationVersion": "2026-09-21.4"
-      }
+      "connectionEvidence": {},
+      "productionReady": false
     }
   },
   "notes": [
-    "This manifest declares connection/readiness state only; it contains no credentials.",
-    "A false connection must not be interpreted as a provider selection.",
-    "ProductionReady remains false until canonical infrastructure-dependent acceptance evidence exists.",
-    "Phase 42 voice contracts are present, but no live speech/voice adapter is connected in any environment.",
-    "Phase 13 AI Gateway contracts/router/budget/audit plus the OpenRouter provider adapter are implemented, but no credential, active routing policy, canary model, or live AI runtime connection is configured.",
-    "Phase 4 Integration Registry contracts are present; only explicit DEVELOPMENT mock adapters exist in-repo.",
-    "Phases 36-39 deterministic Storage Fabric, resilience, Resource Adapter SDK, and governed ResourcePool contracts are present; real NAS/cloud/colo/partner runtimes remain unconnected.",
-    "Phase 44 deterministic offline adversarial harness is present, but full production end-to-end acceptance has not been run.",
-    "The Phase 34 -> JobService bridge contract is deterministic and tested, but its authoritative production bridge store remains not connected.",
-    "The cross-phase golden-path harness is deterministic simulation evidence only and never represents production execution.",
-    "The Control API HTTP/application-adapter surface is implemented for owner intents, Decisions, Resources, Jobs/results, Verification, and health; authoritative auth/persistence adapters remain not connected.",
-    "PostgreSQL 16+ production persistence adapters, the durable Job Store/worker, business-action orchestrator, software-worker runtime, and durable execution router are implemented; no production DATABASE_URL, business provider adapter, or software deployment executor is connected.",
-    "Authoritative PostgreSQL migrations and adapters exist for entity transactions, idempotency, audit, authorization grants/consumption, verification receipts, Job bridge facts, reservations, execution specs, and runtime state; connection flags remain false until deployed against an actual database.",
-    "Phase 28.4 implements Linux x86-64/ARM64 capability detection and validation, full-profile capability reconciliation with removal/downgrade handling, the authenticated capability API surface, and a deterministic bridge into the existing Phase 5 Capability Registry. Production Node Agent transport and authoritative Resource Registry capability-binding persistence remain unconnected.",
-    "A dedicated persistent Job worker process role, PG-backed worker heartbeat, lease recovery loop, authority re-read, provider-resume semantics, and failure acceptance harness are implemented; no deployed staging/production worker service is connected yet."
-  ]
+    "Static implementation truth lives in this template. Connection truth is generated only from validated acceptance evidence.",
+    "Environment variables and configured credentials are never connection evidence.",
+    "A subsystem remains disconnected unless a fresh exact-SHA acceptance receipt satisfies config/environment-evidence-policy.json."
+  ],
+  "generation": {
+    "mode": "acceptance-evidence-derived",
+    "templatePath": "release/environment-manifest.template.json",
+    "evidencePolicyPath": "config/environment-evidence-policy.json",
+    "evidenceSchemaVersion": "1.0.0",
+    "policyVersion": "1.0.0",
+    "candidateSha": null,
+    "acceptedEvidenceCount": 0,
+    "rejectedEvidenceCount": 0
+  },
+  "rejectedEvidence": []
 }

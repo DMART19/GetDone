@@ -58,6 +58,16 @@ function expectNoMutation(result: QueryResult) {
   expect(result.rowCount).toBe(0);
 }
 
+async function expectPermissionDenied(client: PoolClient, sql: string) {
+  await client.query("SAVEPOINT permission_probe");
+  try {
+    await expect(client.query(sql)).rejects.toMatchObject({ code: "42501" });
+  } finally {
+    await client.query("ROLLBACK TO SAVEPOINT permission_probe");
+    await client.query("RELEASE SAVEPOINT permission_probe");
+  }
+}
+
 integrationDescribe("PostgreSQL tenant RLS", () => {
   const databaseName = `getdone_rls_${process.pid}_${Date.now()}`;
   let adminPool: Pool;
@@ -186,10 +196,20 @@ integrationDescribe("PostgreSQL tenant RLS", () => {
         ]
       );
 
-      await pool.query(
+      const auditPayload = {
+        id: `audit-${tenant}`,
+        portfolioId,
+        companyId
+      };
+      const audit = await pool.query<{ event_hash: string }>(
         `INSERT INTO audit_events
-          (id,correlation_id,portfolio_id,company_id,entity_type,entity_id,occurred_at,payload)
-         VALUES($1,$2,$3,$4,'job',$5,$6,$7::jsonb)`,
+          (id,correlation_id,portfolio_id,company_id,entity_type,entity_id,occurred_at,payload,
+           chain_sequence,previous_event_hash,event_hash)
+         VALUES(
+           $1,$2,$3,$4,'job',$5,$6,$7::jsonb,1,repeat('0',64),
+           getdone_audit_event_hash($3,$4,1,repeat('0',64),$1,$6,$7::jsonb)
+         )
+         RETURNING event_hash`,
         [
           `audit-${tenant}`,
           `correlation-${tenant}`,
@@ -197,8 +217,14 @@ integrationDescribe("PostgreSQL tenant RLS", () => {
           companyId,
           `job-${tenant}`,
           now,
-          JSON.stringify({ id: `audit-${tenant}`, portfolioId, companyId })
+          JSON.stringify(auditPayload)
         ]
+      );
+      await pool.query(
+        `INSERT INTO audit_chain_heads
+          (portfolio_id,company_id,head_sequence,head_hash,event_count,updated_at)
+         VALUES($1,$2,1,$3,1,$4)`,
+        [portfolioId,companyId,audit.rows[0]?.event_hash,now]
       );
     }
   });
@@ -228,10 +254,14 @@ integrationDescribe("PostgreSQL tenant RLS", () => {
         "authorization_consumptions",
         "verification_receipts",
         "business_action_executions",
-        "business_action_verification_evidence"
+        "business_action_verification_evidence",
+        "audit_chain_heads",
+        "analytics_ingestion_checkpoints",
+        "analytics_ingestion_evidence",
+        "analytics_ingestion_runs"
       ]]
     );
-    expect(result.rows).toHaveLength(7);
+    expect(result.rows).toHaveLength(11);
     expect(result.rows.every((row) => row.relrowsecurity && row.relforcerowsecurity)).toBe(true);
 
     const role = await pool.query<{ rolsuper: boolean; rolbypassrls: boolean }>(
@@ -277,6 +307,12 @@ integrationDescribe("PostgreSQL tenant RLS", () => {
 
       expect(await ids(client, "SELECT id FROM audit_events ORDER BY id"))
         .toEqual(["audit-a"]);
+      const chainHeads = await client.query<{ portfolio_id: string; company_id: string }>(
+        "SELECT portfolio_id,company_id FROM audit_chain_heads"
+      );
+      expect(chainHeads.rows).toEqual([
+        { portfolio_id: "portfolio-a", company_id: "company-a" }
+      ]);
     } finally {
       try { await client.query("ROLLBACK"); } catch {}
       try { await client.query("RESET ROLE"); } catch {}
@@ -330,12 +366,21 @@ integrationDescribe("PostgreSQL tenant RLS", () => {
       expectNoMutation(await client.query(
         "DELETE FROM business_action_verification_evidence WHERE evidence_id='evidence-b'"
       ));
-      expectNoMutation(await client.query(
+      await expectPermissionDenied(
+        client,
         "UPDATE audit_events SET occurred_at=now() WHERE id='audit-b'"
-      ));
-      expectNoMutation(await client.query(
+      );
+      await expectPermissionDenied(
+        client,
         "DELETE FROM audit_events WHERE id='audit-b'"
+      );
+      expectNoMutation(await client.query(
+        "UPDATE audit_chain_heads SET head_hash=repeat('f',64) WHERE company_id='company-b'"
       ));
+      await expectPermissionDenied(
+        client,
+        "DELETE FROM audit_chain_heads WHERE company_id='company-b'"
+      );
     } finally {
       try { await client.query("ROLLBACK"); } catch {}
       try { await client.query("RESET ROLE"); } catch {}

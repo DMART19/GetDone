@@ -1,0 +1,78 @@
+{
+  "schemaVersion": "1.0.0",
+  "policyId": "getdone-zero-downtime-migrations-v1",
+  "enforcedAfterVersion": "2026-09-25.1",
+  "previousReleaseRef": "97fe5a547eaad702b552711410afb58e00f920b5",
+  "compatibilityWindowReleases": 1,
+  "phases": {
+    "expand": {
+      "allowed": [
+        "add-table",
+        "add-nullable-column",
+        "add-compatible-default",
+        "add-index",
+        "add-function",
+        "add-view",
+        "add-nonbreaking-policy"
+      ],
+      "forbidden": [
+        "drop-table",
+        "drop-column",
+        "rename-table",
+        "rename-column",
+        "alter-column-type",
+        "set-not-null",
+        "drop-enum-value",
+        "narrow-check-constraint"
+      ],
+      "rule": "Old application code must continue to read and write authoritative state after expand migrations are applied."
+    },
+    "migrate": {
+      "allowed": [
+        "idempotent-backfill",
+        "dual-write",
+        "shadow-read",
+        "bounded-batch-copy",
+        "verification"
+      ],
+      "requirements": [
+        "resumable",
+        "idempotent",
+        "bounded-batches",
+        "authority-hash-verification",
+        "no-reader-cutover-before-backfill-verification"
+      ],
+      "rule": "Data migration must be restart-safe and must not require all application instances to change atomically."
+    },
+    "contract": {
+      "requirements": [
+        "old-fleet-drained",
+        "transition-verification-passed",
+        "fresh-verified-backup",
+        "no-old-reader-or-writer",
+        "separate-release-from-expand"
+      ],
+      "rule": "Destructive contraction is allowed only after every old application instance is gone and compatibility evidence is recorded."
+    }
+  },
+  "migrations": [
+    {
+      "version": "2026-09-25.2",
+      "file": "migrations/2026-09-25.2_release_gate_evidence.sql",
+      "releaseId": "requirements-30-31",
+      "phase": "expand",
+      "transitionSchema": false,
+      "destructive": false,
+      "authorityCompatibilityRequired": true
+    },
+    {
+      "version": "2026-09-25.3",
+      "file": "migrations/2026-09-25.3_analytics_ingestion.sql",
+      "releaseId": "requirements-34-35",
+      "phase": "expand",
+      "transitionSchema": true,
+      "destructive": false,
+      "authorityCompatibilityRequired": true
+    }
+  ]
+}

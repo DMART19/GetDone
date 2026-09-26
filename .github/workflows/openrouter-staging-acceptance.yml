@@ -78,10 +78,29 @@ jobs:
           GETDONE_OPENROUTER_PRIMARY_MODEL: ${{ vars.OPENROUTER_PRIMARY_MODEL }}
           GETDONE_OPENROUTER_FALLBACK_MODEL: ${{ vars.OPENROUTER_FALLBACK_MODEL }}
 
+      - name: Record evidence-derived AI Gateway connection
+        run: npm run environment:record-evidence
+        env:
+          GETDONE_EVIDENCE_ENVIRONMENT: staging
+          GETDONE_EVIDENCE_TARGET: aiGateway
+          GETDONE_EVIDENCE_ACCEPTANCE_ID: openrouter-live-canary
+          GETDONE_EVIDENCE_ARTIFACT_PATH: test-results/openrouter-staging-acceptance.json
+          GETDONE_EVIDENCE_CANDIDATE_SHA: ${{ github.sha }}
+
+      - name: Generate evidence-derived staging environment manifest
+        run: npm run environment:generate
+        env:
+          GETDONE_ENVIRONMENT_EVIDENCE_DIR: test-results/environment-evidence
+          GETDONE_ENVIRONMENT_MANIFEST_OUTPUT: test-results/environment-manifest.json
+          GETDONE_ENVIRONMENT_EVIDENCE_SHA: ${{ github.sha }}
+
       - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: openrouter-staging-acceptance-${{ github.run_number }}
-          path: test-results/openrouter-staging-acceptance.json
+          path: |
+            test-results/openrouter-staging-acceptance.json
+            test-results/environment-evidence/
+            test-results/environment-manifest.json
           if-no-files-found: warn
           retention-days: 30

@@ -6,6 +6,7 @@ import { StaticBusinessActionAdapterRegistry } from "@/lib/execution/adapters/bu
 import { ConfiguredHttpActionAdapter } from "@/lib/execution/adapters/configured-http-action";
 import { ConfiguredWebhookActionAdapter } from "@/lib/execution/adapters/configured-webhook-action";
 import { GmailBusinessActionAdapter } from "@/lib/execution/adapters/gmail-action";
+import { CrmBusinessActionAdapter } from "@/lib/execution/adapters/crm-action";
 import {
   BusinessActionExecutionOrchestrator,
   type BusinessActionExecutionRecord
@@ -79,7 +80,7 @@ function action(input: {
 }
 
 describe("ordinary integration governed Job pipeline exit gate", () => {
-  it("executes HTTPS, webhook, and Gmail through the exact same governed Job handler", async () => {
+  it("executes HTTPS, webhook, Gmail, and CRM through the exact same governed Job handler", async () => {
     const now = () => new Date("2026-09-22T16:00:00Z");
     const http = new ConfiguredHttpActionAdapter([{
       name: "crm.sync",
@@ -104,6 +105,25 @@ describe("ordinary integration governed Job pipeline exit gate", () => {
         status: 202,
         headers: { "x-provider-operation-id": "webhook-provider-1" }
       }),
+      now
+    });
+    const crm = new CrmBusinessActionAdapter([{
+      id: "crm-primary",
+      companyId: "company-a",
+      environment: "production",
+      credentialProviderId: "crm-pipeline-provider",
+      baseUrl: "https://crm.example.test/api/",
+      objects: {
+        contact: { collectionPath: "contacts", itemPath: "contacts/{recordId}" },
+        company: { collectionPath: "companies", itemPath: "companies/{recordId}" },
+        deal: { collectionPath: "deals", itemPath: "deals/{recordId}" }
+      },
+      readScopes: ["crm.read"],
+      writeScopes: ["crm.write"]
+    }], {
+      fetchImpl: async (_url, init) => init?.method === "POST"
+        ? new Response('{"id":"contact-1","properties":{"email":"owner@example.com"}}', { status: 201 })
+        : new Response('{"id":"contact-1","properties":{"email":"owner@example.com"}}', { status: 200 }),
       now
     });
     const gmail = new GmailBusinessActionAdapter([{
@@ -144,6 +164,19 @@ describe("ordinary integration governed Job pipeline exit gate", () => {
         consumptionHash: "consumption-webhook"
       }),
       action({
+        id: "action-crm",
+        jobId: "job-crm",
+        capability: "crm.record.write",
+        payload: {
+          companyId: "company-a",
+          connectionId: "crm-primary",
+          objectType: "contact",
+          operation: "create",
+          properties: { email: "owner@example.com" }
+        },
+        consumptionHash: "consumption-crm"
+      }),
+      action({
         id: "action-email",
         jobId: "job-email",
         capability: "email.send",
@@ -161,6 +194,7 @@ describe("ordinary integration governed Job pipeline exit gate", () => {
     const jobs = new Map<string, JobRecord>([
       ["job-http", authoritativeJob("job-http", "task-http", "consumption-http")],
       ["job-webhook", authoritativeJob("job-webhook", "task-webhook", "consumption-webhook")],
+      ["job-crm", authoritativeJob("job-crm", "task-crm", "consumption-crm")],
       ["job-email", authoritativeJob("job-email", "task-email", "consumption-email")]
     ]);
     const specs = new Map<string, PersistedJobExecutionSpec>();
@@ -181,6 +215,7 @@ describe("ordinary integration governed Job pipeline exit gate", () => {
       new StaticBusinessActionAdapterRegistry([
         { capability: "http.request", adapter: http },
         { capability: "webhook.send", adapter: webhook },
+        { capability: "crm.record.write", adapter: crm },
         { capability: "email.send", adapter: gmail }
       ]),
       {
@@ -257,16 +292,19 @@ describe("ordinary integration governed Job pipeline exit gate", () => {
     expect(outcomes).toEqual([
       { kind: "succeeded" },
       { kind: "succeeded" },
+      { kind: "succeeded" },
       { kind: "succeeded" }
     ]);
     expect(evidence).toEqual([
       "job-http:action-http",
       "job-webhook:action-webhook",
+      "job-crm:action-crm",
       "job-email:action-email"
     ]);
     expect([...executions.values()].map((record) => record.adapterId).sort()).toEqual([
       "configured-http-action",
       "configured-webhook-action",
+      "crm-business-action",
       "gmail-business-action"
     ]);
   });

@@ -5,6 +5,14 @@ import { readServerRuntimeEnvironment } from "@/lib/control-plane/runtime-enviro
 import { apiFailure, apiSuccess } from "@/lib/control-plane/schemas";
 import { hardwareInventorySchema } from "@/lib/nodes/schemas";
 import {
+  RATE_LIMIT_POLICIES,
+  clientNetworkIdentity,
+  enforceRateLimit,
+  rateLimitHeaders,
+  requestCredentialFingerprint,
+  tenantRateLimitKey
+} from "@/lib/security/rate-limit.server";
+import {
   getNodeAgentAuthenticator,
   getNodeInventoryAdapter
 } from "@/lib/nodes/agent-runtime.server";
@@ -33,7 +41,22 @@ export async function handleNodeInventory(request: Request) {
         "Idempotency-Key header is required"
       );
     }
+    await enforceRateLimit(
+      RATE_LIMIT_POLICIES.agentAuthentication,
+      ["network", clientNetworkIdentity(request)]
+    );
+    await enforceRateLimit(
+      RATE_LIMIT_POLICIES.agentAuthentication,
+      ["credential", requestCredentialFingerprint(request)]
+    );
     const principal = await getNodeAgentAuthenticator().authenticate(request);
+    await enforceRateLimit(
+      RATE_LIMIT_POLICIES.agentMutation,
+      tenantRateLimitKey({
+        portfolioId: principal.portfolioId,
+        companyId: principal.companyId
+      }, `inventory:${principal.nodeId}`)
+    );
     const inventory = await parseJson(request, hardwareInventorySchema);
     const data = await getNodeInventoryAdapter().submit(principal, inventory);
     return Response.json(apiSuccess(data, { correlationId, environment }), {
@@ -46,7 +69,7 @@ export async function handleNodeInventory(request: Request) {
       apiFailure(normalized.code, normalized.message, { correlationId, environment }),
       {
         status: normalized.status,
-        headers: { "cache-control": "no-store" }
+        headers: { "cache-control": "no-store", ...rateLimitHeaders(normalized) }
       }
     );
   }

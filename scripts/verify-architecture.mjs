@@ -200,7 +200,7 @@ const controlApiRuntime = read("lib/control-api/runtime.server.ts");
 const controlApiHttp = read("lib/control-api/http.ts");
 const controlApiServices = read("lib/control-api/service-adapter.ts");
 for (const required of [
-  'CONTROL_API_SURFACE_VERSION = "1.3.0"',
+  'CONTROL_API_SURFACE_VERSION = "1.4.0"',
   "submitOwnerIntent",
   "mutateDecision",
   "discoverResource",
@@ -1088,12 +1088,12 @@ if (
   fail("Phase 28.4 release state drifted or overclaims live Node capability/binding connectivity");
 }
 if (
-  releaseRegistry.controlApi?.surfaceVersion !== "1.3.0"
+  releaseRegistry.controlApi?.surfaceVersion !== "1.4.0"
   || releaseRegistry.controlApi?.status !== "implemented-unconnected"
   || releaseRegistry.controlApi?.applicationAdapterStatus !== "not-connected"
   || releaseRegistry.controlApi?.authStatus !== "implemented-unconnected"
   || releaseRegistry.controlApi?.persistenceStatus !== "not-connected"
-  || releaseRegistry.schemaVersions?.controlApiSurface?.version !== "1.3.0"
+  || releaseRegistry.schemaVersions?.controlApiSurface?.version !== "1.4.0"
 ) {
   fail("Control API release state must expose the implemented surface while preserving unconnected authority adapters");
 }
@@ -1109,9 +1109,15 @@ if (
   releaseRegistry.database?.status !== "implemented-unconnected"
   || releaseRegistry.database?.engine !== "postgresql"
   || releaseRegistry.database?.minimumEngineVersion !== "16"
-  || releaseRegistry.database?.migrationVersion !== "2026-09-24.1"
-  || releaseRegistry.database?.schemaVersion !== "1.7.0"
+  || releaseRegistry.database?.migrationVersion !== "2026-09-25.3"
+  || releaseRegistry.database?.schemaVersion !== "2.2.0"
   || releaseRegistry.schemaVersions?.postgresPersistence?.version !== "1.1.0"
+  || releaseRegistry.schemaVersions?.disasterRecovery?.version !== "1.0.0"
+  || releaseRegistry.schemaVersions?.disasterRecovery?.contractTracked !== true
+  || releaseRegistry.schemaVersions?.zeroDowntimeMigrationPolicy?.version !== "1.0.0"
+  || releaseRegistry.schemaVersions?.zeroDowntimeMigrationPolicy?.contractTracked !== true
+  || releaseRegistry.schemaVersions?.productionReleaseGate?.version !== "1.0.0"
+  || releaseRegistry.schemaVersions?.productionReleaseGate?.contractTracked !== true
   || releaseRegistry.adapters?.postgresPersistence?.status !== "implemented-unconnected"
   || releaseRegistry.adapters?.postgresPersistence?.version !== "1.1.0"
   || releaseRegistry.adapters?.durableJobStore?.status !== "implemented-unconnected"
@@ -1138,6 +1144,16 @@ if (
   || releaseRegistry.adapters?.configuredWebhookAction?.status !== "implemented-unconfigured"
   || releaseRegistry.adapters?.gmailBusinessAction?.status !== "implemented-unconfigured"
   || releaseRegistry.adapters?.slackBusinessAction?.status !== "implemented-unconfigured"
+  || releaseRegistry.adapters?.crmBusinessAction?.status !== "implemented-unconfigured"
+  || releaseRegistry.adapters?.crmBusinessAction?.version !== "1.0.0"
+  || releaseRegistry.adapters?.githubStandardOperation?.status !== "implemented-unconfigured"
+  || releaseRegistry.adapters?.githubStandardOperation?.version !== "1.0.0"
+  || releaseRegistry.adapters?.analyticsDataIngestion?.status !== "implemented-unconfigured"
+  || releaseRegistry.adapters?.analyticsDataIngestion?.version !== "1.0.0"
+  || releaseRegistry.schemaVersions?.analyticsIngestion?.version !== "1.0.0"
+  || releaseRegistry.schemaVersions?.analyticsIngestion?.contractTracked !== true
+  || releaseRegistry.schemaVersions?.environmentEvidence?.version !== "1.0.0"
+  || releaseRegistry.schemaVersions?.environmentEvidence?.contractTracked !== true
   || releaseRegistry.execution.softwareWorkerContractVersion !== "1.1.0"
   || releaseRegistry.execution.softwareWorkerRuntimeStatus !== "implemented"
   || releaseRegistry.execution.softwareDeploymentStatus !== "not-connected"
@@ -1187,86 +1203,62 @@ if (
   fail("Phase 42 voice release registry weakens authority");
 }
 
+const environmentEvidencePolicy = JSON.parse(read("config/environment-evidence-policy.json"));
+if (
+  releaseEnvironment.manifestSchemaVersion !== environmentEvidencePolicy.manifestSchemaVersion
+  || releaseEnvironment.generation?.mode !== "acceptance-evidence-derived"
+  || releaseEnvironment.generation?.policyVersion !== environmentEvidencePolicy.policyVersion
+) {
+  fail("Environment manifest is not bound to the current evidence policy");
+}
+
 for (const [name, state] of Object.entries(releaseEnvironment.environments ?? {})) {
+  const status = (target) => state.connections?.[target] ? "connected" : "not-connected";
+  for (const target of Object.keys(environmentEvidencePolicy.targets ?? {})) {
+    if (target === "deployment") continue;
+    if (typeof state.connections?.[target] !== "boolean") {
+      fail(`Environment connection target is missing: ${name}.${target}`);
+    }
+  }
   if (
     state.nodeAgent?.status !== "implemented-development-only"
     || state.nodeAgent?.domainVersion !== "1.0.0"
     || state.nodeAgent?.protocolVersion !== "1.0.0"
-    || state.nodeAgent?.dispatchContractVersion !== "1.0.0"
-    || state.nodeAgent?.linuxX64 !== "capability-profile-build"
-    || state.nodeAgent?.linuxArm64 !== "capability-profile-build"
-    || state.nodeAgent?.productionReady !== false
-    || state.nodeAgent?.agentVersion !== "0.4.0-development"
-    || state.nodeAgent?.enrollmentStatus !== "implemented-unconnected"
-    || state.nodeAgent?.nodePersistenceStatus !== "implemented-unconnected"
-    || state.nodeAgent?.identityIssuerStatus !== "development-only"
-    || state.nodeAgent?.productionCaStatus !== "not-connected"
-    || state.nodeAgent?.productionMtlsStatus !== "not-connected"
-    || state.nodeAgent?.enrollmentMigrationVersion !== "2026-09-21.2"
-    || state.nodeAgent?.bootstrapAuthentication !== "one-time-token"
-    || state.nodeAgent?.inventoryDiscoveryStatus !== "implemented"
-    || state.nodeAgent?.inventoryApiStatus !== "implemented-unconnected"
-    || state.nodeAgent?.inventoryPersistenceStatus !== "implemented-unconnected"
-    || state.nodeAgent?.authenticatedAgentTransportStatus !== "not-connected"
-    || state.nodeAgent?.inventoryMigrationVersion !== "2026-09-21.3"
-    || state.nodeAgent?.capabilityProfilingStatus !== "implemented"
-    || state.nodeAgent?.capabilityValidationStatus !== "implemented"
-    || state.nodeAgent?.capabilityApiStatus !== "implemented-unconnected"
-    || state.nodeAgent?.capabilityPersistenceStatus !== "implemented-unconnected"
-    || state.nodeAgent?.capabilityRegistryBridgeStatus !== "implemented"
-    || state.nodeAgent?.resourceCapabilityBindingStatus !== "implemented-unconnected"
-    || state.nodeAgent?.capabilityMigrationVersion !== "2026-09-21.4"
-    || state.connections?.resourceAgent !== false
-    ||     state.connections?.aiGateway !== false
+    || state.nodeAgent?.authenticatedAgentTransportStatus !== status("resourceAgent")
+    || state.nodeAgent?.productionReady !== Boolean(state.connections?.resourceAgent)
     || state.aiGateway?.contractStatus !== "deterministic-contract"
-    || state.aiGateway?.adapterStatus !== "not-connected"
+    || state.aiGateway?.adapterStatus !== status("aiGateway")
     || state.aiGateway?.adapterImplementationStatus !== "implemented-unconfigured"
-    || state.aiGateway?.provider !== "OPENROUTER_UNCONFIGURED"
-    || state.connections?.controlApiPersistence !== false
     || state.controlApi?.surfaceStatus !== "implemented"
-    || state.controlApi?.applicationAdapterStatus !== "not-connected"
-    || state.connections?.auth !== false
+    || state.controlApi?.applicationAdapterStatus !== status("controlApiPersistence")
     || state.controlApi?.authStatus !== "implemented-unconnected"
-    || state.controlApi?.persistenceStatus !== "not-connected"
+    || state.controlApi?.persistenceStatus !== status("controlApiPersistence")
     || state.integrations?.registryStatus !== "deterministic-contract"
+    || state.integrations?.adapterStatus !== status("businessIntegrationAdapters")
     || state.execution?.jobRuntimeContractStatus !== "deterministic-contract"
-    || state.execution?.durableJobStoreStatus !== "not-connected"
+    || state.execution?.durableJobStoreStatus !== status("durableJobEngine")
     || state.execution?.durableJobStoreImplementationStatus !== "implemented-unconnected"
     || state.execution?.businessActionOrchestratorStatus !== "implemented"
-    || state.execution?.businessActionAdapterStatus !== "not-connected"
+    || state.execution?.businessActionAdapterStatus !== status("businessActionAdapters")
     || state.execution?.softwareWorkerRuntimeStatus !== "implemented"
-    || state.execution?.softwareDeploymentStatus !== "not-connected"
-    || state.execution?.jobExecutionRouterStatus !== "implemented"
-    || state.execution?.persistentWorkerServiceStatus !== "implemented-unconnected"
+    || state.execution?.softwareDeploymentStatus !== status("softwareDeploymentExecutor")
+    || state.execution?.persistentWorkerServiceStatus !== status("durableJobEngine")
     || state.execution?.jobExecutionBridgeStatus !== "deterministic-contract"
     || state.execution?.jobExecutionBridgeStoreImplementationStatus !== "implemented-unconnected"
-    || state.execution?.liveJobExecutionBridgeStoreStatus !== "not-connected"
-    || state.connections?.database !== false
+    || state.execution?.liveJobExecutionBridgeStoreStatus !== status("controlApiPersistence")
     || state.database?.engine !== "postgresql"
-    || state.database?.adapterStatus !== "implemented-unconnected"
-    || state.database?.migrationVersion !== "2026-09-24.1"
-    || state.database?.schemaVersion !== "1.7.0"
-    || state.composition?.goldenPathHarnessStatus !== "deterministic-simulation-only"
-    || state.composition?.productionExecutionClaimed !== false
-    || state.resourceFabric?.storageFabricContractStatus !== "deterministic-contract"
-    || state.resourceFabric?.storageRuntimeStatus !== "not-connected"
-    || state.resourceFabric?.resilienceContractStatus !== "deterministic-contract"
-    || state.resourceFabric?.failoverRuntimeStatus !== "not-connected"
-    || state.resourceFabric?.resourceAdapterSdkStatus !== "deterministic-contract"
-    || state.resourceFabric?.secondProviderStatus !== "not-connected"
-    || state.resourceFabric?.resourcePoolContractStatus !== "deterministic-contract"
-    || state.resourceFabric?.partnerPoolRuntimeStatus !== "not-connected"
-    || state.phase44?.deterministicHarnessStatus !== "offline-blocking-suite"
-    || state.phase44?.productionAcceptanceStatus !== "not-run"
-  ) {
-    fail(`Deterministic/live environment boundary drifted: ${name}`);
-  }
-  if (
-    state.connections?.voiceAdapter !== false
+    || state.database?.adapterStatus !== (state.connections?.database ? "connected" : "implemented-unconnected")
+    || state.database?.migrationVersion !== "2026-09-25.3"
+    || state.database?.schemaVersion !== "2.2.0"
+    || state.resourceFabric?.storageRuntimeStatus !== status("storageFabricRuntime")
+    || state.resourceFabric?.failoverRuntimeStatus !== status("resilienceFailoverRuntime")
+    || state.resourceFabric?.secondProviderStatus !== status("secondResourceProvider")
+    || state.resourceFabric?.partnerPoolRuntimeStatus !== status("partnerPoolRuntime")
+    || state.voice?.adapterStatus !== status("voiceAdapter")
     || state.voice?.strongApprovalAllowed !== false
     || state.voice?.rawCredentialInputAllowed !== false
   ) {
-    fail(`Phase 42 voice environment state drifted: ${name}`);
+    fail(`Evidence-derived environment boundary drifted: ${name}`);
   }
 }
 
