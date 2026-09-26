@@ -210,21 +210,11 @@ function providerIdsFromEnvelope(record: Record<string, unknown>) {
     .filter((value): value is string => typeof value === "string" && value.length > 0);
 }
 
-export function assertProviderSuccessEnvelope(
-  body: string,
+export function assertProviderJsonSuccess(
+  parsed: unknown,
   headerProviderOperationId?: string | null
 ) {
-  const trimmed = body.trim();
-  if (!trimmed || (!trimmed.startsWith("{") && !trimmed.startsWith("["))) return;
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(trimmed);
-  } catch {
-    throw new ControlPlaneError("UNAVAILABLE", "Provider success response contains malformed JSON");
-  }
   assertJsonBounds(parsed, {});
-
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return;
   const record = parsed as Record<string, unknown>;
 
@@ -243,4 +233,20 @@ export function assertProviderSuccessEnvelope(
   if (headerProviderOperationId && uniqueIds.length === 1 && uniqueIds[0] !== headerProviderOperationId) {
     throw new ControlPlaneError("UNAVAILABLE", "Provider header/body operation identifiers conflict");
   }
+}
+
+export function assertProviderSuccessEnvelope(
+  body: string,
+  headerProviderOperationId?: string | null
+) {
+  const trimmed = body.trim();
+  if (!trimmed || (!trimmed.startsWith("{") && !trimmed.startsWith("["))) return;
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(trimmed);
+  } catch {
+    throw new ControlPlaneError("UNAVAILABLE", "Provider success response contains malformed JSON");
+  }
+  assertProviderJsonSuccess(parsed, headerProviderOperationId);
 }
