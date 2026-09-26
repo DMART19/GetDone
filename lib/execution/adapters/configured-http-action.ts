@@ -1,6 +1,16 @@
 import { z } from "zod";
 import { sha256Hex } from "@/lib/control-plane/canonical-hash";
 import { ControlPlaneError } from "@/lib/control-plane/errors";
+import {
+  guardedProviderFetch,
+  assertSafeConfiguredProviderUrl,
+  systemProviderHostnameResolver,
+  type ProviderHostnameResolver
+} from "@/lib/security/outbound-provider-http";
+import {
+  assertProviderResponseContentType,
+  assertProviderSuccessEnvelope
+} from "@/lib/security/provider-response-boundary";
 import { validateCapabilityInput } from "@/lib/domain/capabilities";
 import {
   createBusinessActionAdapterResult,
@@ -21,7 +31,7 @@ import {
   type BusinessActionAdapterDeclaration
 } from "@/lib/execution/adapters/ordinary-integration-framework";
 
-export const CONFIGURED_HTTP_ACTION_ADAPTER_VERSION = "1.3.0";
+export const CONFIGURED_HTTP_ACTION_ADAPTER_VERSION = "1.4.0";
 
 const environmentSchema = z.enum(["development", "staging", "production"]);
 const inputSchema = z.object({
@@ -53,6 +63,7 @@ export interface ConfiguredHttpActionAdapterOptions {
   fetchImpl?: typeof fetch;
   now?: () => Date;
   allowInsecureDevelopment?: boolean;
+  resolveHostname?: ProviderHostnameResolver;
 }
 
 type ValidatedOperation = ReturnType<typeof validateOperation>;
@@ -64,17 +75,9 @@ function validateUrl(
   environment: z.infer<typeof environmentSchema>
 ) {
   const probe = value.replace("{providerOperationId}", "provider-operation");
-  const url = new URL(probe);
-  if (url.username || url.password || url.hash) {
-    throw new ControlPlaneError("VALIDATION_FAILED", `${label} cannot contain credentials or fragments`);
-  }
-  const localDevelopment = allowInsecureDevelopment
-    && environment === "development"
-    && url.protocol === "http:"
-    && ["127.0.0.1", "localhost", "::1"].includes(url.hostname);
-  if (url.protocol !== "https:" && !localDevelopment) {
-    throw new ControlPlaneError("VALIDATION_FAILED", `${label} must use HTTPS`);
-  }
+  assertSafeConfiguredProviderUrl(probe, label, {
+    allowInsecureLoopbackDevelopment: allowInsecureDevelopment && environment === "development"
+  });
   return value;
 }
 
@@ -191,6 +194,8 @@ export class ConfiguredHttpActionAdapter implements BusinessActionAdapter {
   private readonly operations: ReadonlyMap<string, ValidatedOperation>;
   private readonly fetchImpl: typeof fetch;
   private readonly now: () => Date;
+  private readonly resolveHostname?: ProviderHostnameResolver;
+  private readonly allowInsecureDevelopment: boolean;
 
   constructor(
     operations: readonly ConfiguredHttpOperation[],
@@ -206,6 +211,9 @@ export class ConfiguredHttpActionAdapter implements BusinessActionAdapter {
     this.operations = new Map(entries);
     this.fetchImpl = options.fetchImpl ?? fetch;
     this.now = options.now ?? (() => new Date());
+    this.allowInsecureDevelopment = options.allowInsecureDevelopment === true;
+    this.resolveHostname = options.resolveHostname
+      ?? (options.fetchImpl ? undefined : systemProviderHostnameResolver);
   }
 
   credentialRequirement(request: AuthorizedBusinessActionRequest) {
@@ -244,17 +252,25 @@ export class ConfiguredHttpActionAdapter implements BusinessActionAdapter {
 
     let response: Response;
     try {
-      response = await this.fetchImpl(operation.url, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          operation: operation.name,
-          requestId: request.id,
-          jobId: request.jobId,
-          companyId: input.companyId,
-          payload: input.payload
-        }),
-        signal: AbortSignal.timeout(request.timeoutMs)
+      response = await guardedProviderFetch({
+        url: operation.url,
+        expectedOrigin: new URL(operation.url).origin,
+        fetchImpl: this.fetchImpl,
+        resolver: this.resolveHostname,
+        allowInsecureLoopbackDevelopment:
+          this.allowInsecureDevelopment && operation.environment === "development",
+        init: {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            operation: operation.name,
+            requestId: request.id,
+            jobId: request.jobId,
+            companyId: input.companyId,
+            payload: input.payload
+          }),
+          signal: AbortSignal.timeout(request.timeoutMs)
+        }
       });
     } catch {
       return createBusinessActionAdapterResult({
@@ -285,9 +301,15 @@ export class ConfiguredHttpActionAdapter implements BusinessActionAdapter {
       });
     }
 
-    const externalId = assertProviderOperationId(
-      response.headers.get("x-provider-operation-id") || request.id
-    );
+    assertProviderResponseContentType(response, [
+      "application/json",
+      "application/*+json",
+      "text/json",
+      "text/plain"
+    ]);
+    const headerOperationId = response.headers.get("x-provider-operation-id");
+    assertProviderSuccessEnvelope(body, headerOperationId);
+    const externalId = assertProviderOperationId(headerOperationId || request.id);
     const providerOperationId = externalId.startsWith(`http:${operation.name}:`)
       ? externalId
       : `http:${operation.name}:${externalId}`;
@@ -321,16 +343,25 @@ export class ConfiguredHttpActionAdapter implements BusinessActionAdapter {
     const material = credential(operation, context);
     let response: Response;
     try {
-      response = await this.fetchImpl(
-        interpolateOperationUrl(operation.verification.url, input.providerOperationId),
-        {
+      const target = interpolateOperationUrl(operation.verification.url, input.providerOperationId);
+      const configuredOrigin = new URL(
+        operation.verification.url.replace("{providerOperationId}", "provider-operation")
+      ).origin;
+      response = await guardedProviderFetch({
+        url: target,
+        expectedOrigin: configuredOrigin,
+        fetchImpl: this.fetchImpl,
+        resolver: this.resolveHostname,
+        allowInsecureLoopbackDevelopment:
+          this.allowInsecureDevelopment && operation.environment === "development",
+        init: {
           method: operation.verification.method,
           headers: material
             ? { authorization: `${operation.authorizationScheme ?? "Bearer"} ${material}` }
             : undefined,
           signal: AbortSignal.timeout(30_000)
         }
-      );
+      });
     } catch {
       return createBusinessActionStatus({
         source: "business-action-adapter",
@@ -373,9 +404,18 @@ export class ConfiguredHttpActionAdapter implements BusinessActionAdapter {
     const material = credential(operation, context);
     let response: Response;
     try {
-      response = await this.fetchImpl(
-        interpolateOperationUrl(operation.cancellation.url, input.providerOperationId),
-        {
+      const target = interpolateOperationUrl(operation.cancellation.url, input.providerOperationId);
+      const configuredOrigin = new URL(
+        operation.cancellation.url.replace("{providerOperationId}", "provider-operation")
+      ).origin;
+      response = await guardedProviderFetch({
+        url: target,
+        expectedOrigin: configuredOrigin,
+        fetchImpl: this.fetchImpl,
+        resolver: this.resolveHostname,
+        allowInsecureLoopbackDevelopment:
+          this.allowInsecureDevelopment && operation.environment === "development",
+        init: {
           method: operation.cancellation.method,
           headers: {
             ...(material
@@ -388,7 +428,7 @@ export class ConfiguredHttpActionAdapter implements BusinessActionAdapter {
             : undefined,
           signal: AbortSignal.timeout(30_000)
         }
-      );
+      });
     } catch {
       return createBusinessActionStatus({
         source: "business-action-adapter",
