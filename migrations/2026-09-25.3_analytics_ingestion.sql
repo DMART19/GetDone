@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS analytics_ingestion_evidence (
 );
 
 CREATE TABLE IF NOT EXISTS analytics_ingestion_runs (
-  request_id text PRIMARY KEY,
+  request_id text NOT NULL,
   portfolio_id text NOT NULL,
   company_id text NOT NULL,
   environment text NOT NULL CHECK (environment IN ('development','staging','production')),
@@ -39,7 +39,8 @@ CREATE TABLE IF NOT EXISTS analytics_ingestion_runs (
   input_hash text NOT NULL CHECK (input_hash ~ '^[a-f0-9]{64}$'),
   result_hash text NOT NULL CHECK (result_hash ~ '^[a-f0-9]{64}$'),
   observed_at timestamptz NOT NULL,
-  payload jsonb NOT NULL
+  payload jsonb NOT NULL,
+  PRIMARY KEY (portfolio_id,company_id,environment,source_id,request_id)
 );
 
 CREATE INDEX IF NOT EXISTS analytics_ingestion_evidence_source_idx
