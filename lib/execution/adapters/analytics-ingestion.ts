@@ -7,7 +7,8 @@ import {
   createBusinessActionAdapterResult,
   type AuthorizedBusinessActionRequest,
   type BusinessActionAdapter,
-  type BusinessActionExecutionContext
+  type BusinessActionExecutionContext,
+  type BusinessActionStatus
 } from "@/lib/execution/adapters/business-action";
 import {
   assertAdapterRequest,
@@ -380,7 +381,10 @@ export class AnalyticsDataIngestionAdapter implements BusinessActionAdapter {
     });
   }
 
-  async status(){
+  async status(
+    _input:{requestId:string;providerOperationId:string},
+    _context?:BusinessActionExecutionContext
+  ):Promise<BusinessActionStatus>{
     throw new ControlPlaneError("NOT_FOUND","Analytics ingestion completes only from the bounded page read");
   }
 }
