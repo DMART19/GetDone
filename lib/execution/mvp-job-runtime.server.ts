@@ -25,6 +25,7 @@ import { createJobQueueEnvelope } from "@/lib/execution/job-runtime-contracts";
 import { planOwnerNotification } from "@/lib/mobile/notifications";
 import { PostgresBusinessActionExecutionStore } from "@/lib/persistence/postgres/execution-stores";
 import { PostgresAnalyticsIngestionStore } from "@/lib/persistence/postgres/analytics-ingestion-store";
+import { PostgresIntegrationConfigurationStore } from "@/lib/persistence/postgres/integration-configuration-store";
 import { PostgresCredentialBrokerStore } from "@/lib/persistence/postgres/credential-broker-store";
 import { PostgresJobExecutionSpecStore } from "@/lib/persistence/postgres/job-execution-spec-store";
 import { PostgresEntityStore } from "@/lib/persistence/postgres/authority-stores";
@@ -190,7 +191,8 @@ export function getMvpJobRuntimeFromEnv(
   const business = new BusinessActionExecutionOrchestrator(
     new StaticBusinessActionAdapterRegistry(
       createOrdinaryBusinessActionBindingsFromEnv(env, {
-        analyticsStore: new PostgresAnalyticsIngestionStore(database)
+        analyticsStore: new PostgresAnalyticsIngestionStore(database),
+        integrationStore: new PostgresIntegrationConfigurationStore(database)
       })
     ),
     new PostgresBusinessActionExecutionStore(database),
