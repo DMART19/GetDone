@@ -204,6 +204,66 @@ export function assertIntegrationConfiguration(record:IntegrationConfiguration){
   return record;
 }
 
+export function updateIntegrationConfiguration(
+  record:IntegrationConfiguration,
+  input:{
+    displayName?:string;
+    capabilityNames?:readonly string[];
+    grantedScopes?:readonly string[];
+    credentialBindingId?:string|null;
+    at:string;
+  }
+):IntegrationConfiguration{
+  assertIntegrationConfiguration(record);
+  if(record.status==="active"){
+    throw new ControlPlaneError("POLICY_BLOCKED","Active integration must be disabled before configuration changes");
+  }
+  if(record.status==="revoked"){
+    throw new ControlPlaneError("POLICY_BLOCKED","Revoked integration configuration is immutable");
+  }
+  const definition=providerDefinition(record.provider);
+  const displayName=input.displayName===undefined?record.displayName:input.displayName.trim();
+  if(!/^[A-Za-z0-9][A-Za-z0-9 ._()/-]{0,119}$/.test(displayName)){
+    throw new ControlPlaneError("VALIDATION_FAILED","Integration displayName is invalid");
+  }
+  const capabilityNames=input.capabilityNames===undefined
+    ? record.capabilityNames
+    : uniqueSorted(input.capabilityNames,"Integration capabilities");
+  if(capabilityNames.some((capability)=>!definition.capabilities.includes(capability))){
+    throw new ControlPlaneError("POLICY_BLOCKED","Integration capability is not allowed for provider");
+  }
+  const grantedScopes=input.grantedScopes===undefined
+    ? record.grantedScopes
+    : uniqueSorted(input.grantedScopes,"Integration granted scopes");
+  const credentialBindingId=input.credentialBindingId===undefined
+    ? record.credentialBindingId
+    : input.credentialBindingId===null
+      ? undefined
+      : input.credentialBindingId.trim();
+  if(credentialBindingId && !/^[A-Za-z0-9._:@+-]{1,200}$/.test(credentialBindingId)){
+    throw new ControlPlaneError("VALIDATION_FAILED","Integration credential binding reference is invalid");
+  }
+  const at=new Date(Date.parse(input.at)).toISOString();
+  const base={
+    id:record.id,
+    portfolioId:record.portfolioId,
+    companyId:record.companyId,
+    environment:record.environment,
+    provider:record.provider,
+    displayName,
+    capabilityNames,
+    grantedScopes,
+    credentialBindingId,
+    status:(credentialBindingId?record.status:"pending") as IntegrationConfigurationStatus,
+    health:"unknown" as IntegrationHealth,
+    lastVerification:record.lastVerification,
+    createdAt:record.createdAt,
+    updatedAt:at,
+    version:record.version+1
+  };
+  return Object.freeze({...base,configurationHash:sha256Hex(base)});
+}
+
 export function transitionIntegrationConfiguration(
   record:IntegrationConfiguration,
   input:{
