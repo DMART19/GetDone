@@ -18,7 +18,7 @@ Implementation order is encoded in `ORDINARY_INTEGRATION_IMPLEMENTATION_ORDER`:
 8. scheduling/calendar
 9. other SaaS-specific adapters
 
-Items 1-7 are implemented. Items 8-9 remain ordered follow-on work.
+Items 1-8 are implemented. Item 9 remains ordered follow-on work.
 
 ## Shared governance
 
@@ -125,3 +125,18 @@ Cursor advancement and evidence insertion are committed atomically in PostgreSQL
 Ingested analytics are evidence only. The adapter result retains `jobStateMutationApplied: false`; analytics evidence/checkpoint tables are separate from authoritative control-plane entities and cannot establish Goal/Plan/Decision/Task/Job truth.
 
 Real GitHub and analytics provider acceptance remains credential/provider gated. Static implementation or environment configuration does not mark either subsystem connected; only qualifying exact-SHA acceptance evidence can do that.
+
+
+### Calendar / scheduling
+
+`calendar.event.read`, `calendar.event.create`, `calendar.event.update`, and `calendar.event.cancel` implement ordinary integration item #8 through the governed Business Action pipeline.
+
+Calendar instants are normalized to UTC ISO timestamps while retaining an explicit IANA timezone. Creates derive a deterministic provider event ID from authorized idempotency lineage, so retries can reconcile an existing event rather than create duplicates. Updates and cancellations carry provider-version preconditions through `If-Match`; stale versions are rejected as conflicts rather than overwritten. An optional bounded conflict-check endpoint can reject overlapping create/update requests before mutation.
+
+Provider mutation acceptance remains non-authoritative. Create/update complete only after a follow-up provider read matches the expected normalized event state. Cancellation completes only after a follow-up read reports cancelled or the provider confirms the event no longer exists.
+
+### Owner-safe integration configuration
+
+The Resources → Integrations surface stores integration metadata and a credential-binding reference only. Company and environment come from the authenticated owner scope, not request JSON. Raw tokens, passwords, client secrets, or provider credential material are not accepted by the API or represented by the UI.
+
+Managed integration configurations are versioned, tenant-scoped, and RLS protected. New provider actions require an active configuration and an allowed capability. Disable/revoke blocks new provider actions while leaving status reconciliation available for already-started operations. Revoke is terminal and requires fresh step-up authentication.
