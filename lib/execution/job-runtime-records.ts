@@ -6,6 +6,7 @@ export type DurableJobOutcomeKind =
   | "retry-scheduled"
   | "dead-lettered"
   | "cancelled"
+  | "uncertain"
   | "recovered";
 
 export interface DurableJobExecutionOutcomeRecord {
