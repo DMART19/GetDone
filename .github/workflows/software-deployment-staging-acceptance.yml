@@ -1,0 +1,83 @@
+name: Software Deployment Staging Acceptance
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: software-deployment-staging-acceptance
+  cancel-in-progress: false
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  NPM_CONFIG_IGNORE_SCRIPTS: "true"
+
+jobs:
+  live-deploy-rollback:
+    name: live-deploy-rollback
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: staging
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Verify deployment acceptance inputs
+        shell: bash
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+          VERCEL_STAGING_ALIAS: ${{ vars.VERCEL_STAGING_ALIAS }}
+        run: |
+          test -n "$VERCEL_TOKEN" || { echo "staging secret VERCEL_TOKEN is required"; exit 1; }
+          test -n "$VERCEL_ORG_ID" || { echo "staging variable VERCEL_ORG_ID is required"; exit 1; }
+          test -n "$VERCEL_PROJECT_ID" || { echo "staging variable VERCEL_PROJECT_ID is required"; exit 1; }
+          test -n "$VERCEL_STAGING_ALIAS" || { echo "staging variable VERCEL_STAGING_ALIAS is required"; exit 1; }
+
+      - name: Deploy, detect controlled failure, rollback, and verify recovery
+        run: npm run software:accept-staging
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_STAGING_BYPASS_TOKEN: ${{ secrets.VERCEL_STAGING_BYPASS_TOKEN }}
+          VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+          VERCEL_STAGING_ALIAS: ${{ vars.VERCEL_STAGING_ALIAS }}
+          VERCEL_SCOPE: ${{ vars.VERCEL_SCOPE }}
+
+      - name: Generate production acceptance report
+        if: always()
+        run: npm run production:acceptance-report
+
+      - name: Publish owner-readable summary
+        if: always()
+        shell: bash
+        run: |
+          if [ -f release/out/PRODUCTION_ACCEPTANCE_REPORT.md ]; then
+            cat release/out/PRODUCTION_ACCEPTANCE_REPORT.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Persist deployment and promotion evidence
+        uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: software-deployment-acceptance-${{ github.run_number }}-${{ github.run_attempt }}
+          path: |
+            test-results/software-deployment-acceptance.json
+            test-results/software-deployment-acceptance.md
+            release/out/production-acceptance-report.json
+            release/out/PRODUCTION_ACCEPTANCE_REPORT.md
+          if-no-files-found: warn
+          retention-days: 90
