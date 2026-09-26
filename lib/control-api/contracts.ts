@@ -7,8 +7,14 @@ import type { JobRecord } from "@/lib/domain/services/job-service";
 import type { VerificationRequestRecord } from "@/lib/domain/services/verification-service";
 import type { Resource } from "@/lib/domain/resources";
 import type { ResourceEnrollmentRecord } from "@/lib/resources/enrollment";
+import type {
+  IntegrationConfigurationCreateInput,
+  IntegrationConfigurationUpdateInput,
+  IntegrationProviderDefinition,
+  ManagedIntegrationConfiguration
+} from "@/lib/integrations/management";
 
-export const CONTROL_API_SURFACE_VERSION = "1.4.0";
+export const CONTROL_API_SURFACE_VERSION = "1.5.0";
 
 export type ControlApiRole = "owner" | "admin" | "operator" | "viewer";
 
@@ -169,6 +175,34 @@ export interface ControlApiApplicationAdapter {
     input: DecisionMutationInput,
     correlationId?: string
   ): Promise<AuthoritativeDecision>;
+
+  listIntegrationProviders(
+    principal: ControlApiPrincipal
+  ): Promise<readonly IntegrationProviderDefinition[]>;
+  listIntegrations(
+    principal: ControlApiPrincipal
+  ): Promise<readonly ManagedIntegrationConfiguration[]>;
+  getIntegration(
+    principal: ControlApiPrincipal,
+    integrationId: string
+  ): Promise<ManagedIntegrationConfiguration | null>;
+  createIntegration(
+    principal: ControlApiPrincipal,
+    input: IntegrationConfigurationCreateInput,
+    idempotencyKey: string
+  ): Promise<ManagedIntegrationConfiguration>;
+  updateIntegration(
+    principal: ControlApiPrincipal,
+    integrationId: string,
+    input: IntegrationConfigurationUpdateInput,
+    idempotencyKey: string
+  ): Promise<ManagedIntegrationConfiguration>;
+  controlIntegration(
+    principal: ControlApiPrincipal,
+    integrationId: string,
+    action: "disable" | "revoke",
+    idempotencyKey: string
+  ): Promise<ManagedIntegrationConfiguration>;
 
   listResources(principal: ControlApiPrincipal): Promise<readonly Resource[]>;
   getResource(principal: ControlApiPrincipal, resourceId: string): Promise<Resource | null>;
