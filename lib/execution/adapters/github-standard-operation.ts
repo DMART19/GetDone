@@ -64,7 +64,7 @@ function declaration(
     timeoutMs:Object.freeze({min:100,max:120_000}),
     idempotency:"required",
     retryTaxonomy:ORDINARY_INTEGRATION_RETRY_TAXONOMY,
-    providerOperationId:"required",
+    providerOperationId:read?"not-required":"required",
     statusResume:read?"not-supported":"supported",
     maxResponseBytes:2_000_000,
     auditEvidence:"hashed-provider-evidence",
