@@ -66,7 +66,7 @@ export class ManagedIntegrationBusinessActionAdapter implements BusinessActionAd
     return this.delegate.status(input,context);
   }
 
-  cancel?(
+  cancel(
     input:{requestId:string;providerOperationId:string;reason:string},
     context?:BusinessActionExecutionContext
   ):Promise<BusinessActionStatus>{
