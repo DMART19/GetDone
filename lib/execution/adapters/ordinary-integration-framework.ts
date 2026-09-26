@@ -31,7 +31,7 @@ export interface BusinessActionAdapterDeclaration {
   timeoutMs: Readonly<{ min: number; max: number }>;
   idempotency: "required";
   retryTaxonomy: readonly BusinessActionRetryClass[];
-  providerOperationId: "required";
+  providerOperationId: "required" | "not-required";
   statusResume: "supported" | "not-supported";
   maxResponseBytes: number;
   auditEvidence: "hashed-provider-evidence";
