@@ -1,6 +1,6 @@
 {
   "registrySchemaVersion": "1.6.0",
-  "registryVersion": "2026-09-24.2",
+  "registryVersion": "2026-09-26.1",
   "appVersion": "0.1.0",
   "schemaVersions": {
     "controlApi": {
@@ -238,6 +238,10 @@
     "persistentJobWorkerService": {
       "version": "1.0.0",
       "sourcePath": "lib/execution/persistent-job-worker.server.ts"
+    },
+    "outcomeReconciliation": {
+      "version": "1.0.0",
+      "sourcePath": "lib/execution/outcome-reconciliation.ts"
     }
   },
   "policy": {
@@ -380,6 +384,11 @@
       "status": "implemented-unconfigured",
       "version": "1.1.0",
       "sourcePath": "lib/execution/adapters/slack-action.ts"
+    },
+    "gitSoftwareWorker": {
+      "status": "implemented-unconfigured",
+      "version": "1.0.0",
+      "sourcePath": "lib/execution/git-software-worker-tooling.server.ts"
     }
   },
   "environmentManifestPath": "release/environment-manifest.json",
@@ -509,7 +518,9 @@
     "lib/persistence/postgres/correlation-lineage-store.ts",
     "migrations/2026-09-24.1_correlation_lineage.sql",
     "docs/SOL_OPERATIONAL_ALERTS_CORRELATION.md",
-    "lib/observability/correlation-lineage-postgres.integration.test.ts"
+    "lib/observability/correlation-lineage-postgres.integration.test.ts",
+    "lib/execution/outcome-reconciliation.test.ts",
+    "lib/execution/git-software-worker-tooling.server.test.ts"
   ],
   "manualSourcePaths": [
     "docs/ARCHITECTURE.md",
@@ -584,7 +595,9 @@
       "lib/persistence/postgres/worker-runtime-stores.ts",
       "instrumentation.ts",
       "middleware.ts",
-      "Dockerfile.worker"
+      "Dockerfile.worker",
+      "lib/execution/outcome-reconciliation.ts",
+      "lib/execution/git-software-worker-tooling.server.ts"
     ],
     "jobExecutionBridgeContractVersion": "1.0.0",
     "jobExecutionBridgeStatus": "deterministic-contract",
@@ -599,7 +612,11 @@
     "jobExecutionBridgeStoreImplementationStatus": "implemented-unconnected",
     "persistenceBackend": "postgresql",
     "persistentWorkerServiceStatus": "implemented-unconnected",
-    "persistentWorkerServiceVersion": "1.0.0"
+    "persistentWorkerServiceVersion": "1.0.0",
+    "outcomeReconciliationStatus": "implemented",
+    "outcomeReconciliationVersion": "1.0.0",
+    "gitSoftwareWorkerAdapterStatus": "implemented-unconfigured",
+    "gitSoftwareWorkerAdapterVersion": "1.0.0"
   },
   "resourceFabric": {
     "storageFabricContractVersion": "1.1.0",
