@@ -7,6 +7,7 @@ import { ConfiguredHttpActionAdapter } from "@/lib/execution/adapters/configured
 import { ConfiguredWebhookActionAdapter } from "@/lib/execution/adapters/configured-webhook-action";
 import { GmailBusinessActionAdapter } from "@/lib/execution/adapters/gmail-action";
 import { CrmBusinessActionAdapter } from "@/lib/execution/adapters/crm-action";
+import { CalendarSchedulingAdapter } from "@/lib/execution/adapters/calendar-scheduling";
 import {
   BusinessActionExecutionOrchestrator,
   type BusinessActionExecutionRecord
@@ -80,7 +81,7 @@ function action(input: {
 }
 
 describe("ordinary integration governed Job pipeline exit gate", () => {
-  it("executes HTTPS, webhook, Gmail, and CRM through the exact same governed Job handler", async () => {
+  it("executes HTTPS, webhook, Gmail, CRM, and calendar through the exact same governed Job handler", async () => {
     const now = () => new Date("2026-09-22T16:00:00Z");
     const http = new ConfiguredHttpActionAdapter([{
       name: "crm.sync",
@@ -124,6 +125,35 @@ describe("ordinary integration governed Job pipeline exit gate", () => {
       fetchImpl: async (_url, init) => init?.method === "POST"
         ? new Response('{"id":"contact-1","properties":{"email":"owner@example.com"}}', { status: 201 })
         : new Response('{"id":"contact-1","properties":{"email":"owner@example.com"}}', { status: 200 }),
+      now
+    });
+    const calendar = new CalendarSchedulingAdapter([{
+      id: "calendar-primary",
+      companyId: "company-a",
+      environment: "production",
+      credentialProviderId: "calendar-pipeline-provider",
+      baseUrl: "https://calendar.example.test/v1/",
+      calendarPath: "calendars/{calendarId}/events",
+      eventPath: "calendars/{calendarId}/events/{eventId}",
+      readScopes: ["calendar.read"],
+      writeScopes: ["calendar.write", "calendar.read"]
+    }], {
+      fetchImpl: async (_url, init) => {
+        const event = {
+          id: "gd-calendar-pipeline",
+          etag: "\"v1\"",
+          status: "confirmed",
+          summary: "Pipeline review",
+          start: { dateTime: "2026-10-01T17:00:00Z", timeZone: "America/Los_Angeles" },
+          end: { dateTime: "2026-10-01T18:00:00Z", timeZone: "America/Los_Angeles" },
+          attendees: []
+        };
+        if (init?.method === "POST") {
+          const body = JSON.parse(String(init.body)) as { id: string };
+          event.id = body.id;
+        }
+        return new Response(JSON.stringify(event), { status: init?.method === "POST" ? 201 : 200 });
+      },
       now
     });
     const gmail = new GmailBusinessActionAdapter([{
@@ -177,6 +207,23 @@ describe("ordinary integration governed Job pipeline exit gate", () => {
         consumptionHash: "consumption-crm"
       }),
       action({
+        id: "action-calendar",
+        jobId: "job-calendar",
+        capability: "calendar.event.create",
+        payload: {
+          companyId: "company-a",
+          connectionId: "calendar-primary",
+          calendarId: "primary",
+          title: "Pipeline review",
+          startAt: "2026-10-01T10:00:00-07:00",
+          endAt: "2026-10-01T11:00:00-07:00",
+          timeZone: "America/Los_Angeles",
+          attendees: [],
+          conflictPolicy: "allow"
+        },
+        consumptionHash: "consumption-calendar"
+      }),
+      action({
         id: "action-email",
         jobId: "job-email",
         capability: "email.send",
@@ -195,6 +242,7 @@ describe("ordinary integration governed Job pipeline exit gate", () => {
       ["job-http", authoritativeJob("job-http", "task-http", "consumption-http")],
       ["job-webhook", authoritativeJob("job-webhook", "task-webhook", "consumption-webhook")],
       ["job-crm", authoritativeJob("job-crm", "task-crm", "consumption-crm")],
+      ["job-calendar", authoritativeJob("job-calendar", "task-calendar", "consumption-calendar")],
       ["job-email", authoritativeJob("job-email", "task-email", "consumption-email")]
     ]);
     const specs = new Map<string, PersistedJobExecutionSpec>();
@@ -216,6 +264,7 @@ describe("ordinary integration governed Job pipeline exit gate", () => {
         { capability: "http.request", adapter: http },
         { capability: "webhook.send", adapter: webhook },
         { capability: "crm.record.write", adapter: crm },
+        { capability: "calendar.event.create", adapter: calendar },
         { capability: "email.send", adapter: gmail }
       ]),
       {
@@ -293,16 +342,19 @@ describe("ordinary integration governed Job pipeline exit gate", () => {
       { kind: "succeeded" },
       { kind: "succeeded" },
       { kind: "succeeded" },
+      { kind: "succeeded" },
       { kind: "succeeded" }
     ]);
     expect(evidence).toEqual([
       "job-http:action-http",
       "job-webhook:action-webhook",
       "job-crm:action-crm",
+      "job-calendar:action-calendar",
       "job-email:action-email"
     ]);
     expect([...executions.values()].map((record) => record.adapterId).sort()).toEqual([
       "configured-http-action",
+      "calendar-scheduling",
       "configured-webhook-action",
       "crm-business-action",
       "gmail-business-action"
