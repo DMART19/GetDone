@@ -62,7 +62,9 @@
         "gmail-live-acceptance",
         "slack-live-acceptance",
         "webhook-live-acceptance",
-        "configured-business-live-acceptance"
+        "configured-business-live-acceptance",
+        "github-live-acceptance",
+        "analytics-live-acceptance"
       ]
     },
     "businessActionAdapters": {
@@ -71,7 +73,9 @@
         "gmail-live-acceptance",
         "slack-live-acceptance",
         "webhook-live-acceptance",
-        "configured-business-live-acceptance"
+        "configured-business-live-acceptance",
+        "github-live-acceptance",
+        "analytics-live-acceptance"
       ]
     },
     "softwareDeploymentExecutor": {
@@ -250,6 +254,18 @@
       }
     },
     "deployment-live-acceptance": {
+      "artifactAssertion": {
+        "path": "accepted",
+        "equals": true
+      }
+    },
+    "github-live-acceptance": {
+      "artifactAssertion": {
+        "path": "accepted",
+        "equals": true
+      }
+    },
+    "analytics-live-acceptance": {
       "artifactAssertion": {
         "path": "accepted",
         "equals": true
