@@ -85,6 +85,10 @@ export class PostgresAnalyticsIngestionStore implements AnalyticsIngestionEviden
     result:AnalyticsIngestionResult;
   }){
     return this.db.transaction(async(db)=>{
+      await db.query(
+        "SELECT pg_advisory_xact_lock(hashtextextended($1,0))",
+        [`${input.scope.portfolioId}\u001f${input.scope.companyId}\u001f${input.scope.environment}\u001f${input.sourceId}`]
+      );
       const existingRun=await db.query<RunRow>(
         `SELECT request_id,input_hash,result_hash,observed_at,payload
          FROM analytics_ingestion_runs
