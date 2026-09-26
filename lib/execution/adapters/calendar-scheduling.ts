@@ -710,7 +710,6 @@ export class CalendarSchedulingAdapter implements BusinessActionAdapter {
             adapterId: this.id,
             adapterVersion: this.version,
             status: "rejected",
-            output: { conflict: true, eventId },
             retryable: false,
             retryClass: "provider-4xx",
             observedAt
@@ -724,7 +723,6 @@ export class CalendarSchedulingAdapter implements BusinessActionAdapter {
             adapterId: this.id,
             adapterVersion: this.version,
             status: "rejected",
-            output: { conflict: true, eventId },
             retryable: false,
             retryClass: "provider-4xx",
             observedAt
@@ -745,7 +743,7 @@ export class CalendarSchedulingAdapter implements BusinessActionAdapter {
       }
 
       let providerVersion: string | undefined;
-      if (result.response.ok && Object.keys(result.body as object).length > 0) {
+      if (result.response.ok && isObject(result.body) && Object.keys(result.body).length > 0) {
         providerVersion = normalizeProviderEvent(result.body, input.calendarId, observedAt).providerVersion;
       }
       const op = createOperationId({
@@ -827,11 +825,6 @@ export class CalendarSchedulingAdapter implements BusinessActionAdapter {
           adapterId: this.id,
           adapterVersion: this.version,
           status: "rejected",
-          output: {
-            conflict: true,
-            eventId: input.eventId,
-            expectedVersion: input.expectedVersion
-          },
           retryable: false,
           retryClass: "provider-4xx",
           observedAt
@@ -850,7 +843,7 @@ export class CalendarSchedulingAdapter implements BusinessActionAdapter {
           observedAt
         });
       }
-      const providerVersion = Object.keys(result.body as object).length > 0
+      const providerVersion = isObject(result.body) && Object.keys(result.body).length > 0
         ? normalizeProviderEvent(result.body, input.calendarId, observedAt).providerVersion
         : undefined;
       return createBusinessActionAdapterResult({
