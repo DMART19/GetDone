@@ -102,6 +102,11 @@ describe("ordinary integration adapters", () => {
       expect(adapter.declaration.retryTaxonomy).toContain("rate-limit");
       expect(adapter.declaration.maxResponseBytes).toBeGreaterThan(0);
     }
+
+    expect(gmail.declaration.cancellationSemantics).toBe("local-stop-only-after-dispatch");
+    expect(slack.declaration.cancellationSemantics).toBe("provider-compensation-not-reversal");
+    expect(http.declaration.cancellationSemantics).toBe("provider-compensation-not-reversal");
+    expect(webhook.declaration.cancellationSemantics).toBe("provider-compensation-not-reversal");
   });
 
   it("keeps a consequential webhook at provider-accepted until configured verification passes", async () => {
