@@ -113,6 +113,10 @@ export class GitHubGitSoftwareWorkerTooling implements SoftwareWorkerTooling {
 
   async inspect(plan: SoftwareWorkerPlan) {
     parseRepository(plan.repository);
+    if (plan.baseRef.startsWith("-")) {
+      throw new ControlPlaneError("VALIDATION_FAILED", "Software Git base ref cannot begin with an option prefix");
+    }
+    await this.gitOk(["check-ref-format", "--branch", plan.isolatedBranch]);
     const root = await this.gitOk(["rev-parse", "--show-toplevel"]);
     if (root.trim() !== this.config.worktree) {
       throw new ControlPlaneError("FORBIDDEN", "Configured Git worktree does not match repository root");
@@ -121,7 +125,7 @@ export class GitHubGitSoftwareWorkerTooling implements SoftwareWorkerTooling {
     if (normalizeRemoteUrl(remoteUrl) !== plan.repository) {
       throw new ControlPlaneError("FORBIDDEN", "Git remote does not match the authorized repository");
     }
-    await this.gitOk(["rev-parse", "--verify", `${plan.baseRef}^{commit}`]);
+    await this.gitOk(["rev-parse", "--verify", "--end-of-options", `${plan.baseRef}^{commit}`]);
     const status = await this.gitOk(["status", "--porcelain=v1"]);
     if (status.trim()) {
       throw new ControlPlaneError("CONFLICT", "Software worker requires a clean worktree before branch isolation");
@@ -134,6 +138,13 @@ export class GitHubGitSoftwareWorkerTooling implements SoftwareWorkerTooling {
       this.config.worktree
     );
     if (existing.exitCode === 0) {
+      const lineage = await this.git.run(
+        ["merge-base", "--is-ancestor", plan.baseRef, plan.isolatedBranch],
+        this.config.worktree
+      );
+      if (lineage.exitCode !== 0) {
+        throw new ControlPlaneError("FORBIDDEN", "Existing isolated branch is not descended from the authorized base ref");
+      }
       await this.gitOk(["switch", plan.isolatedBranch]);
       return;
     }
