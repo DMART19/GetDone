@@ -385,6 +385,26 @@
       "source": "lib/persistence/postgres/disaster-recovery-store.ts",
       "test": "lib/persistence/postgres/disaster-recovery-store.test.ts",
       "critical": true
+    },
+    {
+      "source": "lib/execution/adapters/calendar-scheduling.ts",
+      "test": "lib/execution/adapters/calendar-scheduling.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/integrations/configuration.ts",
+      "test": "lib/integrations/configuration.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/execution/adapters/integration-config-gate.ts",
+      "test": "lib/integrations/configuration.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/persistence/postgres/integration-configuration-store.ts",
+      "test": "lib/integrations/integration-configuration-postgres.integration.test.ts",
+      "critical": true
     }
   ]
 }
