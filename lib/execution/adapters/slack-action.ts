@@ -26,7 +26,7 @@ export const SLACK_BUSINESS_ACTION_ADAPTER_VERSION = "1.2.0";
 const environmentSchema = z.enum(["development", "staging", "production"]);
 const slackSuccessSchema = z.object({
   ok: z.literal(true),
-  channel: z.string().min(1).max(200),
+  channel: z.string().regex(/^[A-Za-z0-9._@+=-]{1,200}$/),
   ts: z.string().regex(/^\d+\.\d+$/)
 }).passthrough();
 const slackErrorSchema = z.object({
