@@ -96,7 +96,11 @@ const integrations = {
   GETDONE_HTTP_ACTIONS_JSON: jsonArray("GETDONE_HTTP_ACTIONS_JSON"),
   GETDONE_WEBHOOK_ACTIONS_JSON: jsonArray("GETDONE_WEBHOOK_ACTIONS_JSON"),
   GETDONE_GMAIL_ACTIONS_JSON: jsonArray("GETDONE_GMAIL_ACTIONS_JSON"),
-  GETDONE_SLACK_ACTIONS_JSON: jsonArray("GETDONE_SLACK_ACTIONS_JSON")
+  GETDONE_SLACK_ACTIONS_JSON: jsonArray("GETDONE_SLACK_ACTIONS_JSON"),
+  GETDONE_CRM_ACTIONS_JSON: jsonArray("GETDONE_CRM_ACTIONS_JSON"),
+  GETDONE_GITHUB_ACTIONS_JSON: jsonArray("GETDONE_GITHUB_ACTIONS_JSON"),
+  GETDONE_ANALYTICS_SOURCES_JSON: jsonArray("GETDONE_ANALYTICS_SOURCES_JSON"),
+  GETDONE_CALENDAR_ACTIONS_JSON: jsonArray("GETDONE_CALENDAR_ACTIONS_JSON")
 };
 if (Object.values(integrations).every((entry) => entry.parsed.length === 0)) {
   throw new Error("At least one governed production integration must be configured");
@@ -144,6 +148,10 @@ for (const [token,value] of Object.entries({
   "__WEBHOOK_ACTIONS_JSON__": integrations.GETDONE_WEBHOOK_ACTIONS_JSON.raw,
   "__GMAIL_ACTIONS_JSON__": integrations.GETDONE_GMAIL_ACTIONS_JSON.raw,
   "__SLACK_ACTIONS_JSON__": integrations.GETDONE_SLACK_ACTIONS_JSON.raw,
+  "__CRM_ACTIONS_JSON__": integrations.GETDONE_CRM_ACTIONS_JSON.raw,
+  "__GITHUB_ACTIONS_JSON__": integrations.GETDONE_GITHUB_ACTIONS_JSON.raw,
+  "__ANALYTICS_SOURCES_JSON__": integrations.GETDONE_ANALYTICS_SOURCES_JSON.raw,
+  "__CALENDAR_ACTIONS_JSON__": integrations.GETDONE_CALENDAR_ACTIONS_JSON.raw,
   "__CREDENTIAL_DELIVERY_URL__": credentialDeliveryUrl,
   "__PROVIDER_LIMITS_JSON__": providerLimits
 })) {
