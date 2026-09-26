@@ -208,6 +208,16 @@ describe("ordinary integration framework coverage", () => {
           fields: { id: "string", updatedAt: "datetime" },
           required: ["id", "updatedAt"]
         }
+      }]),
+      GETDONE_CALENDAR_ACTIONS_JSON: JSON.stringify([{
+        id: "calendar",
+        companyId: "company-a",
+        environment: "production",
+        credentialProviderId: "calendar-provider",
+        baseUrl: "https://calendar.example.test/v1/",
+        calendarPath: "calendars/{calendarId}/events",
+        eventPath: "calendars/{calendarId}/events/{eventId}",
+        conflictCheckPath: "calendars/{calendarId}/conflicts"
       }])
     };
     const analyticsStore = {
@@ -228,7 +238,11 @@ describe("ordinary integration framework coverage", () => {
         "github.pull-request.write",
         "github.issue.write",
         "github.pull-request.merge",
-        "analytics.ingest.read"
+        "analytics.ingest.read",
+        "calendar.event.read",
+        "calendar.event.create",
+        "calendar.event.update",
+        "calendar.event.cancel"
       ]);
     expect(() => createOrdinaryBusinessActionBindingsFromEnv({
       GETDONE_ANALYTICS_SOURCES_JSON: env.GETDONE_ANALYTICS_SOURCES_JSON
