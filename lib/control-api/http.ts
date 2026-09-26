@@ -41,6 +41,27 @@ const decisionMutationSchema = z.object({
   note: z.string().max(2_000).optional()
 });
 
+const integrationCreateSchema = z.object({
+  id: z.string().min(1).max(160).regex(/^[A-Za-z0-9._:-]+$/),
+  providerId: z.string().min(1).max(160).regex(/^[A-Za-z0-9._:-]+$/),
+  displayName: z.string().trim().min(1).max(160),
+  credentialBindingId: z.string().min(1).max(200).regex(/^[^\s]+$/).optional(),
+  capabilityNames: z.array(z.string().min(1).max(160)).min(1).max(100)
+}).strict();
+
+const integrationUpdateSchema = z.object({
+  displayName: z.string().trim().min(1).max(160).optional(),
+  credentialBindingId: z.string().min(1).max(200).regex(/^[^\s]+$/).nullable().optional(),
+  capabilityNames: z.array(z.string().min(1).max(160)).min(1).max(100).optional()
+}).strict().refine(
+  (value) => Object.keys(value).length > 0,
+  { message: "Integration update requires at least one field" }
+);
+
+const integrationControlSchema = z.object({
+  action: z.enum(["disable", "revoke"])
+}).strict();
+
 const resourceDiscoverySchema = z.object({
   id: z.string().min(1).max(160).regex(/^[A-Za-z0-9._:-]+$/),
   type: z.enum(["compute", "gpu", "storage", "network", "cloud", "partner", "other"]),
@@ -292,6 +313,91 @@ export function handleMutateDecision(request: Request, decisionId: string) {
       note: body.note,
       idempotencyKey: requireIdempotencyKey(request)
     }, correlationId);
+  });
+}
+
+export function handleListIntegrationProviders(request: Request) {
+  return execute(async (adapter) =>
+    adapter.listIntegrationProviders(await adapter.authenticate(request))
+  );
+}
+
+export function handleListIntegrations(request: Request) {
+  return execute(async (adapter) =>
+    adapter.listIntegrations(await adapter.authenticate(request))
+  );
+}
+
+export function handleGetIntegration(request: Request, integrationId: string) {
+  return execute(async (adapter) => {
+    const value = await adapter.getIntegration(
+      await adapter.authenticate(request),
+      safeId(integrationId, "integrationId")
+    );
+    if (!value) throw new ControlPlaneError("NOT_FOUND", "Integration configuration was not found");
+    return value;
+  });
+}
+
+export function handleCreateIntegration(request: Request) {
+  return execute(async (adapter) => {
+    const actor = await adapter.authenticate(request);
+    await enforceRateLimit(
+      RATE_LIMIT_POLICIES.enrollmentMutation,
+      tenantRateLimitKey({
+        portfolioId: actor.scope.portfolioId,
+        companyId: actor.scope.companyId,
+        userId: actor.scope.userId
+      }, "integration-create")
+    );
+    const input = await parseJson(request, integrationCreateSchema, "integration configuration");
+    return adapter.createIntegration(
+      actor,
+      input,
+      requireIdempotencyKey(request)
+    );
+  }, { status: 201 });
+}
+
+export function handleUpdateIntegration(request: Request, integrationId: string) {
+  return execute(async (adapter) => {
+    const actor = await adapter.authenticate(request);
+    await enforceRateLimit(
+      RATE_LIMIT_POLICIES.enrollmentMutation,
+      tenantRateLimitKey({
+        portfolioId: actor.scope.portfolioId,
+        companyId: actor.scope.companyId,
+        userId: actor.scope.userId
+      }, safeId(integrationId, "integrationId"))
+    );
+    const input = await parseJson(request, integrationUpdateSchema, "integration update");
+    return adapter.updateIntegration(
+      actor,
+      safeId(integrationId, "integrationId"),
+      input,
+      requireIdempotencyKey(request)
+    );
+  });
+}
+
+export function handleControlIntegration(request: Request, integrationId: string) {
+  return execute(async (adapter) => {
+    const actor = await adapter.authenticate(request);
+    await enforceRateLimit(
+      RATE_LIMIT_POLICIES.enrollmentMutation,
+      tenantRateLimitKey({
+        portfolioId: actor.scope.portfolioId,
+        companyId: actor.scope.companyId,
+        userId: actor.scope.userId
+      }, `integration:${safeId(integrationId, "integrationId")}`)
+    );
+    const input = await parseJson(request, integrationControlSchema, "integration control");
+    return adapter.controlIntegration(
+      actor,
+      safeId(integrationId, "integrationId"),
+      input.action,
+      requireIdempotencyKey(request)
+    );
   });
 }
 
