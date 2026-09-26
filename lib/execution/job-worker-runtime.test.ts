@@ -55,6 +55,7 @@ class FakeWorkStore implements DurableJobWorkStore {
   retries: JobRetryScheduleRecord[] = [];
   deadLetters: DeadLetterRecord[] = [];
   cancellations: string[] = [];
+  uncertainties: string[] = [];
   heartbeats = 0;
   recoveries: JobRecoveryRecord[] = [];
 
@@ -199,6 +200,19 @@ class FakeWorkStore implements DurableJobWorkStore {
     return this.receipt("cancel", input.idempotencyKey, input.cancelledAt);
   }
 
+  async markUncertain(input: {
+    jobId: string;
+    reason: string;
+    uncertainAt: string;
+    expectedJobVersion: number;
+    expectedJobHash: string;
+    idempotencyKey: string;
+  }) {
+    this.uncertainties.push(input.reason);
+    this.state = "uncertain";
+    return this.receipt("uncertain", input.idempotencyKey, input.uncertainAt);
+  }
+
   async recoverExpired() {
     return this.recoveries;
   }
@@ -312,7 +326,7 @@ describe("DurableJobWorker", () => {
       jobId: "job-1",
       outcome: {
         kind: "cancelled",
-        reason: "Job was cancelled during execution"
+        reason: "owner cancelled during execution"
       }
     }]);
     expect(store.state).toBe("cancelled");
@@ -325,6 +339,27 @@ describe("DurableJobWorker", () => {
     });
     expect(store.cancellations).toEqual(["owner cancelled"]);
     expect(store.state).toBe("cancelled");
+  });
+
+  it("persists terminal uncertainty instead of retrying provider work forever", async () => {
+    const store = new FakeWorkStore();
+    const results = await worker(store).runOnce({
+      execute: async () => ({
+        kind: "uncertain",
+        reason: "provider verification deadline exceeded"
+      })
+    });
+    expect(results).toEqual([{
+      jobId: "job-1",
+      outcome: {
+        kind: "uncertain",
+        reason: "provider verification deadline exceeded"
+      }
+    }]);
+    expect(store.uncertainties).toEqual(["provider verification deadline exceeded"]);
+    expect(store.state).toBe("uncertain");
+    expect(store.retries).toHaveLength(0);
+    expect(store.deadLetters).toHaveLength(0);
   });
 
   it("stops claiming additional candidates after drain is requested", async () => {
