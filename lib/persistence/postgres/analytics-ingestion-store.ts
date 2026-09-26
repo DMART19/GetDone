@@ -56,11 +56,13 @@ export class PostgresAnalyticsIngestionStore implements AnalyticsIngestionEviden
     };
   }
 
-  async getRun(requestId:string){
+  async getRun(scope:Scope,sourceId:string,requestId:string){
     const result=await this.db.query<RunRow>(
       `SELECT request_id,input_hash,result_hash,observed_at,payload
-       FROM analytics_ingestion_runs WHERE request_id=$1`,
-      [requestId]
+       FROM analytics_ingestion_runs
+       WHERE portfolio_id=$1 AND company_id=$2 AND environment=$3
+         AND source_id=$4 AND request_id=$5`,
+      [scope.portfolioId,scope.companyId,scope.environment,sourceId,requestId]
     );
     const row=result.rows[0];
     if(!row) return null;
@@ -85,8 +87,14 @@ export class PostgresAnalyticsIngestionStore implements AnalyticsIngestionEviden
     return this.db.transaction(async(db)=>{
       const existingRun=await db.query<RunRow>(
         `SELECT request_id,input_hash,result_hash,observed_at,payload
-         FROM analytics_ingestion_runs WHERE request_id=$1 FOR UPDATE`,
-        [input.requestId]
+         FROM analytics_ingestion_runs
+         WHERE portfolio_id=$1 AND company_id=$2 AND environment=$3
+           AND source_id=$4 AND request_id=$5
+         FOR UPDATE`,
+        [
+          input.scope.portfolioId,input.scope.companyId,input.scope.environment,
+          input.sourceId,input.requestId
+        ]
       );
       if(existingRun.rows[0]){
         const row=existingRun.rows[0];
