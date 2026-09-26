@@ -4,7 +4,7 @@ import {
   readPostgresConfigFromEnv
 } from "@/lib/persistence/postgres/client";
 
-export const REQUIRED_POSTGRES_MIGRATION = "2026-09-25.3";
+export const REQUIRED_POSTGRES_MIGRATION = "2026-09-25.4";
 
 export const REQUIRED_POSTGRES_RELATIONS = Object.freeze([
   "getdone_schema_migrations",
@@ -55,7 +55,10 @@ export const REQUIRED_POSTGRES_RELATIONS = Object.freeze([
   "migration_compatibility_evidence",
   "analytics_ingestion_checkpoints",
   "analytics_ingestion_evidence",
-  "analytics_ingestion_runs"
+  "analytics_ingestion_runs",
+  "integration_configurations",
+  "integration_configuration_commands",
+  "integration_verification_evidence"
 ] as const);
 
 export const REQUIRED_POSTGRES_INDEXES = Object.freeze([
@@ -80,7 +83,10 @@ export const REQUIRED_POSTGRES_INDEXES = Object.freeze([
   "migration_compatibility_release_idx",
   "analytics_ingestion_evidence_source_idx",
   "analytics_ingestion_checkpoint_updated_idx",
-  "analytics_ingestion_runs_scope_idx"
+  "analytics_ingestion_runs_scope_idx",
+  "integration_configurations_scope_idx",
+  "integration_configurations_provider_idx",
+  "integration_verification_evidence_integration_idx"
 ] as const);
 
 export const REQUIRED_POSTGRES_RLS_RELATIONS = Object.freeze([
@@ -103,7 +109,10 @@ export const REQUIRED_POSTGRES_RLS_RELATIONS = Object.freeze([
   "audit_chain_heads",
   "analytics_ingestion_checkpoints",
   "analytics_ingestion_evidence",
-  "analytics_ingestion_runs"
+  "analytics_ingestion_runs",
+  "integration_configurations",
+  "integration_configuration_commands",
+  "integration_verification_evidence"
 ] as const);
 
 export interface PostgresRuntimeHealth {
