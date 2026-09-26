@@ -14,6 +14,12 @@ export type BusinessActionRetryClass =
   | "malformed-response"
   | "verification-pending";
 
+export type BusinessActionCancellationSemantics =
+  | "local-stop-only-after-dispatch"
+  | "provider-cancel-pending-operation"
+  | "provider-compensation-not-reversal"
+  | "configured-provider-defined";
+
 export interface AuthorizedBusinessActionRequest {
   id: string;
   correlationId?: string;
@@ -72,7 +78,7 @@ export interface BusinessActionStatus {
   providerOperationId: string;
   adapterId: string;
   adapterVersion: string;
-  state: "pending" | "running" | "completed" | "failed" | "cancelled";
+  state: "pending" | "running" | "completed" | "failed" | "cancelled" | "compensated";
   observedAt: string;
   jobStateMutationApplied: false;
   statusHash: string;
