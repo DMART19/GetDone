@@ -7,7 +7,7 @@ function required(name) {
   return value;
 }
 
-const requiredMigration = "2026-09-25.3";
+const requiredMigration = "2026-09-25.4";
 const maxBackupAgeHours = Number(process.env.GETDONE_BACKUP_MAX_AGE_HOURS || "24");
 if (!Number.isFinite(maxBackupAgeHours) || maxBackupAgeHours <= 0) {
   throw new Error("GETDONE_BACKUP_MAX_AGE_HOURS must be positive");
@@ -266,6 +266,32 @@ try {
     throw new Error("Analytics ingestion persistence schema verification failed");
   }
 
+  const integrationConfigurationSchema = await client.query(
+    `SELECT COUNT(*)::int AS count
+     FROM unnest(ARRAY[
+       'integration_configurations',
+       'integration_verification_evidence',
+       'integration_configuration_idempotency'
+     ]::text[]) AS required(name)
+     WHERE to_regclass(required.name) IS NOT NULL`
+  );
+  if (integrationConfigurationSchema.rows[0]?.count !== 3) {
+    throw new Error("Integration configuration persistence schema verification failed");
+  }
+
+  const integrationConfigurationIndexes = await client.query(
+    `SELECT COUNT(*)::int AS count
+     FROM pg_indexes
+     WHERE schemaname=current_schema()
+       AND indexname IN (
+         'integration_configurations_scope_status_idx',
+         'integration_verification_latest_idx'
+       )`
+  );
+  if (integrationConfigurationIndexes.rows[0]?.count !== 2) {
+    throw new Error("Integration configuration index verification failed");
+  }
+
   const analyticsIndexes = await client.query(
     `SELECT COUNT(*)::int AS count
      FROM pg_indexes
@@ -345,6 +371,7 @@ try {
     disasterRecoverySchema: "verified",
     releaseGateSchema: "verified",
     analyticsSchema: "verified",
+    integrationConfigurationSchema: "verified",
     backupFresh: true
   }, null, 2));
 } finally {
