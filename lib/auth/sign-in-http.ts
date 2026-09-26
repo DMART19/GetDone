@@ -96,11 +96,14 @@ export function handleVerifyPasskeySignIn(request: Request) {
       1,
       Math.floor((Date.parse(result.session.expiresAt) - Date.now()) / 1000)
     );
+    const secureCookie = auth.config.allowedOrigins.every(
+      (origin) => new URL(origin).protocol === "https:"
+    );
     const cookie = [
       `${auth.config.cookieName}=${encodeURIComponent(result.token)}`,
       "Path=/",
       "HttpOnly",
-      "Secure",
+      ...(secureCookie ? ["Secure"] : []),
       "SameSite=Strict",
       `Max-Age=${maxAge}`
     ].join("; ");

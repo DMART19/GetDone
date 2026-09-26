@@ -278,24 +278,27 @@ export class BusinessActionExecutionOrchestrator {
     if (!record || !record.providerOperationId) {
       throw new ControlPlaneError("NOT_FOUND", "Business action execution was not found");
     }
-    if (record.requestHash !== sha256Hex(request)) {
+    const lineageRequest = request.correlationId || !record.correlationId
+      ? request
+      : Object.freeze({ ...request, correlationId: record.correlationId });
+    if (record.requestHash !== sha256Hex(lineageRequest)) {
       throw new ControlPlaneError("IDEMPOTENCY_CONFLICT", "Cancellation request does not match persisted action");
     }
-    const adapter = await this.adapters.resolve(request);
+    const adapter = await this.adapters.resolve(lineageRequest);
     if (!adapter?.cancel) {
       throw new ControlPlaneError("UNAVAILABLE", "Business action adapter does not support cancellation");
     }
     const status = await this.providerCall(
-      request,
+      lineageRequest,
       adapter,
       "cancel",
       async () => adapter.cancel!({
-        requestId: request.id,
+        requestId: lineageRequest.id,
         providerOperationId: record.providerOperationId!,
         reason
-      }, await this.credentialContext(request, adapter))
+      }, await this.credentialContext(lineageRequest, adapter))
     );
-    assertStatusIdentity(adapter, request, record.providerOperationId, status);
+    assertStatusIdentity(adapter, lineageRequest, record.providerOperationId, status);
     const next = createRecord({
       ...record,
       state: status.state,
@@ -303,7 +306,7 @@ export class BusinessActionExecutionOrchestrator {
       updatedAt: status.observedAt
     });
     await this.store.save(next, record.recordHash);
-    return { record: next, verificationEvidence: verificationFor(request, next) };
+    return { record: next, verificationEvidence: verificationFor(lineageRequest, next) };
   }
 
   private async pollAccepted(
