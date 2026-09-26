@@ -208,7 +208,7 @@ integrationDescribe("production runtime validator PostgreSQL acceptance", () => 
       processRole: "web",
       database: {
         database: "reachable",
-        migration: "2026-09-25.2",
+        migration: "2026-09-25.3",
         tenantRls: "verified",
         tenantRuntimeRole: "verified",
         effectiveRuntimeRole: "verified",
