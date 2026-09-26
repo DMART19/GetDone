@@ -20,6 +20,15 @@ import {
   CrmBusinessActionAdapter,
   readCrmProviderConfigurationsFromEnv
 } from "@/lib/execution/adapters/crm-action";
+import {
+  GithubStandardOperationAdapter,
+  readGithubProviderConfigurationsFromEnv
+} from "@/lib/execution/adapters/github-standard-operation";
+import {
+  AnalyticsDataIngestionAdapter,
+  readAnalyticsSourceConfigurationsFromEnv
+} from "@/lib/execution/adapters/analytics-ingestion";
+import type { AnalyticsIngestionEvidenceStore } from "@/lib/analytics/ingestion";
 
 export const ORDINARY_INTEGRATION_IMPLEMENTATION_ORDER = Object.freeze([
   "generic-configured-https",
