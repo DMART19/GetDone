@@ -258,6 +258,51 @@ describe("BusinessActionExecutionOrchestrator", () => {
     expect(adapter.executeCalls).toBe(2);
   });
 
+  it("durably reconciles accepted provider work and escalates terminal uncertainty", async () => {
+    const adapter = new SequencedAdapter();
+    adapter.states = ["pending", "running"];
+    const store = new MemoryExecutionStore();
+    const registry = new StaticBusinessActionAdapterRegistry([
+      { capability: "email.send", adapter }
+    ]);
+    let current = new Date("2026-09-21T04:00:02Z");
+    const options = {
+      maxStatusPolls: 1,
+      pollIntervalMs: 0,
+      verificationTimeoutMs: 1_000,
+      maxReconciliationAttempts: 10,
+      now: () => current
+    };
+
+    const first = await new BusinessActionExecutionOrchestrator(
+      registry,
+      store,
+      options
+    ).execute(request);
+    expect(first.record).toMatchObject({
+      state: "pending",
+      reconciliationAttempts: 1,
+      ownerAttentionRequired: false
+    });
+    expect(adapter.executeCalls).toBe(1);
+
+    current = new Date("2026-09-21T04:00:04Z");
+    const second = await new BusinessActionExecutionOrchestrator(
+      registry,
+      store,
+      options
+    ).execute(request);
+    expect(second.record).toMatchObject({
+      state: "uncertain",
+      reconciliationAttempts: 2,
+      ownerAttentionRequired: true,
+      retryClass: "verification-pending"
+    });
+    expect(second.verificationEvidence?.result).toBe("unknown");
+    expect(adapter.executeCalls).toBe(1);
+    expect(adapter.statusCalls).toBe(2);
+  });
+
   it("rejects duplicate capability bindings", () => {
     const adapter = new SequencedAdapter();
     expect(() => new StaticBusinessActionAdapterRegistry([
