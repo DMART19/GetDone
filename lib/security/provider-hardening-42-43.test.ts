@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { ConfiguredHttpActionAdapter } from "@/lib/execution/adapters/configured-http-action";
+import type { AuthorizedBusinessActionRequest } from "@/lib/execution/adapters/business-action";
 import { sha256Hex } from "@/lib/control-plane/canonical-hash";
 import {
   assertProviderSuccessEnvelope,
@@ -139,7 +140,7 @@ describe("requirements 42-43 provider boundary hardening", () => {
     });
 
     const input = { companyId: "company-a", operation: "safe", payload: {} };
-    const request = {
+    const request: AuthorizedBusinessActionRequest = {
       id: "request-1",
       jobId: "job-1",
       scope: {
