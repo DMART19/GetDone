@@ -38,49 +38,6 @@ function runMigrations(connectionString: string) {
   }
 }
 
-const profiles = [
-  {
-    id: "standard-primary",
-    gatewayId: "openrouter",
-    providerId: "openrouter",
-    modelId: "openai/gpt-5.6-sol",
-    enabled: true,
-    validationStatus: "validated",
-    roles: ["STANDARD"],
-    modalities: ["text"],
-    supportsTools: true,
-    supportsStructuredOutput: true,
-    maxContextTokens: 128000,
-    allowedDataClasses: ["PUBLIC", "INTERNAL", "CONFIDENTIAL"],
-    allowedEnvironments: ["production"],
-    health: "healthy",
-    latencyClass: "standard",
-    inputCostPerMillionTokensCents: 1,
-    outputCostPerMillionTokensCents: 1,
-    profileVersion: "1.0.0"
-  },
-  {
-    id: "standard-fallback",
-    gatewayId: "openrouter",
-    providerId: "openrouter",
-    modelId: "openai/gpt-5.6-sol-fallback",
-    enabled: true,
-    validationStatus: "validated",
-    roles: ["STANDARD"],
-    modalities: ["text"],
-    supportsTools: true,
-    supportsStructuredOutput: true,
-    maxContextTokens: 128000,
-    allowedDataClasses: ["PUBLIC", "INTERNAL", "CONFIDENTIAL"],
-    allowedEnvironments: ["production"],
-    health: "healthy",
-    latencyClass: "standard",
-    inputCostPerMillionTokensCents: 1,
-    outputCostPerMillionTokensCents: 1,
-    profileVersion: "1.0.0"
-  }
-];
-
 function cleanEnvironment() {
   return Object.fromEntries(
     Object.entries(process.env).filter(([key]) =>
