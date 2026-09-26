@@ -20,7 +20,7 @@ import {
   type BusinessActionAdapterDeclaration
 } from "@/lib/execution/adapters/ordinary-integration-framework";
 
-export const GMAIL_BUSINESS_ACTION_ADAPTER_VERSION = "1.2.0";
+export const GMAIL_BUSINESS_ACTION_ADAPTER_VERSION = "1.3.0";
 
 const gmailSendResponseSchema = z.object({
   id: z.string().min(1).max(500),
