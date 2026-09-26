@@ -58,7 +58,9 @@
     "release:gate-production": "node scripts/verify-production-promotion.mjs",
     "environment:generate": "node scripts/generate-environment-manifest.mjs",
     "environment:check": "node scripts/generate-environment-manifest.mjs --check",
-    "environment:record-evidence": "node scripts/record-environment-evidence.mjs"
+    "environment:record-evidence": "node scripts/record-environment-evidence.mjs",
+    "software:accept-staging": "node scripts/run-vercel-staging-acceptance.mjs",
+    "production:acceptance-report": "node scripts/generate-production-acceptance-report.mjs"
   },
   "dependencies": {
     "lucide-react": "0.468.0",
