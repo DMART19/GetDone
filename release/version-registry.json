@@ -329,7 +329,7 @@
     },
     "openRouter": {
       "status": "implemented-unconfigured",
-      "version": "1.2.0",
+      "version": "1.3.0",
       "sourcePath": "lib/ai-gateway/openrouter-adapter.ts",
       "contractTracked": true,
       "contractSourcePaths": [
@@ -338,7 +338,7 @@
     },
     "configuredHttpAction": {
       "status": "implemented-unconfigured",
-      "version": "1.3.0",
+      "version": "1.4.0",
       "sourcePath": "lib/execution/adapters/configured-http-action.ts"
     },
     "postgresPersistence": {
@@ -368,17 +368,17 @@
     },
     "configuredWebhookAction": {
       "status": "implemented-unconfigured",
-      "version": "1.1.0",
+      "version": "1.2.0",
       "sourcePath": "lib/execution/adapters/configured-webhook-action.ts"
     },
     "gmailBusinessAction": {
       "status": "implemented-unconfigured",
-      "version": "1.2.0",
+      "version": "1.3.0",
       "sourcePath": "lib/execution/adapters/gmail-action.ts"
     },
     "slackBusinessAction": {
       "status": "implemented-unconfigured",
-      "version": "1.1.0",
+      "version": "1.2.0",
       "sourcePath": "lib/execution/adapters/slack-action.ts"
     }
   },
