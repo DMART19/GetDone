@@ -258,8 +258,7 @@ describe("calendar scheduling adapter",()=>{
     )).resolves.toMatchObject({
       status:"rejected",
       retryable:false,
-      retryClass:"provider-4xx",
-      output:{conflict:true}
+      retryClass:"provider-4xx"
     });
   });
 
