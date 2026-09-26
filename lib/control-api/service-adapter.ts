@@ -172,7 +172,8 @@ export class ServiceBackedControlApiAdapter implements ControlApiApplicationAdap
 
   async verifyStepUp(request: Request, challengeId: string, response: unknown) {
     const { session: current } = await authorizeRequest(this.deps.auth, request, "session");
-    const elevated = await this.deps.auth.verifyStepUp(current, challengeId, response);
+    const rotated = await this.deps.auth.verifyStepUp(current, challengeId, response);
+    const elevated = rotated.session;
     if (elevated.sessionId !== current.sessionId || elevated.userId !== current.userId) {
       throw new ControlPlaneError("FORBIDDEN", "Step-up challenge belongs to a different session");
     }
@@ -180,9 +181,34 @@ export class ServiceBackedControlApiAdapter implements ControlApiApplicationAdap
       throw new ControlPlaneError("FORBIDDEN", "Step-up verification did not establish fresh authentication");
     }
     return Object.freeze({
-      sessionId: elevated.sessionId,
-      userId: elevated.userId,
-      stepUpAuthenticatedAt: elevated.stepUpAuthenticatedAt
+      session: Object.freeze({
+        sessionId: elevated.sessionId,
+        userId: elevated.userId,
+        stepUpAuthenticatedAt: elevated.stepUpAuthenticatedAt
+      }),
+      expiresAt: elevated.expiresAt,
+      rotatedSessionToken: rotated.token
+    });
+  }
+
+  async logout(request: Request) {
+    const { session } = await authorizeRequest(this.deps.auth, request, "session");
+    await this.deps.auth.revokeSession(session.sessionId);
+    return Object.freeze({
+      sessionId: session.sessionId,
+      revoked: true as const
+    });
+  }
+
+  async revokeOtherSessions(request: Request) {
+    const { session } = await authorizeRequest(this.deps.auth, request, "fresh-step-up");
+    const revokedOtherSessions = await this.deps.auth.revokeOtherSessions(
+      session.userId,
+      session.sessionId
+    );
+    return Object.freeze({
+      sessionId: session.sessionId,
+      revokedOtherSessions
     });
   }
 

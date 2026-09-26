@@ -16,6 +16,10 @@ import {
   SlackBusinessActionAdapter,
   readSlackProviderConfigurationsFromEnv
 } from "@/lib/execution/adapters/slack-action";
+import {
+  CrmBusinessActionAdapter,
+  readCrmProviderConfigurationsFromEnv
+} from "@/lib/execution/adapters/crm-action";
 
 export const ORDINARY_INTEGRATION_IMPLEMENTATION_ORDER = Object.freeze([
   "generic-configured-https",
@@ -68,6 +72,16 @@ export function createOrdinaryBusinessActionBindingsFromEnv(
         readSlackProviderConfigurationsFromEnv(env)
       )
     });
+  }
+
+  if (env.GETDONE_CRM_ACTIONS_JSON?.trim()) {
+    const crm = new CrmBusinessActionAdapter(
+      readCrmProviderConfigurationsFromEnv(env)
+    );
+    bindings.push(
+      { capability: "crm.record.read", adapter: crm },
+      { capability: "crm.record.write", adapter: crm }
+    );
   }
 
   if (bindings.length === 0) {

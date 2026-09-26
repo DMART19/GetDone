@@ -230,10 +230,14 @@ export class PostgresAuditLedger implements AuditLedger {
   constructor(private readonly db: SqlQueryable) {}
 
   async append(event: AuditEvent): Promise<void> {
-    await this.db.query(
-      `INSERT INTO audit_events
-        (id, correlation_id, portfolio_id, company_id, entity_type, entity_id, occurred_at, payload)
-       VALUES($1,$2,$3,$4,$5,$6,$7,$8::jsonb)`,
+    const result = await this.db.query<{
+      chain_sequence: string | number;
+      event_hash: string;
+    }>(
+      `SELECT chain_sequence,event_hash
+       FROM getdone_append_audit_event(
+         $1,$2,$3,$4,$5,$6,$7,$8::jsonb
+       )`,
       [
         event.id,
         event.correlationId,
@@ -245,12 +249,18 @@ export class PostgresAuditLedger implements AuditLedger {
         JSON.stringify(event)
       ]
     );
+    if (result.rows.length !== 1) {
+      throw new ControlPlaneError(
+        "UNAVAILABLE",
+        "Audit ledger chain did not advance atomically"
+      );
+    }
   }
 
   async listByCorrelationId(correlationId: string): Promise<readonly AuditEvent[]> {
     const result = await this.db.query<{ payload: AuditEvent }>(
       `SELECT payload FROM audit_events
-       WHERE correlation_id=$1 ORDER BY sequence`,
+       WHERE correlation_id=$1 ORDER BY chain_sequence`,
       [correlationId]
     );
     return result.rows.map((row) => row.payload);

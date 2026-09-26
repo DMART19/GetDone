@@ -67,6 +67,8 @@ describe("PostgresAuthAdapter", () => {
     expect(bearer).toMatchObject({ sessionId: "session-a", userId: "owner-a" });
     expect(bearerDb.calls[0].values?.[0]).toBe(sha256Hex("fixture-session"));
     expect(bearerDb.calls[0].values?.[0]).not.toBe("fixture-session");
+    expect(bearerDb.calls[0].text).toContain("s.revoked_at IS NULL");
+    expect(bearerDb.calls[0].text).toContain("s.expires_at > now()");
 
     const cookieDb = new ScriptedDatabase([{ rows: [sessionRow] }]);
     await new PostgresAuthAdapter(cookieDb, config).getSession(
@@ -87,6 +89,18 @@ describe("PostgresAuthAdapter", () => {
     const revokeDb = new ScriptedDatabase([{ rowCount: 1 }]);
     await new PostgresAuthAdapter(revokeDb, config).revokeSession("session-a");
     expect(revokeDb.calls[0].text).toContain("UPDATE auth_sessions");
+  });
+
+  it("revokes other active device sessions without revoking the current session", async () => {
+    const db = new ScriptedDatabase([{ rowCount: 2 }]);
+    const count = await new PostgresAuthAdapter(db, config).revokeOtherSessions(
+      "owner-a",
+      "session-current"
+    );
+    expect(count).toBe(2);
+    expect(db.calls[0].text).toContain("session_id<>$2");
+    expect(db.calls[0].text).toContain("revoked_at IS NULL");
+    expect(db.calls[0].values).toEqual(["owner-a", "session-current"]);
   });
 
   it("creates persisted WebAuthn challenges scoped to active user credentials", async () => {

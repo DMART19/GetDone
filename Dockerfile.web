@@ -1,0 +1,42 @@
+FROM node:24-bookworm-slim AS build
+
+WORKDIR /app
+
+ARG NEXT_PUBLIC_APP_ENV=production
+ARG GETDONE_BUILD_RUNTIME_ENV=development
+ARG GETDONE_BUILD_DATA_MODE=development-seed
+ENV NEXT_PUBLIC_APP_ENV=$NEXT_PUBLIC_APP_ENV
+ENV GETDONE_RUNTIME_ENV=$GETDONE_BUILD_RUNTIME_ENV
+ENV GETDONE_DATA_MODE=$GETDONE_BUILD_DATA_MODE
+ENV NODE_ENV=production
+
+COPY package.json package-lock.json ./
+RUN npm ci --ignore-scripts --no-audit --no-fund
+
+COPY . .
+RUN npm run build
+RUN npm prune --omit=dev
+
+FROM node:24-bookworm-slim AS runtime
+
+WORKDIR /app
+
+ENV NODE_ENV=production
+ENV GETDONE_PROCESS_ROLE=web
+ENV PORT=3000
+ENV HOSTNAME=0.0.0.0
+
+COPY --from=build /app/package.json /app/package-lock.json ./
+COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/.next ./.next
+COPY --from=build /app/public ./public
+COPY --from=build /app/next.config.mjs ./next.config.mjs
+COPY --from=build /app/scripts ./scripts
+COPY --from=build /app/release ./release
+
+EXPOSE 3000
+
+HEALTHCHECK --interval=10s --timeout=3s --start-period=30s --retries=3 \
+  CMD ["node","-e","fetch('http://127.0.0.1:3000/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+
+CMD ["npm","run","start","--","--hostname","0.0.0.0","--port","3000"]

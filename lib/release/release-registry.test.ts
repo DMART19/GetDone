@@ -23,6 +23,7 @@ import { CONFIGURED_HTTP_ACTION_ADAPTER_VERSION } from "@/lib/execution/adapters
 import { CONFIGURED_WEBHOOK_ACTION_ADAPTER_VERSION } from "@/lib/execution/adapters/configured-webhook-action";
 import { GMAIL_BUSINESS_ACTION_ADAPTER_VERSION } from "@/lib/execution/adapters/gmail-action";
 import { SLACK_BUSINESS_ACTION_ADAPTER_VERSION } from "@/lib/execution/adapters/slack-action";
+import { CRM_BUSINESS_ACTION_ADAPTER_VERSION } from "@/lib/execution/adapters/crm-action";
 import {
   NODE_AGENT_PROTOCOL_VERSION,
   NODE_DOMAIN_VERSION
@@ -277,8 +278,8 @@ const packageJson = readJson<{ version: string }>("package.json");
 describe("Phase 41 release/version registry", () => {
   it("binds application policy and machine-readable schema versions", () => {
     expect(registry.registrySchemaVersion).toBe("1.6.0");
-    expect(registry.environmentManifestSchemaVersion).toBe("1.6.0");
-    expect(environment.manifestSchemaVersion).toBe("1.6.0");
+    expect(registry.environmentManifestSchemaVersion).toBe("1.7.0");
+    expect(environment.manifestSchemaVersion).toBe("1.7.0");
     expect(registry.schemaVersions.releaseManifest.version).toBe("1.6.0");
     expect(registry.appVersion).toBe(packageJson.version);
     expect(registry.policy.registryVersion).toBe(CURRENT_POLICY_VERSION);
@@ -442,6 +443,15 @@ describe("Phase 41 release/version registry", () => {
       status: "implemented-unconfigured",
       version: SLACK_BUSINESS_ACTION_ADAPTER_VERSION
     });
+    expect(registry.adapters.crmBusinessAction).toMatchObject({
+      status: "implemented-unconfigured",
+      version: CRM_BUSINESS_ACTION_ADAPTER_VERSION
+    });
+    expect(registry.schemaVersions.environmentEvidence).toMatchObject({
+      version: "1.0.0",
+      sourcePath: "config/environment-evidence-policy.json",
+      contractTracked: true
+    });
     expect(registry.execution).toMatchObject({
       jobRuntimeContractVersion: JOB_RUNTIME_CONTRACT_VERSION,
       durableJobStoreStatus: "implemented-unconnected",
@@ -513,8 +523,8 @@ describe("Phase 41 release/version registry", () => {
       status: "implemented-unconnected",
       engine: "postgresql",
       minimumEngineVersion: "16",
-      migrationVersion: "2026-09-24.1",
-      schemaVersion: "1.7.0"
+      migrationVersion: "2026-09-25.2",
+      schemaVersion: "2.1.0"
     });
     expect(registry.adapters.postgresPersistence).toMatchObject({
       status: "implemented-unconnected",
@@ -524,14 +534,29 @@ describe("Phase 41 release/version registry", () => {
       version: "1.1.0",
       sourcePath: "lib/persistence/postgres/client.ts"
     });
+    expect(registry.schemaVersions.disasterRecovery).toMatchObject({
+      version: "1.0.0",
+      sourcePath: "lib/execution/disaster-recovery.ts",
+      contractTracked: true
+    });
+    expect(registry.schemaVersions.zeroDowntimeMigrationPolicy).toMatchObject({
+      version: "1.0.0",
+      sourcePath: "config/zero-downtime-migration-policy.json",
+      contractTracked: true
+    });
+    expect(registry.schemaVersions.productionReleaseGate).toMatchObject({
+      version: "1.0.0",
+      sourcePath: "scripts/verify-production-promotion.mjs",
+      contractTracked: true
+    });
     for (const state of Object.values(environment.environments)) {
       expect(state.connections.database).toBe(false);
       expect(state.database).toMatchObject({
         engine: "postgresql",
         minimumEngineVersion: "16",
         adapterStatus: "implemented-unconnected",
-        migrationVersion: "2026-09-24.1",
-        schemaVersion: "1.7.0"
+        migrationVersion: "2026-09-25.2",
+        schemaVersion: "2.1.0"
       });
       expect(state.execution).toMatchObject({
         durableJobStoreStatus: "not-connected",

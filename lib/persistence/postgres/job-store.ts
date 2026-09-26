@@ -270,6 +270,13 @@ export class PostgresDurableJobStore implements DurableJobWorkStore {
          FROM job_runtime_state
          WHERE runtime_state IN ('queued','retry-wait')
            AND scheduled_at <= $1
+           AND NOT EXISTS (
+             SELECT 1
+             FROM job_disaster_recovery_decisions dr
+             WHERE dr.job_id=job_runtime_state.job_id
+               AND dr.cleared_at IS NULL
+               AND dr.decision IN ('reconcile','blocked')
+           )
        )
        SELECT * FROM ready
        ORDER BY company_rank, scheduled_at, job_id
@@ -858,6 +865,13 @@ export class PostgresDurableJobStore implements DurableJobWorkStore {
          FROM job_runtime_state r
          JOIN job_leases l ON l.job_id=r.job_id
          WHERE l.state='active' AND l.expires_at <= $1
+           AND NOT EXISTS (
+             SELECT 1
+             FROM job_disaster_recovery_decisions dr
+             WHERE dr.job_id=r.job_id
+               AND dr.cleared_at IS NULL
+               AND dr.decision IN ('reconcile','blocked')
+           )
          ORDER BY l.expires_at
          FOR UPDATE OF r,l SKIP LOCKED
          LIMIT $2`,

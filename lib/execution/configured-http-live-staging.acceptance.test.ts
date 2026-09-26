@@ -92,6 +92,7 @@ function job(name: string, now: string): JobRecord {
   const grantHash = sha256Hex({ id, type: "grant" });
   return Object.freeze({
     id,
+    correlationId: "corr-http-" + runId + "-" + name,
     portfolioId: scope.portfolioId,
     companyId: scope.companyId,
     state: "queued",
@@ -134,6 +135,7 @@ function actionRequest(
   };
   return Object.freeze({
     id: "http-action-" + runId + "-" + name,
+    correlationId: authoritative.correlationId,
     jobId: authoritative.id,
     scope,
     capability: "http.request",

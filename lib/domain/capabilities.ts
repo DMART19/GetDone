@@ -111,6 +111,44 @@ export const capabilityRegistry: readonly CapabilityDefinition[] = [
     authorityBindings: { companyId: true, environment: true }
   },
   {
+    name: "crm.record.read",
+    description: "Read an authorized CRM contact, company, or deal",
+    access: "read",
+    sensitivity: "customer",
+    productionEffect: false,
+    reversible: true,
+    risk: "low",
+    blastRadius: "single-object",
+    approval: "auto",
+    adapterBinding: "business.crm",
+    rateLimitPerMinute: 120,
+    enabled: true,
+    inputSchema: capabilitySchemaRegistry["crm.record.read"].input,
+    outputSchema: capabilitySchemaRegistry["crm.record.read"].output,
+    costModel: "provider",
+    schemaVersion: "1.0.0",
+    authorityBindings: { companyId: true, environment: true }
+  },
+  {
+    name: "crm.record.write",
+    description: "Create or update an authorized CRM contact, company, or deal with follow-up read verification",
+    access: "write",
+    sensitivity: "customer",
+    productionEffect: true,
+    reversible: false,
+    risk: "medium",
+    blastRadius: "single-object",
+    approval: "approval",
+    adapterBinding: "business.crm",
+    rateLimitPerMinute: 60,
+    enabled: true,
+    inputSchema: capabilitySchemaRegistry["crm.record.write"].input,
+    outputSchema: capabilitySchemaRegistry["crm.record.write"].output,
+    costModel: "provider",
+    schemaVersion: "1.0.0",
+    authorityBindings: { companyId: true, environment: true }
+  },
+  {
     name: "repository.inspect",
     description: "Read repository metadata and code",
     access: "read",
@@ -302,7 +340,7 @@ export const capabilityRegistry: readonly CapabilityDefinition[] = [
   }
 ];
 
-export const CAPABILITY_REGISTRY_VERSION = "2026-09-22.2";
+export const CAPABILITY_REGISTRY_VERSION = "2026-09-25.3";
 
 function stableRegistryManifest() {
   return capabilityRegistry.map((capability) => ({

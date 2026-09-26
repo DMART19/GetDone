@@ -1,10 +1,21 @@
 import { z } from "zod";
+import {
+  serializeClearedSessionCookie,
+  serializeSessionCookie
+} from "@/lib/auth/cookies";
+import { readWebAuthnServerConfig } from "@/lib/auth/webauthn-config";
 import { ControlPlaneError, toControlPlaneError } from "@/lib/control-plane/errors";
 import { createCorrelationId, readIdempotencyKey } from "@/lib/control-plane/request-context";
 import { readServerRuntimeEnvironment } from "@/lib/control-plane/runtime-environment.server";
 import { apiFailure, apiSuccess } from "@/lib/control-plane/schemas";
 import { getControlApiAdapter } from "@/lib/control-api/runtime.server";
 import { readOwnerAIGatewayHealth } from "@/lib/ai-gateway/health.server";
+import {
+  RATE_LIMIT_POLICIES,
+  enforceRateLimit,
+  rateLimitHeaders,
+  tenantRateLimitKey
+} from "@/lib/security/rate-limit.server";
 
 const stepUpVerifySchema = z.object({
   challengeId: z.string().uuid(),
@@ -97,23 +108,24 @@ async function parseJson<T>(request: Request, schema: z.ZodType<T>, label: strin
   return parsed.data;
 }
 
-async function execute<T>(
+async function executeWithHeaders<T>(
   operation: (
     adapter: ReturnType<typeof getControlApiAdapter>,
     correlationId: string
-  ) => Promise<T>,
+  ) => Promise<{ data: T; headers?: Record<string, string> }>,
   options: { status?: number } = {}
 ) {
   const correlationId = createCorrelationId();
   const environment = readServerRuntimeEnvironment();
   try {
     const adapter = getControlApiAdapter();
-    const data = await operation(adapter, correlationId);
-    return Response.json(apiSuccess(data, { correlationId, environment }), {
+    const result = await operation(adapter, correlationId);
+    return Response.json(apiSuccess(result.data, { correlationId, environment }), {
       status: options.status ?? 200,
       headers: {
         "cache-control": "no-store",
-        "x-correlation-id": correlationId
+        "x-correlation-id": correlationId,
+        ...(result.headers ?? {})
       }
     });
   } catch (error) {
@@ -124,11 +136,24 @@ async function execute<T>(
         status: normalized.status,
         headers: {
           "cache-control": "no-store",
-          "x-correlation-id": correlationId
+          "x-correlation-id": correlationId,
+          ...rateLimitHeaders(normalized)
         }
       }
     );
   }
+}
+
+async function execute<T>(
+  operation: (
+    adapter: ReturnType<typeof getControlApiAdapter>,
+    correlationId: string
+  ) => Promise<T>,
+  options: { status?: number } = {}
+) {
+  return executeWithHeaders(async (adapter, correlationId) => ({
+    data: await operation(adapter, correlationId)
+  }), options);
 }
 
 
@@ -153,19 +178,80 @@ export function handleAIGatewayHealth(
 }
 
 export function handleBeginStepUp(request: Request) {
-  return execute((adapter) => adapter.beginStepUp(request), { status: 201 });
+  return execute(async (adapter) => {
+    const principal = await adapter.authenticate(request);
+    await enforceRateLimit(
+      RATE_LIMIT_POLICIES.stepUpBegin,
+      [
+        ...tenantRateLimitKey({
+          portfolioId: principal.scope.portfolioId,
+          companyId: principal.scope.companyId,
+          userId: principal.scope.userId,
+          sessionId: principal.sessionId
+        }, "step-up-begin")
+      ]
+    );
+    return adapter.beginStepUp(request);
+  }, { status: 201 });
 }
 
 export function handleVerifyStepUp(request: Request) {
-  return execute(async (adapter) => {
+  return executeWithHeaders(async (adapter) => {
+    const principal = await adapter.authenticate(request);
     const input = await parseJson(request, stepUpVerifySchema, "step-up verification");
-    return adapter.verifyStepUp(request, input.challengeId, input.credential);
+    await enforceRateLimit(
+      RATE_LIMIT_POLICIES.stepUpVerify,
+      [
+        ...tenantRateLimitKey({
+          portfolioId: principal.scope.portfolioId,
+          companyId: principal.scope.companyId,
+          userId: principal.scope.userId,
+          sessionId: principal.sessionId
+        }, input.challengeId)
+      ]
+    );
+    const result = await adapter.verifyStepUp(request, input.challengeId, input.credential);
+    const config = readWebAuthnServerConfig();
+    return {
+      data: result.session,
+      headers: {
+        "set-cookie": serializeSessionCookie(
+          config,
+          result.rotatedSessionToken,
+          result.expiresAt
+        )
+      }
+    };
   });
+}
+
+export function handleLogout(request: Request) {
+  return executeWithHeaders(async (adapter) => {
+    const result = await adapter.logout(request);
+    return {
+      data: result,
+      headers: {
+        "set-cookie": serializeClearedSessionCookie(readWebAuthnServerConfig())
+      }
+    };
+  });
+}
+
+export function handleRevokeOtherSessions(request: Request) {
+  return execute((adapter) => adapter.revokeOtherSessions(request));
 }
 
 export function handleOwnerIntent(request: Request) {
   return execute(async (adapter, correlationId) => {
     const actor = await adapter.authenticate(request);
+    await enforceRateLimit(
+      RATE_LIMIT_POLICIES.ownerIntent,
+      tenantRateLimitKey({
+        portfolioId: actor.scope.portfolioId,
+        companyId: actor.scope.companyId,
+        userId: actor.scope.userId,
+      }, "owner-intent")
+    );
     const input = await parseJson(request, ownerIntentSchema, "owner intent");
     return adapter.submitOwnerIntent(
       actor,
@@ -191,6 +277,14 @@ export function handleGetDecision(request: Request, decisionId: string) {
 export function handleMutateDecision(request: Request, decisionId: string) {
   return execute(async (adapter, correlationId) => {
     const actor = await adapter.authenticate(request);
+    await enforceRateLimit(
+      RATE_LIMIT_POLICIES.decisionMutation,
+      tenantRateLimitKey({
+        portfolioId: actor.scope.portfolioId,
+        companyId: actor.scope.companyId,
+        userId: actor.scope.userId,
+      }, safeId(decisionId, "decisionId"))
+    );
     const body = await parseJson(request, decisionMutationSchema, "decision mutation");
     return adapter.mutateDecision(actor, {
       decisionId: safeId(decisionId, "decisionId"),
@@ -216,6 +310,14 @@ export function handleGetResource(request: Request, resourceId: string) {
 export function handleDiscoverResource(request: Request) {
   return execute(async (adapter) => {
     const actor = await adapter.authenticate(request);
+    await enforceRateLimit(
+      RATE_LIMIT_POLICIES.enrollmentMutation,
+      tenantRateLimitKey({
+        portfolioId: actor.scope.portfolioId,
+        companyId: actor.scope.companyId,
+        userId: actor.scope.userId,
+      }, "resource-discovery")
+    );
     const body = await parseJson(request, resourceDiscoverySchema, "resource discovery");
     return adapter.discoverResource(actor, {
       ...body,
@@ -244,6 +346,14 @@ export function handleGetResourceEnrollment(request: Request, enrollmentId: stri
 export function handleStartResourceEnrollment(request: Request) {
   return execute(async (adapter) => {
     const actor = await adapter.authenticate(request);
+    await enforceRateLimit(
+      RATE_LIMIT_POLICIES.enrollmentMutation,
+      tenantRateLimitKey({
+        portfolioId: actor.scope.portfolioId,
+        companyId: actor.scope.companyId,
+        userId: actor.scope.userId,
+      }, "resource-enrollment-start")
+    );
     const body = await parseJson(request, resourceEnrollmentStartSchema, "resource enrollment");
     return adapter.startResourceEnrollment(actor, {
       ...body,
@@ -255,6 +365,14 @@ export function handleStartResourceEnrollment(request: Request) {
 export function handleAdvanceResourceEnrollment(request: Request, enrollmentId: string) {
   return execute(async (adapter) => {
     const actor = await adapter.authenticate(request);
+    await enforceRateLimit(
+      RATE_LIMIT_POLICIES.enrollmentMutation,
+      tenantRateLimitKey({
+        portfolioId: actor.scope.portfolioId,
+        companyId: actor.scope.companyId,
+        userId: actor.scope.userId,
+      }, safeId(enrollmentId, "enrollmentId"))
+    );
     const body = await parseJson(request, resourceEnrollmentActionSchema, "resource enrollment action");
     return adapter.advanceResourceEnrollment(
       actor,

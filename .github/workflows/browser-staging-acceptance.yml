@@ -1,0 +1,100 @@
+name: Browser Staging Acceptance
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "app/**"
+      - "components/**"
+      - "e2e/staging/**"
+      - "lib/auth/**"
+      - "lib/control-api/**"
+      - "lib/execution/**"
+      - "lib/persistence/postgres/**"
+      - "playwright.staging.config.ts"
+      - ".github/workflows/browser-staging-acceptance.yml"
+      - "package.json"
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: browser-staging-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  NPM_CONFIG_IGNORE_SCRIPTS: "true"
+
+jobs:
+  authoritative-browser:
+    name: authoritative-browser
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Migrate authoritative staging PostgreSQL
+        run: npm run db:migrate
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+          GETDONE_DB_SSL: "false"
+
+      - name: Record verified staging backup evidence
+        run: npm run db:record-backup
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+          GETDONE_DB_SSL: "false"
+          GETDONE_BACKUP_REF: staging-browser-preflight
+          GETDONE_BACKUP_VERIFICATION_HASH: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run authoritative staging browser and WebAuthn acceptance
+        run: npm run test:e2e:staging
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+          GETDONE_DB_SSL: "false"
+          GETDONE_SESSION_TTL_SECONDS: "3600"
+          GETDONE_SIGN_IN_CHALLENGE_TTL_SECONDS: "300"
+          GETDONE_STEP_UP_TTL_SECONDS: "300"
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: browser-staging-acceptance-${{ github.run_number }}
+          path: |
+            playwright-report-staging/
+            test-results/playwright-staging-results.json
+            test-results/
+          if-no-files-found: warn
+          retention-days: 30

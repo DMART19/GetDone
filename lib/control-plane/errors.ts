@@ -6,6 +6,7 @@ export type ControlPlaneErrorCode =
   | "VALIDATION_FAILED"
   | "CONFLICT"
   | "IDEMPOTENCY_CONFLICT"
+  | "RATE_LIMITED"
   | "UNAVAILABLE"
   | "INTERNAL";
 
@@ -17,6 +18,7 @@ const statusByCode: Record<ControlPlaneErrorCode, number> = {
   VALIDATION_FAILED: 400,
   CONFLICT: 409,
   IDEMPOTENCY_CONFLICT: 409,
+  RATE_LIMITED: 429,
   UNAVAILABLE: 503,
   INTERNAL: 500
 };
