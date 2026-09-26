@@ -5,6 +5,10 @@ import {
   Activity, Ban, CalendarDays, CheckCircle2, ChevronDown, CircleOff,
   Github, Link2, Plus, RefreshCcw, ShieldCheck, SlidersHorizontal, X
 } from "lucide-react";
+import {
+  getPasskeyAssertion,
+  type BrowserPasskeyChallenge
+} from "@/lib/auth/webauthn-browser";
 
 type ProviderDefinition={
   provider:string;
@@ -95,10 +99,31 @@ export function IntegrationManager(){
 
   useEffect(()=>{void load();},[]);
 
+  async function freshStepUp(){
+    const beginResponse=await fetch("/api/control/auth/step-up/begin",{
+      method:"POST",
+      headers:{"content-type":"application/json"}
+    });
+    const beginPayload=await beginResponse.json() as Envelope<BrowserPasskeyChallenge>;
+    if(!beginPayload.ok) throw new Error(beginPayload.error.message);
+    const credential=await getPasskeyAssertion(beginPayload.data);
+    const verifyResponse=await fetch("/api/control/auth/step-up/verify",{
+      method:"POST",
+      headers:{"content-type":"application/json"},
+      body:JSON.stringify({
+        challengeId:beginPayload.data.challengeId,
+        credential
+      })
+    });
+    const verifyPayload=await verifyResponse.json() as Envelope<unknown>;
+    if(!verifyPayload.ok) throw new Error(verifyPayload.error.message);
+  }
+
   async function action(integration:Integration,kind:"enable"|"disable"|"revoke"){
     setBusy(integration.id+":"+kind);
     setError("");
     try{
+      if(kind==="revoke") await freshStepUp();
       const response=await fetch(`/api/control/integrations/${encodeURIComponent(integration.id)}/actions`,{
         method:"POST",
         headers:{
