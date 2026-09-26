@@ -296,6 +296,73 @@ export const AnalyticsIngestReadResultSchema = z.object({
   observedAt: isoDateTime
 }).strict();
 
+const calendarTimeZone = z.string().min(1).max(100).regex(/^[A-Za-z_+-]+(?:\/[A-Za-z0-9_+-]+)+$/);
+const calendarAttendees = z.array(z.string().email()).max(100).default([]);
+
+export const CalendarEventReadInputSchema = z.object({
+  companyId,
+  connectionId: id,
+  calendarId: z.string().min(1).max(300),
+  eventId: z.string().min(1).max(500)
+}).strict();
+
+export const CalendarEventReadResultSchema = z.object({
+  calendarId: z.string().min(1).max(300),
+  eventId: z.string().min(1).max(500),
+  title: z.string().max(1000),
+  description: z.string().max(100_000).optional(),
+  location: z.string().max(1000).optional(),
+  startAt: isoDateTime,
+  endAt: isoDateTime,
+  timeZone: calendarTimeZone,
+  attendees: calendarAttendees,
+  status: z.enum(["confirmed", "tentative", "cancelled"]),
+  providerVersion: z.string().min(1).max(500),
+  observedAt: isoDateTime
+}).strict();
+
+const CalendarEventBaseMutationSchema = z.object({
+  companyId,
+  connectionId: id,
+  calendarId: z.string().min(1).max(300),
+  title: z.string().min(1).max(1000),
+  description: z.string().max(100_000).optional(),
+  location: z.string().max(1000).optional(),
+  startAt: isoDateTime,
+  endAt: isoDateTime,
+  timeZone: calendarTimeZone,
+  attendees: calendarAttendees,
+  conflictPolicy: z.enum(["reject", "allow"]).default("reject")
+}).strict().refine((value) => Date.parse(value.startAt) < Date.parse(value.endAt), {
+  message: "calendar event startAt must be before endAt",
+  path: ["endAt"]
+});
+
+export const CalendarEventCreateInputSchema = CalendarEventBaseMutationSchema;
+
+export const CalendarEventUpdateInputSchema = CalendarEventBaseMutationSchema.extend({
+  eventId: z.string().min(1).max(500),
+  expectedVersion: z.string().min(1).max(500)
+}).strict();
+
+export const CalendarEventCancelInputSchema = z.object({
+  companyId,
+  connectionId: id,
+  calendarId: z.string().min(1).max(300),
+  eventId: z.string().min(1).max(500),
+  expectedVersion: z.string().min(1).max(500),
+  reason: z.string().max(2000).optional()
+}).strict();
+
+export const CalendarMutationAcceptedResultSchema = z.object({
+  calendarId: z.string().min(1).max(300),
+  eventId: z.string().min(1).max(500),
+  providerAccepted: z.literal(true),
+  providerVersion: z.string().min(1).max(500).optional(),
+  conflictChecked: z.boolean(),
+  acceptedAt: isoDateTime
+}).strict();
+
 export const RepositoryInspectInputSchema = z.object({
   companyId,
   repository,
@@ -533,6 +600,22 @@ export const capabilitySchemaRegistry = {
   "analytics.ingest.read": {
     input: AnalyticsIngestReadInputSchema,
     output: AnalyticsIngestReadResultSchema
+  },
+  "calendar.event.read": {
+    input: CalendarEventReadInputSchema,
+    output: CalendarEventReadResultSchema
+  },
+  "calendar.event.create": {
+    input: CalendarEventCreateInputSchema,
+    output: CalendarMutationAcceptedResultSchema
+  },
+  "calendar.event.update": {
+    input: CalendarEventUpdateInputSchema,
+    output: CalendarMutationAcceptedResultSchema
+  },
+  "calendar.event.cancel": {
+    input: CalendarEventCancelInputSchema,
+    output: CalendarMutationAcceptedResultSchema
   },
   "repository.inspect": {
     input: RepositoryInspectInputSchema,
