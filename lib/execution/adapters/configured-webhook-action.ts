@@ -23,7 +23,7 @@ import {
   type BusinessActionAdapterDeclaration
 } from "@/lib/execution/adapters/ordinary-integration-framework";
 
-export const CONFIGURED_WEBHOOK_ACTION_ADAPTER_VERSION = "1.1.0";
+export const CONFIGURED_WEBHOOK_ACTION_ADAPTER_VERSION = "1.2.0";
 
 const inputSchema = z.object({
   companyId: z.string().min(1),
