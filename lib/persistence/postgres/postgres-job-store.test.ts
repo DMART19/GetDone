@@ -56,7 +56,7 @@ const envelope = createJobQueueEnvelope({
 });
 
 function runtimeRow(
-  state: "queued" | "claimed" | "retry-wait" | "dead-lettered" | "cancelled" | "released" = "queued",
+  state: "queued" | "claimed" | "retry-wait" | "dead-lettered" | "cancelled" | "released" | "uncertain" = "queued",
   version = 1,
   stateHash = "runtime-hash",
   attempt = 0
@@ -309,6 +309,32 @@ describe("PostgresDurableJobStore", () => {
       expectedJobHash: "claimed-hash",
       idempotencyKey: "cancel-1"
     })).operation).toBe("cancel");
+  });
+
+  it("marks exhausted provider verification as a durable uncertain state", async () => {
+    const active = lease();
+    const db = new ScriptedDb([
+      { rows: [runtimeRow("claimed", 2, "claimed-hash", 1)] },
+      { rowCount: 1 },
+      { rows: [{ payload: active }] },
+      { rowCount: 1 },
+      { rowCount: 1 },
+      { rowCount: 1 },
+      { rowCount: 1 }
+    ]);
+    const receipt = await new PostgresDurableJobStore(db).markUncertain({
+      jobId: envelope.jobId,
+      reason: "provider verification deadline exceeded",
+      uncertainAt: "2026-09-21T04:02:00Z",
+      expectedJobVersion: 2,
+      expectedJobHash: "claimed-hash",
+      idempotencyKey: "uncertain-1"
+    });
+    expect(receipt.operation).toBe("uncertain");
+    expect(db.calls.some((call) => call.includes("runtime_state='uncertain'"))).toBe(true);
+    expect(db.calls.some((call) => call.includes("job.verification-uncertain"))).toBe(false);
+    expect(db.calls.some((call) => call.includes("INSERT INTO job_execution_outcomes"))).toBe(true);
+    expect(db.calls.some((call) => call.includes("INSERT INTO job_runtime_events"))).toBe(true);
   });
 
   it("recovers an expired lease into retry state and records recovery lineage", async () => {
