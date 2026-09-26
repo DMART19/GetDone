@@ -26,7 +26,7 @@ const providerSchema=z.enum([
   "calendar","github","crm","analytics","gmail","slack","webhook","http"
 ]);
 
-const createSchema=z.object({
+export const integrationConfigurationCreateSchema=z.object({
   id:z.string().min(1).max(160).regex(/^[A-Za-z0-9._:-]+$/),
   provider:providerSchema,
   displayName:z.string().min(1).max(120),
@@ -35,7 +35,7 @@ const createSchema=z.object({
   credentialBindingId:z.string().min(1).max(200).regex(/^[A-Za-z0-9._:@+-]+$/).optional()
 }).strict();
 
-const updateSchema=z.object({
+export const integrationConfigurationUpdateSchema=z.object({
   expectedVersion:z.number().int().positive(),
   displayName:z.string().min(1).max(120).optional(),
   capabilityNames:z.array(z.string().min(1).max(200)).min(1).max(100).optional(),
@@ -46,7 +46,7 @@ const updateSchema=z.object({
   ]).optional()
 }).strict();
 
-const actionSchema=z.object({
+export const integrationConfigurationActionSchema=z.object({
   action:z.enum(["enable","disable","revoke"]),
   expectedVersion:z.number().int().positive()
 }).strict();
@@ -150,7 +150,7 @@ export function handleGetIntegrationConfiguration(request:Request,integrationId:
 
 export function handleCreateIntegrationConfiguration(request:Request){
   return execute(request,async({principal,store})=>{
-    const parsed=createSchema.safeParse(await body(request));
+    const parsed=integrationConfigurationCreateSchema.safeParse(await body(request));
     if(!parsed.success){
       throw new ControlPlaneError("VALIDATION_FAILED","Invalid integration configuration payload");
     }
@@ -167,7 +167,7 @@ export function handleCreateIntegrationConfiguration(request:Request){
 
 export function handleUpdateIntegrationConfiguration(request:Request,integrationId:string){
   return execute(request,async({principal,store})=>{
-    const parsed=updateSchema.safeParse(await body(request));
+    const parsed=integrationConfigurationUpdateSchema.safeParse(await body(request));
     if(!parsed.success){
       throw new ControlPlaneError("VALIDATION_FAILED","Invalid integration update payload");
     }
@@ -192,7 +192,7 @@ export function handleIntegrationConfigurationAction(
   integrationId:string
 ){
   return execute(request,async({principal,store})=>{
-    const parsed=actionSchema.safeParse(await body(request));
+    const parsed=integrationConfigurationActionSchema.safeParse(await body(request));
     if(!parsed.success){
       throw new ControlPlaneError("VALIDATION_FAILED","Invalid integration action payload");
     }
