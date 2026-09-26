@@ -293,7 +293,8 @@ export class GmailBusinessActionAdapter implements BusinessActionAdapter {
       response = await this.fetchImpl(url, {
         method: "GET",
         headers: { authorization: "Bearer " + credential },
-        signal: AbortSignal.timeout(30_000)
+        signal: AbortSignal.timeout(30_000),
+        redirect: "manual"
       });
     } catch {
       return { kind: "retryable", retryClass: "transport" };
@@ -564,7 +565,8 @@ export class GmailBusinessActionAdapter implements BusinessActionAdapter {
       response = await this.fetchImpl(url, {
         method: "GET",
         headers: { authorization: "Bearer " + credential },
-        signal: AbortSignal.timeout(30_000)
+        signal: AbortSignal.timeout(30_000),
+        redirect: "manual"
       });
     } catch {
       return createBusinessActionStatus({
