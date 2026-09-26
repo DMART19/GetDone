@@ -23,7 +23,7 @@ describe("zero-downtime migration and production promotion contracts", () => {
     ]));
     expect(policy.migrations).toEqual(expect.arrayContaining([
       expect.objectContaining({
-        version:"2026-09-25.2",
+        version:"2026-09-25.3",
         phase:"expand",
         transitionSchema:true,
         destructive:false,
