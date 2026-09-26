@@ -11,6 +11,7 @@ import {
 } from "@/lib/execution/adapters/business-action";
 import {
   assertAdapterRequest,
+  classifyHttpFailure,
   providerRequestHeaders,
   readBoundedJson,
   requireBrokeredCredential,
@@ -271,12 +272,12 @@ export class AnalyticsDataIngestionAdapter implements BusinessActionAdapter {
     const observedAt=this.now().toISOString();
     if(!response.ok){
       await readBoundedJson(response,configuration.maxResponseBytes).catch(()=>({}));
-      const retryable=response.status===408||response.status===425||response.status===429||response.status>=500;
+      const failure=classifyHttpFailure(response.status);
       return createBusinessActionAdapterResult({
         source:"business-action-adapter",requestId:request.id,adapterId:this.id,adapterVersion:this.version,
-        status:response.status>=400&&response.status<500&&!retryable?"rejected":"failed",
-        retryable,
-        retryClass:response.status===429?"rate-limit":response.status>=500?"provider-5xx":"provider-4xx",
+        status:failure.resultStatus,
+        retryable:failure.retryable,
+        retryClass:failure.retryClass,
         observedAt
       });
     }
