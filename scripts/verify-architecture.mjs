@@ -1109,8 +1109,8 @@ if (
   releaseRegistry.database?.status !== "implemented-unconnected"
   || releaseRegistry.database?.engine !== "postgresql"
   || releaseRegistry.database?.minimumEngineVersion !== "16"
-  || releaseRegistry.database?.migrationVersion !== "2026-09-25.3"
-  || releaseRegistry.database?.schemaVersion !== "2.2.0"
+  || releaseRegistry.database?.migrationVersion !== "2026-09-25.4"
+  || releaseRegistry.database?.schemaVersion !== "2.3.0"
   || releaseRegistry.schemaVersions?.postgresPersistence?.version !== "1.1.0"
   || releaseRegistry.schemaVersions?.disasterRecovery?.version !== "1.0.0"
   || releaseRegistry.schemaVersions?.disasterRecovery?.contractTracked !== true
@@ -1150,6 +1150,10 @@ if (
   || releaseRegistry.adapters?.githubStandardOperation?.version !== "1.0.0"
   || releaseRegistry.adapters?.analyticsDataIngestion?.status !== "implemented-unconfigured"
   || releaseRegistry.adapters?.analyticsDataIngestion?.version !== "1.0.0"
+  || releaseRegistry.adapters?.calendarScheduling?.status !== "implemented-unconfigured"
+  || releaseRegistry.adapters?.calendarScheduling?.version !== "1.0.0"
+  || releaseRegistry.schemaVersions?.integrationConfiguration?.version !== "1.0.0"
+  || releaseRegistry.schemaVersions?.integrationConfiguration?.contractTracked !== true
   || releaseRegistry.schemaVersions?.analyticsIngestion?.version !== "1.0.0"
   || releaseRegistry.schemaVersions?.analyticsIngestion?.contractTracked !== true
   || releaseRegistry.schemaVersions?.environmentEvidence?.version !== "1.0.0"
@@ -1248,8 +1252,8 @@ for (const [name, state] of Object.entries(releaseEnvironment.environments ?? {}
     || state.execution?.liveJobExecutionBridgeStoreStatus !== status("controlApiPersistence")
     || state.database?.engine !== "postgresql"
     || state.database?.adapterStatus !== (state.connections?.database ? "connected" : "implemented-unconnected")
-    || state.database?.migrationVersion !== "2026-09-25.3"
-    || state.database?.schemaVersion !== "2.2.0"
+    || state.database?.migrationVersion !== "2026-09-25.4"
+    || state.database?.schemaVersion !== "2.3.0"
     || state.resourceFabric?.storageRuntimeStatus !== status("storageFabricRuntime")
     || state.resourceFabric?.failoverRuntimeStatus !== status("resilienceFailoverRuntime")
     || state.resourceFabric?.secondProviderStatus !== status("secondResourceProvider")
