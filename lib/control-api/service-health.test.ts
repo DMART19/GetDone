@@ -47,7 +47,7 @@ describe("GetDone web service health", () => {
     });
   });
 
-  it("reports degraded production health when a required core service is unavailable", () => {
+  it("reports degraded production health for degraded Control API readiness", () => {
     expect(buildServiceHealth({
       environment: "production",
       version: "0.1.0",
@@ -55,6 +55,22 @@ describe("GetDone web service health", () => {
         service: "getdone-control-api",
         surfaceVersion: CONTROL_API_SURFACE_VERSION,
         status: "degraded",
+        authConnected: true,
+        persistenceConnected: true,
+        aiGatewayAdapterInstalled: false,
+        durableJobStoreConnected: true
+      }
+    }).status).toBe("degraded");
+  });
+
+  it("reports degraded production health when the durable Job store is unavailable", () => {
+    expect(buildServiceHealth({
+      environment: "production",
+      version: "0.1.0",
+      controlApi: {
+        service: "getdone-control-api",
+        surfaceVersion: CONTROL_API_SURFACE_VERSION,
+        status: "ready",
         authConnected: true,
         persistenceConnected: true,
         aiGatewayAdapterInstalled: false,
