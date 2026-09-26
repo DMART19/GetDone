@@ -1,5 +1,5 @@
 import { authorizeRequest } from "@/lib/auth/guard";
-import type { StepUpProof } from "@/lib/authorization/proofs";
+import { assertStepUpProof, type StepUpProof } from "@/lib/authorization/proofs";
 import type { AuthAdapter, AuthSession } from "@/lib/auth/contracts";
 import { createCommandEnvelope } from "@/lib/control-plane/command-envelope";
 import { ControlPlaneError } from "@/lib/control-plane/errors";
@@ -18,6 +18,11 @@ import {
 } from "@/lib/resources/enrollment";
 import type { VerificationRequestRecord } from "@/lib/domain/services/verification-service";
 import type { Resource } from "@/lib/domain/resources";
+import { IntegrationConfigurationService } from "@/lib/integrations/management-service";
+import type {
+  IntegrationConfigurationCreateInput,
+  IntegrationConfigurationUpdateInput
+} from "@/lib/integrations/management";
 import type {
   ControlApiApplicationAdapter,
   ControlApiHealth,
@@ -71,6 +76,7 @@ export interface ServiceBackedControlApiDependencies {
   resourceRegistry: ResourceRegistryService;
   resourceEnrollments: ScopedReadStore<ResourceEnrollmentRecord>;
   resourceEnrollmentService: ResourceEnrollmentService;
+  integrations: IntegrationConfigurationService;
   jobs: ScopedReadStore<JobRecord>;
   verifications: ScopedReadStore<VerificationRequestRecord>;
   health: () => Promise<ControlApiHealth>;
@@ -288,6 +294,76 @@ export class ServiceBackedControlApiAdapter implements ControlApiApplicationAdap
         now: this.now
       });
     });
+  }
+
+  listIntegrationProviders(principal: ControlApiPrincipal) {
+    requireRole(principal, ["owner", "admin", "operator", "viewer"], "Integration provider read");
+    return this.scoped(principal, async () => this.deps.integrations.providers());
+  }
+
+  listIntegrations(principal: ControlApiPrincipal) {
+    requireRole(principal, ["owner", "admin", "operator", "viewer"], "Integration configuration read");
+    return this.scoped(principal, () => this.deps.integrations.list(principal.scope));
+  }
+
+  getIntegration(principal: ControlApiPrincipal, integrationId: string) {
+    requireRole(principal, ["owner", "admin", "operator", "viewer"], "Integration configuration read");
+    return this.scoped(principal, () => this.deps.integrations.get(principal.scope, integrationId));
+  }
+
+  createIntegration(
+    principal: ControlApiPrincipal,
+    input: IntegrationConfigurationCreateInput,
+    idempotencyKey: string
+  ) {
+    requireRole(principal, ["owner", "admin"], "Integration configuration creation");
+    return this.scoped(principal, () => this.deps.integrations.create({
+      scope: principal.scope,
+      config: input,
+      idempotencyKey
+    }));
+  }
+
+  updateIntegration(
+    principal: ControlApiPrincipal,
+    integrationId: string,
+    input: IntegrationConfigurationUpdateInput,
+    idempotencyKey: string
+  ) {
+    requireRole(principal, ["owner", "admin"], "Integration configuration update");
+    return this.scoped(principal, () => this.deps.integrations.update({
+      scope: principal.scope,
+      id: integrationId,
+      patch: input,
+      idempotencyKey
+    }));
+  }
+
+  controlIntegration(
+    principal: ControlApiPrincipal,
+    integrationId: string,
+    action: "disable" | "revoke",
+    idempotencyKey: string
+  ) {
+    if (action === "revoke") {
+      requireRole(principal, ["owner"], "Integration revocation");
+      if (!principal.stepUpProof) {
+        throw new ControlPlaneError("FORBIDDEN", "Integration revocation requires fresh step-up authentication");
+      }
+      assertStepUpProof(principal.stepUpProof, {
+        actorId: principal.actor.id,
+        scope: principal.scope,
+        now: this.now().getTime()
+      });
+    } else {
+      requireRole(principal, ["owner", "admin"], "Integration disable");
+    }
+    return this.scoped(principal, () => this.deps.integrations.control({
+      scope: principal.scope,
+      id: integrationId,
+      action,
+      idempotencyKey
+    }));
   }
 
   listResources(principal: ControlApiPrincipal) {
