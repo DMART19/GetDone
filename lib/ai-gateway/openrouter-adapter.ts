@@ -4,8 +4,9 @@ import type {
   AIAdapterResponse
 } from "@/lib/ai-gateway/contracts";
 import { ControlPlaneError } from "@/lib/control-plane/errors";
+import { readBoundedProviderJson } from "@/lib/security/provider-response-boundary";
 
-export const OPENROUTER_ADAPTER_VERSION = "1.2.0";
+export const OPENROUTER_ADAPTER_VERSION = "1.3.0";
 export const OPENROUTER_DEFAULT_BASE_URL = "https://openrouter.ai/api/v1";
 
 type FetchLike = typeof fetch;
@@ -257,7 +258,8 @@ export class OpenRouterAIGatewayAdapter implements AIGatewayAdapter {
           method: "POST",
           headers: await this.headers(),
           body: JSON.stringify(body),
-          signal: AbortSignal.timeout(this.timeoutMs)
+          signal: AbortSignal.timeout(this.timeoutMs),
+          redirect: "manual"
         });
       } catch (error) {
         lastError = error;
@@ -267,7 +269,9 @@ export class OpenRouterAIGatewayAdapter implements AIGatewayAdapter {
       }
 
       if (response.ok) {
-        const parsed = await response.json() as OpenRouterChatResponse;
+        const parsed = await readBoundedProviderJson(response, 2_000_000, {
+          readTimeoutMs: this.timeoutMs
+        }) as OpenRouterChatResponse;
         if (!parsed.model || !Array.isArray(parsed.choices) || parsed.choices.length === 0) {
           throw new ControlPlaneError("UNAVAILABLE", "OpenRouter returned an invalid completion envelope");
         }
