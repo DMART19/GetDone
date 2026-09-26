@@ -190,9 +190,49 @@ describe("ordinary integration framework coverage", () => {
         environment: "production",
         credentialProviderId: "slack-provider"
       }]),
+      GETDONE_GITHUB_ACTIONS_JSON: JSON.stringify([{
+        id: "github",
+        companyId: "company-a",
+        environment: "production",
+        credentialProviderId: "github-provider",
+        repositories: ["DMART19/GetDone"],
+        protectedBranches: ["main"]
+      }]),
+      GETDONE_ANALYTICS_SOURCES_JSON: JSON.stringify([{
+        id: "analytics",
+        companyId: "company-a",
+        environment: "production",
+        credentialProviderId: "analytics-provider",
+        url: "https://analytics.example.test/events",
+        schema: {
+          fields: { id: "string", updatedAt: "datetime" },
+          required: ["id", "updatedAt"]
+        }
+      }])
     };
-    expect(createOrdinaryBusinessActionBindingsFromEnv(env).map((item) => item.capability))
-      .toEqual(["http.request", "webhook.send", "email.send", "slack.message.send"]);
+    const analyticsStore = {
+      getCheckpoint: async () => null,
+      getRun: async () => null,
+      commitPage: async () => { throw new Error("not used"); }
+    };
+    expect(createOrdinaryBusinessActionBindingsFromEnv(env, { analyticsStore }).map((item) => item.capability))
+      .toEqual([
+        "http.request",
+        "webhook.send",
+        "email.send",
+        "slack.message.send",
+        "github.repository.read",
+        "github.branch.create",
+        "github.commit.create",
+        "github.protected-branch.commit",
+        "github.pull-request.write",
+        "github.issue.write",
+        "github.pull-request.merge",
+        "analytics.ingest.read"
+      ]);
+    expect(() => createOrdinaryBusinessActionBindingsFromEnv({
+      GETDONE_ANALYTICS_SOURCES_JSON: env.GETDONE_ANALYTICS_SOURCES_JSON
+    })).toThrow(/durable evidence\/checkpoint persistence/i);
     expect(() => createOrdinaryBusinessActionBindingsFromEnv({})).toThrow(/At least one/i);
   });
 });
