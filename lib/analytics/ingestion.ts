@@ -53,7 +53,11 @@ export interface AnalyticsIngestionEvidenceStore {
     scope:Pick<TrustedExecutionScope,"portfolioId"|"companyId"|"environment">,
     sourceId:string
   ):Promise<AnalyticsIngestionCheckpoint|null>;
-  getRun(requestId:string):Promise<AnalyticsIngestionRun|null>;
+  getRun(
+    scope:Pick<TrustedExecutionScope,"portfolioId"|"companyId"|"environment">,
+    sourceId:string,
+    requestId:string
+  ):Promise<AnalyticsIngestionRun|null>;
   commitPage(input:{
     requestId:string;
     inputHash:string;
@@ -66,6 +70,7 @@ export interface AnalyticsIngestionEvidenceStore {
 }
 
 export function createAnalyticsEvidenceRecord(input:{
+  scope:Pick<TrustedExecutionScope,"portfolioId"|"companyId"|"environment">;
   sourceId:string;
   sourceUrlHash:string;
   cursor?:string;
@@ -99,5 +104,14 @@ export function createAnalyticsEvidenceRecord(input:{
     payload:input.payload,
     provenance
   };
-  return Object.freeze({...base,evidenceHash:sha256Hex(base)});
+  return Object.freeze({
+    ...base,
+    evidenceHash:sha256Hex({
+      scope:input.scope,
+      sourceId:input.sourceId,
+      dedupeKey,
+      payloadHash,
+      provenance
+    })
+  });
 }
