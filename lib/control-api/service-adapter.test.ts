@@ -9,6 +9,7 @@ import { ServiceBackedControlApiAdapter } from "@/lib/control-api/service-adapte
 import { ResourceRegistryService } from "@/lib/domain/services/resource-registry-service";
 import { ResourceEnrollmentService, type ResourceEnrollmentRecord } from "@/lib/resources/enrollment";
 import type { Resource } from "@/lib/domain/resources";
+import { IntegrationConfigurationService } from "@/lib/integrations/management-service";
 
 const session: AuthSession = {
   sessionId: "session-a",
@@ -158,6 +159,56 @@ function adapter(overrides: Partial<ConstructorParameters<typeof ServiceBackedCo
     restart: async () => enrollmentRecord
   } as unknown as ResourceEnrollmentService;
 
+  const integrationRecord = {
+    id: "calendar-a",
+    portfolioId: "portfolio-a",
+    companyId: "company-a",
+    environment: "development" as const,
+    providerId: "calendar",
+    kind: "calendar" as const,
+    displayName: "Calendar",
+    adapterId: "calendar-scheduling",
+    adapterVersion: "1.0.0",
+    credentialBindingId: "binding-calendar-a",
+    capabilityNames: ["calendar.event.read"],
+    requestedScopes: ["calendar.read"],
+    grantedScopes: [],
+    state: "configured" as const,
+    health: "unverified" as const,
+    createdAt: "2026-09-21T04:00:00Z",
+    updatedAt: "2026-09-21T04:00:00Z",
+    recordHash: "a".repeat(64)
+  };
+  const integrationService = {
+    providers: () => [{
+      id: "calendar",
+      kind: "calendar",
+      displayName: "Calendar",
+      adapterId: "calendar-scheduling",
+      adapterVersion: "1.0.0",
+      capabilities: ["calendar.event.read"],
+      requiredScopes: { "calendar.event.read": ["calendar.read"] }
+    }],
+    list: async () => [integrationRecord],
+    get: async (_scope: unknown, id: string) => id === "calendar-a" ? integrationRecord : null,
+    create: async ({ config }: { config: { id: string; displayName: string } }) => ({
+      ...integrationRecord,
+      id: config.id,
+      displayName: config.displayName
+    }),
+    update: async ({ id, patch }: { id: string; patch: { displayName?: string } }) => ({
+      ...integrationRecord,
+      id,
+      displayName: patch.displayName ?? integrationRecord.displayName
+    }),
+    control: async ({ id, action }: { id: string; action: "disable" | "revoke" }) => ({
+      ...integrationRecord,
+      id,
+      state: action === "revoke" ? "revoked" : "disabled",
+      health: action === "revoke" ? "revoked" : "disabled"
+    })
+  } as unknown as IntegrationConfigurationService;
+
   const instance = new ServiceBackedControlApiAdapter({
     auth: auth(),
     scopes: { resolve: async () => ({ scope, role: "owner" as const }) },
@@ -187,6 +238,7 @@ function adapter(overrides: Partial<ConstructorParameters<typeof ServiceBackedCo
       get: async (id) => id === enrollmentRecord.id ? enrollmentRecord : null
     },
     resourceEnrollmentService,
+    integrations: integrationService,
     jobs: {
       listByScope: async () => [],
       get: async (id) => id === "job-1" ? ({
@@ -250,6 +302,37 @@ describe("ServiceBackedControlApiAdapter", () => {
       }
     });
     await expect(instance.authenticate(new Request("http://localhost"))).rejects.toThrow(/scope is incomplete/i);
+  });
+
+  it("exposes scoped integration configuration and requires fresh step-up for revocation", async () => {
+    const { instance } = adapter();
+    const principal = await instance.authenticate(new Request("http://localhost"));
+
+    await expect(instance.listIntegrationProviders(principal)).resolves.toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: "calendar" })])
+    );
+    await expect(instance.listIntegrations(principal)).resolves.toEqual([
+      expect.objectContaining({ id: "calendar-a", companyId: "company-a" })
+    ]);
+    await expect(instance.controlIntegration(
+      principal,
+      "calendar-a",
+      "revoke",
+      "integration-revoke-key"
+    )).resolves.toMatchObject({ state: "revoked", health: "revoked" });
+
+    const withoutStepUp = adapter({
+      authorizationEvidence: {
+        resolveStepUpProof: async () => undefined
+      }
+    }).instance;
+    const principalWithoutStepUp = await withoutStepUp.authenticate(new Request("http://localhost"));
+    await expect(withoutStepUp.controlIntegration(
+      principalWithoutStepUp,
+      "calendar-a",
+      "revoke",
+      "integration-revoke-key-2"
+    )).rejects.toThrow(/step-up/i);
   });
 
   it("stores owner intent as non-executing accepted input", async () => {
