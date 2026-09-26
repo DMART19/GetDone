@@ -1,22 +1,39 @@
 import { NextResponse } from "next/server";
+import { getControlApiAdapter } from "@/lib/control-api/runtime.server";
+import {
+  buildServiceHealth,
+  unavailableControlApiHealth
+} from "@/lib/control-api/service-health";
 import { createCorrelationId } from "@/lib/control-plane/request-context";
 import { readServerRuntimeEnvironment } from "@/lib/control-plane/runtime-environment.server";
 import { apiSuccess } from "@/lib/control-plane/schemas";
 
 export const dynamic = "force-dynamic";
 
-export function GET() {
+export async function GET() {
   const environment = readServerRuntimeEnvironment();
   const correlationId = createCorrelationId();
 
-  return NextResponse.json(apiSuccess({
-    service: "getdone-web",
-    status: "ok",
+  let controlApi = unavailableControlApiHealth();
+  try {
+    controlApi = await getControlApiAdapter().health();
+  } catch {
+    // Health reporting must fail closed without leaking connection details.
+  }
+
+  const health = buildServiceHealth({
+    environment,
     version: process.env.npm_package_version ?? "0.1.0",
-    authoritativeControlPlane: false,
-    authProviderConnected: false,
-    persistenceConnected: false,
-    aiGatewayConnected: false,
-    durableJobEngineConnected: false
-  }, { correlationId, environment }));
+    controlApi
+  });
+
+  return NextResponse.json(
+    apiSuccess(health, { correlationId, environment }),
+    {
+      headers: {
+        "cache-control": "no-store",
+        "x-correlation-id": correlationId
+      }
+    }
+  );
 }
