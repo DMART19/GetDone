@@ -1,7 +1,8 @@
 import { ControlPlaneError } from "@/lib/control-plane/errors";
-import type {
-  ControlApiApplicationAdapter,
-  ControlApiHealth
+import {
+  CONTROL_API_SURFACE_VERSION,
+  type ControlApiApplicationAdapter,
+  type ControlApiHealth
 } from "@/lib/control-api/contracts";
 import { createPostgresControlApiAdapter } from "@/lib/control-api/postgres-runtime.server";
 
@@ -17,7 +18,7 @@ class UnavailableControlApiAdapter implements ControlApiApplicationAdapter {
   async health(): Promise<ControlApiHealth> {
     return {
       service: "getdone-control-api",
-      surfaceVersion: "1.2.0",
+      surfaceVersion: CONTROL_API_SURFACE_VERSION,
       status: "unavailable",
       authConnected: false,
       persistenceConnected: false,
