@@ -20,7 +20,7 @@ import {
   type BusinessActionAdapterDeclaration
 } from "@/lib/execution/adapters/ordinary-integration-framework";
 
-export const SLACK_BUSINESS_ACTION_ADAPTER_VERSION = "1.1.0";
+export const SLACK_BUSINESS_ACTION_ADAPTER_VERSION = "1.2.0";
 
 const environmentSchema = z.enum(["development", "staging", "production"]);
 const slackSuccessSchema = z.object({
