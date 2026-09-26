@@ -186,6 +186,7 @@ export class ConfiguredWebhookActionAdapter implements BusinessActionAdapter {
     auditEvidence: "hashed-provider-evidence",
     verificationStrategy: "configured-independent-endpoint",
     cancellation: "configured",
+    cancellationSemantics: "provider-compensation-not-reversal",
     tenantEnvironmentBinding: true,
     truthSemantics: "provider-acceptance-is-not-business-truth"
   });
@@ -429,7 +430,7 @@ export class ConfiguredWebhookActionAdapter implements BusinessActionAdapter {
       adapterId: this.id,
       adapterVersion: this.version,
       state: response.ok
-        ? "cancelled"
+        ? "compensated"
         : response.status >= 500 || response.status === 429
           ? "running"
           : "failed",
