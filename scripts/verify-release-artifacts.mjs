@@ -353,8 +353,8 @@ if (failures.length === 0) {
     registry.database.status !== "implemented-unconnected"
     || registry.database.engine !== "postgresql"
     || registry.database.minimumEngineVersion !== "16"
-    || registry.database.migrationVersion !== "2026-09-25.3"
-    || registry.database.schemaVersion !== "2.2.0"
+    || registry.database.migrationVersion !== "2026-09-25.4"
+    || registry.database.schemaVersion !== "2.3.0"
     || registry.schemaVersions.postgresPersistence?.version !== "1.1.0"
     || registry.schemaVersions.disasterRecovery?.version !== "1.0.0"
     || registry.schemaVersions.disasterRecovery?.sourcePath !== "lib/execution/disaster-recovery.ts"
@@ -408,6 +408,10 @@ if (failures.length === 0) {
     || registry.adapters.githubStandardOperation?.version !== "1.0.0"
     || registry.adapters.analyticsDataIngestion?.status !== "implemented-unconfigured"
     || registry.adapters.analyticsDataIngestion?.version !== "1.0.0"
+    || registry.adapters.calendarScheduling?.status !== "implemented-unconfigured"
+    || registry.adapters.calendarScheduling?.version !== "1.0.0"
+    || registry.schemaVersions.integrationConfiguration?.version !== "1.0.0"
+    || registry.schemaVersions.integrationConfiguration?.contractTracked !== true
     || registry.schemaVersions.analyticsIngestion?.version !== "1.0.0"
     || registry.schemaVersions.analyticsIngestion?.contractTracked !== true
     || registry.composition.mvpBusinessWorkflowStatus !== "implemented-unconfigured"
