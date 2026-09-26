@@ -1132,8 +1132,8 @@ if (
   releaseRegistry.database?.status !== "implemented-unconnected"
   || releaseRegistry.database?.engine !== "postgresql"
   || releaseRegistry.database?.minimumEngineVersion !== "16"
-  || releaseRegistry.database?.migrationVersion !== "2026-09-25.3"
-  || releaseRegistry.database?.schemaVersion !== "2.2.0"
+  || releaseRegistry.database?.migrationVersion !== "2026-09-26.1"
+  || releaseRegistry.database?.schemaVersion !== "2.3.0"
   || releaseRegistry.schemaVersions?.postgresPersistence?.version !== "1.1.0"
   || releaseRegistry.schemaVersions?.disasterRecovery?.version !== "1.0.0"
   || releaseRegistry.schemaVersions?.disasterRecovery?.contractTracked !== true
@@ -1156,13 +1156,13 @@ if (
   fail("Phase 4 release state drifted");
 }
 if (
-  releaseRegistry.execution.jobRuntimeContractVersion !== "1.2.0"
+  releaseRegistry.execution.jobRuntimeContractVersion !== "1.3.0"
   || releaseRegistry.execution.durableJobStoreStatus !== "implemented-unconnected"
   || releaseRegistry.execution.durableJobStoreVersion !== "1.0.0"
-  || releaseRegistry.execution.businessActionContractVersion !== "1.6.0"
+  || releaseRegistry.execution.businessActionContractVersion !== "1.7.0"
   || releaseRegistry.execution.businessActionOrchestratorStatus !== "implemented"
   || releaseRegistry.execution.businessAdaptersStatus !== "implemented-unconfigured"
-  || releaseRegistry.adapters?.businessAction?.version !== "1.6.0"
+  || releaseRegistry.adapters?.businessAction?.version !== "1.7.0"
   || releaseRegistry.adapters?.configuredHttpAction?.version !== "1.4.0"
   || releaseRegistry.adapters?.configuredWebhookAction?.status !== "implemented-unconfigured"
   || releaseRegistry.adapters?.gmailBusinessAction?.status !== "implemented-unconfigured"
@@ -1181,7 +1181,7 @@ if (
   || releaseRegistry.execution.softwareWorkerRuntimeStatus !== "implemented"
   || releaseRegistry.execution.softwareDeploymentStatus !== "not-connected"
   || releaseRegistry.execution.jobExecutionRouterStatus !== "implemented"
-  || releaseRegistry.execution.jobExecutionRouterVersion !== "1.1.0"
+  || releaseRegistry.execution.jobExecutionRouterVersion !== "1.2.0"
   || releaseRegistry.execution.persistentWorkerServiceStatus !== "implemented-unconnected"
   || releaseRegistry.execution.persistentWorkerServiceVersion !== "1.0.0"
   || releaseRegistry.execution.jobExecutionBridgeContractVersion !== "1.0.0"
@@ -1271,8 +1271,8 @@ for (const [name, state] of Object.entries(releaseEnvironment.environments ?? {}
     || state.execution?.liveJobExecutionBridgeStoreStatus !== status("controlApiPersistence")
     || state.database?.engine !== "postgresql"
     || state.database?.adapterStatus !== (state.connections?.database ? "connected" : "implemented-unconnected")
-    || state.database?.migrationVersion !== "2026-09-25.3"
-    || state.database?.schemaVersion !== "2.2.0"
+    || state.database?.migrationVersion !== "2026-09-26.1"
+    || state.database?.schemaVersion !== "2.3.0"
     || state.resourceFabric?.storageRuntimeStatus !== status("storageFabricRuntime")
     || state.resourceFabric?.failoverRuntimeStatus !== status("resilienceFailoverRuntime")
     || state.resourceFabric?.secondProviderStatus !== status("secondResourceProvider")
