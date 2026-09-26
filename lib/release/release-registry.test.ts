@@ -26,6 +26,8 @@ import { SLACK_BUSINESS_ACTION_ADAPTER_VERSION } from "@/lib/execution/adapters/
 import { CRM_BUSINESS_ACTION_ADAPTER_VERSION } from "@/lib/execution/adapters/crm-action";
 import { GITHUB_STANDARD_OPERATION_ADAPTER_VERSION } from "@/lib/execution/adapters/github-standard-operation";
 import { ANALYTICS_DATA_INGESTION_ADAPTER_VERSION } from "@/lib/execution/adapters/analytics-ingestion";
+import { CALENDAR_SCHEDULING_ADAPTER_VERSION } from "@/lib/execution/adapters/calendar-scheduling";
+import { INTEGRATION_CONFIGURATION_CONTRACT_VERSION } from "@/lib/integrations/configuration";
 import {
   NODE_AGENT_PROTOCOL_VERSION,
   NODE_DOMAIN_VERSION
@@ -457,6 +459,15 @@ describe("Phase 41 release/version registry", () => {
       status: "implemented-unconfigured",
       version: ANALYTICS_DATA_INGESTION_ADAPTER_VERSION
     });
+    expect(registry.adapters.calendarScheduling).toMatchObject({
+      status: "implemented-unconfigured",
+      version: CALENDAR_SCHEDULING_ADAPTER_VERSION
+    });
+    expect(registry.schemaVersions.integrationConfiguration).toMatchObject({
+      version: INTEGRATION_CONFIGURATION_CONTRACT_VERSION,
+      sourcePath: "lib/integrations/configuration.ts",
+      contractTracked: true
+    });
     expect(registry.schemaVersions.analyticsIngestion).toMatchObject({
       version: "1.0.0",
       sourcePath: "lib/analytics/ingestion.ts",
@@ -538,8 +549,8 @@ describe("Phase 41 release/version registry", () => {
       status: "implemented-unconnected",
       engine: "postgresql",
       minimumEngineVersion: "16",
-      migrationVersion: "2026-09-25.3",
-      schemaVersion: "2.2.0"
+      migrationVersion: "2026-09-25.4",
+      schemaVersion: "2.3.0"
     });
     expect(registry.adapters.postgresPersistence).toMatchObject({
       status: "implemented-unconnected",
@@ -570,8 +581,8 @@ describe("Phase 41 release/version registry", () => {
         engine: "postgresql",
         minimumEngineVersion: "16",
         adapterStatus: "implemented-unconnected",
-        migrationVersion: "2026-09-25.3",
-        schemaVersion: "2.2.0"
+        migrationVersion: "2026-09-25.4",
+        schemaVersion: "2.3.0"
       });
       expect(state.execution).toMatchObject({
         durableJobStoreStatus: "not-connected",
