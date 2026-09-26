@@ -513,8 +513,8 @@ describe("Phase 41 release/version registry", () => {
       status: "implemented-unconnected",
       engine: "postgresql",
       minimumEngineVersion: "16",
-      migrationVersion: "2026-09-24.1",
-      schemaVersion: "1.7.0"
+      migrationVersion: "2026-09-25.2",
+      schemaVersion: "2.1.0"
     });
     expect(registry.adapters.postgresPersistence).toMatchObject({
       status: "implemented-unconnected",
@@ -524,14 +524,29 @@ describe("Phase 41 release/version registry", () => {
       version: "1.1.0",
       sourcePath: "lib/persistence/postgres/client.ts"
     });
+    expect(registry.schemaVersions.disasterRecovery).toMatchObject({
+      version: "1.0.0",
+      sourcePath: "lib/execution/disaster-recovery.ts",
+      contractTracked: true
+    });
+    expect(registry.schemaVersions.zeroDowntimeMigrationPolicy).toMatchObject({
+      version: "1.0.0",
+      sourcePath: "config/zero-downtime-migration-policy.json",
+      contractTracked: true
+    });
+    expect(registry.schemaVersions.productionReleaseGate).toMatchObject({
+      version: "1.0.0",
+      sourcePath: "scripts/verify-production-promotion.mjs",
+      contractTracked: true
+    });
     for (const state of Object.values(environment.environments)) {
       expect(state.connections.database).toBe(false);
       expect(state.database).toMatchObject({
         engine: "postgresql",
         minimumEngineVersion: "16",
         adapterStatus: "implemented-unconnected",
-        migrationVersion: "2026-09-24.1",
-        schemaVersion: "1.7.0"
+        migrationVersion: "2026-09-25.2",
+        schemaVersion: "2.1.0"
       });
       expect(state.execution).toMatchObject({
         durableJobStoreStatus: "not-connected",

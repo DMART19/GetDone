@@ -30,6 +30,7 @@ function auth(): AuthAdapter {
   return {
     getSession: async () => session,
     revokeSession: async () => undefined,
+    revokeOtherSessions: async () => 0,
     beginStepUp: async () => ({
       challengeId: "00000000-0000-4000-8000-000000000001",
       expiresAt: "2099-01-01T00:00:00Z",
@@ -39,7 +40,7 @@ function auth(): AuthAdapter {
       allowCredentialIds: ["Y3JlZGVudGlhbC0x"],
       userVerification: "required"
     }),
-    verifyStepUp: async () => session
+    verifyStepUp: async () => ({ session, token: "rotated-session-token" })
   };
 }
 

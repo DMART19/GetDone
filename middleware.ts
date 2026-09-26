@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { evaluateBrowserMutationOrigin } from "@/lib/security/browser-mutation-origin";
 
 export function middleware(request: NextRequest) {
   if (
@@ -10,6 +11,27 @@ export function middleware(request: NextRequest) {
       headers: { "cache-control": "no-store" }
     });
   }
+
+  const origin = evaluateBrowserMutationOrigin(request, process.env);
+  if (!origin.allowed) {
+    return Response.json(
+      {
+        ok: false,
+        error: {
+          code: "FORBIDDEN",
+          message: "Browser mutation origin is not trusted"
+        }
+      },
+      {
+        status: 403,
+        headers: {
+          "cache-control": "no-store",
+          "vary": "Origin"
+        }
+      }
+    );
+  }
+
   return NextResponse.next();
 }
 

@@ -1,0 +1,232 @@
+name: Production Release Gate
+
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_sha:
+        description: Exact 40-character commit SHA to promote
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: production-release-gate
+  cancel-in-progress: false
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  NPM_CONFIG_IGNORE_SCRIPTS: "true"
+  GETDONE_RELEASE_CANDIDATE_SHA: ${{ inputs.candidate_sha }}
+  GETDONE_DB_RUNTIME_ROLE: getdone_tenant_runtime
+
+jobs:
+  promotion-gate:
+    name: production-promotion-gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment: production-promotion
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.candidate_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Require candidate to be merged to main
+        shell: bash
+        run: |
+          test "$(git rev-parse HEAD)" = "$GETDONE_RELEASE_CANDIDATE_SHA"
+          git fetch origin main
+          git merge-base --is-ancestor "$GETDONE_RELEASE_CANDIDATE_SHA" origin/main || {
+            echo "Candidate SHA must already be contained in main."
+            exit 1
+          }
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Install PostgreSQL client tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      - name: Collect exact-SHA CI evidence
+        run: npm run release:collect-ci-evidence
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+
+      - name: Verify zero-downtime migration policy
+        run: npm run verify:zero-downtime-migrations
+
+      - name: Migrate isolated release-canary PostgreSQL
+        run: npm run db:migrate
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+          GETDONE_DB_SSL: "false"
+
+      - name: Record verified canary backup evidence
+        run: npm run db:record-backup
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+          GETDONE_DB_SSL: "false"
+          GETDONE_BACKUP_REF: production-release-gate-canary
+          GETDONE_BACKUP_VERIFICATION_HASH: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run authoritative staging E2E
+        run: npm run test:e2e:staging
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+          GETDONE_DB_SSL: "false"
+          GETDONE_SESSION_TTL_SECONDS: "3600"
+          GETDONE_SIGN_IN_CHALLENGE_TTL_SECONDS: "300"
+          GETDONE_STEP_UP_TTL_SECONDS: "300"
+
+      - name: Verify live OpenRouter canary inputs
+        shell: bash
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          GETDONE_OPENROUTER_PRIMARY_MODEL: ${{ vars.OPENROUTER_PRIMARY_MODEL }}
+          GETDONE_OPENROUTER_FALLBACK_MODEL: ${{ vars.OPENROUTER_FALLBACK_MODEL }}
+        run: |
+          test -n "$OPENROUTER_API_KEY"
+          test -n "$GETDONE_OPENROUTER_PRIMARY_MODEL"
+          test -n "$GETDONE_OPENROUTER_FALLBACK_MODEL"
+          test "$GETDONE_OPENROUTER_PRIMARY_MODEL" != "$GETDONE_OPENROUTER_FALLBACK_MODEL"
+
+      - name: Run live OpenRouter canary
+        run: npm run ai:accept-staging
+        env:
+          GETDONE_OPENROUTER_STAGING_ACCEPTANCE: "true"
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+          GETDONE_DB_SSL: "false"
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          GETDONE_OPENROUTER_PRIMARY_MODEL: ${{ vars.OPENROUTER_PRIMARY_MODEL }}
+          GETDONE_OPENROUTER_FALLBACK_MODEL: ${{ vars.OPENROUTER_FALLBACK_MODEL }}
+          OPENROUTER_BASE_URL: ${{ vars.OPENROUTER_BASE_URL }}
+
+      - name: Generate safe integration canary credentials
+        shell: bash
+        run: |
+          echo "GETDONE_HTTP_STAGING_TOKEN_A=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+          echo "GETDONE_HTTP_STAGING_TOKEN_B=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+          echo "GETDONE_HTTP_STAGING_CONTROL_TOKEN=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+          echo "GETDONE_INTERNAL_WORKER_TOKEN=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+
+      - name: Start controlled integration canary provider
+        shell: bash
+        run: |
+          GETDONE_HTTP_STAGING_PORT=8787 \
+          GETDONE_HTTP_STAGING_INITIAL_TOKEN="$GETDONE_HTTP_STAGING_TOKEN_A" \
+          GETDONE_HTTP_STAGING_CONTROL_TOKEN="$GETDONE_HTTP_STAGING_CONTROL_TOKEN" \
+          node scripts/configured-http-staging-server.mjs > /tmp/getdone-http-staging.log 2>&1 &
+          echo $! > /tmp/getdone-http-staging.pid
+          for i in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:8787/health >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/getdone-http-staging.log
+          exit 1
+
+      - name: Install Cloudflare tunnel client
+        shell: bash
+        run: |
+          curl --fail --location --silent --show-error \
+            https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 \
+            --output /tmp/cloudflared
+          chmod +x /tmp/cloudflared
+          /tmp/cloudflared --version
+
+      - name: Expose controlled provider through real HTTPS
+        shell: bash
+        run: |
+          /tmp/cloudflared tunnel --no-autoupdate --url http://127.0.0.1:8787 > /tmp/cloudflared.log 2>&1 &
+          echo $! > /tmp/cloudflared.pid
+          ORIGIN=""
+          for i in $(seq 1 120); do
+            ORIGIN=$(grep -Eo 'https://[-a-zA-Z0-9]+\.trycloudflare\.com' /tmp/cloudflared.log | head -n 1 || true)
+            if [ -n "$ORIGIN" ] && curl --fail --silent --show-error --connect-timeout 5 --max-time 10 "$ORIGIN/health" >/dev/null; then
+              echo "GETDONE_HTTP_STAGING_ORIGIN=$ORIGIN" >> "$GITHUB_ENV"
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/cloudflared.log
+          exit 1
+
+      - name: Run live safe integration canary
+        run: npm run http:accept-staging
+        env:
+          GETDONE_HTTP_STAGING_ACCEPTANCE: "true"
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+          GETDONE_DB_SSL: "false"
+
+      - name: Build dedicated worker
+        run: npm run build:worker
+
+      - name: Run worker readiness canary
+        run: npm run release:worker-health-canary
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+          GETDONE_DB_SSL: "false"
+          GETDONE_RUNTIME_ENV: staging
+          GETDONE_DATA_MODE: authoritative
+          GETDONE_PROCESS_ROLE: job-worker
+          GETDONE_JOB_WORKER_ID: production-release-gate-worker
+          GETDONE_INTERNAL_WORKER_TOKEN: ${{ env.GETDONE_INTERNAL_WORKER_TOKEN }}
+          GETDONE_JOB_WORKER_HEALTH_PORT: "3001"
+
+      - name: Run fail-closed production promotion gate
+        run: npm run release:gate-production
+        env:
+          DATABASE_URL: ${{ secrets.GETDONE_RELEASE_GATE_DATABASE_URL }}
+          GETDONE_DB_SSL: "true"
+          GETDONE_DB_RUNTIME_ROLE: getdone_tenant_runtime
+          GETDONE_BACKUP_MAX_AGE_HOURS: ${{ vars.GETDONE_BACKUP_MAX_AGE_HOURS || '24' }}
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: production-release-gate-${{ github.run_number }}
+          path: |
+            test-results/production-gate/
+            test-results/openrouter-staging-acceptance.json
+            test-results/configured-http-staging-acceptance.json
+            test-results/playwright-staging-results.json
+            coverage/security/
+            release/out/
+          if-no-files-found: warn
+          retention-days: 90
+
+      - name: Stop controlled canary processes
+        if: always()
+        shell: bash
+        run: |
+          if [ -f /tmp/cloudflared.pid ]; then kill $(cat /tmp/cloudflared.pid) || true; fi
+          if [ -f /tmp/getdone-http-staging.pid ]; then kill $(cat /tmp/getdone-http-staging.pid) || true; fi
