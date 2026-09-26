@@ -385,6 +385,8 @@ export class AnalyticsDataIngestionAdapter implements BusinessActionAdapter {
     _input:{requestId:string;providerOperationId:string},
     _context?:BusinessActionExecutionContext
   ):Promise<BusinessActionStatus>{
+    void _input;
+    void _context;
     throw new ControlPlaneError("NOT_FOUND","Analytics ingestion completes only from the bounded page read");
   }
 }
