@@ -13,7 +13,7 @@ export async function GET(request: Request) {
       throw new ControlPlaneError("UNAVAILABLE", "Persistent Job worker service is not installed");
     }
     const snapshot = worker.snapshot();
-    const ready = snapshot.status === "running" && !snapshot.stopped;
+    const ready = worker.isReady();
     return Response.json(
       { ok: ready, worker: snapshot },
       {
