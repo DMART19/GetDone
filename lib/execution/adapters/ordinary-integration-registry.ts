@@ -33,6 +33,8 @@ import {
   CalendarSchedulingAdapter,
   readCalendarProviderConfigurationsFromEnv
 } from "@/lib/execution/adapters/calendar-scheduling";
+import { ManagedIntegrationBusinessActionAdapter } from "@/lib/execution/adapters/integration-config-gate";
+import type { IntegrationConfigurationStore, IntegrationProvider } from "@/lib/integrations/configuration";
 
 export const ORDINARY_INTEGRATION_IMPLEMENTATION_ORDER = Object.freeze([
   "generic-configured-https",
@@ -48,6 +50,7 @@ export const ORDINARY_INTEGRATION_IMPLEMENTATION_ORDER = Object.freeze([
 
 export interface OrdinaryIntegrationRegistryOptions {
   analyticsStore?: AnalyticsIngestionEvidenceStore;
+  integrationStore?: IntegrationConfigurationStore;
 }
 
 export function createOrdinaryBusinessActionBindingsFromEnv(
@@ -55,6 +58,12 @@ export function createOrdinaryBusinessActionBindingsFromEnv(
   options: OrdinaryIntegrationRegistryOptions = {}
 ): readonly BusinessActionAdapterBinding[] {
   const bindings: BusinessActionAdapterBinding[] = [];
+  const managed = <T extends { id: string; version: string } & import("@/lib/execution/adapters/business-action").BusinessActionAdapter>(
+    provider: IntegrationProvider,
+    adapter: T
+  ) => options.integrationStore
+    ? new ManagedIntegrationBusinessActionAdapter(provider, adapter, options.integrationStore)
+    : adapter;
 
   if (env.GETDONE_HTTP_ACTIONS_JSON?.trim()) {
     bindings.push({
@@ -93,9 +102,9 @@ export function createOrdinaryBusinessActionBindingsFromEnv(
   }
 
   if (env.GETDONE_CRM_ACTIONS_JSON?.trim()) {
-    const crm = new CrmBusinessActionAdapter(
+    const crm = managed("crm", new CrmBusinessActionAdapter(
       readCrmProviderConfigurationsFromEnv(env)
-    );
+    ));
     bindings.push(
       { capability: "crm.record.read", adapter: crm },
       { capability: "crm.record.write", adapter: crm }
@@ -103,9 +112,9 @@ export function createOrdinaryBusinessActionBindingsFromEnv(
   }
 
   if (env.GETDONE_GITHUB_ACTIONS_JSON?.trim()) {
-    const github = new GithubStandardOperationAdapter(
+    const github = managed("github", new GithubStandardOperationAdapter(
       readGithubProviderConfigurationsFromEnv(env)
-    );
+    ));
     bindings.push(
       { capability: "github.repository.read", adapter: github },
       { capability: "github.branch.create", adapter: github },
@@ -126,17 +135,17 @@ export function createOrdinaryBusinessActionBindingsFromEnv(
     }
     bindings.push({
       capability: "analytics.ingest.read",
-      adapter: new AnalyticsDataIngestionAdapter(
+      adapter: managed("analytics", new AnalyticsDataIngestionAdapter(
         readAnalyticsSourceConfigurationsFromEnv(env),
         options.analyticsStore
-      )
+      ))
     });
   }
 
   if (env.GETDONE_CALENDAR_ACTIONS_JSON?.trim()) {
-    const calendar = new CalendarSchedulingAdapter(
+    const calendar = managed("calendar", new CalendarSchedulingAdapter(
       readCalendarProviderConfigurationsFromEnv(env)
-    );
+    ));
     bindings.push(
       { capability: "calendar.event.read", adapter: calendar },
       { capability: "calendar.event.create", adapter: calendar },
