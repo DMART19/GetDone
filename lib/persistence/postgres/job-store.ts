@@ -32,7 +32,7 @@ export interface DurableJobCandidate {
 }
 
 export interface DurableJobRuntimeSnapshot extends DurableJobCandidate {
-  state: "queued" | "claimed" | "retry-wait" | "dead-lettered" | "cancelled" | "released";
+  state: "queued" | "claimed" | "retry-wait" | "dead-lettered" | "cancelled" | "released" | "uncertain";
   scheduledAt: string;
   cancelledReason?: string;
 }
@@ -805,10 +805,14 @@ export class PostgresDurableJobStore implements DurableJobWorkStore {
       const row = runtime.rows[0];
       if (
         !row
+        || !["queued", "claimed", "retry-wait"].includes(row.runtime_state)
         || row.version !== input.expectedJobVersion
         || row.state_hash !== input.expectedJobHash
       ) {
-        throw new ControlPlaneError("CONFLICT", "Job cancellation lost its runtime compare-and-swap");
+        throw new ControlPlaneError(
+          "CONFLICT",
+          "Job local cancellation lost its runtime compare-and-swap or targeted terminal work"
+        );
       }
       const nextVersion = row.version + 1;
       const nextHash = runtimeHash({
@@ -850,6 +854,79 @@ export class PostgresDurableJobStore implements DurableJobWorkStore {
         occurredAt: input.cancelledAt,
         transactionHash: receipt.transactionHash,
         eventType: "job.execution-cancelled"
+      });
+      return receipt;
+    });
+  }
+
+  async markUncertain(input: {
+    jobId: string;
+    reason: string;
+    uncertainAt: string;
+    expectedJobVersion: number;
+    expectedJobHash: string;
+    idempotencyKey: string;
+  }) {
+    return this.database.transaction(async (db) => {
+      const runtime = await db.query<RuntimeRow>(
+        "SELECT * FROM job_runtime_state WHERE job_id=$1 FOR UPDATE",
+        [input.jobId]
+      );
+      const row = runtime.rows[0];
+      if (
+        !row
+        || row.runtime_state !== "claimed"
+        || row.version !== input.expectedJobVersion
+        || row.state_hash !== input.expectedJobHash
+      ) {
+        throw new ControlPlaneError(
+          "CONFLICT",
+          "Job uncertainty transition lost its claimed runtime compare-and-swap"
+        );
+      }
+      if (!input.reason.trim()) {
+        throw new ControlPlaneError("VALIDATION_FAILED", "Job uncertainty reason is required");
+      }
+
+      const nextVersion = row.version + 1;
+      const nextHash = runtimeHash({
+        jobId: row.job_id,
+        envelopeHash: row.envelope_hash,
+        state: "uncertain",
+        version: nextVersion,
+        attempt: row.attempt,
+        scheduledAt: iso(row.scheduled_at)
+      });
+      const receipt = createJobStoreTransactionReceipt({
+        id: crypto.randomUUID(),
+        operation: "uncertain",
+        jobId: row.job_id,
+        idempotencyKey: input.idempotencyKey,
+        expectedVersion: row.version,
+        expectedHash: row.state_hash,
+        nextVersion,
+        nextHash,
+        occurredAt: input.uncertainAt
+      });
+
+      await db.query(
+        `UPDATE job_runtime_state
+         SET runtime_state='uncertain',version=$2,state_hash=$3,updated_at=$4
+         WHERE job_id=$1`,
+        [row.job_id, nextVersion, nextHash, input.uncertainAt]
+      );
+      await closeActiveLease(db, row.job_id);
+      await persistTransaction(db, receipt);
+      await persistOutcomeAndEvent(db, {
+        jobId: row.job_id,
+        correlationId: row.envelope.correlationId,
+        kind: "uncertain",
+        runtimeState: "uncertain",
+        attempt: row.attempt,
+        reason: input.reason,
+        occurredAt: input.uncertainAt,
+        transactionHash: receipt.transactionHash,
+        eventType: "job.verification-uncertain"
       });
       return receipt;
     });
