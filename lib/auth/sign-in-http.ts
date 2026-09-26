@@ -100,10 +100,10 @@ export function handleVerifyPasskeySignIn(request: Request) {
       `${auth.config.cookieName}=${encodeURIComponent(result.token)}`,
       "Path=/",
       "HttpOnly",
-      "Secure",
+      auth.config.secureCookie ? "Secure" : null,
       "SameSite=Strict",
       `Max-Age=${maxAge}`
-    ].join("; ");
+    ].filter(Boolean).join("; ");
     return {
       data: {
         sessionId: result.session.sessionId,
