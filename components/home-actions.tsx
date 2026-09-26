@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { BarChart3, CircleCheckBig, Plus, Server, Zap } from "lucide-react";
+import { BarChart3, CircleCheckBig, Plus, Server, ShieldCheck, Zap } from "lucide-react";
 import { useState } from "react";
 
 export function HomeActions() {
@@ -21,6 +21,9 @@ export function HomeActions() {
       </Link>
       <Link href="/decisions" className="quick-action">
         <CircleCheckBig size={22} /><span>Check my decisions</span>
+      </Link>
+      <Link href="/operations/production-acceptance" className="quick-action">
+        <ShieldCheck size={22} /><span>Production acceptance</span>
       </Link>
       <button type="button" className="quick-action" onClick={() => setNote("Use the message box below. Messages stay local in this visual baseline.") }>
         <Plus size={22} /><span>Tell me / Ask anything</span>
