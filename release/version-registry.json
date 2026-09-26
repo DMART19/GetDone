@@ -1,6 +1,6 @@
 {
   "registrySchemaVersion": "1.6.0",
-  "registryVersion": "2026-09-24.5",
+  "registryVersion": "2026-09-26.1",
   "appVersion": "0.1.0",
   "schemaVersions": {
     "controlApi": {
@@ -284,6 +284,10 @@
         "lib/execution/adapters/analytics-ingestion.ts",
         "lib/persistence/postgres/analytics-ingestion-store.ts"
       ]
+    },
+    "outcomeReconciliation": {
+      "version": "1.0.0",
+      "sourcePath": "lib/execution/outcome-reconciliation.ts"
     }
   },
   "policy": {
@@ -457,6 +461,11 @@
         "lib/execution/adapters/analytics-ingestion.ts",
         "lib/persistence/postgres/analytics-ingestion-store.ts"
       ]
+    },
+    "gitSoftwareWorker": {
+      "status": "implemented-unconfigured",
+      "version": "1.0.0",
+      "sourcePath": "lib/execution/git-software-worker-tooling.server.ts"
     }
   },
   "environmentManifestPath": "release/environment-manifest.json",
@@ -629,7 +638,9 @@
     "lib/analytics/ingestion.ts",
     "lib/analytics/analytics-ingestion-postgres.integration.test.ts",
     "lib/persistence/postgres/analytics-ingestion-store.ts",
-    "migrations/2026-09-25.3_analytics_ingestion.sql"
+    "migrations/2026-09-25.3_analytics_ingestion.sql",
+    "lib/execution/outcome-reconciliation.test.ts",
+    "lib/execution/git-software-worker-tooling.server.test.ts"
   ],
   "manualSourcePaths": [
     "docs/ARCHITECTURE.md",
@@ -711,7 +722,9 @@
       "lib/execution/adapters/github-standard-operation.ts",
       "lib/execution/adapters/analytics-ingestion.ts",
       "lib/analytics/ingestion.ts",
-      "lib/persistence/postgres/analytics-ingestion-store.ts"
+      "lib/persistence/postgres/analytics-ingestion-store.ts",
+      "lib/execution/outcome-reconciliation.ts",
+      "lib/execution/git-software-worker-tooling.server.ts"
     ],
     "jobExecutionBridgeContractVersion": "1.0.0",
     "jobExecutionBridgeStatus": "deterministic-contract",
@@ -726,7 +739,11 @@
     "jobExecutionBridgeStoreImplementationStatus": "implemented-unconnected",
     "persistenceBackend": "postgresql",
     "persistentWorkerServiceStatus": "implemented-unconnected",
-    "persistentWorkerServiceVersion": "1.0.0"
+    "persistentWorkerServiceVersion": "1.0.0",
+    "outcomeReconciliationStatus": "implemented",
+    "outcomeReconciliationVersion": "1.0.0",
+    "gitSoftwareWorkerAdapterStatus": "implemented-unconfigured",
+    "gitSoftwareWorkerAdapterVersion": "1.0.0"
   },
   "resourceFabric": {
     "storageFabricContractVersion": "1.1.0",
