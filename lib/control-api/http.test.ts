@@ -3,6 +3,12 @@ import type { ControlApiApplicationAdapter, ControlApiPrincipal } from "@/lib/co
 import {
   handleControlHealth,
   handleAIGatewayHealth,
+  handleListIntegrationProviders,
+  handleListIntegrations,
+  handleGetIntegration,
+  handleCreateIntegration,
+  handleUpdateIntegration,
+  handleControlIntegration,
   handleDiscoverResource,
   handleAdvanceResourceEnrollment,
   handleGetDecision,
@@ -104,6 +110,40 @@ const enrollment = {
   updatedAt: "2026-09-21T04:00:00Z"
 };
 
+const managedIntegration = {
+  id: "calendar-a",
+  portfolioId: "portfolio-a",
+  companyId: "company-a",
+  environment: "development" as const,
+  providerId: "calendar",
+  kind: "calendar" as const,
+  displayName: "Calendar",
+  adapterId: "calendar-scheduling",
+  adapterVersion: "1.0.0",
+  credentialBindingId: "binding-calendar-a",
+  capabilityNames: ["calendar.event.read"],
+  requestedScopes: ["calendar.read"],
+  grantedScopes: [],
+  state: "configured" as const,
+  health: "unverified" as const,
+  createdAt: "2026-09-25T20:00:00Z",
+  updatedAt: "2026-09-25T20:00:00Z",
+  recordHash: "a".repeat(64)
+};
+
+const providerCatalog = [{
+  id: "calendar",
+  kind: "calendar" as const,
+  displayName: "Calendar",
+  adapterId: "calendar-scheduling",
+  adapterVersion: "1.0.0",
+  capabilities: ["calendar.event.read", "calendar.event.create"],
+  requiredScopes: {
+    "calendar.event.read": ["calendar.read"],
+    "calendar.event.create": ["calendar.write", "calendar.read"]
+  }
+}];
+
 const verification = {
   id: "verification-1",
   portfolioId: "portfolio-a",
@@ -168,6 +208,32 @@ function fakeAdapter(): ControlApiApplicationAdapter {
       ...decision,
       status: input.action === "approve" ? "approved" : input.action === "modify" ? "modified" : "rejected",
       version: 2
+    }),
+    listIntegrationProviders: async () => providerCatalog,
+    listIntegrations: async () => [managedIntegration],
+    getIntegration: async (_principal, id) => id === managedIntegration.id ? managedIntegration : null,
+    createIntegration: async (_principal, input) => ({
+      ...managedIntegration,
+      id: input.id,
+      providerId: input.providerId,
+      displayName: input.displayName,
+      credentialBindingId: input.credentialBindingId,
+      capabilityNames: input.capabilityNames
+    }),
+    updateIntegration: async (_principal, id, input) => ({
+      ...managedIntegration,
+      id,
+      displayName: input.displayName ?? managedIntegration.displayName,
+      credentialBindingId: input.credentialBindingId === null
+        ? undefined
+        : input.credentialBindingId ?? managedIntegration.credentialBindingId,
+      capabilityNames: input.capabilityNames ?? managedIntegration.capabilityNames
+    }),
+    controlIntegration: async (_principal, id, action) => ({
+      ...managedIntegration,
+      id,
+      state: action === "revoke" ? "revoked" as const : "disabled" as const,
+      health: action === "revoke" ? "revoked" as const : "disabled" as const
     }),
     listResources: async () => [resource],
     getResource: async (_principal, id) => id === resource.id ? resource : null,
@@ -435,6 +501,104 @@ describe("Control API HTTP surface", () => {
       "decision-1"
     );
     expect(await json(approved)).toMatchObject({ ok: true, data: { status: "approved" } });
+  });
+
+  it("exposes owner-safe integration configuration without accepting raw credentials", async () => {
+    const providers = await handleListIntegrationProviders(
+      new Request("http://localhost/api/control/integrations/providers")
+    );
+    expect(await json(providers)).toMatchObject({
+      ok: true,
+      data: [{ id: "calendar", adapterId: "calendar-scheduling" }]
+    });
+
+    const list = await handleListIntegrations(
+      new Request("http://localhost/api/control/integrations")
+    );
+    expect(await json(list)).toMatchObject({
+      ok: true,
+      data: [{ id: "calendar-a", health: "unverified" }]
+    });
+
+    const get = await handleGetIntegration(
+      new Request("http://localhost/api/control/integrations/calendar-a"),
+      "calendar-a"
+    );
+    expect(await json(get)).toMatchObject({ ok: true, data: { id: "calendar-a" } });
+
+    const created = await handleCreateIntegration(new Request(
+      "http://localhost/api/control/integrations",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "idempotency-key": "integration-create-1"
+        },
+        body: JSON.stringify({
+          id: "calendar-b",
+          providerId: "calendar",
+          displayName: "Ops Calendar",
+          credentialBindingId: "binding-calendar-b",
+          capabilityNames: ["calendar.event.read"]
+        })
+      }
+    ));
+    expect(created.status).toBe(201);
+    expect(await json(created)).toMatchObject({
+      ok: true,
+      data: { id: "calendar-b", credentialBindingId: "binding-calendar-b" }
+    });
+
+    const rawSecret = await handleCreateIntegration(new Request(
+      "http://localhost/api/control/integrations",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "idempotency-key": "integration-create-secret"
+        },
+        body: JSON.stringify({
+          id: "calendar-secret",
+          providerId: "calendar",
+          displayName: "Unsafe",
+          capabilityNames: ["calendar.event.read"],
+          token: "ghp_" + "x".repeat(30)
+        })
+      }
+    ));
+    expect(rawSecret.status).toBe(400);
+
+    const updated = await handleUpdateIntegration(
+      new Request("http://localhost/api/control/integrations/calendar-a", {
+        method: "PATCH",
+        headers: {
+          "content-type": "application/json",
+          "idempotency-key": "integration-update-1"
+        },
+        body: JSON.stringify({ displayName: "Primary Calendar" })
+      }),
+      "calendar-a"
+    );
+    expect(await json(updated)).toMatchObject({
+      ok: true,
+      data: { displayName: "Primary Calendar" }
+    });
+
+    const disabled = await handleControlIntegration(
+      new Request("http://localhost/api/control/integrations/calendar-a/actions", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "idempotency-key": "integration-disable-1"
+        },
+        body: JSON.stringify({ action: "disable" })
+      }),
+      "calendar-a"
+    );
+    expect(await json(disabled)).toMatchObject({
+      ok: true,
+      data: { state: "disabled", health: "disabled" }
+    });
   });
 
   it("exposes Resource enrollment through the adapter instead of route-local persistence", async () => {
