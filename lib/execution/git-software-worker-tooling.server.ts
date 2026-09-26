@@ -79,7 +79,7 @@ export class NodeGitCommandRunner implements GitCommandRunner {
         encoding: "utf8",
         maxBuffer: 8 * 1024 * 1024
       });
-      return { stdout: result.stdout ?? "", stderr: result.stderr ?? "", exitCode: 0 };
+      return { stdout: String(result.stdout ?? ""), stderr: String(result.stderr ?? ""), exitCode: 0 };
     } catch (error) {
       const failure = error as { stdout?: string; stderr?: string; code?: number };
       return {
@@ -238,7 +238,7 @@ export class GitHubGitSoftwareWorkerTooling implements SoftwareWorkerTooling {
         maxBuffer: 8 * 1024 * 1024,
         env: { ...process.env }
       });
-      return { stdout: result.stdout ?? "", stderr: result.stderr ?? "" };
+      return { stdout: String(result.stdout ?? ""), stderr: String(result.stderr ?? "") };
     } catch (error) {
       const failure = error as { stdout?: string; stderr?: string };
       throw new ControlPlaneError("FORBIDDEN", "Software quality command failed", {
