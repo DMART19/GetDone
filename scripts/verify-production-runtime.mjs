@@ -483,11 +483,9 @@ function validateIntegrations() {
     if (!env[name]?.trim()) continue;
     configured += validateIntegrationArray(name, type);
   }
+
   if (configured === 0) {
-    fail(
-      "INTEGRATION_CONFIG",
-      "At least one governed ordinary production integration must be configured"
-    );
+    return "disabled";
   }
 
   if (brokeredCredentialIntegrations > 0) {
@@ -495,6 +493,8 @@ function validateIntegrations() {
     if (deliveryUrl) assertHttpsUrl(deliveryUrl, "GETDONE_CREDENTIAL_DELIVERY_URL");
     assertSecret("GETDONE_CREDENTIAL_BROKER_TOKEN", 32);
   }
+
+  return "configured";
 }
 
 function printFailureAndExit() {
@@ -511,8 +511,18 @@ validateProhibitedSettings();
 validateDatabaseConfiguration();
 validateWebAuthn();
 validateWorkerConfiguration();
-validateAiRouting();
-validateIntegrations();
+
+const aiConfigured = [
+  env.OPENROUTER_API_KEY,
+  env.GETDONE_AI_MODEL_PROFILES_JSON,
+  env.GETDONE_AI_ROUTING_POLICY_JSON,
+  env.OPENROUTER_CANARY_MODEL
+].some((value) => value?.trim()) || env.OPENROUTER_CANARY_ENABLED === "true";
+if (aiConfigured) {
+  validateAiRouting();
+}
+
+const integrationsStatus = validateIntegrations();
 validateObservability();
 
 if (failures.length > 0) {
@@ -561,8 +571,8 @@ console.log(JSON.stringify({
   database,
   webAuthn: "configured",
   workerAuthentication: "configured",
-  aiRouting: "configured",
-  integrations: "configured",
+  aiRouting: aiConfigured ? "configured" : "disabled",
+  integrations: integrationsStatus,
   observability: "configured",
   developmentSettings: "prohibited"
 }, null, 2));
