@@ -4,7 +4,7 @@ import {
   readPostgresConfigFromEnv
 } from "@/lib/persistence/postgres/client";
 
-export const REQUIRED_POSTGRES_MIGRATION = "2026-09-24.1";
+export const REQUIRED_POSTGRES_MIGRATION = "2026-09-24.2";
 
 export const REQUIRED_POSTGRES_RELATIONS = Object.freeze([
   "getdone_schema_migrations",
@@ -46,7 +46,8 @@ export const REQUIRED_POSTGRES_RELATIONS = Object.freeze([
   "business_action_verification_evidence",
   "provider_concurrency_leases",
   "credential_leases",
-  "credential_usage_audits"
+  "credential_usage_audits",
+  "rate_limit_buckets"
 ] as const);
 
 export const REQUIRED_POSTGRES_INDEXES = Object.freeze([
@@ -61,7 +62,8 @@ export const REQUIRED_POSTGRES_INDEXES = Object.freeze([
   "provider_concurrency_leases_active_idx",
   "credential_leases_scope_idx",
   "credential_leases_job_idx",
-  "credential_usage_audits_lease_idx"
+  "credential_usage_audits_lease_idx",
+  "rate_limit_buckets_expiry_idx"
 ] as const);
 
 export const REQUIRED_POSTGRES_RLS_RELATIONS = Object.freeze([

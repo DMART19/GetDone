@@ -306,9 +306,10 @@ describeIntegration("production auth + WebAuthn persistence", () => {
       challenge.challengeId,
       assertionFor(challenge, credentialId, passkey.privateKey, await nextCounter())
     );
-    expect(elevated.stepUpAuthenticatedAt).toBeTruthy();
+    expect(elevated.session.stepUpAuthenticatedAt).toBeTruthy();
+    authToken = elevated.rotatedSessionToken;
 
-    const after = await adapter.authenticate(req);
+    const after = await adapter.authenticate(request(authToken));
     expect(after.stepUpProof).toBeTruthy();
     const approved = await adapter.mutateDecision(after, {
       decisionId: "decision-strong",
@@ -320,7 +321,8 @@ describeIntegration("production auth + WebAuthn persistence", () => {
 
   it("rejects replayed, expired, and stolen step-up challenges", async () => {
     const adapter = createPostgresControlApiAdapter(process.env);
-    const req = request(authToken);
+    let currentToken = authToken;
+    let req = request(currentToken);
 
     const replay = await adapter.beginStepUp(req);
     const replayAssertion = assertionFor(
@@ -329,7 +331,11 @@ describeIntegration("production auth + WebAuthn persistence", () => {
       passkey.privateKey,
       await nextCounter()
     );
-    await adapter.verifyStepUp(req, replay.challengeId, replayAssertion);
+    const rotated = await adapter.verifyStepUp(req, replay.challengeId, replayAssertion);
+    currentToken = rotated.rotatedSessionToken;
+    authToken = currentToken;
+    req = request(currentToken);
+
     await expect(adapter.verifyStepUp(req, replay.challengeId, replayAssertion))
       .rejects.toThrow(/invalid or expired|already consumed/i);
 
