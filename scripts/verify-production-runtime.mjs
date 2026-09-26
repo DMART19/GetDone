@@ -220,6 +220,43 @@ function validateIntegrationArray(name, type) {
           fail("INVALID_INTEGRATION_CONFIG", `${label}.maxResponseBytes is invalid`);
         }
       }
+      if (type === "calendar") {
+        if (typeof entry.baseUrl !== "string") {
+          fail("INVALID_INTEGRATION_CONFIG", `${label}.baseUrl is required`);
+        }
+        if (
+          typeof entry.calendarPath !== "string"
+          || !entry.calendarPath.includes("{calendarId}")
+        ) {
+          fail("INVALID_INTEGRATION_CONFIG", `${label}.calendarPath requires {calendarId}`);
+        }
+        if (
+          typeof entry.eventPath !== "string"
+          || !entry.eventPath.includes("{calendarId}")
+          || !entry.eventPath.includes("{eventId}")
+        ) {
+          fail("INVALID_INTEGRATION_CONFIG", `${label}.eventPath requires {calendarId} and {eventId}`);
+        }
+        if (
+          entry.conflictCheckPath !== undefined
+          && (
+            typeof entry.conflictCheckPath !== "string"
+            || !entry.conflictCheckPath.includes("{calendarId}")
+          )
+        ) {
+          fail("INVALID_INTEGRATION_CONFIG", `${label}.conflictCheckPath requires {calendarId}`);
+        }
+        if (
+          entry.maxResponseBytes !== undefined
+          && (
+            !Number.isInteger(entry.maxResponseBytes)
+            || entry.maxResponseBytes < 1
+            || entry.maxResponseBytes > 1_000_000
+          )
+        ) {
+          fail("INVALID_INTEGRATION_CONFIG", `${label}.maxResponseBytes is invalid`);
+        }
+      }
     }
 
     if (entry.credentialProviderId !== undefined) {
@@ -556,7 +593,8 @@ function validateIntegrations() {
     ["GETDONE_SLACK_ACTIONS_JSON", "slack"],
     ["GETDONE_CRM_ACTIONS_JSON", "crm"],
     ["GETDONE_GITHUB_ACTIONS_JSON", "github"],
-    ["GETDONE_ANALYTICS_SOURCES_JSON", "analytics"]
+    ["GETDONE_ANALYTICS_SOURCES_JSON", "analytics"],
+    ["GETDONE_CALENDAR_ACTIONS_JSON", "calendar"]
   ];
 
   let configured = 0;
