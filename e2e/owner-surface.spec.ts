@@ -4,7 +4,8 @@ test.describe("existing owner surface", () => {
   test("primary Chat / Decisions / Resources navigation stays usable", async ({ page }) => {
     await page.goto("/");
 
-    await expect(page.getByRole("heading", { name: /How can I/i })).toBeVisible();\n    await expect(page.getByRole("link", { name: "Production acceptance" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /How can I/i })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Production acceptance" })).toBeVisible();
     const nav = page.getByRole("navigation", { name: "Primary navigation" });
     await expect(nav.getByRole("link", { name: "Chat" })).toBeVisible();
     await expect(nav.getByRole("link", { name: "Decisions" })).toBeVisible();
