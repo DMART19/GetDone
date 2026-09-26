@@ -127,6 +127,7 @@ describe("ordinary integration governed Job pipeline exit gate", () => {
         : new Response('{"id":"contact-1","properties":{"email":"owner@example.com"}}', { status: 200 }),
       now
     });
+    let calendarEventId = "";
     const calendar = new CalendarSchedulingAdapter([{
       id: "calendar-primary",
       companyId: "company-a",
@@ -140,7 +141,7 @@ describe("ordinary integration governed Job pipeline exit gate", () => {
     }], {
       fetchImpl: async (_url, init) => {
         const event = {
-          id: "gd-calendar-pipeline",
+          id: calendarEventId || "gd-calendar-pipeline",
           etag: "\"v1\"",
           status: "confirmed",
           summary: "Pipeline review",
@@ -150,6 +151,7 @@ describe("ordinary integration governed Job pipeline exit gate", () => {
         };
         if (init?.method === "POST") {
           const body = JSON.parse(String(init.body)) as { id: string };
+          calendarEventId = body.id;
           event.id = body.id;
         }
         return new Response(JSON.stringify(event), { status: init?.method === "POST" ? 201 : 200 });
