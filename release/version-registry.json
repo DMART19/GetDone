@@ -657,7 +657,15 @@
     "lib/persistence/postgres/integration-configuration-store.ts",
     "components/integration-manager.tsx",
     "app/resources/integrations/page.tsx",
-    "migrations/2026-09-25.4_integration_configuration.sql"
+    "migrations/2026-09-25.4_integration_configuration.sql",
+    "lib/integrations/configuration.test.ts",
+    "lib/integrations/configuration-http.test.ts",
+    "lib/integrations/integration-configuration-postgres.integration.test.ts",
+    "lib/execution/adapters/integration-config-gate.ts",
+    "app/api/control/integrations/route.ts",
+    "app/api/control/integrations/[id]/route.ts",
+    "app/api/control/integrations/[id]/actions/route.ts",
+    "app/api/control/integration-providers/route.ts"
   ],
   "manualSourcePaths": [
     "docs/ARCHITECTURE.md",
