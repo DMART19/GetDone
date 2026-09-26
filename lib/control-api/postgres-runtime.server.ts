@@ -114,6 +114,15 @@ export function createPostgresControlApiAdapter(
     health: async () => {
       const health = await runtime.health();
       const schemaReady = health.connected && health.schemaCurrent;
+      const databaseSafetyReady =
+        health.connected
+        && health.inspectionSucceeded
+        && health.schemaCurrent
+        && health.requiredRelationsPresent
+        && health.requiredIndexesPresent
+        && health.tenantRlsProtected
+        && health.databaseRoleRlsSafe
+        && health.transactionIsolationSerializable;
 
       const requiredRelationsReady = async (relations: readonly string[]) => {
         if (!schemaReady) return false;
@@ -158,7 +167,7 @@ export function createPostgresControlApiAdapter(
           ])
         ]);
 
-      const persistenceConnected = schemaReady && coreRelationsReady;
+      const persistenceConnected = databaseSafetyReady && coreRelationsReady;
       const authConnected = persistenceConnected && authRelationsReady;
       const durableJobStoreConnected = persistenceConnected && durableRelationsReady;
 
@@ -167,7 +176,7 @@ export function createPostgresControlApiAdapter(
         surfaceVersion: CONTROL_API_SURFACE_VERSION,
         status: !persistenceConnected || !authConnected
           ? "unavailable"
-          : health.backupFresh
+          : health.backupFresh && durableJobStoreConnected
             ? "ready"
             : "degraded",
         authConnected,
@@ -177,6 +186,11 @@ export function createPostgresControlApiAdapter(
         details: {
           schemaCurrent: health.schemaCurrent,
           latestMigration: health.latestMigration ?? null,
+          requiredRelationsPresent: health.requiredRelationsPresent,
+          requiredIndexesPresent: health.requiredIndexesPresent,
+          tenantRlsProtected: health.tenantRlsProtected,
+          databaseRoleRlsSafe: health.databaseRoleRlsSafe,
+          transactionIsolationSerializable: health.transactionIsolationSerializable,
           backupFresh: health.backupFresh,
           latestVerifiedBackupAt: health.latestVerifiedBackupAt ?? null,
           coreRelationsReady,
