@@ -21,7 +21,7 @@ function ipv4Parts(address: string) {
 }
 
 export function isForbiddenProviderAddress(address: string) {
-  const normalized = address.toLowerCase().split("%", 1)[0];
+  const normalized = address.toLowerCase().replace(/^\[/, "").replace(/\]$/, "").split("%", 1)[0];
   const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/.exec(normalized);
   if (mapped) return isForbiddenProviderAddress(mapped[1]);
 
@@ -70,6 +70,7 @@ export function assertSafeConfiguredProviderUrl(
   }
 
   const hostname = url.hostname.toLowerCase();
+  const addressHostname = hostname.replace(/^\[/, "").replace(/\]$/, "");
   const insecureLoopback = options.allowInsecureLoopbackDevelopment === true
     && url.protocol === "http:"
     && ["127.0.0.1", "localhost", "::1", "[::1]"].includes(hostname);
@@ -84,7 +85,7 @@ export function assertSafeConfiguredProviderUrl(
     ) {
       throw new ControlPlaneError("VALIDATION_FAILED", `${label} targets a forbidden local/metadata host`);
     }
-    if (isIP(hostname) && isForbiddenProviderAddress(hostname)) {
+    if (isIP(addressHostname) && isForbiddenProviderAddress(addressHostname)) {
       throw new ControlPlaneError("VALIDATION_FAILED", `${label} targets a private or reserved address`);
     }
   }
@@ -92,7 +93,8 @@ export function assertSafeConfiguredProviderUrl(
 }
 
 export const systemProviderHostnameResolver: ProviderHostnameResolver = async (hostname) => {
-  if (isIP(hostname)) return [hostname];
+  const addressHostname = hostname.replace(/^\[/, "").replace(/\]$/, "");
+  if (isIP(addressHostname)) return [addressHostname];
   const addresses = await lookup(hostname, { all: true, verbatim: true });
   return addresses.map((entry) => entry.address);
 };
