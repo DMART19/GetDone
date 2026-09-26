@@ -4,6 +4,7 @@ import { PwaRuntime } from "@/components/pwa-runtime";
 import "./globals.css";
 import "./ufo-fidelity.css";
 import "./ufo-states.css";
+import "./ufo-screenshot.css";
 
 export const metadata: Metadata = {
   title: "GetDone UFO v2",

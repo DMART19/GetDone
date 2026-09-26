@@ -1,19 +1,30 @@
 import { AppHeader } from "@/components/app-header";
 import { AppShell } from "@/components/app-shell";
-import { ChatComposer } from "@/components/chat-composer";
-import { DevelopmentBadge } from "@/components/dev-badge";
-import { HomeActions } from "@/components/home-actions";
+import { HomeDashboard } from "@/components/home-dashboard";
+import { getOwnerReadRepository } from "@/lib/data/runtime-repository.server";
 
-export default function HomePage() {
+export const dynamic = "force-dynamic";
+
+export default async function HomePage() {
+  const repository = await getOwnerReadRepository();
+  const [decisions, resources] = await Promise.all([
+    repository.listDecisions(),
+    repository.listResources()
+  ]);
+  const pending = decisions.filter((decision) => decision.status === "pending");
+  const attentionCount = pending.filter((decision) => decision.priority === "high").length;
+  const healthy = resources.every(
+    (resource) => resource.health !== "degraded" && resource.health !== "offline"
+  );
+
   return (
     <AppShell>
       <AppHeader />
-      <DevelopmentBadge />
-      <section className="home-content">
-        <h1>How can I<br />move things forward<br />today?</h1>
-        <HomeActions />
-      </section>
-      <ChatComposer />
+      <HomeDashboard
+        attentionCount={attentionCount}
+        resourceCount={resources.length}
+        healthy={healthy}
+      />
     </AppShell>
   );
 }

@@ -1,7 +1,6 @@
 import { AppHeader } from "@/components/app-header";
 import { AppShell } from "@/components/app-shell";
-import { DecisionFilters } from "@/components/decision-filters";
-import { DevelopmentBadge } from "@/components/dev-badge";
+import { DecisionSpotlight } from "@/components/decision-spotlight";
 import { getOwnerReadRepository } from "@/lib/data/runtime-repository.server";
 
 export const dynamic = "force-dynamic";
@@ -9,20 +8,19 @@ export const dynamic = "force-dynamic";
 export default async function DecisionsPage() {
   const repository = await getOwnerReadRepository();
   const decisions = await repository.listDecisions();
-  const attention = decisions.filter((decision) => decision.priority === "high" && decision.status === "pending").length;
+  const attention = decisions.filter(
+    (decision) => decision.priority === "high" && decision.status === "pending"
+  ).length;
 
   return (
     <AppShell>
       <AppHeader />
-      <DevelopmentBadge />
-      <section className="page-content">
-        <div className="title-row">
-          <div>
-            <h1>Decisions <span className="decision-count">{attention}</span></h1>
-            <p>Your input keeps everything moving.</p>
-          </div>
+      <section className="ufo-page ufo-decisions-page">
+        <div className="ufo-page-title">
+          <h1>Decisions {attention > 0 ? <span>{attention}</span> : null}</h1>
+          <p>Only what needs your attention.</p>
         </div>
-        <DecisionFilters decisions={[...decisions]} />
+        <DecisionSpotlight decisions={[...decisions]} />
       </section>
     </AppShell>
   );

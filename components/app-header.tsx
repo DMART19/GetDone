@@ -1,5 +1,4 @@
 import { Menu } from "lucide-react";
-import { Brand } from "@/components/brand";
 
 export function AppHeader() {
   return (
@@ -7,7 +6,7 @@ export function AppHeader() {
       <button className="icon-button" aria-label="Open menu" type="button">
         <Menu size={24} strokeWidth={1.8} />
       </button>
-      <Brand compact />
+      <span aria-hidden="true" />
       <div className="avatar" aria-label="Owner profile">D</div>
     </header>
   );
