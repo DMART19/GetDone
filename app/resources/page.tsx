@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Plus, ShieldAlert } from "lucide-react";
+import { Plus, ShieldAlert, PlugZap } from "lucide-react";
 import { AppHeader } from "@/components/app-header";
 import { AppShell } from "@/components/app-shell";
 import { DevelopmentBadge } from "@/components/dev-badge";
@@ -33,6 +33,13 @@ export default async function ResourcesPage() {
           <article className="summary-card"><span>Savings (Owned)</span><strong>{resourceSummary.ownedSavings}</strong><small>vs. variable cloud</small></article>
         </div>
         <ResourceFilters resources={[...resources]} />
+        <Link href="/integrations" className="integration-entry">
+          <PlugZap size={18} />
+          <span>
+            <strong>Integrations</strong>
+            <small>Configure provider capabilities, verification health, and revoke/disable controls</small>
+          </span>
+        </Link>
         <Link href="/operations/dead-letters" className="dead-letter-entry">
           <ShieldAlert size={18} />
           <span>
