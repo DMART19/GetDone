@@ -191,10 +191,70 @@ describe("RoutedJobExecutionHandler", () => {
     );
     await expect(cancelledHandler.execute(context)).resolves.toEqual({
       kind: "cancelled",
-      reason: "Authoritative Job was cancelled before execution"
+      reason: "Authoritative Job was locally cancelled before this execution attempt; no provider call was made by this attempt"
     });
 
     expect(executions).toBe(0);
+  });
+
+  it("routes exhausted provider reconciliation to terminal uncertainty", async () => {
+    const specs = new MemorySpecStore();
+    const payload = { message: "hello" };
+    specs.value = createPersistedJobExecutionSpec({
+      kind: "business-action",
+      jobId: "job-1",
+      authoritativeJobVersion: authoritativeJob.version,
+      authoritativeJobHash: sha256Hex(authoritativeJob),
+      request: {
+        id: "action-uncertain",
+        jobId: "job-1",
+        scope: envelope.scope,
+        capability: "email.send",
+        input: payload,
+        inputHash: sha256Hex(payload),
+        authorizationConsumptionHash: "auth",
+        idempotencyKey: "action-uncertain",
+        timeoutMs: 1000,
+        attempt: 1
+      }
+    }, "2026-09-21T04:00:00Z");
+
+    const evidence = createVerificationEvidence({
+      id: "evidence-uncertain",
+      portfolioId: "portfolio",
+      companyId: "company",
+      subject: { type: "job", id: "job-1" },
+      strategy: "business",
+      result: "unknown",
+      sourceType: "provider",
+      sourceId: "provider:operation-uncertain",
+      independenceKey: "operation-uncertain",
+      observedAt: "2026-09-21T04:00:05Z",
+      payloadHash: "payload-hash",
+      provenance: "reconciliation-timeout"
+    });
+    const business = {
+      execute: async () => ({
+        record: {
+          state: "uncertain",
+          retryable: false,
+          uncertaintyReason: "provider verification deadline exceeded"
+        },
+        verificationEvidence: evidence
+      })
+    };
+    const auth = authority();
+    const handler = new RoutedJobExecutionHandler(
+      specs,
+      business as never,
+      undefined,
+      auth.value as never
+    );
+    expect(await handler.execute(context)).toEqual({
+      kind: "uncertain",
+      reason: "provider verification deadline exceeded"
+    });
+    expect(auth.persisted).toEqual([evidence]);
   });
 
   it("rejects tampered persisted execution specs", async () => {
