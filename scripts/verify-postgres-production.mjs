@@ -104,7 +104,10 @@ try {
     "audit_chain_heads",
     "analytics_ingestion_checkpoints",
     "analytics_ingestion_evidence",
-    "analytics_ingestion_runs"
+    "analytics_ingestion_runs",
+    "integration_configurations",
+    "integration_verification_evidence",
+    "integration_configuration_idempotency"
   ];
   const rls = await client.query(
     `SELECT required.name, relation.relrowsecurity, relation.relforcerowsecurity
