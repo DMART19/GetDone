@@ -236,7 +236,8 @@ export class SlackBusinessActionAdapter implements BusinessActionAdapter {
           ...(input.threadTs ? { thread_ts: input.threadTs } : {}),
           client_msg_id: deterministicSlackClientMessageId(request.idempotencyKey)
         }),
-        signal: AbortSignal.timeout(request.timeoutMs)
+        signal: AbortSignal.timeout(request.timeoutMs),
+        redirect: "manual"
       });
     } catch {
       return createBusinessActionAdapterResult({
@@ -360,7 +361,8 @@ export class SlackBusinessActionAdapter implements BusinessActionAdapter {
       response = await this.fetchImpl(url, {
         method: "GET",
         headers: { authorization: `Bearer ${credential}` },
-        signal: AbortSignal.timeout(30_000)
+        signal: AbortSignal.timeout(30_000),
+        redirect: "manual"
       });
     } catch {
       return createBusinessActionStatus({
@@ -433,7 +435,8 @@ export class SlackBusinessActionAdapter implements BusinessActionAdapter {
           "content-type": "application/json; charset=utf-8"
         },
         body: JSON.stringify({ channel: channelId, ts: messageTs }),
-        signal: AbortSignal.timeout(30_000)
+        signal: AbortSignal.timeout(30_000),
+        redirect: "manual"
       });
       if (response.ok) {
         const raw = await readBoundedJson(response, configuration.maxResponseBytes);
