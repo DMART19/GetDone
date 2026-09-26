@@ -91,7 +91,7 @@ export function createAnalyticsEvidenceRecord(input:{
   const provenance:AnalyticsProvenance={
     sourceId:input.sourceId,
     sourceUrlHash:input.sourceUrlHash,
-    cursorHash:input.cursor ? sha256Hex(input.cursor) : undefined,
+    ...(input.cursor ? {cursorHash:sha256Hex(input.cursor)} : {}),
     providerBatchHash:input.providerBatchHash
   };
   const base={
