@@ -39,7 +39,7 @@ export function buildServiceHealth(input: {
   const coreReady =
     authoritativeControlPlane
     && input.controlApi.durableJobStoreConnected
-    && input.controlApi.status !== "unavailable";
+    && input.controlApi.status === "ready";
 
   return {
     service: "getdone-web",
