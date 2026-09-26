@@ -123,6 +123,68 @@ suite("PostgreSQL analytics ingestion persistence",()=>{
     expect(count.rows[0]?.count).toBe(2);
   });
 
+  it("serializes concurrent first-page writers so only one cursor can advance",async()=>{
+    const raceSource="analytics-source-race";
+    await db().query(
+      "DELETE FROM analytics_ingestion_runs WHERE company_id=$1 AND source_id=$2",
+      [scope.companyId,raceSource]
+    );
+    await db().query(
+      "DELETE FROM analytics_ingestion_evidence WHERE company_id=$1 AND source_id=$2",
+      [scope.companyId,raceSource]
+    );
+    await db().query(
+      "DELETE FROM analytics_ingestion_checkpoints WHERE company_id=$1 AND source_id=$2",
+      [scope.companyId,raceSource]
+    );
+
+    const makeResult=(requestId:string,cursor:string)=>({
+      requestId,
+      inputHash:sha256Hex({requestId}),
+      scope,
+      sourceId:raceSource,
+      result:{
+        sourceId:raceSource,
+        nextCursor:cursor,
+        records:[createAnalyticsEvidenceRecord({
+          scope,
+          sourceId:raceSource,
+          sourceUrlHash:"8".repeat(64),
+          providerBatchHash:sha256Hex({requestId}),
+          externalId:requestId,
+          sourceUpdatedAt:"2026-09-25T20:00:00.000Z",
+          observedAt:"2026-09-25T20:05:00.000Z",
+          fresh:true,
+          payload:{requestId}
+        })],
+        batchHash:sha256Hex({requestId,cursor}),
+        observedAt:"2026-09-25T20:05:00.000Z"
+      }
+    });
+
+    const a=new PostgresAnalyticsIngestionStore(db());
+    const b=new PostgresAnalyticsIngestionStore(db());
+    const settled=await Promise.allSettled([
+      a.commitPage(makeResult("race-a","cursor-a")),
+      b.commitPage(makeResult("race-b","cursor-b"))
+    ]);
+    expect(settled.filter((item)=>item.status==="fulfilled")).toHaveLength(1);
+    expect(settled.filter((item)=>item.status==="rejected")).toHaveLength(1);
+    const rejected=settled.find((item)=>item.status==="rejected");
+    expect(rejected && rejected.status==="rejected" ? rejected.reason : null)
+      .toMatchObject({code:"CONFLICT"});
+    const checkpoint=await a.getCheckpoint(scope,raceSource);
+    expect(["cursor-a","cursor-b"]).toContain(checkpoint?.cursor);
+
+    const count=await db().query<{count:number}>(
+      `SELECT COUNT(*)::int AS count
+       FROM analytics_ingestion_evidence
+       WHERE company_id=$1 AND source_id=$2`,
+      [scope.companyId,raceSource]
+    );
+    expect(count.rows[0]?.count).toBe(1);
+  });
+
   it("rejects stale checkpoint writers and request-id input conflicts",async()=>{
     const store=new PostgresAnalyticsIngestionStore(db());
     const checkpoint=await store.getCheckpoint(scope,sourceId);
