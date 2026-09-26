@@ -45,7 +45,10 @@ function action(capability:string,input:unknown):AuthorizedBusinessActionRequest
   };
 }
 
-function context(capability:string,scopes=configuration.writeScopes):BusinessActionExecutionContext{
+function context(
+  capability:string,
+  scopes=[...configuration.writeScopes,...configuration.readScopes]
+):BusinessActionExecutionContext{
   return {
     credential:{
       leaseId:`lease-${capability}`,
