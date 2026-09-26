@@ -119,7 +119,7 @@ function context():BusinessActionExecutionContext{
       providerId:"analytics-provider",
       capability:"analytics.ingest.read",
       grantedScopes:["analytics.events.read"],
-      material:"short-lived-analytics-token",
+      material:"test-token",
       issuedAt:"2026-09-25T20:00:00Z",
       expiresAt:"2099-01-01T00:00:00Z"
     }
@@ -135,7 +135,7 @@ describe("analytics data ingestion adapter",()=>{
       fetchImpl:async(url,init)=>{
         fetches+=1;
         expect(String(url)).toContain("pageSize=100");
-        expect((init?.headers as Record<string,string>).authorization).toBe("Bearer short-lived-analytics-token");
+        expect((init?.headers as Record<string,string>).authorization).toBe("Bearer test-token");
         return new Response(JSON.stringify({
           data:{
             items:[
