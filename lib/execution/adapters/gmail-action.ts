@@ -215,6 +215,7 @@ export class GmailBusinessActionAdapter implements BusinessActionAdapter {
     auditEvidence: "hashed-provider-evidence",
     verificationStrategy: "provider-object-read",
     cancellation: "not-supported",
+    cancellationSemantics: "local-stop-only-after-dispatch",
     tenantEnvironmentBinding: true,
     truthSemantics: "provider-acceptance-is-not-business-truth"
   });
