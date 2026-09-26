@@ -10,6 +10,22 @@ vi.mock("@/lib/persistence/postgres/runtime.server", () => ({
   getPostgresRuntimeFromEnv: vi.fn(() => ({ database: {} }))
 }));
 
+vi.mock("@/lib/security/rate-limit.server", () => ({
+  RATE_LIMIT_POLICIES: {
+    authBegin: { id: "auth.sign-in.begin", limit: 30, windowSeconds: 60 },
+    authVerify: { id: "auth.sign-in.verify", limit: 45, windowSeconds: 60 }
+  },
+  clientNetworkIdentity: vi.fn(() => "test-client"),
+  enforceRateLimit: vi.fn(async () => ({
+    allowed: true,
+    limit: 30,
+    remaining: 29,
+    resetAt: "2099-01-01T00:00:00.000Z",
+    retryAfterSeconds: 60
+  })),
+  rateLimitHeaders: vi.fn(() => ({}))
+}));
+
 vi.mock("@/lib/auth/postgres-sign-in", () => ({
   PostgresPasskeySignInService: class {
     begin(userId: string) {
@@ -31,6 +47,7 @@ function configureEnv() {
   process.env.GETDONE_WEBAUTHN_RP_ID = "getdone.test";
   process.env.GETDONE_WEBAUTHN_ORIGINS = "https://app.getdone.test";
   process.env.GETDONE_AUTH_COOKIE_NAME = "getdone_session";
+  process.env.GETDONE_AUTH_COOKIE_SECURE = "true";
   process.env.GETDONE_STEP_UP_TTL_SECONDS = "300";
   process.env.GETDONE_SIGN_IN_CHALLENGE_TTL_SECONDS = "300";
   process.env.GETDONE_SESSION_TTL_SECONDS = "3600";
@@ -174,6 +191,47 @@ describe("passkey sign-in HTTP handlers", () => {
       userId: "owner-a"
     });
     expect(JSON.stringify(payload)).not.toContain("opaque-session-token");
+  });
+
+  it("can omit Secure only when explicitly configured by the staging harness", async () => {
+    process.env.GETDONE_RUNTIME_ENV = "staging";
+    process.env.GETDONE_WEBAUTHN_RP_ID = "localhost";
+    process.env.GETDONE_WEBAUTHN_ORIGINS = "http://localhost:3200";
+    process.env.GETDONE_AUTH_COOKIE_SECURE = "false";
+    serviceMocks.verify.mockResolvedValue({
+      session: {
+        sessionId: "session-staging",
+        userId: "owner-a",
+        issuedAt: new Date().toISOString(),
+        expiresAt: new Date(Date.now() + 60 * 60_000).toISOString(),
+        authenticatedAt: new Date().toISOString()
+      },
+      token: "staging-session-fixture"
+    });
+
+    const response = await handleVerifyPasskeySignIn(new Request(
+      "http://localhost:3200/api/control/auth/sign-in/verify",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          challengeId: "18d7d41f-90d9-468b-b95d-5e898f3fb392",
+          credential: {
+            id: "Y3JlZC0x",
+            type: "public-key",
+            response: {
+              clientDataJSON: "Y2xpZW50",
+              authenticatorData: "YXV0aA",
+              signature: "c2ln",
+              userHandle: null
+            }
+          }
+        })
+      }
+    ));
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("set-cookie")).not.toContain("Secure");
   });
 
   it("rejects invalid verification payloads before invoking the verifier", async () => {

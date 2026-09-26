@@ -246,9 +246,12 @@ class FakeDatabase implements PostgresTransactionalDatabase {
       return result([value as unknown as R]);
     }
 
-    if (text.includes("INSERT INTO audit_events")) {
+    if (text.includes("getdone_append_audit_event")) {
       this.audits.push(JSON.parse(String(values[7])) as AuditEvent);
-      return result<R>([], 1);
+      return result([{
+        chain_sequence: this.audits.length,
+        event_hash: "a".repeat(64)
+      } as unknown as R]);
     }
 
     throw new Error("Unexpected SQL in dead-letter unit fake: " + text);

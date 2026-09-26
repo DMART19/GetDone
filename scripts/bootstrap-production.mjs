@@ -357,20 +357,68 @@ try {
   created.policyConfiguration = policyInsert.rowCount === 1;
 
   const auditId = `audit:${bootstrapId}`;
-  const auditInsert = await client.query(
-    `INSERT INTO audit_events
-      (id,correlation_id,portfolio_id,company_id,entity_type,entity_id,occurred_at,payload)
-     VALUES($1,$2,$3,$4,'policy-configuration',$5,now(),$6::jsonb)
-     ON CONFLICT (id) DO NOTHING`,
-    [
-      auditId,
-      bootstrapId,
-      portfolioId,
-      companyId,
-      policyConfigurationId,
-      JSON.stringify(bootstrapAuditPayload)
-    ]
+  await client.query(
+    "SELECT pg_advisory_xact_lock(hashtextextended($1 || E'\\x1f' || $2,0))",
+    [portfolioId, companyId]
   );
+  const existingAudit = await client.query(
+    "SELECT id FROM audit_events WHERE id=$1",
+    [auditId]
+  );
+  let auditInsert = { rowCount: 0 };
+  if (existingAudit.rowCount === 0) {
+    const head = await client.query(
+      `SELECT head_sequence,head_hash,event_count
+       FROM audit_chain_heads
+       WHERE portfolio_id=$1 AND company_id=$2
+       FOR UPDATE`,
+      [portfolioId, companyId]
+    );
+    const chainSequence = Number(head.rows[0]?.head_sequence ?? 0) + 1;
+    const previousEventHash = head.rows[0]?.head_hash ?? "0".repeat(64);
+    const occurredAt = new Date().toISOString();
+
+    auditInsert = await client.query(
+      `INSERT INTO audit_events
+        (id,correlation_id,portfolio_id,company_id,entity_type,entity_id,occurred_at,payload,
+         chain_sequence,previous_event_hash,event_hash)
+       VALUES(
+         $1,$2,$3,$4,'policy-configuration',$5,$6,$7::jsonb,$8,$9,
+         getdone_audit_event_hash($3,$4,$8,$9,$1,$6,$7::jsonb)
+       )
+       RETURNING chain_sequence,event_hash`,
+      [
+        auditId,
+        bootstrapId,
+        portfolioId,
+        companyId,
+        policyConfigurationId,
+        occurredAt,
+        JSON.stringify(bootstrapAuditPayload),
+        chainSequence,
+        previousEventHash
+      ]
+    );
+
+    const inserted = auditInsert.rows[0];
+    await client.query(
+      `INSERT INTO audit_chain_heads
+        (portfolio_id,company_id,head_sequence,head_hash,event_count,updated_at)
+       VALUES($1,$2,$3,$4,$3,$5)
+       ON CONFLICT(portfolio_id,company_id) DO UPDATE
+       SET head_sequence=excluded.head_sequence,
+           head_hash=excluded.head_hash,
+           event_count=excluded.event_count,
+           updated_at=excluded.updated_at`,
+      [
+        portfolioId,
+        companyId,
+        inserted.chain_sequence,
+        inserted.event_hash,
+        occurredAt
+      ]
+    );
+  }
   await assertOne(
     client,
     `SELECT correlation_id,portfolio_id,company_id,entity_type,entity_id,payload

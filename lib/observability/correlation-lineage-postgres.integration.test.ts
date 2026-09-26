@@ -185,9 +185,9 @@ integrationDescribe("correlation lineage PostgreSQL acceptance", () => {
       }), at]
     );
     await database.query(
-      `INSERT INTO audit_events
-        (id,correlation_id,portfolio_id,company_id,entity_type,entity_id,occurred_at,payload)
-       VALUES('audit-corr',$1,'portfolio-a','company-a','job','job-corr',$2,$3::jsonb)`,
+      `SELECT * FROM getdone_append_audit_event(
+        'audit-corr',$1,'portfolio-a','company-a','job','job-corr',$2,$3::jsonb
+      )`,
       [correlationId, at, JSON.stringify({
         id: "audit-corr",
         correlationId,

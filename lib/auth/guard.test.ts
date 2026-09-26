@@ -18,6 +18,7 @@ function adapter(value: AuthSession | null): AuthAdapter {
   return {
     async getSession() { return value; },
     async revokeSession() {},
+    async revokeOtherSessions() { return 0; },
     async beginStepUp() {
       return {
         challengeId: "00000000-0000-4000-8000-000000000003",
@@ -29,7 +30,7 @@ function adapter(value: AuthSession | null): AuthAdapter {
         userVerification: "required"
       };
     },
-    async verifyStepUp() { return session(); }
+    async verifyStepUp() { return { session: session(), token: "rotated-session-token" }; }
   };
 }
 

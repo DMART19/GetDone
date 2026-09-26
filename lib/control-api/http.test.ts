@@ -16,7 +16,10 @@ import {
   handleListVerifications,
   handleMutateDecision,
   handleOwnerIntent,
-  handleStartResourceEnrollment
+  handleStartResourceEnrollment,
+  handleLogout,
+  handleRevokeOtherSessions,
+  handleVerifyStepUp
 } from "@/lib/control-api/http";
 import {
   installControlApiAdapter,
@@ -126,9 +129,18 @@ function fakeAdapter(): ControlApiApplicationAdapter {
       userVerification: "required"
     }),
     verifyStepUp: async () => ({
+      session: {
+        sessionId: "session-a",
+        userId: "user-a",
+        stepUpAuthenticatedAt: "2026-09-21T04:00:00Z"
+      },
+      expiresAt: "2099-01-01T00:00:00Z",
+      rotatedSessionToken: "rotated-session-token"
+    }),
+    logout: async () => ({ sessionId: "session-a", revoked: true as const }),
+    revokeOtherSessions: async () => ({
       sessionId: "session-a",
-      userId: "user-a",
-      stepUpAuthenticatedAt: "2026-09-21T04:00:00Z"
+      revokedOtherSessions: 2
     }),
     health: async () => ({
       service: "getdone-control-api",
@@ -192,6 +204,10 @@ async function json(response: Response) {
 
 beforeEach(() => {
   process.env.GETDONE_RUNTIME_ENV = "development";
+  process.env.GETDONE_WEBAUTHN_RP_ID = "localhost";
+  process.env.GETDONE_WEBAUTHN_ORIGINS = "http://localhost";
+  process.env.GETDONE_AUTH_COOKIE_NAME = "getdone_session";
+  process.env.GETDONE_AUTH_COOKIE_SECURE = "false";
   installControlApiAdapter(fakeAdapter());
 });
 
@@ -270,6 +286,57 @@ describe("Control API HTTP surface", () => {
     expect(await json(response)).toMatchObject({
       ok: false,
       error: { code: "FORBIDDEN" }
+    });
+  });
+
+  it("rotates the session cookie on step-up without serializing the token", async () => {
+    const response = await handleVerifyStepUp(new Request(
+      "http://localhost/api/control/auth/step-up/verify",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          challengeId: "00000000-0000-4000-8000-000000000002",
+          credential: {
+            id: "Y3JlZGVudGlhbC0x",
+            type: "public-key",
+            response: {
+              clientDataJSON: "Y2xpZW50",
+              authenticatorData: "YXV0aA",
+              signature: "c2ln"
+            }
+          }
+        })
+      }
+    ));
+    expect(response.status).toBe(200);
+    expect(response.headers.get("set-cookie")).toContain("getdone_session=rotated-session-token");
+    const value = await json(response);
+    expect(value).toMatchObject({
+      ok: true,
+      data: { sessionId: "session-a", userId: "user-a" }
+    });
+    expect(JSON.stringify(value)).not.toContain("rotated-session-token");
+  });
+
+  it("revokes current and other device sessions through explicit session controls", async () => {
+    const logout = await handleLogout(new Request("http://localhost/api/control/auth/logout", {
+      method: "POST"
+    }));
+    expect(logout.status).toBe(200);
+    expect(logout.headers.get("set-cookie")).toContain("Max-Age=0");
+    expect(await json(logout)).toMatchObject({
+      ok: true,
+      data: { sessionId: "session-a", revoked: true }
+    });
+
+    const others = await handleRevokeOtherSessions(new Request(
+      "http://localhost/api/control/auth/sessions/revoke-others",
+      { method: "POST" }
+    ));
+    expect(await json(others)).toMatchObject({
+      ok: true,
+      data: { sessionId: "session-a", revokedOtherSessions: 2 }
     });
   });
 

@@ -7,6 +7,7 @@ export interface WebAuthnServerConfig {
   stepUpTtlSeconds: number;
   signInChallengeTtlSeconds: number;
   sessionTtlSeconds: number;
+  secureCookie: boolean;
 }
 
 function positiveInt(value: string | undefined, fallback: number, name: string) {
@@ -16,6 +17,21 @@ function positiveInt(value: string | undefined, fallback: number, name: string) 
     throw new ControlPlaneError("UNAVAILABLE", `${name} must be a positive integer`);
   }
   return parsed;
+}
+
+function booleanValue(value: string | undefined, fallback: boolean) {
+  if (value === undefined || value.trim() === "") return fallback;
+  if (value === "true") return true;
+  if (value === "false") return false;
+  throw new ControlPlaneError("UNAVAILABLE", "Boolean runtime configuration is invalid");
+}
+
+function cookieName(value: string | undefined) {
+  const name = value?.trim() || "getdone_session";
+  if (!/^[!#$%&'*+.^_`|~0-9A-Za-z-]{1,128}$/.test(name)) {
+    throw new ControlPlaneError("UNAVAILABLE", "GETDONE_AUTH_COOKIE_NAME is invalid");
+  }
+  return name;
 }
 
 function parseOrigins(value: string | undefined, rpId: string) {
@@ -78,7 +94,7 @@ export function readWebAuthnServerConfig(
   return Object.freeze({
     rpId,
     allowedOrigins: parseOrigins(env.GETDONE_WEBAUTHN_ORIGINS, rpId),
-    cookieName: env.GETDONE_AUTH_COOKIE_NAME?.trim() || "getdone_session",
+    cookieName: cookieName(env.GETDONE_AUTH_COOKIE_NAME),
     stepUpTtlSeconds: positiveInt(
       env.GETDONE_STEP_UP_TTL_SECONDS,
       300,
@@ -93,6 +109,7 @@ export function readWebAuthnServerConfig(
       env.GETDONE_SESSION_TTL_SECONDS,
       86_400,
       "GETDONE_SESSION_TTL_SECONDS"
-    )
+    ),
+    secureCookie: booleanValue(env.GETDONE_AUTH_COOKIE_SECURE, true)
   });
 }

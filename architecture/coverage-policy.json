@@ -375,6 +375,16 @@
       "source": "lib/domain/resources.ts",
       "test": "lib/domain/resources.test.ts",
       "critical": true
+    },
+    {
+      "source": "lib/execution/disaster-recovery.ts",
+      "test": "lib/execution/disaster-recovery.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/persistence/postgres/disaster-recovery-store.ts",
+      "test": "lib/persistence/postgres/disaster-recovery-store.test.ts",
+      "critical": true
     }
   ]
 }

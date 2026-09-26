@@ -1,8 +1,10 @@
+import { randomBytes } from "node:crypto";
 import { sha256Hex } from "@/lib/control-plane/canonical-hash";
 import { ControlPlaneError } from "@/lib/control-plane/errors";
 import type {
   AuthAdapter,
   AuthSession,
+  AuthSessionCredential,
   StepUpChallenge
 } from "@/lib/auth/contracts";
 import {
@@ -111,7 +113,10 @@ export class PostgresAuthAdapter implements AuthAdapter {
               s.authenticated_at,s.step_up_authenticated_at
        FROM auth_sessions s
        JOIN auth_users u ON u.id=s.user_id
-       WHERE s.token_hash=$1 AND u.status='active'`,
+       WHERE s.token_hash=$1
+         AND u.status='active'
+         AND s.revoked_at IS NULL
+         AND s.expires_at > now()`,
       [tokenHash]
     );
     return result.rows[0] ? sessionFromRow(result.rows[0]) : null;
@@ -126,6 +131,19 @@ export class PostgresAuthAdapter implements AuthAdapter {
     if (result.rowCount !== 1) {
       throw new ControlPlaneError("NOT_FOUND", "Auth session was not found");
     }
+  }
+
+  async revokeOtherSessions(userId: string, currentSessionId: string): Promise<number> {
+    const result = await this.db.query(
+      `UPDATE auth_sessions
+       SET revoked_at=COALESCE(revoked_at,now())
+       WHERE user_id=$1
+         AND session_id<>$2
+         AND revoked_at IS NULL
+         AND expires_at > now()`,
+      [userId, currentSessionId]
+    );
+    return result.rowCount ?? 0;
   }
 
   private webAuthnConfig() {
@@ -194,8 +212,9 @@ export class PostgresAuthAdapter implements AuthAdapter {
     session: AuthSession,
     challengeId: string,
     response: unknown
-  ): Promise<AuthSession> {
+  ): Promise<AuthSessionCredential> {
     const assertion = parseWebAuthnAssertion(response);
+    const rotatedToken = randomBytes(32).toString("base64url");
 
     return this.db.transaction(async (client) => {
       const challengeResult = await client.query<ChallengeRow>(
@@ -297,15 +316,23 @@ export class PostgresAuthAdapter implements AuthAdapter {
         throw new ControlPlaneError("FORBIDDEN", "Step-up challenge was already consumed");
       }
 
-      await client.query(
-        "UPDATE auth_sessions SET step_up_authenticated_at=$2 WHERE session_id=$1",
-        [row.session_id, now.toISOString()]
+      const rotated = await client.query(
+        `UPDATE auth_sessions
+         SET step_up_authenticated_at=$2,token_hash=$3
+         WHERE session_id=$1 AND revoked_at IS NULL AND expires_at>$2`,
+        [row.session_id, now.toISOString(), sha256Hex(rotatedToken)]
       );
+      if (rotated.rowCount !== 1) {
+        throw new ControlPlaneError("UNAUTHENTICATED", "Session changed during step-up rotation");
+      }
 
-      return sessionFromRow({
-        ...row,
-        step_up_authenticated_at: now.toISOString()
-      });
+      return {
+        session: sessionFromRow({
+          ...row,
+          step_up_authenticated_at: now.toISOString()
+        }),
+        token: rotatedToken
+      };
     });
   }
 }
