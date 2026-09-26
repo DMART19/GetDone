@@ -52,7 +52,7 @@ const DECLARATION:BusinessActionAdapterDeclaration=Object.freeze({
   timeoutMs:Object.freeze({min:100,max:120_000}),
   idempotency:"required",
   retryTaxonomy:ORDINARY_INTEGRATION_RETRY_TAXONOMY,
-  providerOperationId:"required",
+  providerOperationId:"not-required",
   statusResume:"not-supported",
   maxResponseBytes:2_000_000,
   auditEvidence:"hashed-provider-evidence",
