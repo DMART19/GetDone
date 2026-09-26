@@ -1,6 +1,6 @@
 {
   "registrySchemaVersion": "1.6.0",
-  "registryVersion": "2026-09-24.2",
+  "registryVersion": "2026-09-24.4",
   "appVersion": "0.1.0",
   "schemaVersions": {
     "controlApi": {
@@ -168,7 +168,7 @@
       ]
     },
     "controlApiSurface": {
-      "version": "1.3.0",
+      "version": "1.4.0",
       "sourcePath": "lib/control-api/contracts.ts",
       "contractTracked": true,
       "contractSourcePaths": [
@@ -509,7 +509,13 @@
     "lib/persistence/postgres/correlation-lineage-store.ts",
     "migrations/2026-09-24.1_correlation_lineage.sql",
     "docs/SOL_OPERATIONAL_ALERTS_CORRELATION.md",
-    "lib/observability/correlation-lineage-postgres.integration.test.ts"
+    "lib/observability/correlation-lineage-postgres.integration.test.ts",
+    ".github/workflows/browser-staging-acceptance.yml",
+    "playwright.staging.config.ts",
+    "e2e/staging/golden-path.spec.ts",
+    "e2e/staging/webauthn.spec.ts",
+    "e2e/staging/support.ts",
+    "docs/SOL_BROWSER_STAGING_WEBAUTHN_ACCEPTANCE.md"
   ],
   "manualSourcePaths": [
     "docs/ARCHITECTURE.md",
@@ -530,7 +536,8 @@
     "docs/SOL_QUEUE_BACKPRESSURE_ACCEPTANCE.md",
     "docs/SOL_WEBHOOK_STAGING_ACCEPTANCE.md",
     "docs/SOL_CREDENTIAL_ROTATION_OBSERVABILITY.md",
-    "docs/SOL_OPERATIONAL_ALERTS_CORRELATION.md"
+    "docs/SOL_OPERATIONAL_ALERTS_CORRELATION.md",
+    "docs/SOL_BROWSER_STAGING_WEBAUTHN_ACCEPTANCE.md"
   ],
   "generatedArtifacts": {
     "machineManifest": "release/out/release-manifest.json",
@@ -633,7 +640,7 @@
     "mvpBusinessWorkflowSourcePath": "lib/composition/mvp-business-workflow.ts"
   },
   "controlApi": {
-    "surfaceVersion": "1.3.0",
+    "surfaceVersion": "1.4.0",
     "status": "implemented-unconnected",
     "applicationAdapterStatus": "not-connected",
     "authStatus": "implemented-unconnected",
@@ -762,5 +769,14 @@
     "status": "implemented",
     "sourcePath": "lib/observability/correlation-lineage.ts",
     "postgresSourcePath": "lib/persistence/postgres/correlation-lineage-store.ts"
+  },
+  "browserAcceptance": {
+    "status": "implemented",
+    "version": "1.0.0",
+    "developmentConfig": "playwright.config.ts",
+    "stagingConfig": "playwright.staging.config.ts",
+    "stagingWorkflow": ".github/workflows/browser-staging-acceptance.yml",
+    "authoritativePostgres": true,
+    "virtualWebAuthn": true
   }
 }

@@ -24,6 +24,7 @@
     "verify:module-coverage": "node scripts/verify-control-plane-coverage.mjs",
     "test:e2e": "playwright test",
     "test:e2e:mobile": "playwright test --project=mobile-chromium",
+    "test:e2e:staging": "playwright test --config=playwright.staging.config.ts",
     "verify:dependencies": "node scripts/verify-dependencies.mjs",
     "db:migrate": "node scripts/migrate-postgres.mjs",
     "db:verify-production": "node scripts/verify-postgres-production.mjs",

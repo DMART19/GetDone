@@ -5,6 +5,7 @@ const baseURL = `http://127.0.0.1:${port}`;
 
 export default defineConfig({
   testDir: "./e2e",
+  testIgnore: ["**/staging/**"],
   timeout: 30_000,
   expect: { timeout: 7_500 },
   fullyParallel: true,

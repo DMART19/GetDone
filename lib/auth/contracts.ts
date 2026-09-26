@@ -8,6 +8,11 @@ export interface AuthSession {
   stepUpAuthenticatedAt?: string;
 }
 
+export interface AuthSessionCredential {
+  session: AuthSession;
+  token: string;
+}
+
 export interface StepUpChallenge {
   challengeId: string;
   expiresAt: string;
@@ -21,12 +26,13 @@ export interface StepUpChallenge {
 export interface AuthAdapter {
   getSession(request: Request): Promise<AuthSession | null>;
   revokeSession(sessionId: string): Promise<void>;
+  revokeOtherSessions(userId: string, currentSessionId: string): Promise<number>;
   beginStepUp(session: AuthSession): Promise<StepUpChallenge>;
   verifyStepUp(
     session: AuthSession,
     challengeId: string,
     response: unknown
-  ): Promise<AuthSession>;
+  ): Promise<AuthSessionCredential>;
 }
 
 export interface PasskeyDescriptor {
