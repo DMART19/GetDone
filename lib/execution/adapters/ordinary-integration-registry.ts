@@ -28,6 +28,10 @@ import {
   AnalyticsDataIngestionAdapter,
   readAnalyticsSourceConfigurationsFromEnv
 } from "@/lib/execution/adapters/analytics-ingestion";
+import {
+  CalendarSchedulingAdapter,
+  readCalendarProviderConfigurationsFromEnv
+} from "@/lib/execution/adapters/calendar-scheduling";
 import type { AnalyticsIngestionEvidenceStore } from "@/lib/analytics/ingestion";
 
 export const ORDINARY_INTEGRATION_IMPLEMENTATION_ORDER = Object.freeze([
@@ -127,6 +131,18 @@ export function createOrdinaryBusinessActionBindingsFromEnv(
         options.analyticsStore
       )
     });
+  }
+
+  if (env.GETDONE_CALENDAR_ACTIONS_JSON?.trim()) {
+    const calendar = new CalendarSchedulingAdapter(
+      readCalendarProviderConfigurationsFromEnv(env)
+    );
+    bindings.push(
+      { capability: "calendar.event.read", adapter: calendar },
+      { capability: "calendar.event.create", adapter: calendar },
+      { capability: "calendar.event.update", adapter: calendar },
+      { capability: "calendar.event.cancel", adapter: calendar }
+    );
   }
 
   if (bindings.length === 0) {
