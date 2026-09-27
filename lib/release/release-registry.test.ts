@@ -289,7 +289,7 @@ const packageJson = readJson<{ version: string }>("package.json");
 
 describe("Phase 41 release/version registry", () => {
   it("binds application policy and machine-readable schema versions", () => {
-    expect(registry.registrySchemaVersion).toBe("1.6.0");
+    expect(registry.registrySchemaVersion).toBe("1.7.0");
     expect(registry.environmentManifestSchemaVersion).toBe("1.7.0");
     expect(environment.manifestSchemaVersion).toBe("1.7.0");
     expect(registry.schemaVersions.releaseManifest.version).toBe("1.6.0");
