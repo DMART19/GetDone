@@ -416,6 +416,7 @@ export class PostgresOrchestrationRuntimeStore {
     } catch (error) {
       await this.releaseQueueClaim(
         event.id,
+        input.workerId,
         new Date(nowMs + Math.min(input.leaseMilliseconds, 30_000)).toISOString(),
         error instanceof Error ? error.message : String(error)
       );
