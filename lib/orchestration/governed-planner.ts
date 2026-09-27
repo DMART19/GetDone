@@ -21,7 +21,7 @@ import type { OrchestrationRun } from "@/lib/orchestration/contracts";
 import {
   assertContextSnapshotIntegrity,
   createGovernedPlanArtifact,
-  planningArtifactId,
+  orchestrationStageArtifactId,
   type GovernedPlanArtifact,
   type OrchestrationContextSnapshot
 } from "@/lib/orchestration/planning-artifacts";
@@ -272,9 +272,9 @@ export class AIGatewayGovernedPlanner {
     assertPlanGrounding(plan, context, run);
 
     const artifact = createGovernedPlanArtifact({
-      id: planningArtifactId({
+      id: orchestrationStageArtifactId({
         kind: "plan-proposal",
-        runId: run.id,
+        run,
         predecessorHash: context.contextHash
       }),
       runId: run.id,
