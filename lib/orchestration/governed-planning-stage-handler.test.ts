@@ -284,6 +284,23 @@ describe("GovernedPlanningStageHandler", () => {
     expect((await artifacts.latestPolicy(run("policy-cleared")))?.authorityApplied).toBe(false);
   });
 
+  it("reuses persisted pre-policy artifacts after a crash retry without another model call", async () => {
+    const { handler, artifacts, invoke } = harness(ownerPlan());
+
+    await handler.advance(run("context-building"));
+    await handler.advance(run("context-building"));
+    expect(await artifacts.count(run("context-building"), "context-snapshot")).toBe(1);
+
+    await handler.advance(run("planning"));
+    await handler.advance(run("planning"));
+    expect(invoke).toHaveBeenCalledTimes(1);
+    expect(await artifacts.count(run("planning"), "plan-proposal")).toBe(1);
+
+    await handler.advance(run("validating"));
+    await handler.advance(run("validating"));
+    expect(await artifacts.count(run("validating"), "validation-attestation")).toBe(1);
+  });
+
   it("moves invalid plans to replan-required without policy evaluation", async () => {
     const base = ownerPlan();
     const invalid = ownerPlan({
