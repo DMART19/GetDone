@@ -1,4 +1,5 @@
 import { ControlPlaneError } from "@/lib/control-plane/errors";
+import { sha256Hex } from "@/lib/control-plane/canonical-hash";
 import type { TrustedExecutionScope } from "@/lib/control-plane/trusted-execution-scope";
 import type { KillSwitch } from "@/lib/domain/kill-switch";
 import type { CredentialAvailabilitySnapshot } from "@/lib/domain/credential-binding";
@@ -157,8 +158,15 @@ export class GovernedPlanningStageHandler implements OrchestrationStageHandler {
         return this.buildContext(run);
 
       case "planning":
-      case "replan-required":
         return this.plan(run);
+
+      case "replan-required":
+        return Object.freeze({
+          kind: "transition" as const,
+          state: "planning" as const,
+          wake: "immediate" as const,
+          reason: "begin-governed-replan"
+        });
 
       case "validating":
         return this.validate(run);
@@ -356,6 +364,25 @@ export class GovernedPlanningStageHandler implements OrchestrationStageHandler {
         kind: "defer" as const,
         retryAt: validationConstraintsResult.retryAt,
         reason: boundedReason(validationConstraintsResult.reason)
+      });
+    }
+
+    const currentValidationPolicy: PlanValidationPolicy = Object.freeze({
+      trustedScope: Object.freeze({
+        portfolioId: run.portfolioId,
+        companyId: run.companyId
+      }),
+      ...validationConstraintsResult.constraints
+    });
+    if (
+      sha256Hex(currentValidationPolicy)
+      !== validationArtifact.attestation.validationPolicyHash
+    ) {
+      return Object.freeze({
+        kind: "transition" as const,
+        state: "replan-required" as const,
+        wake: "external" as const,
+        reason: "validation-policy-drift"
       });
     }
 
