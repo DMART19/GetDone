@@ -4,11 +4,9 @@ Date: 2026-09-27
 
 ## Status
 
-Implemented foundation, intentionally unconnected to live planning/execution.
+Implemented durable orchestration foundation. A follow-on governed-planning tranche now connects OwnerIntent context snapshots, governed plan proposals, deterministic plan validation, and policy evaluation to this same runtime.
 
-This tranche establishes the durable orchestration spine required to connect owner intent and future sensed investigations to GetDone's existing planning, policy, approval, Task, Job, verification, and audit authority systems.
-
-It does **not** claim that OpenRouter planning, SignalBus-triggered orchestration, or Decision approval continuation is live.
+Live OpenRouter routing/budget evidence is still unconfigured, and SignalBus ingress, Decision continuation, AuthorizationGrant issuance, Task/Job materialization, and execution remain intentionally unconnected. See `docs/SOL_GOVERNED_PLANNING_TRANCHE.md`.
 
 ## Implemented
 
@@ -34,7 +32,7 @@ The run carries:
 
 The coordinator enforces explicit transitions across:
 
-`received -> context-building -> planning -> validating -> policy-evaluation -> awaiting-approval/authorized -> materializing -> queued -> executing -> verifying -> succeeded`
+`received -> context-building -> planning -> validating -> policy-evaluation -> awaiting-approval/policy-cleared -> authorized -> materializing -> queued -> executing -> verifying -> succeeded`
 
 with explicit `blocked`, `failed`, `cancelled`, and `replan-required` branches.
 
@@ -98,25 +96,29 @@ It requires:
 - `GETDONE_PROCESS_ROLE=orchestration-worker`
 - `GETDONE_ORCHESTRATION_WORKER_ID`
 
-No executable production worker entrypoint is installed yet because the real context/planning/policy stage handler is not connected. This is intentional fail-closed behavior.
+No executable production worker entrypoint is installed yet. The governed context/planning/validation/policy handler exists, but startup remains fail-closed until live AI admission, routing, budget, and dynamic policy evidence are configured.
 
 ### Release and production truth
 
-Database migration:
+Foundation migration:
 
 `2026-09-27.1_orchestration_runtime.sql`
 
-Database schema release truth:
+Current orchestration planning migration:
 
-`2.3.0`
+`2026-09-27.2_orchestration_planning.sql`
+
+Current database schema release truth:
+
+`2.4.0`
 
 Release registry schema:
 
-`1.7.0`
+`1.8.0`
 
 Generated release manifest schema:
 
-`1.7.0`
+`1.8.0`
 
 The migration is classified as a zero-downtime `expand` migration.
 
@@ -126,8 +128,12 @@ The generated machine release manifest records orchestration as:
 
 - runtime: `implemented-unconnected`
 - OwnerIntent trigger: `implemented`
+- OwnerIntent context snapshots: `implemented-owner-intent`
 - Signal trigger: `not-connected`
-- planning handler: `not-connected`
+- planning handler: `implemented-unconfigured`
+- plan validation: `implemented`
+- policy evaluation: `implemented`
+- policy-cleared still requires AuthorizationGrant: `true`
 - Decision continuation: `not-connected`
 
 ## Authority invariants preserved
@@ -184,16 +190,15 @@ PostgreSQL integration coverage additionally exercises:
 - correlation audit reconstruction
 - lease-aware routing deferral
 
-## Intentionally deferred to the next tranche
+## Intentionally deferred after governed planning
 
-1. Authoritative context snapshot builder.
-2. Governed planning handler using the existing AI Gateway/OpenRouter boundary.
-3. Plan validation + policy step evaluation inside the coordinator.
-4. Decision/Approval binding and exact-hash continuation.
-5. AuthorizationGrant issuance and Task materialization.
-6. Job materialization/enqueue handoff.
-7. Verification/outcome reconciliation.
-8. SignalBus/Sensing/Investigation trigger bridge.
-9. Live orchestration worker heartbeat/health reporting.
+1. Decision/Approval binding and exact-hash continuation.
+2. AuthorizationGrant issuance and Task materialization.
+3. Job materialization/enqueue handoff.
+4. Verification/outcome reconciliation.
+5. SignalBus/Sensing/Investigation trigger bridge.
+6. Additional authoritative context sources beyond OwnerIntent.
+7. Live orchestration worker heartbeat/health reporting.
+8. Live AI model routing, budget evidence, and provider acceptance.
 
 These should reuse this runtime rather than create a second OwnerIntent or signal execution path.
