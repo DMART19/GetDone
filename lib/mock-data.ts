@@ -4,9 +4,10 @@ export const resourceSummary = {
   health: "Healthy",
   resourceCount: 12,
   capacity: 68,
-  monthlySpend: "$84,210",
+  monthlySpend: "$4.3k",
   monthlyChange: "↓ 18%",
-  ownedSavings: "$29,440"
+  ownedSavings: "$29,440",
+  activeAgents: 24
 } as const;
 
 export const resources: Resource[] = [
@@ -27,7 +28,7 @@ export const resources: Resource[] = [
       { label: "Memory Free", value: "6.1 GB", tone: "good" },
       { label: "Effective Cost", value: "$0.01/hr" }
     ],
-    workloads: { running: 2, queued: 1, utilization: 41 },
+    workloads: { running: 2, queued: 1, utilization: 68 },
     icon: "server"
   },
   {
@@ -44,10 +45,10 @@ export const resources: Resource[] = [
     autoScheduling: true,
     metrics: [
       { label: "VRAM Available", value: "18 GB" },
-      { label: "Utilization", value: "52%", tone: "good" },
+      { label: "Utilization", value: "68%", tone: "good" },
       { label: "Effective Cost", value: "$0.07/hr" }
     ],
-    workloads: { running: 3, queued: 2, utilization: 52 },
+    workloads: { running: 3, queued: 2, utilization: 68 },
     icon: "gpu"
   },
   {
@@ -64,10 +65,10 @@ export const resources: Resource[] = [
     autoScheduling: false,
     metrics: [
       { label: "Free Space", value: "3.2 TB", tone: "good" },
-      { label: "Utilization", value: "68%" },
+      { label: "Utilization", value: "42%" },
       { label: "Monthly Cost", value: "$18" }
     ],
-    workloads: { running: 4, queued: 0, utilization: 68 },
+    workloads: { running: 4, queued: 0, utilization: 42 },
     icon: "storage"
   },
   {
