@@ -3,7 +3,8 @@ import { ControlPlaneError } from "@/lib/control-plane/errors";
 import { createAuditEvent } from "@/lib/domain/audit";
 import { claimIdempotency } from "@/lib/domain/idempotency";
 import type { OwnerIntentRecord } from "@/lib/control-api/contracts";
-import type { OwnerIntentStore } from "@/lib/control-api/service-adapter";\nimport { persistOwnerIntentOrchestrationTrigger } from "@/lib/persistence/postgres/orchestration-store";
+import type { OwnerIntentStore } from "@/lib/control-api/service-adapter";
+import { persistOwnerIntentOrchestrationTrigger } from "@/lib/persistence/postgres/orchestration-store";
 import type {
   Resource,
   ResourceCapabilityBinding,
