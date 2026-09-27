@@ -42,6 +42,36 @@ Backend/resource complexity must not turn the product into an infrastructure adm
 - architecture dependency-boundary matrix, contract-version drift verification, module/test coverage thresholds, and adversarial contract vectors;
 - Phase 44 deterministic offline adversarial harness over real exported authority boundaries.
 
+### Governed orchestration boundary
+
+The durable OwnerIntent path now begins as:
+
+```text
+OwnerIntent
+  -> tenant-scoped immutable Context Snapshot
+  -> governed AI PlanProposal
+       - existing AI Gateway
+       - structured output
+       - trusted scope/environment/source rebound by GetDone
+       - evidence IDs restricted to persisted context
+       - model output has authorityApplied=false
+  -> deterministic PlanValidator attestation
+       - plan hash
+       - validation-policy hash
+       - ordered steps
+       - owner-decision requirements
+  -> per-step PolicySnapshot + evaluateStepPolicy
+       -> BLOCKED -> blocked
+       -> APPROVAL_REQUIRED / STRONG_APPROVAL -> awaiting-approval
+       -> AUTO -> policy-cleared
+```
+
+`policy-cleared` is not authorization. The transition graph deliberately forbids `policy-evaluation -> authorized`. A later continuation must persist the exact approval/AuthorizationGrant lineage before `policy-cleared` or `awaiting-approval` may become `authorized`.
+
+Planning evidence is append-only, tenant-RLS protected PostgreSQL state. The tenant runtime may insert/read planning artifacts but may not update or delete them. Context, plan, validation, and policy artifacts are hash-bound and share the OrchestrationRun correlation lineage.
+
+The current connected context source is authoritative OwnerIntent storage. SignalBus/investigation/objective context ingress, live model routing/budget evidence, Decision continuation, AuthorizationGrant issuance, Task/Job materialization, and execution remain intentionally unconnected.
+
 ### Quality and contract-integrity gates
 
 The Resource Fabric public imports remain `@/lib/resources/scheduler` and `@/lib/resources/reservations`; implementation/types are split behind `lib/resources/internal/`.
@@ -89,7 +119,7 @@ Provider `accepted`, HTTP success, resource-agent claims, model output, and fron
 
 The deterministic Phase 13 GetDone-owned AI Gateway now exists under `lib/ai-gateway`. It defines roles, requirement envelopes, validated model profiles, hard eligibility, configuration-driven routes/fallbacks, budget/concurrency admission, kill-switch filtering, schema validation, and audit records.
 
-No live OpenRouter/provider adapter, key, canary, or active routing configuration is connected yet. Provider/model SDK imports and provider HTTP endpoints remain forbidden outside this boundary by `npm run verify:architecture`. DETERMINISTIC work is explicitly prohibited from invoking a model adapter.
+The OpenRouter adapter implementation exists, but no live key, canary, acceptance evidence, or active routing configuration is connected yet. Provider/model SDK imports and provider HTTP endpoints remain forbidden outside this boundary by `npm run verify:architecture`. DETERMINISTIC work is explicitly prohibited from invoking a model adapter.
 
 ### Integration boundary
 
