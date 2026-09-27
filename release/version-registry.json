@@ -641,7 +641,8 @@
     "lib/orchestration/coordinator.test.ts",
     "lib/orchestration/orchestration-postgres.integration.test.ts",
     "lib/persistence/postgres/orchestration-store.test.ts",
-    "lib/orchestration/worker-runtime.test.ts"
+    "lib/orchestration/worker-runtime.test.ts",
+    "docs/SOL_ORCHESTRATION_RUNTIME_FOUNDATION.md"
   ],
   "manualSourcePaths": [
     "docs/ARCHITECTURE.md",
