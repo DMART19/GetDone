@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "1.2.0",
+  "schemaVersion": "1.3.0",
   "rules": [
     {
       "id": "resource-internals-private",
@@ -143,6 +143,28 @@
       "allowFromPrefixes": [
         "lib/composition/"
       ]
+    },
+    {
+      "id": "orchestration-authority-one-way",
+      "fromPrefixes": [
+        "components/",
+        "lib/ai-gateway/",
+        "lib/authorization/",
+        "lib/control-api/",
+        "lib/credentials/",
+        "lib/domain/",
+        "lib/execution/",
+        "lib/integrations/",
+        "lib/intelligence/",
+        "lib/planning/",
+        "lib/resources/",
+        "lib/verification/",
+        "lib/voice/"
+      ],
+      "denyImportPrefixes": [
+        "@/lib/orchestration/"
+      ],
+      "allowFromPrefixes": []
     }
   ]
 }
