@@ -4,9 +4,10 @@ import {
   type OrchestrationRuntimeStore,
   type OrchestrationStageHandler
 } from "@/lib/orchestration/coordinator";
-import type {
-  ClaimedOrchestrationRun,
-  OrchestrationRun
+import {
+  assertOrchestrationTransition,
+  type ClaimedOrchestrationRun,
+  type OrchestrationRun
 } from "@/lib/orchestration/contracts";
 
 function run(state: OrchestrationRun["state"] = "received"): OrchestrationRun {
@@ -130,6 +131,41 @@ describe("OrchestrationCoordinator", () => {
       nextState: "awaiting-approval",
       scheduleResume: false
     }));
+  });
+
+  it("permits policy-cleared without treating policy as authorization", async () => {
+    const currentClaim = claim("policy-evaluation");
+    const { store, transition } = runtimeStore(currentClaim);
+    const handler: OrchestrationStageHandler = {
+      advance: vi.fn(async () => ({
+        kind: "transition" as const,
+        state: "policy-cleared" as const,
+        wake: "external" as const
+      }))
+    };
+    const coordinator = new OrchestrationCoordinator(
+      store,
+      handler,
+      {
+        workerId: "orchestration-worker-1",
+        leaseMilliseconds: 30_000,
+        errorBackoffMilliseconds: 5_000
+      }
+    );
+
+    await expect(coordinator.runOnce()).resolves.toMatchObject({
+      previousState: "policy-evaluation",
+      state: "policy-cleared",
+      wake: "external"
+    });
+    expect(transition).toHaveBeenCalledWith(expect.objectContaining({
+      nextState: "policy-cleared",
+      scheduleResume: false
+    }));
+    expect(() => assertOrchestrationTransition("policy-evaluation", "authorized"))
+      .toThrow(/invalid orchestration transition/i);
+    expect(() => assertOrchestrationTransition("policy-cleared", "authorized"))
+      .not.toThrow();
   });
 
   it("defers without mutating authoritative state when a stage is not ready", async () => {
