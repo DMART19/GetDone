@@ -32,6 +32,7 @@ import {
 } from "@/lib/nodes/contracts";
 import { NODE_DISPATCH_CONTRACT_VERSION } from "@/lib/nodes/dispatch-contracts";
 import { NODE_IDENTITY_CONTRACT_VERSION } from "@/lib/nodes/identity";
+import { ORCHESTRATION_RUNTIME_CONTRACT_VERSION } from "@/lib/orchestration/contracts";
 
 interface VersionedSource {
   version: string;
@@ -103,6 +104,15 @@ interface ReleaseRegistryShape {
     registryContractVersion: string;
     liveAdaptersStatus: string;
     adapterImplementationStatus: string;
+  };
+  orchestration: {
+    contractVersion: string;
+    runtimeStatus: string;
+    sourcePaths: string[];
+    ownerIntentTriggerStatus: string;
+    signalTriggerStatus: string;
+    planningHandlerStatus: string;
+    decisionContinuationStatus: string;
   };
   execution: {
     jobRuntimeContractVersion: string;
@@ -468,7 +478,7 @@ describe("Phase 41 release/version registry", () => {
       contractTracked: true
     });
     expect(registry.orchestration).toMatchObject({
-      contractVersion: "1.0.0",
+      contractVersion: ORCHESTRATION_RUNTIME_CONTRACT_VERSION,
       runtimeStatus: "implemented-unconnected",
       ownerIntentTriggerStatus: "implemented",
       signalTriggerStatus: "not-connected",
