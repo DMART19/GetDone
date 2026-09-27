@@ -33,7 +33,10 @@ function dbUrl(name) {
 const policy = JSON.parse(fs.readFileSync(
   path.join(root,"config","zero-downtime-migration-policy.json"),"utf8"
 ));
-const transition = (policy.migrations ?? []).find((item)=>item.transitionSchema === true);
+const transition = (policy.migrations ?? [])
+  .filter((item)=>item.transitionSchema === true)
+  .sort((left,right)=>left.version.localeCompare(right.version))
+  .at(-1);
 if (!transition) throw new Error("Zero-downtime policy has no transition migration");
 
 const suffix = `${process.pid}_${Date.now()}`;
