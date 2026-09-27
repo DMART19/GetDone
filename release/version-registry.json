@@ -657,7 +657,8 @@
     "lib/persistence/postgres/orchestration-planning-artifact-store.test.ts",
     "lib/persistence/postgres/orchestration-context-source.test.ts",
     "lib/orchestration/orchestration-planning-postgres.integration.test.ts",
-    "migrations/2026-09-27.2_orchestration_planning.sql"
+    "migrations/2026-09-27.2_orchestration_planning.sql",
+    "docs/SOL_GOVERNED_PLANNING_TRANCHE.md"
   ],
   "manualSourcePaths": [
     "docs/ARCHITECTURE.md",
@@ -679,7 +680,8 @@
     "docs/SOL_WEBHOOK_STAGING_ACCEPTANCE.md",
     "docs/SOL_CREDENTIAL_ROTATION_OBSERVABILITY.md",
     "docs/SOL_OPERATIONAL_ALERTS_CORRELATION.md",
-    "docs/SOL_BROWSER_STAGING_WEBAUTHN_ACCEPTANCE.md"
+    "docs/SOL_BROWSER_STAGING_WEBAUTHN_ACCEPTANCE.md",
+    "docs/SOL_GOVERNED_PLANNING_TRANCHE.md"
   ],
   "generatedArtifacts": {
     "machineManifest": "release/out/release-manifest.json",
