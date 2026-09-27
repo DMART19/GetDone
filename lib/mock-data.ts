@@ -140,7 +140,7 @@ export const decisions: Decision[] = [
     id: "production-error",
     title: "Production error fix",
     subtitle: "Error rate increased overnight",
-    priority: "high",
+    priority: "normal",
     age: "6h ago",
     category: "incident",
     status: "pending",
