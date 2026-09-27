@@ -5,6 +5,7 @@ import type { OrchestrationRun } from "@/lib/orchestration/contracts";
 import {
   GovernedPlanningStageHandler,
   StaticOrchestrationValidationPolicyProvider,
+  type OrchestrationPolicyDynamicEvidence,
   type OrchestrationPolicyEvidenceProvider
 } from "@/lib/orchestration/governed-planning-stage-handler";
 import { AIGatewayGovernedPlanner } from "@/lib/orchestration/governed-planner";
@@ -143,7 +144,7 @@ class MemoryArtifactStore implements OrchestrationPlanningArtifactStore {
 }
 
 function policyEvidence(
-  overrides: Partial<Awaited<ReturnType<OrchestrationPolicyEvidenceProvider["load"]>> extends { kind: "ready"; evidence: infer E } ? E : never> = {}
+  overrides: Partial<OrchestrationPolicyDynamicEvidence> = {}
 ): OrchestrationPolicyEvidenceProvider {
   return {
     load: async () => ({
