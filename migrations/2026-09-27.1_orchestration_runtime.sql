@@ -45,7 +45,7 @@ CREATE TABLE IF NOT EXISTS orchestration_outbox (
   portfolio_id text NOT NULL,
   company_id text NOT NULL,
   event_type text NOT NULL CHECK (event_type IN ('orchestration.triggered','orchestration.resume')),
-  run_id text NOT NULL,
+  run_id text NOT NULL REFERENCES orchestration_runs(id),
   occurred_at timestamptz NOT NULL,
   available_at timestamptz NOT NULL,
   claimed_by text,
