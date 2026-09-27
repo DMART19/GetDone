@@ -18,7 +18,8 @@ import {
   assertPlanValidationArtifactIntegrity,
   createPlanValidationArtifact,
   createPolicyBundleArtifact,
-  planningArtifactId
+  planningArtifactId,
+  type StepPolicyArtifact
 } from "@/lib/orchestration/planning-artifacts";
 import {
   attestPlanValidation,
@@ -396,7 +397,7 @@ export class GovernedPlanningStageHandler implements OrchestrationStageHandler {
       validationArtifact.validationStatus === "owner-decision-required"
         ? "APPROVAL_REQUIRED"
         : "AUTO";
-    const stepPolicies = [];
+    const stepPolicies: StepPolicyArtifact[] = [];
 
     for (const step of ordered) {
       const stepHash = stepHashes[step.id];
