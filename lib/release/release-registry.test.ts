@@ -33,6 +33,7 @@ import {
 import { NODE_DISPATCH_CONTRACT_VERSION } from "@/lib/nodes/dispatch-contracts";
 import { NODE_IDENTITY_CONTRACT_VERSION } from "@/lib/nodes/identity";
 import { ORCHESTRATION_RUNTIME_CONTRACT_VERSION } from "@/lib/orchestration/contracts";
+import { ORCHESTRATION_PLANNING_ARTIFACT_CONTRACT_VERSION } from "@/lib/orchestration/planning-artifacts";
 
 interface VersionedSource {
   version: string;
@@ -107,11 +108,16 @@ interface ReleaseRegistryShape {
   };
   orchestration: {
     contractVersion: string;
+    planningArtifactContractVersion: string;
     runtimeStatus: string;
     sourcePaths: string[];
     ownerIntentTriggerStatus: string;
+    contextSnapshotStatus: string;
     signalTriggerStatus: string;
     planningHandlerStatus: string;
+    planValidationStatus: string;
+    policyEvaluationStatus: string;
+    policyClearedRequiresAuthorizationGrant: boolean;
     decisionContinuationStatus: string;
   };
   execution: {
@@ -289,10 +295,10 @@ const packageJson = readJson<{ version: string }>("package.json");
 
 describe("Phase 41 release/version registry", () => {
   it("binds application policy and machine-readable schema versions", () => {
-    expect(registry.registrySchemaVersion).toBe("1.7.0");
+    expect(registry.registrySchemaVersion).toBe("1.8.0");
     expect(registry.environmentManifestSchemaVersion).toBe("1.7.0");
     expect(environment.manifestSchemaVersion).toBe("1.7.0");
-    expect(registry.schemaVersions.releaseManifest.version).toBe("1.7.0");
+    expect(registry.schemaVersions.releaseManifest.version).toBe("1.8.0");
     expect(registry.appVersion).toBe(packageJson.version);
     expect(registry.policy.registryVersion).toBe(CURRENT_POLICY_VERSION);
     expect(registry.policy.engineVersion).toBe(POLICY_ENGINE_VERSION);
@@ -473,16 +479,26 @@ describe("Phase 41 release/version registry", () => {
       contractTracked: true
     });
     expect(registry.schemaVersions.orchestrationRuntime).toMatchObject({
-      version: "1.0.0",
+      version: ORCHESTRATION_RUNTIME_CONTRACT_VERSION,
       sourcePath: "lib/orchestration/contracts.ts",
+      contractTracked: true
+    });
+    expect(registry.schemaVersions.orchestrationPlanningArtifacts).toMatchObject({
+      version: ORCHESTRATION_PLANNING_ARTIFACT_CONTRACT_VERSION,
+      sourcePath: "lib/orchestration/planning-artifacts.ts",
       contractTracked: true
     });
     expect(registry.orchestration).toMatchObject({
       contractVersion: ORCHESTRATION_RUNTIME_CONTRACT_VERSION,
+      planningArtifactContractVersion: ORCHESTRATION_PLANNING_ARTIFACT_CONTRACT_VERSION,
       runtimeStatus: "implemented-unconnected",
       ownerIntentTriggerStatus: "implemented",
+      contextSnapshotStatus: "implemented-owner-intent",
       signalTriggerStatus: "not-connected",
-      planningHandlerStatus: "not-connected",
+      planningHandlerStatus: "implemented-unconfigured",
+      planValidationStatus: "implemented",
+      policyEvaluationStatus: "implemented",
+      policyClearedRequiresAuthorizationGrant: true,
       decisionContinuationStatus: "not-connected"
     });
     expect(registry.schemaVersions.environmentEvidence).toMatchObject({
@@ -561,8 +577,8 @@ describe("Phase 41 release/version registry", () => {
       status: "implemented-unconnected",
       engine: "postgresql",
       minimumEngineVersion: "16",
-      migrationVersion: "2026-09-27.1",
-      schemaVersion: "2.3.0"
+      migrationVersion: "2026-09-27.2",
+      schemaVersion: "2.4.0"
     });
     expect(registry.adapters.postgresPersistence).toMatchObject({
       status: "implemented-unconnected",
@@ -593,8 +609,8 @@ describe("Phase 41 release/version registry", () => {
         engine: "postgresql",
         minimumEngineVersion: "16",
         adapterStatus: "implemented-unconnected",
-        migrationVersion: "2026-09-27.1",
-        schemaVersion: "2.3.0"
+        migrationVersion: "2026-09-27.2",
+        schemaVersion: "2.4.0"
       });
       expect(state.execution).toMatchObject({
         durableJobStoreStatus: "not-connected",
