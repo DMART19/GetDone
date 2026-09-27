@@ -7,7 +7,7 @@ function required(name) {
   return value;
 }
 
-const requiredMigration = "2026-09-27.1";
+const requiredMigration = "2026-09-27.2";
 const maxBackupAgeHours = Number(process.env.GETDONE_BACKUP_MAX_AGE_HOURS || "24");
 if (!Number.isFinite(maxBackupAgeHours) || maxBackupAgeHours <= 0) {
   throw new Error("GETDONE_BACKUP_MAX_AGE_HOURS must be positive");
@@ -105,7 +105,8 @@ try {
     "analytics_ingestion_checkpoints",
     "analytics_ingestion_evidence",
     "analytics_ingestion_runs",
-    "orchestration_runs"
+    "orchestration_runs",
+    "orchestration_planning_artifacts"
   ];
   const rls = await client.query(
     `SELECT required.name, relation.relrowsecurity, relation.relforcerowsecurity
@@ -285,11 +286,12 @@ try {
     `SELECT COUNT(*)::int AS count
      FROM unnest(ARRAY[
        'orchestration_runs',
-       'orchestration_outbox'
+       'orchestration_outbox',
+       'orchestration_planning_artifacts'
      ]::text[]) AS required(name)
      WHERE to_regclass(required.name) IS NOT NULL`
   );
-  if (orchestrationSchema.rows[0]?.count !== 2) {
+  if (orchestrationSchema.rows[0]?.count !== 3) {
     throw new Error("Orchestration runtime persistence schema verification failed");
   }
 
@@ -300,11 +302,33 @@ try {
        AND indexname IN (
          'orchestration_runs_scope_state_idx',
          'orchestration_runs_correlation_idx',
-         'orchestration_outbox_ready_idx'
+         'orchestration_outbox_ready_idx',
+         'orchestration_planning_artifacts_run_kind_idx',
+         'orchestration_planning_artifacts_scope_idx',
+         'orchestration_planning_artifacts_correlation_idx'
        )`
   );
-  if (orchestrationIndexes.rows[0]?.count !== 3) {
+  if (orchestrationIndexes.rows[0]?.count !== 6) {
     throw new Error("Orchestration runtime index verification failed");
+  }
+
+  const planningPrivileges = await client.query(
+    `SELECT
+       has_table_privilege('getdone_tenant_runtime','orchestration_planning_artifacts','SELECT') AS can_select,
+       has_table_privilege('getdone_tenant_runtime','orchestration_planning_artifacts','INSERT') AS can_insert,
+       has_table_privilege('getdone_tenant_runtime','orchestration_planning_artifacts','UPDATE') AS can_update,
+       has_table_privilege('getdone_tenant_runtime','orchestration_planning_artifacts','DELETE') AS can_delete`
+  );
+  const planningPrivilege = planningPrivileges.rows[0];
+  if (
+    planningPrivilege?.can_select !== true
+    || planningPrivilege?.can_insert !== true
+    || planningPrivilege?.can_update !== false
+    || planningPrivilege?.can_delete !== false
+  ) {
+    throw new Error(
+      "Orchestration planning artifacts must be append-only for the tenant runtime role"
+    );
   }
 
   const outboxColumns = await client.query(
