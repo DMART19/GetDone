@@ -75,6 +75,38 @@ describe("OrchestrationContextBuilder", () => {
     expect(Object.isFrozen(result.snapshot)).toBe(true);
   });
 
+  it("keeps public-only context classified as public", async () => {
+    const builder = new OrchestrationContextBuilder({
+      load: async () => ({
+        kind: "ready" as const,
+        context: {
+          items: [{
+            id: "public-fact",
+            kind: "fact" as const,
+            portfolioId: "portfolio-a",
+            companyId: "company-a",
+            source: "public-source",
+            provenance: "public:test",
+            observedAt: "2026-09-27T19:59:00.000Z",
+            freshnessSeconds: 3600,
+            sensitivity: "public" as const,
+            content: "Public evidence."
+          }],
+          scope: {
+            portfolioId: "portfolio-a",
+            companyId: "company-a",
+            allowedSensitivity: ["public" as const]
+          }
+        }
+      })
+    }, () => now);
+
+    const result = await builder.build(run());
+    expect(result.kind).toBe("ready");
+    if (result.kind !== "ready") throw new Error("expected ready context");
+    expect(result.snapshot.dataClass).toBe("public");
+  });
+
   it("fails closed when a context source attempts to change company scope", async () => {
     const builder = new OrchestrationContextBuilder({
       load: async () => ({
