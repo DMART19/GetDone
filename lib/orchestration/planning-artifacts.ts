@@ -4,7 +4,7 @@ import type { AssembledContext } from "@/lib/intelligence/context";
 import type { AICallAuditRecord, AIRouteDecision } from "@/lib/ai-gateway/contracts";
 import type { PlanProposal } from "@/lib/planning/plan-schema";
 import type { PlanValidatorAttestation } from "@/lib/planning/plan-validator";
-import type { PolicySnapshot } from "@/lib/planning/policy-snapshot";
+import { assertPolicySnapshotIntegrity, type PolicySnapshot } from "@/lib/planning/policy-snapshot";
 import type {
   PolicyDisposition,
   StepPolicyEvaluation
@@ -205,6 +205,21 @@ export function assertPolicyBundleArtifactIntegrity(artifact: PolicyBundleArtifa
     || artifact.authorityApplied !== false
   ) {
     throw new ControlPlaneError("FORBIDDEN", "Policy bundle artifact integrity failed");
+  }
+
+  for (const step of artifact.stepPolicies) {
+    assertPolicySnapshotIntegrity(step.snapshot);
+    if (
+      step.stepHash !== step.snapshot.stepHash
+      || artifact.planHash !== step.snapshot.planHash
+      || step.evaluation.policyEngineVersion !== step.snapshot.policyEngineVersion
+      || step.evaluation.policyRulesHash !== step.snapshot.policyRulesHash
+    ) {
+      throw new ControlPlaneError(
+        "FORBIDDEN",
+        "Nested policy snapshot/evaluation integrity failed"
+      );
+    }
   }
   return artifact;
 }
