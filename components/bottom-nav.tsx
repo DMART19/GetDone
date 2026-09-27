@@ -1,13 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { CircleCheckBig, MessageCircle, Server } from "lucide-react";
+import { CircleCheckBig, Database, MessageCircle } from "lucide-react";
 import { usePathname } from "next/navigation";
 
 const items = [
   { href: "/", label: "Chat", icon: MessageCircle },
   { href: "/decisions", label: "Decisions", icon: CircleCheckBig },
-  { href: "/resources", label: "Resources", icon: Server }
+  { href: "/resources", label: "Resources", icon: Database }
 ] as const;
 
 export function BottomNav() {

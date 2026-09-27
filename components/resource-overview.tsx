@@ -8,7 +8,7 @@ import {
   HardDrive,
   Network,
   Plus,
-  Server
+  Users
 } from "lucide-react";
 import type { OwnerResourceSummary } from "@/lib/data/repository";
 import type { Resource } from "@/lib/types";
@@ -22,8 +22,8 @@ type ResourceGroup = {
 const groups: ResourceGroup[] = [
   { label: "Cloud Providers", icon: Cloud, kinds: ["cloud", "partner"] },
   { label: "Data & Storage", icon: Database, kinds: ["storage"] },
-  { label: "Compute & Agents", icon: Cpu, kinds: ["compute"] },
-  { label: "Network & Integrations", icon: Network, kinds: ["network", "other"] }
+  { label: "Integrations", icon: Network, kinds: ["network", "other"] },
+  { label: "Team & Agents", icon: Users, kinds: ["compute"] }
 ];
 
 function averageUtilization(resources: Resource[]) {
@@ -58,6 +58,7 @@ export function ResourceOverview({
   const computeUtilization = averageUtilization(compute);
   const storageUtilization = averageUtilization(storage);
   const overall = healthFor(resources);
+  const activeAgents = summary.activeAgents;
 
   return (
     <div className="ufo-resource-overview">
@@ -65,7 +66,7 @@ export function ResourceOverview({
         <span className="ufo-health-orb"><i /></span>
         <span>
           <strong>{overall.label === "Healthy" ? "Everything Healthy" : summary.health}</strong>
-          <small>{resources.length ? "Resource registry is reporting current scoped state." : "Connect a resource to begin."}</small>
+          <small>{resources.length ? "All systems operating within their current governed scope." : "Connect a resource to begin."}</small>
         </span>
         <ChevronRight size={20} />
       </div>
@@ -75,13 +76,13 @@ export function ResourceOverview({
           <Cpu size={20} />
           <span>Compute</span>
           <strong>{computeUtilization === null ? "—" : computeUtilization + "%"}</strong>
-          <small>{compute.length} connected</small>
+          <small>{compute.length ? "Available" : "Not connected"}</small>
         </article>
         <article>
           <HardDrive size={20} />
           <span>Storage</span>
           <strong>{storageUtilization === null ? "—" : storageUtilization + "%"}</strong>
-          <small>{storage.length} connected</small>
+          <small>{storage.length ? "Available" : "Not connected"}</small>
         </article>
         <article>
           <DollarSign size={20} />
@@ -90,10 +91,10 @@ export function ResourceOverview({
           <small>{summary.monthlyChange}</small>
         </article>
         <article>
-          <Server size={20} />
-          <span>Resources</span>
-          <strong>{summary.resourceCount}</strong>
-          <small>{overall.label}</small>
+          <Users size={20} />
+          <span>Agents</span>
+          <strong>{activeAgents === undefined ? "—" : activeAgents}</strong>
+          <small>{activeAgents === undefined ? "Not connected" : "Active"}</small>
         </article>
       </div>
 
@@ -126,7 +127,7 @@ export function ResourceOverview({
         <span><Plus size={24} /></span>
         <span>
           <strong>Add Resource</strong>
-          <small>GetDone will guide the enrollment flow.</small>
+          <small>GetDone will set it up through the governed enrollment flow.</small>
         </span>
       </Link>
     </div>

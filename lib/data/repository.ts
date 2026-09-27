@@ -10,6 +10,8 @@ export interface OwnerResourceSummary {
   monthlySpend: string;
   monthlyChange: string;
   ownedSavings: string;
+  /** Optional owner-facing aggregate until a live agent telemetry source is connected. */
+  activeAgents?: number;
 }
 
 export interface OwnerReadRepository {
