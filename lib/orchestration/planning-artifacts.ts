@@ -234,3 +234,18 @@ export function planningArtifactId(input: {
     predecessorHash: input.predecessorHash
   })}`;
 }
+
+export function orchestrationStageArtifactId(input: {
+  kind: OrchestrationPlanningArtifactKind;
+  run: Pick<OrchestrationRun, "id" | "version">;
+  predecessorHash: string;
+}) {
+  return planningArtifactId({
+    kind: input.kind,
+    runId: input.run.id,
+    predecessorHash: sha256Hex({
+      predecessorHash: input.predecessorHash,
+      orchestrationRunVersion: input.run.version
+    })
+  });
+}
