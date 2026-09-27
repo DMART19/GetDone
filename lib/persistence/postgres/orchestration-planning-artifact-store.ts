@@ -14,9 +14,9 @@ import {
   type PlanValidationArtifact,
   type PolicyBundleArtifact
 } from "@/lib/orchestration/planning-artifacts";
+import type { QueryResultRow } from "pg";
 import type {
-  PostgresTransactionalDatabase,
-  QueryResultRow
+  PostgresTransactionalDatabase
 } from "@/lib/persistence/postgres/client";
 import { PostgresAuditLedger } from "@/lib/persistence/postgres/authority-stores";
 import { runWithPostgresTenantScope } from "@/lib/persistence/postgres/tenant-context.server";
@@ -54,6 +54,15 @@ function predecessorHash(artifact: OrchestrationPlanningArtifact) {
 
 function artifactId(artifact: OrchestrationPlanningArtifact) {
   return artifact.value.id;
+}
+
+function artifactCreatedAt(artifact: OrchestrationPlanningArtifact) {
+  switch (artifact.kind) {
+    case "context-snapshot": return artifact.value.createdAt;
+    case "plan-proposal": return artifact.value.plannedAt;
+    case "validation-attestation": return artifact.value.createdAt;
+    case "policy-bundle": return artifact.value.createdAt;
+  }
 }
 
 function assertArtifactIntegrity(artifact: OrchestrationPlanningArtifact) {
@@ -138,7 +147,7 @@ implements OrchestrationPlanningArtifactStore {
             artifact.kind,
             hash,
             predecessorHash(artifact),
-            artifact.value.createdAt ?? artifact.value.plannedAt,
+            artifactCreatedAt(artifact),
             JSON.stringify(artifact)
           ]
         );
