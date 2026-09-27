@@ -1,6 +1,6 @@
 {
-  "registrySchemaVersion": "1.7.0",
-  "registryVersion": "2026-09-27.1",
+  "registrySchemaVersion": "1.8.0",
+  "registryVersion": "2026-09-27.2",
   "appVersion": "0.1.0",
   "schemaVersions": {
     "controlApi": {
@@ -60,7 +60,7 @@
       "sourcePath": "lib/resources/policy-simulator.ts"
     },
     "releaseManifest": {
-      "version": "1.7.0",
+      "version": "1.8.0",
       "sourcePath": "scripts/generate-release-artifacts.mjs"
     },
     "voiceIntent": {
@@ -286,11 +286,19 @@
       ]
     },
     "orchestrationRuntime": {
-      "version": "1.0.0",
+      "version": "1.1.0",
       "sourcePath": "lib/orchestration/contracts.ts",
       "contractTracked": true,
       "contractSourcePaths": [
         "lib/orchestration/contracts.ts"
+      ]
+    },
+    "orchestrationPlanningArtifacts": {
+      "version": "1.0.0",
+      "sourcePath": "lib/orchestration/planning-artifacts.ts",
+      "contractTracked": true,
+      "contractSourcePaths": [
+        "lib/orchestration/planning-artifacts.ts"
       ]
     }
   },
@@ -642,7 +650,14 @@
     "lib/orchestration/orchestration-postgres.integration.test.ts",
     "lib/persistence/postgres/orchestration-store.test.ts",
     "lib/orchestration/worker-runtime.test.ts",
-    "docs/SOL_ORCHESTRATION_RUNTIME_FOUNDATION.md"
+    "docs/SOL_ORCHESTRATION_RUNTIME_FOUNDATION.md",
+    "lib/orchestration/context-builder.test.ts",
+    "lib/orchestration/governed-planner.test.ts",
+    "lib/orchestration/governed-planning-stage-handler.test.ts",
+    "lib/persistence/postgres/orchestration-planning-artifact-store.test.ts",
+    "lib/persistence/postgres/orchestration-context-source.test.ts",
+    "lib/orchestration/orchestration-planning-postgres.integration.test.ts",
+    "migrations/2026-09-27.2_orchestration_planning.sql"
   ],
   "manualSourcePaths": [
     "docs/ARCHITECTURE.md",
@@ -674,9 +689,9 @@
     "status": "implemented-unconnected",
     "engine": "postgresql",
     "minimumEngineVersion": "16",
-    "migrationVersion": "2026-09-27.1",
-    "schemaVersion": "2.3.0",
-    "sourcePath": "migrations/2026-09-27.1_orchestration_runtime.sql",
+    "migrationVersion": "2026-09-27.2",
+    "schemaVersion": "2.4.0",
+    "sourcePath": "migrations/2026-09-27.2_orchestration_planning.sql",
     "adapterSourcePath": "lib/persistence/postgres/client.ts"
   },
   "voice": {
@@ -913,17 +928,29 @@
     "virtualWebAuthn": true
   },
   "orchestration": {
-    "contractVersion": "1.0.0",
+    "contractVersion": "1.1.0",
+    "planningArtifactContractVersion": "1.0.0",
     "runtimeStatus": "implemented-unconnected",
     "sourcePaths": [
       "lib/orchestration/contracts.ts",
       "lib/orchestration/coordinator.ts",
       "lib/orchestration/worker-runtime.server.ts",
-      "lib/persistence/postgres/orchestration-store.ts"
+      "lib/orchestration/planning-artifacts.ts",
+      "lib/orchestration/planning-artifact-store.ts",
+      "lib/orchestration/context-builder.ts",
+      "lib/orchestration/governed-planner.ts",
+      "lib/orchestration/governed-planning-stage-handler.ts",
+      "lib/persistence/postgres/orchestration-store.ts",
+      "lib/persistence/postgres/orchestration-context-source.ts",
+      "lib/persistence/postgres/orchestration-planning-artifact-store.ts"
     ],
     "ownerIntentTriggerStatus": "implemented",
+    "contextSnapshotStatus": "implemented-owner-intent",
     "signalTriggerStatus": "not-connected",
-    "planningHandlerStatus": "not-connected",
+    "planningHandlerStatus": "implemented-unconfigured",
+    "planValidationStatus": "implemented",
+    "policyEvaluationStatus": "implemented",
+    "policyClearedRequiresAuthorizationGrant": true,
     "decisionContinuationStatus": "not-connected"
   }
 }
