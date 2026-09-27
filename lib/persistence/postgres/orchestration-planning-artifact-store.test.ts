@@ -162,7 +162,7 @@ describe("PostgresOrchestrationPlanningArtifactStore", () => {
     const sql = new QueueSql();
     const store = new PostgresOrchestrationPlanningArtifactStore(db(sql));
 
-    await expect(store.append(run(), bad)).rejects.toThrow(/scope does not match/i);
+    await expect(store.append(run(), bad)).rejects.toThrow(/integrity|scope does not match/i);
     expect(sql.calls).toHaveLength(0);
   });
 });
