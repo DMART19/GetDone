@@ -13,7 +13,8 @@
         "add-index",
         "add-function",
         "add-view",
-        "add-nonbreaking-policy"
+        "add-nonbreaking-policy",
+        "widen-check-constraint"
       ],
       "forbidden": [
         "drop-table",
@@ -90,7 +91,9 @@
       "phase": "expand",
       "transitionSchema": true,
       "destructive": false,
-      "authorityCompatibilityRequired": true
+      "authorityCompatibilityRequired": true,
+      "compatibleConstraintWidening": true,
+      "constraintName": "orchestration_runs_state_check"
     }
   ]
 }
