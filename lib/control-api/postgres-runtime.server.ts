@@ -132,6 +132,8 @@ export function createPostgresControlApiAdapter(
             "idempotency_records",
             "audit_events",
             "owner_intents",
+            "orchestration_runs",
+            "orchestration_outbox",
             "verification_receipts"
           ]),
           requiredRelationsReady([
