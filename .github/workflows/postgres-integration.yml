@@ -123,6 +123,13 @@ jobs:
           GETDONE_DB_SSL: "false"
           GETDONE_POSTGRES_INTEGRATION: "true"
 
+      - name: Run governed orchestration planning persistence acceptance
+        run: npx vitest run lib/orchestration/orchestration-planning-postgres.integration.test.ts
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+          GETDONE_DB_SSL: "false"
+          GETDONE_POSTGRES_INTEGRATION: "true"
+
       - name: Run audit ledger tamper detection acceptance
         run: npx vitest run lib/security/audit-ledger-integrity-postgres.integration.test.ts
         env:
