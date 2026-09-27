@@ -358,7 +358,7 @@ if (failures.length === 0) {
     || registry.schemaVersions.postgresPersistence?.version !== "1.1.0"
     || registry.schemaVersions.disasterRecovery?.version !== "1.0.0"
     || registry.schemaVersions.disasterRecovery?.sourcePath !== "lib/execution/disaster-recovery.ts"
-    || registry.schemaVersions.zeroDowntimeMigrationPolicy?.version !== "1.0.0"
+    || registry.schemaVersions.zeroDowntimeMigrationPolicy?.version !== "1.1.0"
     || registry.schemaVersions.zeroDowntimeMigrationPolicy?.contractTracked !== true
     || registry.schemaVersions.productionReleaseGate?.version !== "1.0.0"
     || registry.schemaVersions.productionReleaseGate?.contractTracked !== true
