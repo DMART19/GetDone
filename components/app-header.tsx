@@ -1,11 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { BriefcaseBusiness, CircleCheckBig, Menu, Server, X } from "lucide-react";
+import { CircleCheckBig, Menu, MessageCircle, Server, X } from "lucide-react";
 import { useState } from "react";
 
 const menuItems = [
-  { href: "/", label: "Chat", icon: BriefcaseBusiness },
+  { href: "/", label: "Chat", icon: MessageCircle },
   { href: "/decisions", label: "Decisions", icon: CircleCheckBig },
   { href: "/resources", label: "Resources", icon: Server }
 ] as const;
