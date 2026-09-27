@@ -7,7 +7,7 @@ function required(name) {
   return value;
 }
 
-const requiredMigration = "2026-09-25.3";
+const requiredMigration = "2026-09-27.1";
 const maxBackupAgeHours = Number(process.env.GETDONE_BACKUP_MAX_AGE_HOURS || "24");
 if (!Number.isFinite(maxBackupAgeHours) || maxBackupAgeHours <= 0) {
   throw new Error("GETDONE_BACKUP_MAX_AGE_HOURS must be positive");
@@ -104,7 +104,8 @@ try {
     "audit_chain_heads",
     "analytics_ingestion_checkpoints",
     "analytics_ingestion_evidence",
-    "analytics_ingestion_runs"
+    "analytics_ingestion_runs",
+    "orchestration_runs"
   ];
   const rls = await client.query(
     `SELECT required.name, relation.relrowsecurity, relation.relforcerowsecurity
@@ -278,6 +279,56 @@ try {
   );
   if (analyticsIndexes.rows[0]?.count !== 3) {
     throw new Error("Analytics ingestion index verification failed");
+  }
+
+  const orchestrationSchema = await client.query(
+    `SELECT COUNT(*)::int AS count
+     FROM unnest(ARRAY[
+       'orchestration_runs',
+       'orchestration_outbox'
+     ]::text[]) AS required(name)
+     WHERE to_regclass(required.name) IS NOT NULL`
+  );
+  if (orchestrationSchema.rows[0]?.count !== 2) {
+    throw new Error("Orchestration runtime persistence schema verification failed");
+  }
+
+  const orchestrationIndexes = await client.query(
+    `SELECT COUNT(*)::int AS count
+     FROM pg_indexes
+     WHERE schemaname=current_schema()
+       AND indexname IN (
+         'orchestration_runs_scope_state_idx',
+         'orchestration_runs_correlation_idx',
+         'orchestration_outbox_ready_idx'
+       )`
+  );
+  if (orchestrationIndexes.rows[0]?.count !== 3) {
+    throw new Error("Orchestration runtime index verification failed");
+  }
+
+  const outboxColumns = await client.query(
+    `SELECT column_name
+     FROM information_schema.columns
+     WHERE table_schema=current_schema()
+       AND table_name='orchestration_outbox'`
+  );
+  const forbiddenRoutingColumns = new Set([
+    'payload',
+    'message',
+    'content',
+    'credential',
+    'credentials',
+    'secret',
+    'token'
+  ]);
+  const unsafeRoutingColumns = outboxColumns.rows
+    .map((row) => String(row.column_name).toLowerCase())
+    .filter((name) => forbiddenRoutingColumns.has(name));
+  if (unsafeRoutingColumns.length > 0) {
+    throw new Error(
+      `Orchestration routing outbox contains sensitive payload columns: ${unsafeRoutingColumns.join(", ")}`
+    );
   }
 
   const backup = await client.query(
