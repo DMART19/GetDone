@@ -418,6 +418,12 @@ if (failures.length === 0) {
     || registry.orchestration?.signalTriggerStatus !== "not-connected"
     || registry.orchestration?.planningHandlerStatus !== "not-connected"
     || registry.orchestration?.decisionContinuationStatus !== "not-connected"
+    || manifest.orchestration?.contractVersion !== registry.orchestration.contractVersion
+    || manifest.orchestration?.runtimeStatus !== registry.orchestration.runtimeStatus
+    || manifest.orchestration?.ownerIntentTriggerStatus !== registry.orchestration.ownerIntentTriggerStatus
+    || manifest.orchestration?.signalTriggerStatus !== registry.orchestration.signalTriggerStatus
+    || manifest.orchestration?.planningHandlerStatus !== registry.orchestration.planningHandlerStatus
+    || manifest.orchestration?.decisionContinuationStatus !== registry.orchestration.decisionContinuationStatus
     || registry.composition.mvpBusinessWorkflowStatus !== "implemented-unconfigured"
     || registry.execution.softwareWorkerRuntimeStatus !== "implemented"
     || registry.execution.softwareDeploymentStatus !== "not-connected"
