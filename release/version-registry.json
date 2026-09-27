@@ -1,6 +1,6 @@
 {
   "registrySchemaVersion": "1.6.0",
-  "registryVersion": "2026-09-24.5",
+  "registryVersion": "2026-09-27.1",
   "appVersion": "0.1.0",
   "schemaVersions": {
     "controlApi": {
@@ -283,6 +283,14 @@
         "lib/analytics/ingestion.ts",
         "lib/execution/adapters/analytics-ingestion.ts",
         "lib/persistence/postgres/analytics-ingestion-store.ts"
+      ]
+    },
+    "orchestrationRuntime": {
+      "version": "1.0.0",
+      "sourcePath": "lib/orchestration/contracts.ts",
+      "contractTracked": true,
+      "contractSourcePaths": [
+        "lib/orchestration/contracts.ts"
       ]
     }
   },
@@ -629,7 +637,9 @@
     "lib/analytics/ingestion.ts",
     "lib/analytics/analytics-ingestion-postgres.integration.test.ts",
     "lib/persistence/postgres/analytics-ingestion-store.ts",
-    "migrations/2026-09-25.3_analytics_ingestion.sql"
+    "migrations/2026-09-25.3_analytics_ingestion.sql",
+    "lib/orchestration/coordinator.test.ts",
+    "lib/orchestration/orchestration-postgres.integration.test.ts"
   ],
   "manualSourcePaths": [
     "docs/ARCHITECTURE.md",
@@ -661,9 +671,9 @@
     "status": "implemented-unconnected",
     "engine": "postgresql",
     "minimumEngineVersion": "16",
-    "migrationVersion": "2026-09-25.3",
-    "schemaVersion": "2.2.0",
-    "sourcePath": "migrations/2026-09-25.3_analytics_ingestion.sql",
+    "migrationVersion": "2026-09-27.1",
+    "schemaVersion": "2.3.0",
+    "sourcePath": "migrations/2026-09-27.1_orchestration_runtime.sql",
     "adapterSourcePath": "lib/persistence/postgres/client.ts"
   },
   "voice": {
@@ -898,5 +908,19 @@
     "stagingWorkflow": ".github/workflows/browser-staging-acceptance.yml",
     "authoritativePostgres": true,
     "virtualWebAuthn": true
+  },
+  "orchestration": {
+    "contractVersion": "1.0.0",
+    "runtimeStatus": "implemented-unconnected",
+    "sourcePaths": [
+      "lib/orchestration/contracts.ts",
+      "lib/orchestration/coordinator.ts",
+      "lib/orchestration/worker-runtime.server.ts",
+      "lib/persistence/postgres/orchestration-store.ts"
+    ],
+    "ownerIntentTriggerStatus": "implemented",
+    "signalTriggerStatus": "not-connected",
+    "planningHandlerStatus": "not-connected",
+    "decisionContinuationStatus": "not-connected"
   }
 }
