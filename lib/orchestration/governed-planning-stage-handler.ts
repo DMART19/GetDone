@@ -18,7 +18,7 @@ import {
   assertPlanValidationArtifactIntegrity,
   createPlanValidationArtifact,
   createPolicyBundleArtifact,
-  planningArtifactId,
+  orchestrationStageArtifactId,
   type StepPolicyArtifact
 } from "@/lib/orchestration/planning-artifacts";
 import {
@@ -200,6 +200,22 @@ export class GovernedPlanningStageHandler implements OrchestrationStageHandler {
   }
 
   private async buildContext(run: OrchestrationRun) {
+    const expectedId = orchestrationStageArtifactId({
+      kind: "context-snapshot",
+      run,
+      predecessorHash: run.correlationId
+    });
+    const existing = await this.artifacts.latestContext(run);
+    if (existing?.id === expectedId) {
+      assertContextSnapshotIntegrity(existing);
+      return Object.freeze({
+        kind: "transition" as const,
+        state: "planning" as const,
+        wake: "immediate" as const,
+        reason: `context-snapshot-reused:${existing.contextHash}`
+      });
+    }
+
     const built = await this.contextBuilder.build(run);
     if (built.kind === "unavailable") {
       return Object.freeze({
@@ -207,6 +223,12 @@ export class GovernedPlanningStageHandler implements OrchestrationStageHandler {
         retryAt: built.retryAt,
         reason: boundedReason(built.reason)
       });
+    }
+    if (built.snapshot.id !== expectedId) {
+      throw new ControlPlaneError(
+        "CONFLICT",
+        "Context builder produced an artifact outside the current orchestration stage version"
+      );
     }
 
     await this.artifacts.append(run, {
@@ -232,6 +254,26 @@ export class GovernedPlanningStageHandler implements OrchestrationStageHandler {
     }
     assertContextSnapshotIntegrity(context);
 
+    const expectedPlanId = orchestrationStageArtifactId({
+      kind: "plan-proposal",
+      run,
+      predecessorHash: context.contextHash
+    });
+    const existingPlan = await this.artifacts.latestPlan(run);
+    if (
+      existingPlan?.id === expectedPlanId
+      && existingPlan.contextSnapshotId === context.id
+      && existingPlan.contextHash === context.contextHash
+    ) {
+      assertGovernedPlanArtifactIntegrity(existingPlan);
+      return Object.freeze({
+        kind: "transition" as const,
+        state: "validating" as const,
+        wake: "immediate" as const,
+        reason: `plan-proposal-reused:${existingPlan.planHash}`
+      });
+    }
+
     const proposed = await this.planner.propose(run, context);
     if (proposed.kind === "unavailable") {
       return Object.freeze({
@@ -241,6 +283,12 @@ export class GovernedPlanningStageHandler implements OrchestrationStageHandler {
       });
     }
     assertGovernedPlanArtifactIntegrity(proposed.artifact);
+    if (proposed.artifact.id !== expectedPlanId) {
+      throw new ControlPlaneError(
+        "CONFLICT",
+        "Governed planner produced an artifact outside the current orchestration stage version"
+      );
+    }
 
     await this.artifacts.append(run, {
       kind: "plan-proposal",
@@ -284,6 +332,43 @@ export class GovernedPlanningStageHandler implements OrchestrationStageHandler {
       }),
       ...loaded.constraints
     });
+    const validationPolicyHash = sha256Hex(validationPolicy);
+    const expectedValidationId = orchestrationStageArtifactId({
+      kind: "validation-attestation",
+      run,
+      predecessorHash: sha256Hex({
+        planHash: planArtifact.planHash,
+        validationPolicyHash
+      })
+    });
+    const existingValidation = await this.artifacts.latestValidation(run);
+    if (
+      existingValidation?.id === expectedValidationId
+      && existingValidation.planArtifactId === planArtifact.id
+      && existingValidation.planHash === planArtifact.planHash
+    ) {
+      assertPlanValidationArtifactIntegrity(existingValidation);
+      assertPlanValidatorAttestation(existingValidation.attestation, planArtifact.plan);
+      if (existingValidation.validationStatus === "invalid") {
+        return Object.freeze({
+          kind: "transition" as const,
+          state: "replan-required" as const,
+          wake: "external" as const,
+          reason: boundedReason(
+            existingValidation.attestation.errors
+              .map((item) => item.code)
+              .join(",") || "plan-invalid"
+          )
+        });
+      }
+      return Object.freeze({
+        kind: "transition" as const,
+        state: "policy-evaluation" as const,
+        wake: "immediate" as const,
+        reason: `validation-reused:${existingValidation.artifactHash}`
+      });
+    }
+
     const createdAt = this.now().toISOString();
     const attestation = attestPlanValidation(
       planArtifact.plan,
@@ -293,11 +378,7 @@ export class GovernedPlanningStageHandler implements OrchestrationStageHandler {
     assertPlanValidatorAttestation(attestation, planArtifact.plan);
 
     const artifact = createPlanValidationArtifact({
-      id: planningArtifactId({
-        kind: "validation-attestation",
-        runId: run.id,
-        predecessorHash: planArtifact.planHash
-      }),
+      id: expectedValidationId,
       runId: run.id,
       correlationId: run.correlationId,
       planArtifactId: planArtifact.id,
@@ -528,10 +609,13 @@ export class GovernedPlanningStageHandler implements OrchestrationStageHandler {
 
     const createdAt = this.now().toISOString();
     const bundle = createPolicyBundleArtifact({
-      id: planningArtifactId({
+      id: orchestrationStageArtifactId({
         kind: "policy-bundle",
-        runId: run.id,
-        predecessorHash: validationArtifact.attestation.attestationHash
+        run,
+        predecessorHash: sha256Hex({
+          validationAttestationHash: validationArtifact.attestation.attestationHash,
+          stepPolicies
+        })
       }),
       runId: run.id,
       correlationId: run.correlationId,
