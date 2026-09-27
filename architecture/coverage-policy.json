@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "1.7.0",
+  "schemaVersion": "1.8.0",
   "thresholds": {
     "coveredModulePercent": 100,
     "minimumTotalTestCases": 80,
@@ -404,6 +404,36 @@
     {
       "source": "lib/persistence/postgres/orchestration-store.ts",
       "test": "lib/persistence/postgres/orchestration-store.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/orchestration/planning-artifacts.ts",
+      "test": "lib/orchestration/governed-planning-stage-handler.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/orchestration/context-builder.ts",
+      "test": "lib/orchestration/context-builder.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/orchestration/governed-planner.ts",
+      "test": "lib/orchestration/governed-planner.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/orchestration/governed-planning-stage-handler.ts",
+      "test": "lib/orchestration/governed-planning-stage-handler.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/persistence/postgres/orchestration-planning-artifact-store.ts",
+      "test": "lib/persistence/postgres/orchestration-planning-artifact-store.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/persistence/postgres/orchestration-context-source.ts",
+      "test": "lib/persistence/postgres/orchestration-context-source.test.ts",
       "critical": true
     }
   ]
