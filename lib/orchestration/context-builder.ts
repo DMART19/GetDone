@@ -8,7 +8,7 @@ import {
 import type { OrchestrationRun } from "@/lib/orchestration/contracts";
 import {
   createContextSnapshot,
-  planningArtifactId,
+  orchestrationStageArtifactId,
   type OrchestrationContextSnapshot
 } from "@/lib/orchestration/planning-artifacts";
 
@@ -86,9 +86,9 @@ export class OrchestrationContextBuilder {
 
     const predecessorHash = run.correlationId;
     const snapshot = createContextSnapshot({
-      id: planningArtifactId({
+      id: orchestrationStageArtifactId({
         kind: "context-snapshot",
-        runId: run.id,
+        run,
         predecessorHash
       }),
       runId: run.id,
