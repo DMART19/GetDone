@@ -275,22 +275,33 @@ export async function persistOwnerIntentOrchestrationTrigger(
 export class PostgresOrchestrationRuntimeStore {
   constructor(private readonly db: PostgresTransactionalDatabase) {}
 
-  private async releaseQueueClaim(eventId: string, availableAt: string, reason?: string) {
+  private async releaseQueueClaim(
+    eventId: string,
+    workerId: string,
+    availableAt: string,
+    reason?: string
+  ) {
     await this.db.query(
       `UPDATE orchestration_outbox
-       SET claimed_by=NULL,claimed_until=NULL,available_at=$2,last_error=$3
-       WHERE id=$1 AND delivered_at IS NULL`,
-      [eventId, availableAt, reason ? boundedReason(reason) : null]
+       SET claimed_by=NULL,claimed_until=NULL,available_at=$3,last_error=$4
+       WHERE id=$1 AND delivered_at IS NULL AND claimed_by=$2`,
+      [eventId, workerId, availableAt, reason ? boundedReason(reason) : null]
     );
   }
 
-  private async markQueueDelivered(eventId: string, deliveredAt: string) {
-    await this.db.query(
+  private async markQueueDelivered(eventId: string, workerId: string, deliveredAt: string) {
+    const result = await this.db.query(
       `UPDATE orchestration_outbox
-       SET delivered_at=$2,claimed_by=NULL,claimed_until=NULL,last_error=NULL
-       WHERE id=$1 AND delivered_at IS NULL`,
-      [eventId, deliveredAt]
+       SET delivered_at=$3,claimed_by=NULL,claimed_until=NULL,last_error=NULL
+       WHERE id=$1 AND delivered_at IS NULL AND claimed_by=$2`,
+      [eventId, workerId, deliveredAt]
     );
+    if (result.rowCount !== 1) {
+      throw new ControlPlaneError(
+        "CONFLICT",
+        "Orchestration queue delivery lost the authoritative queue claim"
+      );
+    }
   }
 
   async claimNext(input: {
@@ -334,7 +345,7 @@ export class PostgresOrchestrationRuntimeStore {
     if (!event) return null;
 
     try {
-      const run = await runWithPostgresTenantScope(
+      const claimResult = await runWithPostgresTenantScope(
         { portfolioId: event.portfolioId, companyId: event.companyId },
         () => this.db.transaction(async (client) => {
           const result = await client.query<OrchestrationRunRow>(
@@ -351,14 +362,24 @@ export class PostgresOrchestrationRuntimeStore {
             );
           }
           const current = mapRun(row);
-          if (isTerminalOrchestrationState(current.state)) return current;
-          if (Date.parse(current.availableAt) > nowMs) return null;
+          if (isTerminalOrchestrationState(current.state)) {
+            return Object.freeze({ kind: "terminal" as const, run: current });
+          }
+          if (Date.parse(current.availableAt) > nowMs) {
+            return Object.freeze({
+              kind: "not-ready" as const,
+              availableAt: current.availableAt
+            });
+          }
           if (
             current.leaseExpiresAt
             && Date.parse(current.leaseExpiresAt) > nowMs
             && current.leaseOwner !== input.workerId
           ) {
-            return null;
+            return Object.freeze({
+              kind: "not-ready" as const,
+              availableAt: current.leaseExpiresAt
+            });
           }
 
           const leased = await client.query<OrchestrationRunRow>(
@@ -368,19 +389,30 @@ export class PostgresOrchestrationRuntimeStore {
              RETURNING *`,
             [current.id, input.workerId, claimedUntil, current.version]
           );
-          return leased.rows[0] ? mapRun(leased.rows[0]) : null;
+          const leasedRow = leased.rows[0];
+          if (!leasedRow) {
+            throw new ControlPlaneError(
+              "CONFLICT",
+              "Orchestration run lease lost optimistic concurrency"
+            );
+          }
+          return Object.freeze({ kind: "claimed" as const, run: mapRun(leasedRow) });
         })
       );
 
-      if (!run) {
-        await this.releaseQueueClaim(event.id, event.availableAt);
+      if (claimResult.kind === "not-ready") {
+        await this.releaseQueueClaim(
+          event.id,
+          input.workerId,
+          claimResult.availableAt
+        );
         return null;
       }
-      if (isTerminalOrchestrationState(run.state)) {
-        await this.markQueueDelivered(event.id, input.now);
+      if (claimResult.kind === "terminal") {
+        await this.markQueueDelivered(event.id, input.workerId, input.now);
         return null;
       }
-      return Object.freeze({ event, run });
+      return Object.freeze({ event, run: claimResult.run });
     } catch (error) {
       await this.releaseQueueClaim(
         event.id,
