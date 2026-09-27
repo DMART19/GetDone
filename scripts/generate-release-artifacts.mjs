@@ -141,6 +141,14 @@ const phase44HarnessVersion = extractStringConst(
   registry.phase44.sourcePath,
   "PHASE44_DETERMINISTIC_HARNESS_VERSION"
 );
+const orchestrationRuntimeContractVersion = extractStringConst(
+  registry.schemaVersions.orchestrationRuntime.sourcePath,
+  "ORCHESTRATION_RUNTIME_CONTRACT_VERSION"
+);
+const orchestrationPlanningArtifactContractVersion = extractStringConst(
+  registry.schemaVersions.orchestrationPlanningArtifacts.sourcePath,
+  "ORCHESTRATION_PLANNING_ARTIFACT_CONTRACT_VERSION"
+);
 if (
   registry.aiGateway.contractVersion !== aiGatewayContractVersion
   || registry.aiGateway.routingPolicyContractVersion !== aiRoutingPolicyContractVersion
@@ -159,6 +167,10 @@ if (
   || registry.resourceFabric.resourceAdapterSdkContractVersion !== resourceAdapterSdkContractVersion
   || registry.resourceFabric.resourcePoolContractVersion !== resourcePoolContractVersion
   || registry.phase44.deterministicHarnessVersion !== phase44HarnessVersion
+  || registry.schemaVersions.orchestrationRuntime?.version !== orchestrationRuntimeContractVersion
+  || registry.orchestration.contractVersion !== orchestrationRuntimeContractVersion
+  || registry.schemaVersions.orchestrationPlanningArtifacts?.version !== orchestrationPlanningArtifactContractVersion
+  || registry.orchestration.planningArtifactContractVersion !== orchestrationPlanningArtifactContractVersion
 ) {
   throw new Error("Release registry deterministic contract versions are stale");
 }
