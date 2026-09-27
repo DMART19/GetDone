@@ -82,6 +82,15 @@
       "transitionSchema": false,
       "destructive": false,
       "authorityCompatibilityRequired": true
+    },
+    {
+      "version": "2026-09-27.2",
+      "file": "migrations/2026-09-27.2_orchestration_planning.sql",
+      "releaseId": "governed-planning-tranche",
+      "phase": "expand",
+      "transitionSchema": true,
+      "destructive": false,
+      "authorityCompatibilityRequired": true
     }
   ]
 }
