@@ -353,8 +353,8 @@ if (failures.length === 0) {
     registry.database.status !== "implemented-unconnected"
     || registry.database.engine !== "postgresql"
     || registry.database.minimumEngineVersion !== "16"
-    || registry.database.migrationVersion !== "2026-09-27.1"
-    || registry.database.schemaVersion !== "2.3.0"
+    || registry.database.migrationVersion !== "2026-09-27.2"
+    || registry.database.schemaVersion !== "2.4.0"
     || registry.schemaVersions.postgresPersistence?.version !== "1.1.0"
     || registry.schemaVersions.disasterRecovery?.version !== "1.0.0"
     || registry.schemaVersions.disasterRecovery?.sourcePath !== "lib/execution/disaster-recovery.ts"
@@ -410,19 +410,30 @@ if (failures.length === 0) {
     || registry.adapters.analyticsDataIngestion?.version !== "1.0.0"
     || registry.schemaVersions.analyticsIngestion?.version !== "1.0.0"
     || registry.schemaVersions.analyticsIngestion?.contractTracked !== true
-    || registry.schemaVersions.orchestrationRuntime?.version !== "1.0.0"
+    || registry.schemaVersions.orchestrationRuntime?.version !== "1.1.0"
     || registry.schemaVersions.orchestrationRuntime?.contractTracked !== true
-    || registry.orchestration?.contractVersion !== "1.0.0"
+    || registry.schemaVersions.orchestrationPlanningArtifacts?.version !== "1.0.0"
+    || registry.schemaVersions.orchestrationPlanningArtifacts?.contractTracked !== true
+    || registry.orchestration?.contractVersion !== "1.1.0"
+    || registry.orchestration?.planningArtifactContractVersion !== "1.0.0"
     || registry.orchestration?.runtimeStatus !== "implemented-unconnected"
     || registry.orchestration?.ownerIntentTriggerStatus !== "implemented"
+    || registry.orchestration?.contextSnapshotStatus !== "implemented-owner-intent"
     || registry.orchestration?.signalTriggerStatus !== "not-connected"
-    || registry.orchestration?.planningHandlerStatus !== "not-connected"
+    || registry.orchestration?.planningHandlerStatus !== "implemented-unconfigured"
+    || registry.orchestration?.planValidationStatus !== "implemented"
+    || registry.orchestration?.policyEvaluationStatus !== "implemented"
+    || registry.orchestration?.policyClearedRequiresAuthorizationGrant !== true
     || registry.orchestration?.decisionContinuationStatus !== "not-connected"
     || manifest.orchestration?.contractVersion !== registry.orchestration.contractVersion
     || manifest.orchestration?.runtimeStatus !== registry.orchestration.runtimeStatus
     || manifest.orchestration?.ownerIntentTriggerStatus !== registry.orchestration.ownerIntentTriggerStatus
+    || manifest.orchestration?.contextSnapshotStatus !== registry.orchestration.contextSnapshotStatus
     || manifest.orchestration?.signalTriggerStatus !== registry.orchestration.signalTriggerStatus
     || manifest.orchestration?.planningHandlerStatus !== registry.orchestration.planningHandlerStatus
+    || manifest.orchestration?.planValidationStatus !== registry.orchestration.planValidationStatus
+    || manifest.orchestration?.policyEvaluationStatus !== registry.orchestration.policyEvaluationStatus
+    || manifest.orchestration?.policyClearedRequiresAuthorizationGrant !== true
     || manifest.orchestration?.decisionContinuationStatus !== registry.orchestration.decisionContinuationStatus
     || registry.composition.mvpBusinessWorkflowStatus !== "implemented-unconfigured"
     || registry.execution.softwareWorkerRuntimeStatus !== "implemented"
