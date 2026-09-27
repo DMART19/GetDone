@@ -1,7 +1,7 @@
 import { ControlPlaneError } from "@/lib/control-plane/errors";
 import type { GetDoneEnvironment, TrustedActor } from "@/lib/control-plane/request-context";
 
-export const ORCHESTRATION_RUNTIME_CONTRACT_VERSION = "1.0.0";
+export const ORCHESTRATION_RUNTIME_CONTRACT_VERSION = "1.1.0";
 
 export const ORCHESTRATION_RUN_STATES = Object.freeze([
   "received",
@@ -10,6 +10,7 @@ export const ORCHESTRATION_RUN_STATES = Object.freeze([
   "validating",
   "policy-evaluation",
   "awaiting-approval",
+  "policy-cleared",
   "authorized",
   "materializing",
   "queued",
@@ -86,7 +87,7 @@ const transitionMap: Readonly<Record<OrchestrationRunState, readonly Orchestrati
     "validating": Object.freeze(["policy-evaluation", "replan-required", "blocked", "failed", "cancelled"]),
     "policy-evaluation": Object.freeze([
       "awaiting-approval",
-      "authorized",
+      "policy-cleared",
       "replan-required",
       "blocked",
       "failed",
@@ -99,6 +100,7 @@ const transitionMap: Readonly<Record<OrchestrationRunState, readonly Orchestrati
       "failed",
       "cancelled"
     ]),
+    "policy-cleared": Object.freeze(["authorized", "replan-required", "blocked", "failed", "cancelled"]),
     "authorized": Object.freeze(["materializing", "replan-required", "blocked", "failed", "cancelled"]),
     "materializing": Object.freeze(["queued", "replan-required", "failed", "cancelled"]),
     "queued": Object.freeze(["executing", "verifying", "failed", "cancelled"]),
