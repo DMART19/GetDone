@@ -9,6 +9,7 @@ import {
   AIGatewayGovernedPlanner
 } from "@/lib/orchestration/governed-planner";
 import { validPlan } from "@/lib/planning/test-fixture";
+import type { PlanProposal } from "@/lib/planning/plan-schema";
 
 const now = new Date("2026-09-27T20:00:00.000Z");
 
@@ -62,7 +63,7 @@ function context() {
   });
 }
 
-function plan(overrides: Record<string, unknown> = {}) {
+function plan(overrides: Partial<PlanProposal> = {}) {
   const base = validPlan();
   return validPlan({
     source: { type: "owner-request", requestId: "intent-1" },
