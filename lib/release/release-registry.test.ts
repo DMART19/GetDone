@@ -462,6 +462,19 @@ describe("Phase 41 release/version registry", () => {
       sourcePath: "lib/analytics/ingestion.ts",
       contractTracked: true
     });
+    expect(registry.schemaVersions.orchestrationRuntime).toMatchObject({
+      version: "1.0.0",
+      sourcePath: "lib/orchestration/contracts.ts",
+      contractTracked: true
+    });
+    expect(registry.orchestration).toMatchObject({
+      contractVersion: "1.0.0",
+      runtimeStatus: "implemented-unconnected",
+      ownerIntentTriggerStatus: "implemented",
+      signalTriggerStatus: "not-connected",
+      planningHandlerStatus: "not-connected",
+      decisionContinuationStatus: "not-connected"
+    });
     expect(registry.schemaVersions.environmentEvidence).toMatchObject({
       version: "1.0.0",
       sourcePath: "config/environment-evidence-policy.json",
@@ -538,8 +551,8 @@ describe("Phase 41 release/version registry", () => {
       status: "implemented-unconnected",
       engine: "postgresql",
       minimumEngineVersion: "16",
-      migrationVersion: "2026-09-25.3",
-      schemaVersion: "2.2.0"
+      migrationVersion: "2026-09-27.1",
+      schemaVersion: "2.3.0"
     });
     expect(registry.adapters.postgresPersistence).toMatchObject({
       status: "implemented-unconnected",
@@ -570,8 +583,8 @@ describe("Phase 41 release/version registry", () => {
         engine: "postgresql",
         minimumEngineVersion: "16",
         adapterStatus: "implemented-unconnected",
-        migrationVersion: "2026-09-25.3",
-        schemaVersion: "2.2.0"
+        migrationVersion: "2026-09-27.1",
+        schemaVersion: "2.3.0"
       });
       expect(state.execution).toMatchObject({
         durableJobStoreStatus: "not-connected",
