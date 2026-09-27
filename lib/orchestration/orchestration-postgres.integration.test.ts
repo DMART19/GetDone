@@ -108,6 +108,55 @@ integrationDescribe("PostgreSQL orchestration runtime", () => {
     });
   });
 
+  it("defers routing to the authoritative run lease instead of hot-looping", async () => {
+    const runtimeStore = new PostgresOrchestrationRuntimeStore(database);
+    const leaseExpiresAt = new Date(Date.now() + 60_000).toISOString();
+    const queueEventId = `outbox:orchestration.resume:${runId}:lease-regression`;
+
+    await admin.query(
+      `UPDATE orchestration_runs
+       SET lease_owner='other-orchestration-worker',lease_expires_at=$2,available_at=now()
+       WHERE id=$1`,
+      [runId, leaseExpiresAt]
+    );
+    await admin.query(
+      `INSERT INTO orchestration_outbox (
+         id,correlation_id,portfolio_id,company_id,event_type,run_id,
+         occurred_at,available_at,attempts
+       ) VALUES ($1,$2,$3,$4,'orchestration.resume',$5,now(),now(),0)`,
+      [queueEventId, correlationId, portfolioId, companyId, runId]
+    );
+
+    await expect(runtimeStore.claimNext({
+      workerId: `lease-regression-worker-${suffix}`,
+      leaseMilliseconds: 30_000,
+      now: new Date().toISOString()
+    })).resolves.toBeNull();
+
+    const queued = await admin.query<{
+      claimed_by: string | null;
+      delivered_at: Date | null;
+      attempts: number;
+      available_at: Date;
+    }>(
+      `SELECT claimed_by,delivered_at,attempts,available_at
+       FROM orchestration_outbox WHERE id=$1`,
+      [queueEventId]
+    );
+    expect(queued.rows[0]?.claimed_by).toBeNull();
+    expect(queued.rows[0]?.delivered_at).toBeNull();
+    expect(queued.rows[0]?.attempts).toBe(1);
+    expect(queued.rows[0]?.available_at.toISOString()).toBe(leaseExpiresAt);
+
+    await admin.query("DELETE FROM orchestration_outbox WHERE id=$1", [queueEventId]);
+    await admin.query(
+      `UPDATE orchestration_runs
+       SET lease_owner=NULL,lease_expires_at=NULL,available_at=now()
+       WHERE id=$1`,
+      [runId]
+    );
+  });
+
   it("claims through the routing queue, re-enters tenant scope, and advances with external wake barriers", async () => {
     const runtimeStore = new PostgresOrchestrationRuntimeStore(database);
     const coordinator = new OrchestrationCoordinator(
