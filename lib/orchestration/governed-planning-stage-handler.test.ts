@@ -6,7 +6,8 @@ import {
   GovernedPlanningStageHandler,
   StaticOrchestrationValidationPolicyProvider,
   type OrchestrationPolicyDynamicEvidence,
-  type OrchestrationPolicyEvidenceProvider
+  type OrchestrationPolicyEvidenceProvider,
+  type OrchestrationValidationPolicyProvider
 } from "@/lib/orchestration/governed-planning-stage-handler";
 import { AIGatewayGovernedPlanner } from "@/lib/orchestration/governed-planner";
 import type { OrchestrationPlanningArtifactStore } from "@/lib/orchestration/planning-artifact-store";
@@ -162,7 +163,8 @@ function policyEvidence(
 
 function harness(
   output: PlanProposal,
-  evidence: OrchestrationPolicyEvidenceProvider = policyEvidence()
+  evidence: OrchestrationPolicyEvidenceProvider = policyEvidence(),
+  validationOverride?: OrchestrationValidationPolicyProvider
 ) {
   const artifacts = new MemoryArtifactStore();
   const contextBuilder = new OrchestrationContextBuilder({
@@ -214,7 +216,7 @@ function harness(
     () => fixedNow
   );
 
-  const validation = new StaticOrchestrationValidationPolicyProvider({
+  const validation = validationOverride ?? new StaticOrchestrationValidationPolicyProvider({
     allowedEnvironments: ["staging"],
     allowedDataClasses: ["internal"],
     allowedRegions: ["us-west"],
@@ -335,6 +337,38 @@ describe("GovernedPlanningStageHandler", () => {
     const bundle = await artifacts.latestPolicy(run("awaiting-approval"));
     expect(bundle?.strongestDisposition).toBe("APPROVAL_REQUIRED");
     expect(bundle?.stepPolicies[0]?.evaluation.readyForTaskGeneration).toBe(false);
+  });
+
+  it("requires replan when validation policy drifts after attestation", async () => {
+    let reads = 0;
+    const validation: OrchestrationValidationPolicyProvider = {
+      load: async () => {
+        reads += 1;
+        return {
+          kind: "ready" as const,
+          constraints: {
+            allowedEnvironments: ["staging"] as const,
+            allowedDataClasses: ["internal"] as const,
+            allowedRegions: ["us-west"],
+            maxPlanCostCents: reads === 1 ? 500 : 499,
+            maxStepCostCents: 300,
+            minimumReliabilityTier: "standard" as const,
+            fallbackRequiredForProduction: true,
+            fallbackRequiredForCustomerData: true,
+            requireRollbackForRiskAtOrAbove: "high" as const,
+            availableCredentialBindings: true
+          }
+        };
+      }
+    };
+    const { handler } = harness(ownerPlan(), policyEvidence(), validation);
+
+    await throughValidation(handler);
+    await expect(handler.advance(run("policy-evaluation"))).resolves.toMatchObject({
+      state: "replan-required",
+      wake: "external",
+      reason: "validation-policy-drift"
+    });
   });
 
   it("persists policy BLOCKED when a trusted kill switch applies", async () => {
