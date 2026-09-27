@@ -327,6 +327,20 @@ const manualLines = [
   `- Live adapter status: ${registry.integrations.liveAdaptersStatus}`,
   `- Source hash: ${fileHash(registry.integrations.sourcePath)}`,
   "",
+  "## Orchestration runtime",
+  "",
+  `- Contract version: ${registry.orchestration.contractVersion}`,
+  `- Runtime status: ${registry.orchestration.runtimeStatus}`,
+  `- OwnerIntent trigger: ${registry.orchestration.ownerIntentTriggerStatus}`,
+  `- Signal trigger: ${registry.orchestration.signalTriggerStatus}`,
+  `- Planning handler: ${registry.orchestration.planningHandlerStatus}`,
+  `- Decision continuation: ${registry.orchestration.decisionContinuationStatus}`,
+  ...registry.orchestration.sourcePaths.map(
+    (sourcePath) => `- Orchestration source: ${sourcePath} — ${fileHash(sourcePath)}`
+  ),
+  "",
+  "The durable orchestration state machine and OwnerIntent trigger are implemented. Release truth intentionally does not claim a connected planner, SignalBus trigger, or approval continuation runtime.",
+  "",
   "## Durable execution contracts",
   "",
   `- Job runtime contract: ${registry.execution.jobRuntimeContractVersion}`,
@@ -559,6 +573,10 @@ const manifestBase = {
   execution: {
     ...registry.execution,
     sourceEvidence: sourceEvidence(registry.execution.sourcePaths)
+  },
+  orchestration: {
+    ...registry.orchestration,
+    sourceEvidence: sourceEvidence(registry.orchestration.sourcePaths)
   },
   composition: {
     ...registry.composition,
