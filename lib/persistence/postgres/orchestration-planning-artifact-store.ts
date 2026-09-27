@@ -219,6 +219,7 @@ implements OrchestrationPlanningArtifactStore {
         const persisted = assertStoredArtifact(row);
         if (
           persisted.kind !== artifact.kind
+          || artifactId(persisted) !== id
           || artifactHash(persisted) !== hash
         ) {
           throw new ControlPlaneError(
