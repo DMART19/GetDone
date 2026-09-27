@@ -101,6 +101,34 @@ function assertArtifactScope(run: OrchestrationRun, artifact: OrchestrationPlann
       );
     }
   }
+
+  if (artifact.kind === "plan-proposal") {
+    if (
+      artifact.value.plan.scope.portfolioId !== run.portfolioId
+      || artifact.value.plan.scope.companyId !== run.companyId
+      || artifact.value.plan.scope.environment !== run.environment
+    ) {
+      throw new ControlPlaneError(
+        "FORBIDDEN",
+        "Plan artifact scope does not match orchestration authority"
+      );
+    }
+  }
+
+  if (artifact.kind === "policy-bundle") {
+    for (const step of artifact.value.stepPolicies) {
+      if (
+        step.snapshot.scope.portfolioId !== run.portfolioId
+        || step.snapshot.scope.companyId !== run.companyId
+        || step.snapshot.scope.environment !== run.environment
+      ) {
+        throw new ControlPlaneError(
+          "FORBIDDEN",
+          "Policy artifact scope does not match orchestration authority"
+        );
+      }
+    }
+  }
 }
 
 function assertStoredArtifact(row: ArtifactRow) {
@@ -136,7 +164,7 @@ implements OrchestrationPlanningArtifactStore {
              id,run_id,correlation_id,portfolio_id,company_id,
              artifact_kind,artifact_hash,predecessor_hash,created_at,payload
            ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb)
-           ON CONFLICT (id) DO NOTHING
+           ON CONFLICT DO NOTHING
            RETURNING *`,
           [
             id,
@@ -178,8 +206,11 @@ implements OrchestrationPlanningArtifactStore {
 
         const existing = await client.query<ArtifactRow>(
           `SELECT * FROM orchestration_planning_artifacts
-           WHERE id=$1 AND run_id=$2`,
-          [id, run.id]
+           WHERE run_id=$1
+             AND (id=$2 OR (artifact_kind=$3 AND artifact_hash=$4))
+           ORDER BY CASE WHEN id=$2 THEN 0 ELSE 1 END
+           LIMIT 1`,
+          [run.id, id, artifact.kind, hash]
         );
         const row = existing.rows[0];
         if (!row) {
