@@ -639,7 +639,9 @@
     "lib/persistence/postgres/analytics-ingestion-store.ts",
     "migrations/2026-09-25.3_analytics_ingestion.sql",
     "lib/orchestration/coordinator.test.ts",
-    "lib/orchestration/orchestration-postgres.integration.test.ts"
+    "lib/orchestration/orchestration-postgres.integration.test.ts",
+    "lib/persistence/postgres/orchestration-store.test.ts",
+    "lib/orchestration/worker-runtime.test.ts"
   ],
   "manualSourcePaths": [
     "docs/ARCHITECTURE.md",
