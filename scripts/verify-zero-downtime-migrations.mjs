@@ -26,16 +26,31 @@ for (const file of governed) {
   const destructivePatterns = [
     /\bDROP\s+TABLE\b/i,
     /\bDROP\s+COLUMN\b/i,
-    /\bDROP\s+CONSTRAINT\b/i,
     /\bDROP\s+INDEX\b/i,
     /\bRENAME\s+(?:COLUMN|TO)\b/i,
     /\bALTER\s+COLUMN\b[^;]*\bTYPE\b/i,
     /\bSET\s+NOT\s+NULL\b/i
   ];
   const destructive = destructivePatterns.some((pattern)=>pattern.test(sql));
+  const dropsConstraint = /\bDROP\s+CONSTRAINT\b/i.test(sql);
+  const compatibleConstraintWidening = entry.compatibleConstraintWidening === true;
+  if (dropsConstraint && compatibleConstraintWidening) {
+    const constraint = String(entry.constraintName ?? "").trim();
+    if (
+      !constraint
+      || !sql.includes(`DROP CONSTRAINT IF EXISTS ${constraint}`)
+      || !sql.includes(`ADD CONSTRAINT ${constraint}`)
+      || !/ADD\s+CONSTRAINT[\s\S]*CHECK[\s\S]*NOT\s+VALID/i.test(sql)
+      || !/VALIDATE\s+CONSTRAINT/i.test(sql)
+    ) {
+      failures.push(`${relative} declared a compatible constraint widening without drop/re-add NOT VALID/VALIDATE evidence`);
+    }
+  }
 
   if (entry.phase === "expand" || entry.phase === "migrate") {
-    if (destructive) failures.push(`${relative} contains destructive SQL in ${entry.phase} phase`);
+    if (destructive || (dropsConstraint && !compatibleConstraintWidening)) {
+      failures.push(`${relative} contains destructive SQL in ${entry.phase} phase`);
+    }
     if (entry.destructive === true) failures.push(`${relative} is marked destructive in ${entry.phase} phase`);
   }
   if (entry.phase === "contract") {
