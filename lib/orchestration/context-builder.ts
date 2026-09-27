@@ -34,7 +34,7 @@ const sensitivityRank = {
 } as const;
 
 function requiredDataClass(items: readonly ContextItem[]) {
-  let selected: ContextItem["sensitivity"] = "internal";
+  let selected: ContextItem["sensitivity"] = "public";
   for (const item of items) {
     if (sensitivityRank[item.sensitivity] > sensitivityRank[selected]) {
       selected = item.sensitivity;
