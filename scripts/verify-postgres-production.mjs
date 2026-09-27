@@ -313,21 +313,27 @@ try {
      WHERE table_schema=current_schema()
        AND table_name='orchestration_outbox'`
   );
-  const forbiddenRoutingColumns = new Set([
-    'payload',
-    'message',
-    'content',
-    'credential',
-    'credentials',
-    'secret',
-    'token'
-  ]);
-  const unsafeRoutingColumns = outboxColumns.rows
+  const expectedRoutingColumns = [
+    "id",
+    "correlation_id",
+    "portfolio_id",
+    "company_id",
+    "event_type",
+    "run_id",
+    "occurred_at",
+    "available_at",
+    "claimed_by",
+    "claimed_until",
+    "delivered_at",
+    "attempts",
+    "last_error"
+  ].sort();
+  const actualRoutingColumns = outboxColumns.rows
     .map((row) => String(row.column_name).toLowerCase())
-    .filter((name) => forbiddenRoutingColumns.has(name));
-  if (unsafeRoutingColumns.length > 0) {
+    .sort();
+  if (JSON.stringify(actualRoutingColumns) !== JSON.stringify(expectedRoutingColumns)) {
     throw new Error(
-      `Orchestration routing outbox contains sensitive payload columns: ${unsafeRoutingColumns.join(", ")}`
+      "Orchestration routing outbox schema changed; global routing metadata requires explicit security review"
     );
   }
 
