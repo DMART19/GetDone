@@ -145,6 +145,37 @@ integrationDescribe("PostgreSQL orchestration planning evidence", () => {
     expect(row.rows[0]?.artifact_hash).toBe(built.snapshot.contextHash);
   });
 
+  it("keeps persisted planning evidence append-only for the tenant runtime role", async () => {
+    const artifacts = new PostgresOrchestrationPlanningArtifactStore(database);
+    const persisted = await artifacts.latestContext(Object.freeze({
+      id: runId,
+      correlationId,
+      portfolioId,
+      companyId,
+      environment: "staging" as const,
+      authorityUserId: userId,
+      initiatingActor: Object.freeze({ type: "user" as const, id: userId }),
+      source: Object.freeze({ kind: "owner-intent" as const, ownerIntentId: intentId }),
+      state: "planning" as const,
+      attempt: 1,
+      version: 3,
+      availableAt: new Date().toISOString(),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    }));
+    expect(persisted).not.toBeNull();
+
+    await expect(runWithPostgresTenantScope(
+      { portfolioId, companyId },
+      () => database.query(
+        `UPDATE orchestration_planning_artifacts
+         SET predecessor_hash='tampered'
+         WHERE run_id=$1`,
+        [runId]
+      )
+    )).rejects.toThrow();
+  });
+
   it("does not expose another tenant's planning artifacts through runtime RLS", async () => {
     const foreignRun: OrchestrationRun = Object.freeze({
       id: runId,
