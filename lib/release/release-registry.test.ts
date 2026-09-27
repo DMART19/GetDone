@@ -292,7 +292,7 @@ describe("Phase 41 release/version registry", () => {
     expect(registry.registrySchemaVersion).toBe("1.7.0");
     expect(registry.environmentManifestSchemaVersion).toBe("1.7.0");
     expect(environment.manifestSchemaVersion).toBe("1.7.0");
-    expect(registry.schemaVersions.releaseManifest.version).toBe("1.6.0");
+    expect(registry.schemaVersions.releaseManifest.version).toBe("1.7.0");
     expect(registry.appVersion).toBe(packageJson.version);
     expect(registry.policy.registryVersion).toBe(CURRENT_POLICY_VERSION);
     expect(registry.policy.engineVersion).toBe(POLICY_ENGINE_VERSION);
