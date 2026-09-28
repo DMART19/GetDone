@@ -97,7 +97,11 @@ describe("MVP capability-dispatched Job runtime", () => {
       jobId: "job-1",
       spec: {
         kind: "business-action",
-        request: { capability: "http.request", correlationId }
+        request: {
+          capability: "http.request",
+          correlationId,
+          idempotencyKey: "job:job-1:side-effect:action-1"
+        }
       }
     });
     expect(enqueued[0]).toMatchObject({
