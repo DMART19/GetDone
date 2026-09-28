@@ -16,6 +16,8 @@ import {
   type CredentialLease
 } from "@/lib/credentials/broker";
 import type { ContextItem, ContextScope } from "@/lib/intelligence/context";
+import type { CompanyIntegration, IntegrationKind } from "@/lib/integrations/contracts";
+import { assertCompanyIntegrationIntegrity } from "@/lib/integrations/registry";
 import {
   AIGatewayDurablePlanner,
   type PlannerAIBudgetProvider
@@ -224,8 +226,9 @@ class PostgresPlannerAIBudgetProvider implements PlannerAIBudgetProvider {
   }
 }
 
-interface RuntimeIntegration {
+interface LegacyRuntimeIntegration {
   id: string;
+  portfolioId?: string;
   companyId?: string;
   company_id?: string;
   provider?: string;
@@ -239,7 +242,43 @@ interface RuntimeIntegration {
   health?: string;
 }
 
+type RuntimeIntegration = LegacyRuntimeIntegration | CompanyIntegration;
+
+const COMPANY_INTEGRATION_CAPABILITIES: Readonly<
+  Partial<Record<IntegrationKind, readonly string[]>>
+> = Object.freeze({
+  github: Object.freeze([
+    "github.repository.read",
+    "github.branch.create",
+    "github.commit.create",
+    "github.protected-branch.commit",
+    "github.pull-request.write",
+    "github.issue.write",
+    "github.pull-request.merge"
+  ]),
+  gmail: Object.freeze(["email.send"]),
+  slack: Object.freeze(["slack.message.send"]),
+  hubspot: Object.freeze(["crm.record.read", "crm.record.write"]),
+  analytics: Object.freeze(["analytics.ingest.read"]),
+  "rest-api": Object.freeze(["http.request"]),
+  webhook: Object.freeze(["webhook.send"])
+});
+
+function isCompanyIntegration(
+  integration: RuntimeIntegration
+): integration is CompanyIntegration {
+  return "recordHash" in integration
+    && typeof integration.recordHash === "string"
+    && "kind" in integration
+    && typeof integration.kind === "string"
+    && "state" in integration
+    && typeof integration.state === "string";
+}
+
 function integrationCapabilities(integration: RuntimeIntegration) {
+  if (isCompanyIntegration(integration)) {
+    return COMPANY_INTEGRATION_CAPABILITIES[integration.kind] ?? [];
+  }
   const values = integration.supportedCapabilities
     ?? integration.supported_capabilities
     ?? [];
@@ -247,15 +286,81 @@ function integrationCapabilities(integration: RuntimeIntegration) {
 }
 
 function integrationCompany(integration: RuntimeIntegration) {
-  return integration.companyId ?? integration.company_id;
+  return integration.companyId ?? (
+    isCompanyIntegration(integration) ? integration.companyId : integration.company_id
+  );
+}
+
+function integrationPortfolio(integration: RuntimeIntegration) {
+  return integration.portfolioId;
 }
 
 function integrationCredential(integration: RuntimeIntegration) {
+  if (isCompanyIntegration(integration)) return integration.credentialBindingId;
   return integration.credentialBinding ?? integration.credential_binding;
 }
 
 function integrationConnectionStatus(integration: RuntimeIntegration) {
+  if (isCompanyIntegration(integration)) return integration.state;
   return integration.connectionStatus ?? integration.connection_status;
+}
+
+function integrationHealthy(integration: RuntimeIntegration) {
+  return isCompanyIntegration(integration)
+    ? integration.state === "connected"
+    : integration.health === "healthy";
+}
+
+function integrationProvider(integration: RuntimeIntegration) {
+  if (isCompanyIntegration(integration)) return integration.adapterId;
+  return integration.provider ?? integration.id;
+}
+
+function integrationGrantedScopes(integration: RuntimeIntegration) {
+  if (!isCompanyIntegration(integration)) return [];
+  return [...new Set([...integration.readScopes, ...integration.writeScopes])].sort();
+}
+
+export function credentialReferencesFromRuntimeIntegrations(input: {
+  integrations: readonly RuntimeIntegration[];
+  portfolioId: string;
+  companyId: string;
+  environment: OrchestrationRunRecord["scope"]["environment"];
+}): readonly CredentialBindingReference[] {
+  const references: CredentialBindingReference[] = [];
+  for (const integration of input.integrations) {
+    if (isCompanyIntegration(integration)) {
+      assertCompanyIntegrationIntegrity(integration);
+    }
+    const credential = integrationCredential(integration);
+    if (
+      integrationCompany(integration) !== input.companyId
+      || (
+        integrationPortfolio(integration) !== undefined
+        && integrationPortfolio(integration) !== input.portfolioId
+      )
+      || integration.environment !== input.environment
+      || credential === undefined
+      || credential === null
+      || integrationConnectionStatus(integration) !== "connected"
+      || !integrationHealthy(integration)
+    ) {
+      continue;
+    }
+
+    references.push({
+      id: typeof credential === "string" && credential.trim()
+        ? credential
+        : `integration-credential:${integration.id}`,
+      companyId: input.companyId,
+      providerId: integrationProvider(integration),
+      environment: input.environment,
+      capabilityNames: integrationCapabilities(integration),
+      grantedScopes: integrationGrantedScopes(integration),
+      status: "active"
+    });
+  }
+  return Object.freeze(references);
 }
 
 async function loadIntegrations(
@@ -302,24 +407,12 @@ async function credentialSnapshot(input: {
   if (requirements.length === 0) return undefined;
 
   const integrations = await loadIntegrations(input.db, input.run.scope.companyId);
-  const references: CredentialBindingReference[] = integrations
-    .filter((integration) =>
-      integrationCompany(integration) === input.run.scope.companyId
-      && integration.environment === input.run.scope.environment
-      && integrationCredential(integration) !== undefined
-      && integrationCredential(integration) !== null
-      && integrationConnectionStatus(integration) === "connected"
-      && integration.health === "healthy"
-    )
-    .map((integration) => ({
-      id: `integration-credential:${integration.id}`,
-      companyId: input.run.scope.companyId,
-      providerId: integration.provider ?? integration.id,
-      environment: input.run.scope.environment,
-      capabilityNames: integrationCapabilities(integration),
-      grantedScopes: [],
-      status: "active" as const
-    }));
+  const references = credentialReferencesFromRuntimeIntegrations({
+    integrations,
+    portfolioId: input.run.scope.portfolioId,
+    companyId: input.run.scope.companyId,
+    environment: input.run.scope.environment
+  });
 
   return createCredentialAvailabilitySnapshot({
     id: `credential-snapshot:${input.run.id}:v${input.run.version}`,
