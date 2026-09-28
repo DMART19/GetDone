@@ -94,7 +94,7 @@ async function assertCurrentTaskExecutionAuthority(
   ) {
     throw new ControlPlaneError(
       "FORBIDDEN",
-      "Executable Task requires exact persisted authorization lineage"
+      "Executable Task requires exact persisted authorization consumption and grant lineage"
     );
   }
 
