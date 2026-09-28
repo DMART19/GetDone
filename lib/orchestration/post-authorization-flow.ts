@@ -10,6 +10,7 @@ import {
   type VerifiedOutcomeRef
 } from "@/lib/orchestration/contracts";
 import type { OrchestrationStageOutcome } from "@/lib/orchestration/worker-contracts";
+import type { ObjectiveReadStore } from "@/lib/orchestration/objective-flow";
 import {
   assertPersistedPlanProposal,
   type OrchestrationPlanProposalStore,
@@ -355,7 +356,7 @@ export async function advanceAuthorizedToTasksCreated(input: {
   grants: OrchestrationAuthorizationGrantStore;
   taskDedupe: TaskGenerationDedupeStore;
   taskDags: OrchestrationTaskDagStore;
-  objectiveStatus?: "active" | "paused" | "completed";
+  objectives?: ObjectiveReadStore;
   now?: () => Date;
 }): Promise<OrchestrationStageOutcome> {
   if (input.run.state !== "authorized") {
@@ -393,13 +394,38 @@ export async function advanceAuthorizedToTasksCreated(input: {
     },
     now
   );
+  let objectiveStatus: "active" | "paused" | "completed" | undefined;
+  if (plan.proposal.source.type === "objective") {
+    if (!input.objectives) {
+      throw new ControlPlaneError(
+        "FORBIDDEN",
+        "Objective-backed Task generation requires the authoritative Objective store"
+      );
+    }
+    const objective = await input.objectives.get(plan.proposal.source.objectiveId);
+    if (!objective) {
+      throw new ControlPlaneError(
+        "FORBIDDEN",
+        "Objective-backed Task generation references a missing authoritative Objective"
+      );
+    }
+    if (
+      objective.scopeId !== input.run.scope.companyId
+      && objective.scopeId !== input.run.scope.portfolioId
+    ) {
+      throw new ControlPlaneError(
+        "FORBIDDEN",
+        "Objective-backed Task generation crossed authoritative tenant scope"
+      );
+    }
+    objectiveStatus = objective.status;
+  }
+
   const generated = await taskGenerator.generate({
     plan: plan.proposal,
     validationReceipt: validation.receipt,
     authorizationGrants: grants,
-    objectiveStatus: plan.proposal.source.type === "objective"
-      ? input.objectiveStatus
-      : undefined
+    objectiveStatus
   });
   if (generated.status === "blocked") {
     return { kind: "failed", code: "TASK_GENERATION_BLOCKED", reason: generated.reasons.join("; ") };
