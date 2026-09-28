@@ -7,7 +7,7 @@ function required(name) {
   return value;
 }
 
-const requiredMigration = "2026-09-28.4";
+const requiredMigration = "2026-09-28.5";
 const maxBackupAgeHours = Number(process.env.GETDONE_BACKUP_MAX_AGE_HOURS || "24");
 if (!Number.isFinite(maxBackupAgeHours) || maxBackupAgeHours <= 0) {
   throw new Error("GETDONE_BACKUP_MAX_AGE_HOURS must be positive");
@@ -111,7 +111,9 @@ try {
     "orchestration_worker_state",
     "orchestration_context_snapshots",
     "orchestration_planner_inputs",
-    "orchestration_plan_proposals"
+    "orchestration_plan_proposals",
+    "orchestration_validation_artifacts",
+    "orchestration_policy_evaluations"
   ];
   const rls = await client.query(
     `SELECT required.name, relation.relrowsecurity, relation.relforcerowsecurity
@@ -533,6 +535,91 @@ try {
     throw new Error("UFO durable planning uniqueness constraints are incomplete");
   }
 
+  const validationPolicySchema = await client.query(
+    `SELECT
+       COUNT(*) FILTER (WHERE table_name='orchestration_validation_artifacts')::int AS validation_columns,
+       COUNT(*) FILTER (WHERE table_name='orchestration_policy_evaluations')::int AS policy_columns
+     FROM information_schema.columns
+     WHERE (
+       table_name='orchestration_validation_artifacts'
+       AND column_name IN (
+         'id','run_id','portfolio_id','company_id','planned_run_version',
+         'plan_artifact_id','plan_artifact_hash','plan_hash',
+         'validation_policy_hash','receipt_hash','validation_status',
+         'artifact_hash','idempotency_key','payload','created_at'
+       )
+     ) OR (
+       table_name='orchestration_policy_evaluations'
+       AND column_name IN (
+         'id','run_id','portfolio_id','company_id','validated_run_version',
+         'plan_artifact_id','plan_artifact_hash','plan_hash',
+         'validation_receipt_id','validation_receipt_hash','aggregate_disposition',
+         'policy_engine_version','policy_rules_hash','artifact_hash',
+         'idempotency_key','payload','created_at'
+       )
+     )`
+  );
+  if (
+    validationPolicySchema.rows[0]?.validation_columns !== 15
+    || validationPolicySchema.rows[0]?.policy_columns !== 17
+  ) {
+    throw new Error("UFO durable validation/policy schema verification failed");
+  }
+
+  const validationPolicyIndexes = await client.query(
+    `SELECT COUNT(*)::int AS count
+     FROM pg_indexes
+     WHERE schemaname=current_schema()
+       AND indexname IN (
+         'orchestration_validation_artifacts_scope_idx',
+         'orchestration_validation_artifacts_plan_idx',
+         'orchestration_policy_evaluations_scope_idx',
+         'orchestration_policy_evaluations_plan_idx',
+         'orchestration_policy_evaluations_validation_idx'
+       )`
+  );
+  if (validationPolicyIndexes.rows[0]?.count !== 5) {
+    throw new Error("UFO durable validation/policy index verification failed");
+  }
+
+  const validationPolicyConstraints = await client.query(
+    `SELECT
+       COUNT(*) FILTER (
+         WHERE conrelid='orchestration_validation_artifacts'::regclass
+           AND contype='u'
+           AND pg_get_constraintdef(oid)='UNIQUE (run_id, planned_run_version)'
+       )::int AS validation_run_unique,
+       COUNT(*) FILTER (
+         WHERE conrelid='orchestration_validation_artifacts'::regclass
+           AND contype='u'
+           AND pg_get_constraintdef(oid)='UNIQUE (portfolio_id, company_id, idempotency_key)'
+       )::int AS validation_idempotency_unique,
+       COUNT(*) FILTER (
+         WHERE conrelid='orchestration_policy_evaluations'::regclass
+           AND contype='u'
+           AND pg_get_constraintdef(oid)='UNIQUE (run_id, validated_run_version)'
+       )::int AS policy_run_unique,
+       COUNT(*) FILTER (
+         WHERE conrelid='orchestration_policy_evaluations'::regclass
+           AND contype='u'
+           AND pg_get_constraintdef(oid)='UNIQUE (portfolio_id, company_id, idempotency_key)'
+       )::int AS policy_idempotency_unique
+     FROM pg_constraint
+     WHERE conrelid IN (
+       'orchestration_validation_artifacts'::regclass,
+       'orchestration_policy_evaluations'::regclass
+     )`
+  );
+  const validationPolicyConstraintRow = validationPolicyConstraints.rows[0];
+  if (
+    validationPolicyConstraintRow?.validation_run_unique !== 1
+    || validationPolicyConstraintRow?.validation_idempotency_unique !== 1
+    || validationPolicyConstraintRow?.policy_run_unique !== 1
+    || validationPolicyConstraintRow?.policy_idempotency_unique !== 1
+  ) {
+    throw new Error("UFO durable validation/policy uniqueness constraints are incomplete");
+  }
+
   const backup = await client.query(
     `SELECT completed_at,verification_hash
      FROM database_backup_evidence
@@ -605,6 +692,8 @@ try {
     orchestrationContextConstraints: "verified",
     durablePlanningSchema: "verified",
     durablePlanningConstraints: "verified",
+    durableValidationPolicySchema: "verified",
+    durableValidationPolicyConstraints: "verified",
     backupFresh: true
   }, null, 2));
 } finally {
