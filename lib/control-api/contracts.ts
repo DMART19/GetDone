@@ -12,8 +12,14 @@ import type {
   OwnerOperationExplanation
 } from "@/lib/explainability/job-owner-explanation";
 import type { ObjectiveIntakeInput, ObjectiveRecord } from "@/lib/domain/objective-inbox";
+import type {
+  ConfirmedPreferenceRule,
+  LearnedRuleSuggestion,
+  PreferenceSuggestionResolution,
+  PreferenceSuggestionResolutionResult
+} from "@/lib/domain/preference-learning";
 
-export const CONTROL_API_SURFACE_VERSION = "1.5.0";
+export const CONTROL_API_SURFACE_VERSION = "1.6.0";
 
 export type ControlApiRole = "owner" | "admin" | "operator" | "viewer";
 
@@ -178,6 +184,19 @@ export interface ControlApiApplicationAdapter {
   ): Promise<readonly ObjectiveRecord[]>;
   listObjectives(principal: ControlApiPrincipal): Promise<readonly ObjectiveRecord[]>;
   getObjective(principal: ControlApiPrincipal, objectiveId: string): Promise<ObjectiveRecord | null>;
+
+  listPreferenceSuggestions(
+    principal: ControlApiPrincipal
+  ): Promise<readonly LearnedRuleSuggestion[]>;
+  resolvePreferenceSuggestion(
+    principal: ControlApiPrincipal,
+    suggestionId: string,
+    action: PreferenceSuggestionResolution
+  ): Promise<PreferenceSuggestionResolutionResult>;
+  listConfirmedPreferenceRules(
+    principal: ControlApiPrincipal,
+    capability: string
+  ): Promise<readonly ConfirmedPreferenceRule[]>;
 
   listDecisions(principal: ControlApiPrincipal): Promise<readonly AuthoritativeDecision[]>;
   getDecision(principal: ControlApiPrincipal, decisionId: string): Promise<AuthoritativeDecision | null>;
