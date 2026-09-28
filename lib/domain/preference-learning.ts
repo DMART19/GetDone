@@ -85,6 +85,10 @@ export interface PreferenceLearningStore {
   ): Promise<readonly DecisionPreferenceObservation[]>;
   putSuggestion(suggestion: LearnedRuleSuggestion): Promise<void>;
   getSuggestion(id: string): Promise<LearnedRuleSuggestion | null>;
+  listSuggestions(
+    portfolioId: string,
+    companyId: string
+  ): Promise<readonly LearnedRuleSuggestion[]>;
   resolveSuggestion(input: {
     suggestion: LearnedRuleSuggestion;
     action: PreferenceSuggestionResolution;
@@ -403,6 +407,14 @@ export class PreferenceLearningService {
       }
     }
     return Object.freeze(suggestions);
+  }
+
+  listSuggestions(scope: TrustedExecutionScope) {
+    return this.store.listSuggestions(scope.portfolioId, scope.companyId);
+  }
+
+  listActiveRules(scope: TrustedExecutionScope, capability: string) {
+    return this.store.listActiveRules(scope.portfolioId, scope.companyId, capability);
   }
 
   async resolveSuggestion(input: {
