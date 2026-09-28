@@ -4,7 +4,7 @@ import {
   readPostgresConfigFromEnv
 } from "@/lib/persistence/postgres/client";
 
-export const REQUIRED_POSTGRES_MIGRATION = "2026-09-28.5";
+export const REQUIRED_POSTGRES_MIGRATION = "2026-09-28.6";
 
 export const REQUIRED_POSTGRES_RELATIONS = Object.freeze([
   "getdone_schema_migrations",
@@ -65,7 +65,8 @@ export const REQUIRED_POSTGRES_RELATIONS = Object.freeze([
   "orchestration_plan_proposals",
   "orchestration_validation_artifacts",
   "orchestration_policy_step_snapshots",
-  "orchestration_policy_evaluations"
+  "orchestration_policy_evaluations",
+  "orchestration_decision_resume_requests"
 ] as const);
 
 export const REQUIRED_POSTGRES_INDEXES = Object.freeze([
@@ -111,7 +112,9 @@ export const REQUIRED_POSTGRES_INDEXES = Object.freeze([
   "orchestration_policy_step_snapshots_run_idx",
   "orchestration_policy_evaluations_scope_idx",
   "orchestration_policy_evaluations_plan_idx",
-  "orchestration_policy_evaluations_validation_idx"
+  "orchestration_policy_evaluations_validation_idx",
+  "orchestration_decision_resume_scope_idx",
+  "orchestration_decision_resume_pending_idx"
 ] as const);
 
 export const REQUIRED_POSTGRES_RLS_RELATIONS = Object.freeze([
@@ -144,7 +147,8 @@ export const REQUIRED_POSTGRES_RLS_RELATIONS = Object.freeze([
   "orchestration_plan_proposals",
   "orchestration_validation_artifacts",
   "orchestration_policy_step_snapshots",
-  "orchestration_policy_evaluations"
+  "orchestration_policy_evaluations",
+  "orchestration_decision_resume_requests"
 ] as const);
 
 export interface PostgresRuntimeHealth {
