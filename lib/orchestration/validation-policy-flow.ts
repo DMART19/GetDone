@@ -56,7 +56,10 @@ function deepFreeze<T>(value: T): T {
 
 export interface DurableValidationInputs {
   validationPolicy: PlanValidationPolicy;
-  snapshot: Omit<ValidationSnapshotInput, "id" | "createdAt">;
+  snapshot: Omit<
+    ValidationSnapshotInput,
+    "id" | "createdAt" | "policyVersion" | "environment"
+  >;
   receiptExpiresAt: string;
 }
 
@@ -484,7 +487,7 @@ export async function advancePlannedToValidated(input: {
   const snapshot = createValidationSnapshot({
     ...resolved.snapshot,
     id: validationSnapshotId(input.run.id, input.run.version),
-    policyVersion: resolved.snapshot.policyVersion ?? CURRENT_POLICY_VERSION,
+    policyVersion: CURRENT_POLICY_VERSION,
     environment: planArtifact.proposal.scope.environment,
     createdAt
   });
