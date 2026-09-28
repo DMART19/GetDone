@@ -59,21 +59,21 @@ function authority(job: JobRecord): OwnerPolicyAuthority {
 }
 
 function verification(job: JobRecord): OwnerOperationExplanation["verification"] {
-  if (job.verificationReceiptId && job.state === "succeeded") {
+  if (job.verificationReceiptId && (job.state === "verified" || job.state === "succeeded")) {
     return Object.freeze({
       status: "verified" as const,
       evidenceCount: job.verificationEvidenceIds.length,
       receiptId: job.verificationReceiptId
     });
   }
-  if (job.state === "verifying") {
+  if (job.state === "provider_completed" || job.state === "verifying") {
     return Object.freeze({
       status: "pending" as const,
       evidenceCount: job.verificationEvidenceIds.length,
       receiptId: job.verificationReceiptId
     });
   }
-  if (job.state === "failed" || job.state === "uncertain") {
+  if (job.state === "failed" || job.state === "blocked" || job.state === "uncertain") {
     return Object.freeze({
       status: "unverified" as const,
       evidenceCount: job.verificationEvidenceIds.length,
@@ -214,6 +214,14 @@ export function buildJobOwnerExplanation(job: JobRecord): OwnerOperationExplanat
       title: "Assigned to a worker",
       summary: "A worker has claimed the authorized job."
     },
+    executing: {
+      title: "Execution in progress",
+      summary: "GetDone is executing the authorized work."
+    },
+    provider_completed: {
+      title: "Provider work completed",
+      summary: "The provider reported completion; GetDone has not claimed success until verification finishes."
+    },
     running: {
       title: "Execution in progress",
       summary: "GetDone is executing the authorized work."
@@ -222,6 +230,10 @@ export function buildJobOwnerExplanation(job: JobRecord): OwnerOperationExplanat
       title: "Verifying provider result",
       summary: "GetDone is checking the actual resulting state before claiming success."
     },
+    verified: {
+      title: "Completed and verified",
+      summary: "GetDone verified the intended outcome before marking this job successful."
+    },
     succeeded: {
       title: "Completed and verified",
       summary: "GetDone verified the intended outcome before marking this job successful."
@@ -229,6 +241,10 @@ export function buildJobOwnerExplanation(job: JobRecord): OwnerOperationExplanat
     failed: {
       title: "Stopped before verified completion",
       summary: "The job ended without an authoritative verified-success result."
+    },
+    blocked: {
+      title: "Blocked by policy or dependency",
+      summary: "GetDone did not execute or complete this job because an authoritative requirement blocked it."
     },
     uncertain: {
       title: "Completion is uncertain",
