@@ -13,6 +13,7 @@ import type { AuthorizedBusinessActionRequest } from "@/lib/execution/adapters/b
 import { StaticBusinessActionAdapterRegistry } from "@/lib/execution/adapters/business-action-registry";
 import { createOrdinaryBusinessActionBindingsFromEnv } from "@/lib/execution/adapters/ordinary-integration-registry";
 import { BusinessActionExecutionOrchestrator } from "@/lib/execution/business-action-orchestrator";
+import { PostgresCurrentExecutionAdmissionGate } from "@/lib/execution/current-execution-admission";
 import {
   PostgresProviderConcurrencyGate,
   readProviderConcurrencyConfigFromEnv
@@ -226,6 +227,7 @@ export function getMvpJobRuntimeFromEnv(
         jobs,
         tasks,
         grants,
+        admission: new PostgresCurrentExecutionAdmissionGate(database),
         verificationEvidence: new PostgresJobVerificationEvidenceStore(database)
       }
     ),
