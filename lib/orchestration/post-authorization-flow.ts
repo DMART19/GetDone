@@ -70,7 +70,7 @@ export interface OrchestrationTaskDagStore {
 export type OrchestrationJobNodeState =
   | "created"
   | "enqueued"
-  | "provider-succeeded"
+  | "provider-completed"
   | "verified"
   | "failed"
   | "cancelled";
