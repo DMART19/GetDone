@@ -138,10 +138,26 @@ export class PostgresObjectiveOutcomePort implements ObjectiveOutcomePort {
       [input.run.id]
     );
     if (existing.rows[0]) {
+      const persisted = existing.rows[0];
+      const { evaluationHash, ...evaluationBase } = persisted.evaluation;
+      const { outcomeHash, ...outcomeBase } = persisted.outcome;
+      if (
+        sha256Hex(evaluationBase) !== evaluationHash
+        || sha256Hex(outcomeBase) !== outcomeHash
+        || persisted.evaluation.runId !== input.run.id
+        || persisted.outcome.runId !== input.run.id
+        || persisted.outcome.objectiveEvaluationId !== persisted.evaluation.id
+        || persisted.outcome.objectiveEvaluationHash !== evaluationHash
+      ) {
+        throw new ControlPlaneError(
+          "FORBIDDEN",
+          "Persisted Objective outcome lineage failed integrity validation"
+        );
+      }
       return {
         kind: "verified" as const,
-        evaluation: existing.rows[0].evaluation,
-        outcome: existing.rows[0].outcome
+        evaluation: persisted.evaluation,
+        outcome: persisted.outcome
       };
     }
 
@@ -296,7 +312,7 @@ export class PostgresObjectiveOutcomePort implements ObjectiveOutcomePort {
     await this.db.transaction(async (client) => {
       await new PostgresVerificationReceiptStore(client).insert(receipt);
       await this.insertEvaluation(client, input.run, evaluation);
-      await client.query(
+      const insertedOutcome = await client.query(
         `INSERT INTO orchestration_outcomes(
           id,run_id,portfolio_id,company_id,objective_evaluation_id,
           verification_receipt_id,verification_receipt_hash,outcome_hash,payload,recorded_at
@@ -315,7 +331,25 @@ export class PostgresObjectiveOutcomePort implements ObjectiveOutcomePort {
           evaluatedAt
         ]
       );
-      await client.query(
+      if (insertedOutcome.rowCount !== 1) {
+        const priorOutcome = await client.query<{
+          outcome_hash: string;
+          payload: VerifiedOrchestrationOutcome;
+        }>(
+          "SELECT outcome_hash,payload FROM orchestration_outcomes WHERE run_id=$1",
+          [input.run.id]
+        );
+        if (
+          priorOutcome.rows[0]?.outcome_hash !== outcome.outcomeHash
+          || priorOutcome.rows[0]?.payload.outcomeHash !== outcome.outcomeHash
+        ) {
+          throw new ControlPlaneError(
+            "IDEMPOTENCY_CONFLICT",
+            "Objective outcome run already exists with different authoritative content"
+          );
+        }
+      }
+      const insertedOwnerOutcome = await client.query(
         `INSERT INTO control_plane_entities(
           entity_type,id,portfolio_id,company_id,version,updated_at,payload
         ) VALUES('outcome',$1,$2,$3,$4,$5,$6::jsonb)
@@ -329,6 +363,22 @@ export class PostgresObjectiveOutcomePort implements ObjectiveOutcomePort {
           JSON.stringify(outcomeRecord)
         ]
       );
+      if (insertedOwnerOutcome.rowCount !== 1) {
+        const priorOwnerOutcome = await client.query<{ payload: OutcomeRecord }>(
+          `SELECT payload FROM control_plane_entities
+            WHERE entity_type='outcome' AND id=$1`,
+          [outcomeRecord.id]
+        );
+        if (
+          !priorOwnerOutcome.rows[0]
+          || sha256Hex(priorOwnerOutcome.rows[0].payload) !== sha256Hex(outcomeRecord)
+        ) {
+          throw new ControlPlaneError(
+            "IDEMPOTENCY_CONFLICT",
+            "Owner outcome entity already exists with different authoritative content"
+          );
+        }
+      }
       await new PostgresAuditLedger(client).append(createAuditEvent({
         correlationId: input.run.correlationId,
         eventType: "outcome.verified",
@@ -368,7 +418,7 @@ export class PostgresObjectiveOutcomePort implements ObjectiveOutcomePort {
     run: OrchestrationRunRecord,
     evaluation: ObjectiveEvaluationArtifact
   ) {
-    await db.query(
+    const inserted = await db.query(
       `INSERT INTO orchestration_objective_evaluations(
         id,run_id,portfolio_id,company_id,status,evaluation_hash,payload,evaluated_at
       ) VALUES($1,$2,$3,$4,$5,$6,$7::jsonb,$8)
@@ -383,6 +433,23 @@ export class PostgresObjectiveOutcomePort implements ObjectiveOutcomePort {
         JSON.stringify(evaluation),
         evaluation.evaluatedAt
       ]
+    );
+    if (inserted.rowCount === 1) return;
+
+    const existing = await db.query<{
+      evaluation_hash: string;
+      payload: ObjectiveEvaluationArtifact;
+    }>(
+      "SELECT evaluation_hash,payload FROM orchestration_objective_evaluations WHERE run_id=$1",
+      [run.id]
+    );
+    if (
+      existing.rows[0]?.evaluation_hash === evaluation.evaluationHash
+      && existing.rows[0]?.payload.evaluationHash === evaluation.evaluationHash
+    ) return;
+    throw new ControlPlaneError(
+      "IDEMPOTENCY_CONFLICT",
+      "Objective evaluation run already exists with different authoritative content"
     );
   }
 }
