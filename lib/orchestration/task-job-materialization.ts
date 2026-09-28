@@ -603,7 +603,12 @@ export function propagateTaskDagStatus(
   for (const taskId of dag.topologicalOrder) {
     const node = dag.nodes.find((candidate) => candidate.taskId === taskId)!;
     const explicit = states[taskId];
-    if (explicit === "failed" || explicit === "cancelled" || explicit === "succeeded") {
+    if (
+      explicit === "failed"
+      || explicit === "blocked"
+      || explicit === "cancelled"
+      || explicit === "succeeded"
+    ) {
       result[taskId] = explicit;
       continue;
     }
