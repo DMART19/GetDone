@@ -1,10 +1,12 @@
+import type { QueryResultRow } from "pg";
 import { ControlPlaneError } from "@/lib/control-plane/errors";
+import { sha256Hex } from "@/lib/control-plane/canonical-hash";
 import {
   assertAuthorizationConsumption,
   type AuthorizationConsumptionRecord
 } from "@/lib/authorization/grants";
 import type { GeneratedTask, TaskGenerationDedupeStore } from "@/lib/planning/task-generator";
-import type { PostgresTransactionalDatabase, QueryResultRow } from "@/lib/persistence/postgres/client";
+import type { PostgresTransactionalDatabase } from "@/lib/persistence/postgres/client";
 import { PostgresAuthorizationGrantStore } from "@/lib/persistence/postgres/authority-stores";
 import { runWithPostgresTenantScope } from "@/lib/persistence/postgres/tenant-context.server";
 
@@ -19,7 +21,7 @@ interface ClaimRow extends QueryResultRow {
 }
 
 function taskHash(task: GeneratedTask) {
-  return task.authorizationConsumption.consumptionHash;
+  return sha256Hex(task);
 }
 
 export class PostgresTaskGenerationDedupeStore implements TaskGenerationDedupeStore {
