@@ -764,10 +764,19 @@ export class PostgresOrchestrationRunStore implements OrchestrationRunStore {
       : [...DEFAULT_RESUMABLE_STATES];
 
     const result = await this.db.query<{ payload: OrchestrationRunRecord }>(
-      `SELECT payload
-       FROM orchestration_runs
-       WHERE state = ANY($1::text[])
-       ORDER BY updated_at,id
+      `SELECT run.payload
+       FROM orchestration_runs run
+       WHERE run.state = ANY($1::text[])
+         AND (
+           run.state <> 'awaiting-decision'
+           OR EXISTS (
+             SELECT 1
+             FROM orchestration_decision_resume_requests resume
+             WHERE resume.run_id=run.id
+               AND resume.status='pending'
+           )
+         )
+       ORDER BY run.updated_at,run.id
        LIMIT $2`,
       [states, input.limit]
     );
