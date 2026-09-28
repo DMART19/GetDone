@@ -14,6 +14,7 @@ import type { OrchestrationExecutionArtifactStore } from "@/lib/orchestration/ex
 import {
   createJobBatchExecutionArtifact,
   executionArtifactId,
+  type EnqueuedJobEvidence,
   type JobBatchExecutionArtifact
 } from "@/lib/orchestration/execution-artifacts";
 
@@ -161,7 +162,7 @@ export class GovernedJobMaterializer {
       jobs.push(record);
     }
 
-    const enqueued = [];
+    const enqueued: EnqueuedJobEvidence[] = [];
 
     // Existing domain invariants require dependencies to have authoritatively succeeded
     // before Task/Job queue transitions. Therefore only dependency-free roots enter the
