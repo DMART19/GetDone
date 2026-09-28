@@ -8,6 +8,10 @@ import {
   createOwnerIntentOrchestrationRun,
   ownerIntentOrchestrationStartIdempotencyKey
 } from "@/lib/orchestration/owner-intent-flow";
+import {
+  createObjectiveOrchestrationRun,
+  objectiveOrchestrationStartIdempotencyKey
+} from "@/lib/orchestration/objective-flow";
 import type { OwnerIntentStore } from "@/lib/control-api/service-adapter";
 import type {
   Resource,
@@ -187,7 +191,32 @@ export class PostgresOwnerIntentStore implements OwnerIntentStore {
 
 
 export class PostgresObjectiveIntakeStore implements ObjectiveIntakeStore {
-  constructor(private readonly db: PostgresTransactionalDatabase) {}
+  private readonly orchestrations: PostgresOrchestrationRunStore;
+
+  constructor(private readonly db: PostgresTransactionalDatabase) {
+    this.orchestrations = new PostgresOrchestrationRunStore(db);
+  }
+
+  private async ensureOrchestration(client: SqlQueryable, record: ObjectiveRecord) {
+    const scope = {
+      userId: record.createdByUserId,
+      portfolioId: record.portfolioId,
+      companyId: record.companyId,
+      environment: record.environment
+    } as const;
+    const orchestration = createObjectiveOrchestrationRun({
+      objective: record,
+      scope,
+      correlationId: record.correlationId,
+      createdAt: record.createdAt
+    });
+    await this.orchestrations.createInTransaction(
+      client,
+      orchestration,
+      objectiveOrchestrationStartIdempotencyKey(record.id)
+    );
+    return orchestration;
+  }
 
   async createBatch(records: readonly ObjectiveRecord[], idempotencyKey: string) {
     if (records.length === 0) {
@@ -223,6 +252,9 @@ export class PostgresObjectiveIntakeStore implements ObjectiveIntakeStore {
       );
 
       if (claim.state === "COMPLETED" && claim.record.result) {
+        for (const record of claim.record.result) {
+          await this.ensureOrchestration(client, record);
+        }
         return claim.record.result;
       }
       if (claim.state === "IN_PROGRESS" || claim.state === "FAILED") {
@@ -236,6 +268,7 @@ export class PostgresObjectiveIntakeStore implements ObjectiveIntakeStore {
       const audit = new PostgresAuditLedger(client);
       for (const record of records) {
         await objectives.insert(record);
+        const orchestration = await this.ensureOrchestration(client, record);
         await audit.append(createAuditEvent({
           correlationId: record.correlationId ?? `objective:${record.id}`,
           eventType: "objective.created",
@@ -255,7 +288,8 @@ export class PostgresObjectiveIntakeStore implements ObjectiveIntakeStore {
             source: record.source,
             relationship: record.relationship,
             parentObjectiveId: record.parentObjectiveId ?? null,
-            dependencyCount: record.dependsOnObjectiveIds.length
+            dependencyCount: record.dependsOnObjectiveIds.length,
+            orchestrationRunId: orchestration.id
           }
         }));
       }
