@@ -22,6 +22,28 @@ ALTER TABLE orchestration_worker_state NO FORCE ROW LEVEL SECURITY;
 ALTER TABLE orchestration_worker_state DISABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS getdone_tenant_isolation ON orchestration_worker_state;
 
+ALTER TABLE orchestration_worker_state
+  ADD COLUMN IF NOT EXISTS run_state text NOT NULL DEFAULT 'accepted'
+  CHECK (run_state IN (
+    'accepted','context-ready','planning','planned','validated','policy-evaluated',
+    'awaiting-decision','authorized','tasks-created','jobs-enqueued','executing',
+    'verifying','completed','blocked','failed','cancelled'
+  ));
+
+UPDATE orchestration_worker_state worker
+SET run_state=run.state
+FROM orchestration_runs run
+WHERE run.id=worker.run_id
+  AND worker.run_state IS DISTINCT FROM run.state;
+
+CREATE INDEX IF NOT EXISTS orchestration_worker_dispatch_ready_idx
+  ON orchestration_worker_state (ready_at, run_id)
+  WHERE lease_id IS NULL
+    AND run_state IN (
+      'accepted','context-ready','planning','planned','validated','policy-evaluated',
+      'authorized','tasks-created','jobs-enqueued','executing','verifying'
+    );
+
 CREATE TABLE IF NOT EXISTS orchestration_worker_dead_letters (
   id text PRIMARY KEY,
   run_id text NOT NULL REFERENCES orchestration_runs(id),
