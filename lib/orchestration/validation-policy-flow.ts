@@ -641,6 +641,13 @@ export function createDurablePolicyStepSnapshotArtifact(input: {
     || input.snapshot.scope.portfolioId !== input.run.scope.portfolioId
     || input.snapshot.scope.companyId !== input.run.scope.companyId
     || input.snapshot.scope.environment !== input.run.scope.environment
+    || input.snapshot.dataClass !== input.planArtifact.proposal.scope.dataClass
+    || sha256Hex(input.snapshot.resourceRequirements)
+      !== sha256Hex(input.step.resourceRequirements)
+    || sha256Hex([...input.snapshot.capabilityNames].sort())
+      !== sha256Hex([...new Set(input.step.capabilityRequests.map(
+        (request) => request.capability
+      ))].sort())
   ) {
     throw new ControlPlaneError(
       "FORBIDDEN",
@@ -712,6 +719,13 @@ export function assertDurablePolicyStepSnapshotArtifact(
       || artifact.snapshot.scope.portfolioId !== input.run.scope.portfolioId
       || artifact.snapshot.scope.companyId !== input.run.scope.companyId
       || artifact.snapshot.scope.environment !== input.run.scope.environment
+      || artifact.snapshot.dataClass !== input.planArtifact.proposal.scope.dataClass
+      || sha256Hex(artifact.snapshot.resourceRequirements)
+        !== sha256Hex(input.step.resourceRequirements)
+      || sha256Hex([...artifact.snapshot.capabilityNames].sort())
+        !== sha256Hex([...new Set(input.step.capabilityRequests.map(
+          (request) => request.capability
+        ))].sort())
     ) {
       throw new ControlPlaneError(
         "FORBIDDEN",
