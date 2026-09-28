@@ -810,6 +810,7 @@ export async function advanceAuthorizedToTasksCreated(input: {
   grants: AuthorizationGrantStore;
   materialization: OrchestrationTaskJobMaterializationStore;
   objectiveStatus?: "active" | "paused" | "completed";
+  objectiveStatusResolver?: ObjectiveExecutionStatusResolver;
   now?: () => Date;
 }): Promise<OrchestrationStageOutcome> {
   if (input.run.state !== "authorized") {
@@ -825,6 +826,21 @@ export async function advanceAuthorizedToTasksCreated(input: {
   });
   const plan = lineage.planArtifact.proposal;
   const stepOrder = deterministicPlanDagOrder(plan);
+  let objectiveStatus = input.objectiveStatus;
+  if (plan.source.type === "objective" && objectiveStatus === undefined) {
+    if (!input.objectiveStatusResolver) {
+      return {
+        kind: "retry",
+        code: "UNAVAILABLE",
+        reason: "Authoritative objective status is required before Task materialization"
+      };
+    }
+    objectiveStatus = await input.objectiveStatusResolver.getStatus({
+      portfolioId: input.run.scope.portfolioId,
+      companyId: input.run.scope.companyId,
+      objectiveId: plan.source.objectiveId
+    });
+  }
 
   for (const stepId of stepOrder) {
     const grant = lineage.grantsByStep.get(stepId)!;
@@ -867,7 +883,7 @@ export async function advanceAuthorizedToTasksCreated(input: {
       [...lineage.grantsByStep.entries()]
     ),
     objectiveStatus: plan.source.type === "objective"
-      ? input.objectiveStatus
+      ? objectiveStatus
       : "active"
   });
 
@@ -1073,22 +1089,6 @@ export class TaskJobMaterializationStageHandler
     await context.heartbeat();
 
     if (context.run.state === "authorized") {
-      let objectiveStatus: "active" | "paused" | "completed" | undefined;
-      if (context.run.source.type === "objective") {
-        if (!this.deps.objectiveStatus) {
-          return {
-            kind: "retry" as const,
-            code: "UNAVAILABLE",
-            reason: "Objective status resolver is required before autonomous Task materialization"
-          };
-        }
-        objectiveStatus = await this.deps.objectiveStatus.getStatus({
-          portfolioId: context.run.scope.portfolioId,
-          companyId: context.run.scope.companyId,
-          objectiveId: context.run.source.id
-        });
-      }
-
       return advanceAuthorizedToTasksCreated({
         run: context.run,
         plans: this.deps.plans,
@@ -1096,7 +1096,7 @@ export class TaskJobMaterializationStageHandler
         policies: this.deps.policies,
         grants: this.deps.grants,
         materialization: this.deps.materialization,
-        objectiveStatus,
+        objectiveStatusResolver: this.deps.objectiveStatus,
         now: this.deps.now
       });
     }
