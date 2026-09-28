@@ -46,7 +46,7 @@ describe("PersistentOrchestrationWorkerService", () => {
       runOnce: vi.fn(async () => {
         calls += 1;
         return calls === 1
-          ? [{ runId: "run-1", outcome: "advanced" as const, state: "planned" }]
+          ? [{ runId: "run-1", outcome: "advanced" as const, state: "planned" as const }]
           : [];
       })
     };
