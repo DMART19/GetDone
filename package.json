@@ -16,7 +16,7 @@
     "test:coverage": "vitest run --coverage",
     "verify:runtime": "node scripts/verify-runtime.mjs",
     "verify:secrets": "node scripts/verify-no-secrets.mjs",
-    "verify:architecture": "node scripts/verify-architecture.mjs",
+    "verify:architecture": "node scripts/verify-architecture.mjs && node scripts/verify-authoritative-execution-path.mjs",
     "release:generate": "npm run environment:generate && node scripts/generate-release-artifacts.mjs",
     "verify:release": "node scripts/verify-release-artifacts.mjs",
     "verify:coverage": "npm run test:coverage && npm run verify:module-coverage",

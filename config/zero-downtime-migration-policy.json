@@ -136,6 +136,15 @@
       "transitionSchema": true,
       "destructive": false,
       "authorityCompatibilityRequired": true
+    },
+    {
+      "version": "2026-09-28.8",
+      "file": "migrations/2026-09-28.8_authoritative_execution_path.sql",
+      "releaseId": "authoritative-execution-path",
+      "phase": "expand",
+      "transitionSchema": true,
+      "destructive": false,
+      "authorityCompatibilityRequired": true
     }
   ]
 }

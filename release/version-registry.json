@@ -1,6 +1,6 @@
 {
   "registrySchemaVersion": "1.6.0",
-  "registryVersion": "2026-09-28.1",
+  "registryVersion": "2026-09-28.2",
   "appVersion": "0.1.0",
   "schemaVersions": {
     "controlApi": {
@@ -314,6 +314,16 @@
       "contractTracked": true,
       "contractSourcePaths": [
         "lib/orchestration/task-job-materialization.ts"
+      ]
+    },
+    "authoritativeExecutionPath": {
+      "version": "1.0.0",
+      "sourcePath": "lib/orchestration/post-authorization-flow.ts",
+      "contractTracked": true,
+      "contractSourcePaths": [
+        "lib/orchestration/authoritative-execution-coordinator.ts",
+        "lib/orchestration/objective-flow.ts",
+        "lib/orchestration/post-authorization-flow.ts"
       ]
     }
   },

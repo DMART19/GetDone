@@ -1,11 +1,13 @@
 import { sha256Hex } from "@/lib/control-plane/canonical-hash";
 import { ControlPlaneError } from "@/lib/control-plane/errors";
 import type { OwnerIntentRecord } from "@/lib/control-api/contracts";
+import type { Objective } from "@/lib/domain/objectives";
 import {
   createOrchestrationRun,
   createOrchestrationSourceRef,
   transitionOrchestrationRun,
-  type OrchestrationRunRecord
+  type OrchestrationRunRecord,
+  type OrchestrationSourceType
 } from "@/lib/orchestration/contracts";
 import type { OrchestrationStageOutcome } from "@/lib/orchestration/worker-contracts";
 import {
@@ -48,6 +50,22 @@ export interface OwnerIntentContextPolicyResolver {
   }>;
 }
 
+export type OrchestrationContextSourceInput =
+  | {
+      type: "owner-intent";
+      message: string;
+      channel: OwnerIntentRecord["channel"];
+    }
+  | {
+      type: "objective";
+      metric: Objective["metric"];
+      direction: Objective["direction"];
+      target: Objective["target"];
+      priority: Objective["priority"];
+      deadline?: Objective["deadline"];
+      budgetCents?: Objective["budgetCents"];
+    };
+
 export interface OrchestrationContextSnapshot {
   id: string;
   runId: string;
@@ -55,14 +73,10 @@ export interface OrchestrationContextSnapshot {
   correlationId: string;
   portfolioId: string;
   companyId: string;
-  sourceType: "owner-intent";
+  sourceType: OrchestrationSourceType;
   sourceId: string;
   sourceHash: string;
-  sourceInput: {
-    type: "owner-intent";
-    message: string;
-    channel: OwnerIntentRecord["channel"];
-  };
+  sourceInput: OrchestrationContextSourceInput;
   assembledContext: AssembledContext;
   createdAt: string;
   snapshotHash: string;

@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { sha256Hex } from "@/lib/control-plane/canonical-hash";
 import {
   MvpBusinessWorkflow,
   type ProposedBusinessAction
@@ -25,9 +24,8 @@ const budget = {
   expiresAt: "2026-09-22T12:10:00Z"
 };
 
-describe("real MVP business workflow composition", () => {
-  it("keeps AI proposal-only, then requires authoritative lineage before dispatch", async () => {
-    const enqueued: unknown[] = [];
+describe("MVP business workflow is proposal-only", () => {
+  it("keeps AI proposal-only and rejects the retired parallel execution entrypoint", async () => {
     const ai = {
       invoke: async () => ({
         kind: "success" as const,
@@ -41,11 +39,11 @@ describe("real MVP business workflow composition", () => {
         audit: { auditHash: "ai-audit-hash" } as never
       })
     };
-    const runtime = {
-      enqueueAuthorizedBusinessAction: async (job: JobRecord) => { enqueued.push(job); return { status: "enqueued" }; },
-      ownerView: async () => ({ status: "succeeded" })
-    };
-    const workflow = new MvpBusinessWorkflow(ai, runtime, () => new Date("2026-09-22T12:00:00Z"));
+    const workflow = new MvpBusinessWorkflow(
+      ai,
+      { ownerView: async () => ({ status: "succeeded" }) },
+      () => new Date("2026-09-22T12:00:00Z")
+    );
     const proposal = await workflow.propose({
       detection: {
         id: "detection-1",
@@ -57,56 +55,19 @@ describe("real MVP business workflow composition", () => {
       budget
     });
     expect(proposal.authorityApplied).toBe(false);
-    expect(enqueued).toHaveLength(0);
 
-    const consumption = {
-      id: "consumption-1",
-      grantId: "grant-1",
-      grantHash: "grant-hash",
-      consumerType: "task" as const,
-      consumerId: "task-1",
-      scope,
-      planHash: "plan-hash",
-      stepHash: "step-hash",
-      consumedAt: "2026-09-22T12:00:00Z",
-      consumptionHash: "consumption-hash"
-    };
-    const job: JobRecord = {
-      id: "job-1",
-      portfolioId: "portfolio-a",
-      companyId: "company-a",
-      state: "queued",
-      taskId: "task-1",
-      attempt: 0,
-      authorizationGrantId: "grant-1",
-      authorizationGrantHash: "grant-hash",
-      authorizationConsumption: consumption,
-      verificationEvidenceIds: [],
-      version: 2,
-      updatedAt: "2026-09-22T12:00:00Z"
-    };
-    const request = {
-      id: "action-1",
-      jobId: "job-1",
-      scope,
-      capability: "http.request",
-      input: proposal.input,
-      inputHash: sha256Hex(proposal.input),
-      authorizationConsumptionHash: consumption.consumptionHash,
-      credentialLeaseId: "lease-1",
-      idempotencyKey: "action-key",
-      timeoutMs: 5_000,
-      attempt: 1
-    };
-    await workflow.enqueueAfterAuthoritativeDecision({ proposal, job, request });
-    expect(enqueued).toHaveLength(1);
+    expect(() => workflow.enqueueAfterAuthoritativeDecision({
+      proposal,
+      job: { id: "job-1" } as JobRecord,
+      request: {} as never
+    })).toThrow(/authoritative orchestration path/i);
   });
 
-  it("rejects tampered proposals and Jobs without authoritative grants", async () => {
-    const workflow = new MvpBusinessWorkflow({ invoke: async () => { throw new Error("unused"); } }, {
-      enqueueAuthorizedBusinessAction: async () => undefined,
-      ownerView: async () => undefined
-    });
+  it("still detects tampered proposals before rejecting legacy execution", () => {
+    const workflow = new MvpBusinessWorkflow(
+      { invoke: async () => { throw new Error("unused"); } },
+      { ownerView: async () => undefined }
+    );
     const proposal = {
       id: "proposal-1",
       detectionId: "detection-1",
@@ -122,7 +83,7 @@ describe("real MVP business workflow composition", () => {
     } satisfies ProposedBusinessAction;
     expect(() => workflow.enqueueAfterAuthoritativeDecision({
       proposal,
-      job: { state: "queued" } as JobRecord,
+      job: { id: "job-1" } as JobRecord,
       request: {} as never
     })).toThrow(/integrity/i);
   });

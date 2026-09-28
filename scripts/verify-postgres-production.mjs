@@ -7,7 +7,7 @@ function required(name) {
   return value;
 }
 
-const requiredMigration = "2026-09-28.7";
+const requiredMigration = "2026-09-28.8";
 const maxBackupAgeHours = Number(process.env.GETDONE_BACKUP_MAX_AGE_HOURS || "24");
 if (!Number.isFinite(maxBackupAgeHours) || maxBackupAgeHours <= 0) {
   throw new Error("GETDONE_BACKUP_MAX_AGE_HOURS must be positive");
@@ -727,6 +727,90 @@ try {
     throw new Error("UFO durable authorization resume uniqueness constraint is missing");
   }
 
+  const authoritativeExecutionTables = await client.query(
+    `SELECT COUNT(*)::int AS count
+     FROM information_schema.tables
+     WHERE table_schema=current_schema()
+       AND table_name IN (
+         'orchestration_task_materializations',
+         'orchestration_task_dags',
+         'orchestration_job_graphs',
+         'orchestration_job_nodes',
+         'orchestration_objective_evaluations',
+         'orchestration_outcomes'
+       )`
+  );
+  if (authoritativeExecutionTables.rows[0]?.count !== 6) {
+    throw new Error("Authoritative execution path persistence tables are incomplete");
+  }
+
+  const authoritativeExecutionIndexes = await client.query(
+    `SELECT COUNT(*)::int AS count
+     FROM pg_indexes
+     WHERE schemaname=current_schema()
+       AND indexname IN (
+         'orchestration_task_materializations_scope_idx',
+         'orchestration_task_materializations_run_idx',
+         'orchestration_task_dags_scope_idx',
+         'orchestration_job_graphs_scope_idx',
+         'orchestration_job_nodes_ready_idx',
+         'orchestration_job_nodes_scope_idx',
+         'orchestration_objective_evaluations_scope_idx',
+         'orchestration_outcomes_scope_idx'
+       )`
+  );
+  if (authoritativeExecutionIndexes.rows[0]?.count !== 8) {
+    throw new Error("Authoritative execution path persistence indexes are incomplete");
+  }
+
+  const authoritativeExecutionConstraints = await client.query(
+    `SELECT
+       COUNT(*) FILTER (
+         WHERE conrelid='orchestration_task_dags'::regclass
+           AND contype='u'
+           AND pg_get_constraintdef(oid)='UNIQUE (run_id)'
+       )::int AS task_dag_run_unique,
+       COUNT(*) FILTER (
+         WHERE conrelid='orchestration_job_graphs'::regclass
+           AND contype='u'
+           AND pg_get_constraintdef(oid)='UNIQUE (run_id)'
+       )::int AS job_graph_run_unique,
+       COUNT(*) FILTER (
+         WHERE conrelid='orchestration_job_nodes'::regclass
+           AND contype='u'
+           AND pg_get_constraintdef(oid)='UNIQUE (run_id, node_id)'
+       )::int AS job_node_run_unique,
+       COUNT(*) FILTER (
+         WHERE conrelid='orchestration_objective_evaluations'::regclass
+           AND contype='u'
+           AND pg_get_constraintdef(oid)='UNIQUE (run_id)'
+       )::int AS objective_evaluation_run_unique,
+       COUNT(*) FILTER (
+         WHERE conrelid='orchestration_outcomes'::regclass
+           AND contype='u'
+           AND pg_get_constraintdef(oid)='UNIQUE (run_id)'
+       )::int AS outcome_run_unique
+     FROM pg_constraint
+     WHERE conrelid IN (
+       'orchestration_task_dags'::regclass,
+       'orchestration_job_graphs'::regclass,
+       'orchestration_job_nodes'::regclass,
+       'orchestration_objective_evaluations'::regclass,
+       'orchestration_outcomes'::regclass
+     )`
+  );
+  const authoritativeExecutionConstraintRow =
+    authoritativeExecutionConstraints.rows[0];
+  if (
+    authoritativeExecutionConstraintRow?.task_dag_run_unique !== 1
+    || authoritativeExecutionConstraintRow?.job_graph_run_unique !== 1
+    || authoritativeExecutionConstraintRow?.job_node_run_unique !== 1
+    || authoritativeExecutionConstraintRow?.objective_evaluation_run_unique !== 1
+    || authoritativeExecutionConstraintRow?.outcome_run_unique !== 1
+  ) {
+    throw new Error("Authoritative execution path uniqueness constraints are incomplete");
+  }
+
   const backup = await client.query(
     `SELECT completed_at,verification_hash
      FROM database_backup_evidence
@@ -803,6 +887,8 @@ try {
     durableValidationPolicyConstraints: "verified",
     durableAuthorizationResumeSchema: "verified",
     durableAuthorizationResumeConstraints: "verified",
+    authoritativeExecutionPathSchema: "verified",
+    authoritativeExecutionPathConstraints: "verified",
     backupFresh: true
   }, null, 2));
 } finally {
