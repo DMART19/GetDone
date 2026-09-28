@@ -348,6 +348,8 @@ function evaluateSnapshotWithProof(input: {
     providerId: snapshot.providerId,
     failureDomainId: snapshot.failureDomainId,
     workloadClass: snapshot.workloadClass,
+    objectiveId: snapshot.objectiveId,
+    jobId: snapshot.jobId,
     credentialRequirementIds: snapshot.credentialRequirementIds,
     credentialSnapshot: snapshot.credentialSnapshot,
     capacitySnapshot: snapshot.capacitySnapshot,
