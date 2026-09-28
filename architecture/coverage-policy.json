@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "2.3.0",
+  "schemaVersion": "1.8.0",
   "thresholds": {
     "coveredModulePercent": 100,
     "minimumTotalTestCases": 80,
@@ -464,6 +464,11 @@
     {
       "source": "lib/explainability/job-owner-explanation.ts",
       "test": "lib/explainability/job-owner-explanation.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/domain/preference-learning.ts",
+      "test": "lib/domain/preference-learning.test.ts",
       "critical": true
     }
   ]
