@@ -90,6 +90,31 @@ describe("objective inbox normalization", () => {
     });
   });
 
+  it("splits an unmarked multiline batch into independent objectives", () => {
+    const objectives = parse("Improve onboarding\nReduce support backlog\nAudit billing");
+    expect(objectives.map((objective) => objective.normalizedGoal)).toEqual([
+      "Improve onboarding",
+      "Reduce support backlog",
+      "Audit billing"
+    ]);
+    expect(objectives.every((objective) => objective.source === "multiline_list")).toBe(true);
+  });
+
+  it("splits a list-shaped uploaded task file but keeps prose documents together", () => {
+    const tasks = parse("Patch onboarding\nVerify staging\nThen: request production approval", "uploaded_text");
+    expect(tasks).toHaveLength(3);
+    expect(tasks[2]).toMatchObject({
+      relationship: "dependent",
+      dependsOnObjectiveIds: ["objective-2"]
+    });
+
+    const document = parse(
+      "Onboarding review\n\nWe need to examine the full funnel before deciding on a release.\nKeep this document together.",
+      "uploaded_text"
+    );
+    expect(document).toHaveLength(1);
+  });
+
   it("supports structured JSON with constraints, success criteria, priority and dependencies", () => {
     const objectives = parse(JSON.stringify({
       objectives: [
