@@ -137,6 +137,10 @@ export function createPostgresControlApiAdapter(
             "orchestration_runs",
             "orchestration_outbox",
             "orchestration_planning_artifacts",
+            "orchestration_execution_artifacts",
+            "orchestration_task_generation_claims",
+            "authorization_grants",
+            "authorization_consumptions",
             "verification_receipts"
           ]),
           requiredRelationsReady([
