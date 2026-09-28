@@ -187,20 +187,38 @@ jobs:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
           GETDONE_DB_SSL: "false"
 
-      - name: Build dedicated worker
+      - name: Build dedicated workers
         run: npm run build:worker
 
-      - name: Run worker readiness canary
+      - name: Run Job worker readiness canary
         run: npm run release:worker-health-canary
         env:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
           GETDONE_DB_SSL: "false"
           GETDONE_RUNTIME_ENV: staging
           GETDONE_DATA_MODE: authoritative
-          GETDONE_PROCESS_ROLE: job-worker
-          GETDONE_JOB_WORKER_ID: production-release-gate-worker
+          GETDONE_WORKER_HEALTH_ROLE: job-worker
+          GETDONE_JOB_WORKER_ID: production-release-gate-job-worker
           GETDONE_INTERNAL_WORKER_TOKEN: ${{ env.GETDONE_INTERNAL_WORKER_TOKEN }}
           GETDONE_JOB_WORKER_HEALTH_PORT: "3001"
+
+      - name: Run orchestration worker readiness canary
+        run: npm run release:worker-health-canary
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+          GETDONE_DB_SSL: "false"
+          GETDONE_RUNTIME_ENV: staging
+          GETDONE_DATA_MODE: authoritative
+          GETDONE_WORKER_HEALTH_ROLE: orchestration-worker
+          GETDONE_ORCHESTRATION_WORKER_ID: production-release-gate-orchestration-worker
+          GETDONE_ORCHESTRATION_WORKER_HEALTH_PORT: "3002"
+          GETDONE_INTERNAL_WORKER_TOKEN: ${{ env.GETDONE_INTERNAL_WORKER_TOKEN }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          OPENROUTER_BASE_URL: ${{ vars.OPENROUTER_BASE_URL }}
+          GETDONE_AI_MODEL_PROFILES_JSON: >-
+            [{"id":"release-primary","gatewayId":"openrouter","providerId":"openrouter","modelId":"${{ vars.OPENROUTER_PRIMARY_MODEL }}","enabled":true,"validationStatus":"validated","roles":["LIGHTWEIGHT","STANDARD","HIGH_REASONING","CODING","VISION","LONG_CONTEXT"],"modalities":["text"],"supportsTools":true,"supportsStructuredOutput":true,"maxContextTokens":128000,"allowedDataClasses":["PUBLIC","INTERNAL","CONFIDENTIAL","RESTRICTED"],"allowedEnvironments":["staging","production"],"health":"healthy","latencyClass":"standard","inputCostPerMillionTokensCents":0,"outputCostPerMillionTokensCents":0,"profileVersion":"release-gate"}]
+          GETDONE_AI_ROUTING_POLICY_JSON: >-
+            {"version":"release-gate","routes":{"LIGHTWEIGHT":["release-primary"],"STANDARD":["release-primary"],"HIGH_REASONING":["release-primary"],"CODING":["release-primary"],"VISION":["release-primary"],"LONG_CONTEXT":["release-primary"]}}
 
       - name: Run fail-closed production promotion gate
         run: npm run release:gate-production
