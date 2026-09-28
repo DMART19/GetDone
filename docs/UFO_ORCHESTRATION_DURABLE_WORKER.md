@@ -73,7 +73,15 @@ If heartbeat is lost during execution, the worker marks itself stale. Even if th
 
 ## Owner Decision wait
 
-awaiting-decision is never claimed by the generic worker. The owner/Decision path must explicitly advance the run to authorized. A process restart cannot bypass owner approval.
+awaiting-decision is never claimed by the generic worker. A process restart therefore cannot bypass owner approval.
+
+An orchestration Decision carries an exact immutable Plan/step/policy/validation binding. Resolving that Decision writes a durable DecisionResumeRequest in the same authoritative transaction as the Decision CAS, audit event, and exact ApprovalProof.
+
+The explicit DecisionResumeDispatcher—not the generic worker—consumes that durable resolution evidence and may advance awaiting-decision to authorized. The Control API performs an immediate post-commit wakeup for latency, while pending resume requests remain durable for scoped recovery.
+
+If a Decision was resolved after its initial creation but before policy-evaluated -> awaiting-decision CAS, the policy stage replay recognizes the evolved Decision only when its immutable authorization binding is identical and can safely converge to authorized or blocked.
+
+Authorization grant sets use a separate atomic SERIALIZABLE batch with deterministic idempotency. A crash after grant commit but before orchestration CAS reuses the exact grant hashes instead of minting fresh authority.
 
 ## Handoff to the existing Job Engine
 
