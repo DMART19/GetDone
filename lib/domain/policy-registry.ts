@@ -3,7 +3,7 @@ import { sha256Hex } from "@/lib/control-plane/canonical-hash";
 import { POLICY_ENGINE_VERSION, POLICY_RULES_HASH } from "@/lib/planning/policy-engine";
 
 export const POLICY_REGISTRY_ID = "getdone-core-policy";
-export const CURRENT_POLICY_VERSION = "2026-09-21.1";
+export const CURRENT_POLICY_VERSION = "2026-09-28.2";
 
 export const CURRENT_POLICY_REGISTRY_HASH = sha256Hex({
   id: POLICY_REGISTRY_ID,
