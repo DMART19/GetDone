@@ -18,6 +18,10 @@ import {
 } from "@/lib/resources/enrollment";
 import type { VerificationRequestRecord } from "@/lib/domain/services/verification-service";
 import type { Resource } from "@/lib/domain/resources";
+import {
+  buildJobOwnerExplanation,
+  buildOwnerFailurePresentation
+} from "@/lib/explainability/job-owner-explanation";
 import type {
   ControlApiApplicationAdapter,
   ControlApiHealth,
@@ -96,6 +100,7 @@ function assertScopedEntity<T extends { portfolioId: string; companyId: string }
 }
 
 export function toJobResultView(job: JobRecord): JobResultView {
+  const failure = buildOwnerFailurePresentation(job);
   return Object.freeze({
     jobId: job.id,
     state: job.state,
@@ -105,7 +110,9 @@ export function toJobResultView(job: JobRecord): JobResultView {
     verificationReceiptHash: job.verificationReceiptHash,
     verifiedCompletionFactId: job.verifiedCompletionFactId,
     verifiedCompletionFactHash: job.verifiedCompletionFactHash,
-    failureReason: job.failureReason
+    failureReason: failure?.summary,
+    explanation: buildJobOwnerExplanation(job),
+    failure
   });
 }
 
