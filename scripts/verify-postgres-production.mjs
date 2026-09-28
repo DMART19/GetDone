@@ -7,7 +7,7 @@ function required(name) {
   return value;
 }
 
-const requiredMigration = "2026-09-28.3";
+const requiredMigration = "2026-09-28.4";
 const maxBackupAgeHours = Number(process.env.GETDONE_BACKUP_MAX_AGE_HOURS || "24");
 if (!Number.isFinite(maxBackupAgeHours) || maxBackupAgeHours <= 0) {
   throw new Error("GETDONE_BACKUP_MAX_AGE_HOURS must be positive");
@@ -109,7 +109,9 @@ try {
     "orchestration_transition_receipts",
     "orchestration_checkpoints",
     "orchestration_worker_state",
-    "orchestration_context_snapshots"
+    "orchestration_context_snapshots",
+    "orchestration_planner_inputs",
+    "orchestration_plan_proposals"
   ];
   const rls = await client.query(
     `SELECT required.name, relation.relrowsecurity, relation.relforcerowsecurity
@@ -444,6 +446,93 @@ try {
     throw new Error("OwnerIntent ContextSnapshot uniqueness constraints are incomplete");
   }
 
+  const planningSchema = await client.query(
+    `SELECT
+       COUNT(*) FILTER (WHERE table_name='orchestration_planner_inputs')::int AS planner_input_columns,
+       COUNT(*) FILTER (WHERE table_name='orchestration_plan_proposals')::int AS plan_proposal_columns
+     FROM information_schema.columns
+     WHERE (
+       table_name='orchestration_planner_inputs'
+       AND column_name IN (
+         'id','run_id','portfolio_id','company_id','source_run_version',
+         'context_snapshot_id','context_snapshot_hash','input_hash',
+         'idempotency_key','payload','created_at'
+       )
+     ) OR (
+       table_name='orchestration_plan_proposals'
+       AND column_name IN (
+         'id','run_id','portfolio_id','company_id','planning_run_version',
+         'planner_input_id','planner_input_hash','planner_request_id',
+         'plan_hash','artifact_hash','idempotency_key','payload','created_at'
+       )
+     )`
+  );
+  if (
+    planningSchema.rows[0]?.planner_input_columns !== 11
+    || planningSchema.rows[0]?.plan_proposal_columns !== 13
+  ) {
+    throw new Error("UFO durable planning schema verification failed");
+  }
+
+  const planningIndexes = await client.query(
+    `SELECT COUNT(*)::int AS count
+     FROM pg_indexes
+     WHERE schemaname=current_schema()
+       AND indexname IN (
+         'orchestration_planner_inputs_scope_idx',
+         'orchestration_planner_inputs_snapshot_idx',
+         'orchestration_plan_proposals_scope_idx',
+         'orchestration_plan_proposals_input_idx'
+       )`
+  );
+  if (planningIndexes.rows[0]?.count !== 4) {
+    throw new Error("UFO durable planning index verification failed");
+  }
+
+  const planningConstraints = await client.query(
+    `SELECT
+       COUNT(*) FILTER (
+         WHERE conrelid='orchestration_planner_inputs'::regclass
+           AND contype='u'
+           AND pg_get_constraintdef(oid)='UNIQUE (run_id, source_run_version)'
+       )::int AS planner_run_version_unique,
+       COUNT(*) FILTER (
+         WHERE conrelid='orchestration_planner_inputs'::regclass
+           AND contype='u'
+           AND pg_get_constraintdef(oid)='UNIQUE (portfolio_id, company_id, idempotency_key)'
+       )::int AS planner_idempotency_unique,
+       COUNT(*) FILTER (
+         WHERE conrelid='orchestration_plan_proposals'::regclass
+           AND contype='u'
+           AND pg_get_constraintdef(oid)='UNIQUE (run_id, planning_run_version)'
+       )::int AS plan_run_version_unique,
+       COUNT(*) FILTER (
+         WHERE conrelid='orchestration_plan_proposals'::regclass
+           AND contype='u'
+           AND pg_get_constraintdef(oid)='UNIQUE (portfolio_id, company_id, idempotency_key)'
+       )::int AS plan_idempotency_unique,
+       COUNT(*) FILTER (
+         WHERE conrelid='orchestration_plan_proposals'::regclass
+           AND contype='u'
+           AND pg_get_constraintdef(oid)='UNIQUE (portfolio_id, company_id, planner_request_id)'
+       )::int AS planner_request_unique
+     FROM pg_constraint
+     WHERE conrelid IN (
+       'orchestration_planner_inputs'::regclass,
+       'orchestration_plan_proposals'::regclass
+     )`
+  );
+  const planningConstraintRow = planningConstraints.rows[0];
+  if (
+    planningConstraintRow?.planner_run_version_unique !== 1
+    || planningConstraintRow?.planner_idempotency_unique !== 1
+    || planningConstraintRow?.plan_run_version_unique !== 1
+    || planningConstraintRow?.plan_idempotency_unique !== 1
+    || planningConstraintRow?.planner_request_unique !== 1
+  ) {
+    throw new Error("UFO durable planning uniqueness constraints are incomplete");
+  }
+
   const backup = await client.query(
     `SELECT completed_at,verification_hash
      FROM database_backup_evidence
@@ -514,6 +603,8 @@ try {
     orchestrationWorkerSchema: "verified",
     orchestrationContextSchema: "verified",
     orchestrationContextConstraints: "verified",
+    durablePlanningSchema: "verified",
+    durablePlanningConstraints: "verified",
     backupFresh: true
   }, null, 2));
 } finally {
