@@ -3,6 +3,7 @@ import {
   createOrchestrationRun,
   createOrchestrationSourceRef,
   transitionOrchestrationRun,
+  type OrchestrationCheckpoints,
   type OrchestrationRunRecord,
   type OrchestrationState
 } from "@/lib/orchestration/contracts";
@@ -132,7 +133,7 @@ integrationDescribe("PostgreSQL orchestration crash/restart lifecycle matrix", (
     current: OrchestrationRunRecord,
     to: OrchestrationState,
     at: string,
-    extraPatch: Record<string, unknown> = {}
+    extraPatch: Partial<OrchestrationCheckpoints> = {}
   ) {
     const next = transitionOrchestrationRun(current, {
       to,
