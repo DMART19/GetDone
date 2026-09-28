@@ -231,6 +231,15 @@ function adapter(overrides: Partial<ConstructorParameters<typeof ServiceBackedCo
         attempt: 1,
         verificationEvidenceIds: ["evidence-1"],
         verificationReceiptId: "receipt-1",
+        authorizationGrantId: "grant-1",
+        authorizationGrantHash: "grant-hash",
+        authorizationDisposition: "AUTO",
+        capabilityNames: ["deployment.staging.publish"],
+        policySnapshotId: "policy-snapshot-1",
+        policySnapshotHash: "policy-snapshot-hash",
+        policyVersion: "policy-v7",
+        policyEngineVersion: "2026-09-28.1",
+        policyRulesHash: "policy-rules-hash",
         version: 2,
         updatedAt: "2026-09-21T04:00:00Z"
       }) : null
@@ -399,7 +408,19 @@ describe("ServiceBackedControlApiAdapter", () => {
       jobId: "job-1",
       state: "succeeded",
       verificationEvidenceIds: ["evidence-1"],
-      verificationReceiptId: "receipt-1"
+      verificationReceiptId: "receipt-1",
+      explanation: {
+        title: "Completed and verified",
+        authority: {
+          disposition: "AUTO",
+          capabilityNames: ["deployment.staging.publish"],
+          policyVersion: "policy-v7"
+        },
+        verification: {
+          status: "verified",
+          evidenceCount: 1
+        }
+      }
     });
     expect(await instance.getJobResult(principal, "missing")).toBeNull();
   });
