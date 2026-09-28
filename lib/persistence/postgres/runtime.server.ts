@@ -4,7 +4,7 @@ import {
   readPostgresConfigFromEnv
 } from "@/lib/persistence/postgres/client";
 
-export const REQUIRED_POSTGRES_MIGRATION = "2026-09-28.6";
+export const REQUIRED_POSTGRES_MIGRATION = "2026-09-28.7";
 
 export const REQUIRED_POSTGRES_RELATIONS = Object.freeze([
   "getdone_schema_migrations",
@@ -60,6 +60,8 @@ export const REQUIRED_POSTGRES_RELATIONS = Object.freeze([
   "orchestration_transition_receipts",
   "orchestration_checkpoints",
   "orchestration_worker_state",
+  "orchestration_worker_instances",
+  "orchestration_worker_dead_letters",
   "orchestration_context_snapshots",
   "orchestration_planner_inputs",
   "orchestration_plan_proposals",
@@ -100,6 +102,9 @@ export const REQUIRED_POSTGRES_INDEXES = Object.freeze([
   "orchestration_worker_ready_idx",
   "orchestration_worker_lease_expiry_idx",
   "orchestration_worker_scope_idx",
+  "orchestration_worker_instances_status_idx",
+  "orchestration_worker_dead_letters_scope_idx",
+  "orchestration_worker_dead_letters_run_idx",
   "orchestration_context_snapshots_scope_idx",
   "orchestration_context_snapshots_source_idx",
   "orchestration_planner_inputs_scope_idx",
@@ -142,6 +147,7 @@ export const REQUIRED_POSTGRES_RLS_RELATIONS = Object.freeze([
   "orchestration_transition_receipts",
   "orchestration_checkpoints",
   "orchestration_worker_state",
+  "orchestration_worker_dead_letters",
   "orchestration_context_snapshots",
   "orchestration_planner_inputs",
   "orchestration_plan_proposals",
