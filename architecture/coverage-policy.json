@@ -465,6 +465,11 @@
       "source": "lib/explainability/job-owner-explanation.ts",
       "test": "lib/explainability/job-owner-explanation.test.ts",
       "critical": true
+    },
+    {
+      "source": "lib/domain/learned-rules.ts",
+      "test": "lib/domain/learned-rules.test.ts",
+      "critical": true
     }
   ]
 }
