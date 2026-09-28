@@ -286,7 +286,7 @@
       ]
     },
     "orchestrationContract": {
-      "version": "1.1.0",
+      "version": "1.2.0",
       "sourcePath": "lib/orchestration/contracts.ts",
       "contractTracked": true,
       "contractSourcePaths": [
@@ -306,6 +306,14 @@
         "lib/persistence/postgres/orchestration-worker-registry.ts",
         "lib/orchestration/runtime.server.ts",
         "lib/orchestration/stage-router.ts"
+      ]
+    },
+    "orchestrationTaskJobMaterialization": {
+      "version": "1.0.0",
+      "sourcePath": "lib/orchestration/task-job-materialization.ts",
+      "contractTracked": true,
+      "contractSourcePaths": [
+        "lib/orchestration/task-job-materialization.ts"
       ]
     }
   },
@@ -671,7 +679,9 @@
     "lib/orchestration/worker-process.server.test.ts",
     "lib/persistence/postgres/orchestration-crash-matrix.integration.test.ts",
     "lib/orchestration/stage-router.test.ts",
-    "docs/CORE_TRANCHE_B_DURABLE_ORCHESTRATION_WORKER.md"
+    "docs/CORE_TRANCHE_B_DURABLE_ORCHESTRATION_WORKER.md",
+    "lib/orchestration/task-job-materialization.test.ts",
+    "lib/persistence/postgres/orchestration-task-job-store.test.ts"
   ],
   "manualSourcePaths": [
     "docs/ARCHITECTURE.md",
