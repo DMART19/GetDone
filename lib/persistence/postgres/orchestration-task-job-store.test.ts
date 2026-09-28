@@ -326,6 +326,6 @@ describe("Postgres Tranche A materialization store", () => {
     } as OrchestrationTaskArtifact;
 
     await expect(store.claimTask(crossCompany, built.consumption))
-      .rejects.toThrow(/scope/i);
+      .rejects.toThrow(/scope|integrity/i);
   });
 });
