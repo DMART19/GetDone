@@ -367,7 +367,7 @@ export class PostgresVerificationReceiptStore implements VerificationReceiptStor
   constructor(private readonly db: SqlQueryable) {}
 
   async insert(receipt: VerificationReceipt): Promise<void> {
-    await this.db.query(
+    const inserted = await this.db.query(
       `INSERT INTO verification_receipts
         (id, portfolio_id, company_id, subject_type, subject_id, expires_at, receipt_hash, payload)
        VALUES($1,$2,$3,$4,$5,$6,$7,$8::jsonb)
@@ -382,6 +382,13 @@ export class PostgresVerificationReceiptStore implements VerificationReceiptStor
         receipt.receiptHash,
         JSON.stringify(receipt)
       ]
+    );
+    if (inserted.rowCount === 1) return;
+    const existing = await this.getReceipt(receipt.id);
+    if (existing?.receiptHash === receipt.receiptHash) return;
+    throw new ControlPlaneError(
+      "IDEMPOTENCY_CONFLICT",
+      "Verification receipt ID already exists with different authoritative content"
     );
   }
 
@@ -398,7 +405,7 @@ export class PostgresJobExecutionBridgeStore implements JobExecutionBridgeStore 
   constructor(private readonly db: SqlQueryable) {}
 
   async insertStartFact(fact: JobVerifiedStartFact): Promise<void> {
-    await this.db.query(
+    const inserted = await this.db.query(
       `INSERT INTO job_execution_start_facts
         (id,job_id,portfolio_id,company_id,expires_at,fact_hash,payload)
        VALUES($1,$2,$3,$4,$5,$6,$7::jsonb)
@@ -413,10 +420,17 @@ export class PostgresJobExecutionBridgeStore implements JobExecutionBridgeStore 
         JSON.stringify(fact)
       ]
     );
+    if (inserted.rowCount === 1) return;
+    const existing = await this.getStartFact(fact.id);
+    if (existing?.factHash === fact.factHash) return;
+    throw new ControlPlaneError(
+      "IDEMPOTENCY_CONFLICT",
+      "Job start fact ID already exists with different authoritative content"
+    );
   }
 
   async insertCompletionFact(fact: JobVerifiedCompletionFact): Promise<void> {
-    await this.db.query(
+    const inserted = await this.db.query(
       `INSERT INTO job_execution_completion_facts
         (id,job_id,portfolio_id,company_id,fact_hash,payload)
        VALUES($1,$2,$3,$4,$5,$6::jsonb)
@@ -429,6 +443,13 @@ export class PostgresJobExecutionBridgeStore implements JobExecutionBridgeStore 
         fact.factHash,
         JSON.stringify(fact)
       ]
+    );
+    if (inserted.rowCount === 1) return;
+    const existing = await this.getCompletionFact(fact.id);
+    if (existing?.factHash === fact.factHash) return;
+    throw new ControlPlaneError(
+      "IDEMPOTENCY_CONFLICT",
+      "Job completion fact ID already exists with different authoritative content"
     );
   }
 
