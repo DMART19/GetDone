@@ -14,7 +14,8 @@
     "verbatimModuleSyntax": false
   },
   "files": [
-    "lib/execution/job-worker-entry.ts"
+    "lib/execution/job-worker-entry.ts",
+    "lib/orchestration/orchestration-worker-entry.ts"
   ],
   "include": [],
   "exclude": [
