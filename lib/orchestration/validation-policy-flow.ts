@@ -12,12 +12,14 @@ import {
   type PersistedPlanProposal
 } from "@/lib/orchestration/planning-flow";
 import {
+  assertPlanValidatorAttestation,
   attestPlanValidation,
   type PlanValidationPolicy,
   type PlanValidatorAttestation
 } from "@/lib/planning/plan-validator";
 import {
   assertValidationReceipt,
+  assertValidationSnapshot,
   createValidationReceipt,
   createValidationSnapshot,
   type PlanValidationReceipt,
@@ -328,6 +330,19 @@ export function assertDurableValidationArtifact(
     );
   }
 
+  assertValidationSnapshot(
+    artifact.snapshot,
+    Date.parse(artifact.createdAt)
+  );
+
+  if (artifact.attestation.validationPolicyHash !== artifact.validationPolicyHash) {
+    throw new ControlPlaneError(
+      "FORBIDDEN",
+      "Validation attestation does not match frozen validation policy",
+      { correlationId: artifact.correlationId }
+    );
+  }
+
   if (planArtifact) {
     assertPersistedPlanProposal(planArtifact);
     if (
@@ -338,6 +353,20 @@ export function assertDurableValidationArtifact(
       throw new ControlPlaneError(
         "FORBIDDEN",
         "Validation artifact does not match immutable Plan artifact",
+        { correlationId: artifact.correlationId }
+      );
+    }
+    assertPlanValidatorAttestation(
+      artifact.attestation,
+      planArtifact.proposal
+    );
+    if (
+      artifact.snapshot.environment !== planArtifact.proposal.scope.environment
+      || artifact.receipt.planId !== planArtifact.proposal.id
+    ) {
+      throw new ControlPlaneError(
+        "FORBIDDEN",
+        "Validation artifact plan/environment lineage is invalid",
         { correlationId: artifact.correlationId }
       );
     }
@@ -656,6 +685,41 @@ export function assertDurablePolicyEvaluationArtifact(
         "FORBIDDEN",
         "Policy evaluation does not match immutable Plan artifact"
       );
+    }
+
+    const byStep = new Map(planArtifact.proposal.steps.map((step) => [step.id, step]));
+    if (
+      artifact.stepPolicies.length !== planArtifact.proposal.steps.length
+      || new Set(artifact.stepPolicies.map((item) => item.stepId)).size
+        !== artifact.stepPolicies.length
+    ) {
+      throw new ControlPlaneError(
+        "FORBIDDEN",
+        "Policy evaluation does not cover every Plan step exactly once"
+      );
+    }
+
+    for (const item of artifact.stepPolicies) {
+      const step = byStep.get(item.stepId);
+      if (
+        !step
+        || item.stepHash !== hashPlanStep(step)
+        || item.snapshot.scope.portfolioId !== planArtifact.portfolioId
+        || item.snapshot.scope.companyId !== planArtifact.companyId
+        || item.snapshot.scope.environment !== planArtifact.proposal.scope.environment
+        || item.snapshot.dataClass !== planArtifact.proposal.scope.dataClass
+        || sha256Hex(item.snapshot.resourceRequirements)
+          !== sha256Hex(step.resourceRequirements)
+        || sha256Hex([...item.snapshot.capabilityNames].sort())
+          !== sha256Hex([...new Set(step.capabilityRequests.map(
+            (request) => request.capability
+          ))].sort())
+      ) {
+        throw new ControlPlaneError(
+          "FORBIDDEN",
+          "Policy snapshot does not match immutable Plan step authority"
+        );
+      }
     }
   }
 
