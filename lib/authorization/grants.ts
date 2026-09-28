@@ -15,8 +15,15 @@ import {
   POLICY_RULES_HASH,
   type StepPolicyEvaluation
 } from "@/lib/planning/policy-engine";
-import { requireEnabledCapability } from "@/lib/domain/capabilities";
-import { CURRENT_POLICY_VERSION } from "@/lib/domain/policy-registry";
+import {
+  CAPABILITY_REGISTRY_HASH,
+  CAPABILITY_REGISTRY_VERSION,
+  requireEnabledCapability
+} from "@/lib/domain/capabilities";
+import {
+  CURRENT_POLICY_REGISTRY_HASH,
+  CURRENT_POLICY_VERSION
+} from "@/lib/domain/policy-registry";
 import type { PolicySnapshot } from "@/lib/planning/policy-snapshot";
 import { assertPolicySnapshotIntegrity } from "@/lib/planning/policy-snapshot";
 import { hashPlan, hashPlanStep } from "@/lib/planning/plan-hash";
@@ -59,8 +66,11 @@ export interface AuthorizationGrant {
   policySnapshotId: string;
   policySnapshotHash: string;
   policyVersion: string;
+  policyRegistryHash: string;
   policyEngineVersion: string;
   policyRulesHash: string;
+  capabilityRegistryVersion: string;
+  capabilityRegistryHash: string;
   decisionId?: string;
   approvalProofId?: string;
   approvalProofHash?: string;
@@ -259,8 +269,11 @@ export function issueAuthorizationGrant(input: {
     policySnapshotId: input.policySnapshot.id,
     policySnapshotHash: input.policySnapshot.snapshotHash,
     policyVersion: input.policySnapshot.policyVersion,
+    policyRegistryHash: input.policySnapshot.policyRegistryHash,
     policyEngineVersion: input.policySnapshot.policyEngineVersion,
     policyRulesHash: input.policySnapshot.policyRulesHash,
+    capabilityRegistryVersion: input.policySnapshot.capabilityRegistryVersion,
+    capabilityRegistryHash: input.policySnapshot.capabilityRegistryHash,
     decisionId: input.approvalProof?.decisionId,
     approvalProofId: input.approvalProof?.id,
     approvalProofHash: input.approvalProof?.proofHash,
@@ -310,8 +323,11 @@ export function assertAuthorizationGrantEnvelope(
 
   if (
     grant.policyVersion !== CURRENT_POLICY_VERSION
+    || grant.policyRegistryHash !== CURRENT_POLICY_REGISTRY_HASH
     || grant.policyEngineVersion !== POLICY_ENGINE_VERSION
     || grant.policyRulesHash !== POLICY_RULES_HASH
+    || grant.capabilityRegistryVersion !== CAPABILITY_REGISTRY_VERSION
+    || grant.capabilityRegistryHash !== CAPABILITY_REGISTRY_HASH
   ) {
     throw new ControlPlaneError(
       "POLICY_BLOCKED",
