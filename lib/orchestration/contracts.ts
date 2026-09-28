@@ -2,7 +2,7 @@ import { sha256Hex } from "@/lib/control-plane/canonical-hash";
 import { ControlPlaneError } from "@/lib/control-plane/errors";
 import type { TrustedExecutionScope } from "@/lib/control-plane/trusted-execution-scope";
 
-export const ORCHESTRATION_CONTRACT_VERSION = "1.0.0";
+export const ORCHESTRATION_CONTRACT_VERSION = "1.1.0";
 
 export type OrchestrationSourceType =
   | "owner-intent"
