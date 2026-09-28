@@ -228,6 +228,41 @@ export async function advanceOwnerIntentAcceptedToContextReady(input: {
   }
   assertIntentMatchesRun(intent, input.run);
 
+  const existingSnapshot = await input.snapshots.getByRunVersion(
+    input.run.id,
+    input.run.version
+  );
+  if (existingSnapshot) {
+    assertOrchestrationContextSnapshot(existingSnapshot);
+    if (
+      existingSnapshot.runId !== input.run.id
+      || existingSnapshot.runVersion !== input.run.version
+      || existingSnapshot.sourceHash !== input.run.source.sourceHash
+      || existingSnapshot.portfolioId !== input.run.scope.portfolioId
+      || existingSnapshot.companyId !== input.run.scope.companyId
+    ) {
+      throw new ControlPlaneError(
+        "IDEMPOTENCY_CONFLICT",
+        "Existing ContextSnapshot does not match accepted orchestration lineage",
+        { correlationId: input.run.correlationId }
+      );
+    }
+
+    return {
+      kind: "advance",
+      next: transitionOrchestrationRun(input.run, {
+        to: "context-ready",
+        now: now().toISOString(),
+        checkpointPatch: {
+          contextSnapshot: {
+            id: existingSnapshot.id,
+            hash: existingSnapshot.snapshotHash
+          }
+        }
+      })
+    };
+  }
+
   const [contextCandidates, contextPolicy] = await Promise.all([
     input.candidates.listForIntent({ intent, run: input.run }),
     input.policy.resolve({ intent, run: input.run })
