@@ -365,6 +365,7 @@ function evaluateSnapshotWithProof(input: {
     budgetReservations: snapshot.budgetReservations,
     usageBudgets: snapshot.usageBudgets,
     riskContext: snapshot.riskContext,
+    confirmedPreferenceRule: snapshot.confirmedPreferenceRule,
     guardrails: snapshot.guardrails,
     approvalProof: input.approvalProof,
     stepUpProof: input.stepUpProof,
