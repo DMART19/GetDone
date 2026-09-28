@@ -22,7 +22,6 @@ import type {
 } from "@/lib/resources/enrollment";
 import { ResourceEnrollmentService } from "@/lib/resources/enrollment";
 import {
-  PostgresAuthorizationGrantStore,
   PostgresEntityStore
 } from "@/lib/persistence/postgres/authority-stores";
 import {
@@ -32,6 +31,7 @@ import {
 } from "@/lib/persistence/postgres/control-api-stores";
 import {
   PostgresDecisionResumeRequestStore,
+  PostgresOrchestrationAuthorizationGrantStore,
   PostgresOrchestrationDecisionStore
 } from "@/lib/persistence/postgres/orchestration-authorization-stores";
 import {
@@ -90,7 +90,7 @@ export function createPostgresControlApiAdapter(
     validations: new PostgresOrchestrationValidationArtifactStore(db),
     policies: new PostgresOrchestrationPolicyEvaluationStore(db),
     decisions: new PostgresOrchestrationDecisionStore(db),
-    grants: new PostgresAuthorizationGrantStore(db)
+    grants: new PostgresOrchestrationAuthorizationGrantStore(db)
   });
 
   const resourceRegistry = new ResourceRegistryService(
