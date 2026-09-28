@@ -1,6 +1,6 @@
 {
   "registrySchemaVersion": "1.6.0",
-  "registryVersion": "2026-09-24.5",
+  "registryVersion": "2026-09-28.1",
   "appVersion": "0.1.0",
   "schemaVersions": {
     "controlApi": {
@@ -8,7 +8,7 @@
       "sourcePath": "lib/control-plane/schemas.ts"
     },
     "capabilityRegistry": {
-      "version": "1.2.0",
+      "version": "1.3.0",
       "sourcePath": "lib/domain/capabilities.ts"
     },
     "planSchema": {
@@ -320,7 +320,7 @@
   "policy": {
     "registryVersion": "2026-09-21.1",
     "registrySourcePath": "lib/domain/policy-registry.ts",
-    "engineVersion": "2026-09-20.2",
+    "engineVersion": "2026-09-28.1",
     "engineSourcePath": "lib/planning/policy-engine.ts"
   },
   "aiGateway": {
