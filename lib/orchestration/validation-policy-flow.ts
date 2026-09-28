@@ -726,6 +726,7 @@ export function assertDurablePolicyStepSnapshotArtifact(
       || artifact.snapshot.scope.companyId !== input.run.scope.companyId
       || artifact.snapshot.scope.environment !== input.run.scope.environment
       || artifact.snapshot.dataClass !== input.planArtifact.proposal.scope.dataClass
+      || artifact.snapshot.objectiveId !== input.planArtifact.proposal.objective?.id
       || sha256Hex(artifact.snapshot.resourceRequirements)
         !== sha256Hex(input.step.resourceRequirements)
       || sha256Hex([...artifact.snapshot.capabilityNames].sort())
