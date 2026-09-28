@@ -1,6 +1,6 @@
 {
   "registrySchemaVersion": "1.6.0",
-  "registryVersion": "2026-09-28.3",
+  "registryVersion": "2026-09-28.4",
   "appVersion": "0.1.0",
   "schemaVersions": {
     "controlApi": {
@@ -20,7 +20,7 @@
       "sourcePath": "lib/domain/resources.ts"
     },
     "verification": {
-      "version": "1.1.0",
+      "version": "1.2.0",
       "sourcePath": "lib/verification/verification.ts"
     },
     "verificationSourceTrust": {
@@ -88,7 +88,7 @@
       ]
     },
     "jobRuntime": {
-      "version": "1.2.0",
+      "version": "1.3.0",
       "sourcePath": "lib/execution/job-runtime-contracts.ts",
       "contractTracked": true,
       "contractSourcePaths": [
@@ -152,7 +152,7 @@
       ]
     },
     "goldenPathHarness": {
-      "version": "1.1.0",
+      "version": "1.2.0",
       "sourcePath": "lib/composition/golden-path-harness.ts",
       "contractTracked": true,
       "contractSourcePaths": [
@@ -180,7 +180,7 @@
       "sourcePath": "lib/persistence/postgres/client.ts"
     },
     "jobWorkerRuntime": {
-      "version": "1.0.0",
+      "version": "1.1.0",
       "sourcePath": "lib/execution/job-worker-runtime.ts"
     },
     "businessActionOrchestrator": {
@@ -192,7 +192,7 @@
       "sourcePath": "lib/execution/software-worker-runtime.ts"
     },
     "jobExecutionRouter": {
-      "version": "1.1.0",
+      "version": "1.2.0",
       "sourcePath": "lib/execution/job-execution-router.ts"
     },
     "nodeDomain": {
@@ -324,6 +324,14 @@
         "lib/orchestration/authoritative-execution-coordinator.ts",
         "lib/orchestration/objective-flow.ts",
         "lib/orchestration/post-authorization-flow.ts"
+      ]
+    },
+    "coreTrancheCCoordinator": {
+      "version": "1.0.0",
+      "sourcePath": "lib/domain/services/core-tranche-c-coordinator.ts",
+      "contractTracked": true,
+      "contractSourcePaths": [
+        "lib/domain/services/core-tranche-c-coordinator.ts"
       ]
     }
   },
@@ -747,7 +755,7 @@
     "adapterImplementationStatus": "implemented-unconfigured"
   },
   "execution": {
-    "jobRuntimeContractVersion": "1.2.0",
+    "jobRuntimeContractVersion": "1.3.0",
     "durableJobStoreStatus": "implemented-unconnected",
     "businessActionContractVersion": "1.6.0",
     "businessAdaptersStatus": "implemented-unconfigured",
@@ -778,13 +786,13 @@
     "jobExecutionBridgeContractVersion": "1.0.0",
     "jobExecutionBridgeStatus": "deterministic-contract",
     "liveJobExecutionBridgeStoreStatus": "not-connected",
-    "durableJobStoreVersion": "1.0.0",
+    "durableJobStoreVersion": "1.1.0",
     "businessActionOrchestratorStatus": "implemented",
     "businessActionOrchestratorVersion": "1.0.0",
     "softwareWorkerRuntimeStatus": "implemented",
     "softwareWorkerRuntimeVersion": "1.0.0",
     "jobExecutionRouterStatus": "implemented",
-    "jobExecutionRouterVersion": "1.1.0",
+    "jobExecutionRouterVersion": "1.2.0",
     "jobExecutionBridgeStoreImplementationStatus": "implemented-unconnected",
     "persistenceBackend": "postgresql",
     "persistentWorkerServiceStatus": "implemented-unconnected",
@@ -813,7 +821,7 @@
     "sourcePath": "lib/security/phase44-adversarial-harness.ts"
   },
   "composition": {
-    "goldenPathHarnessVersion": "1.1.0",
+    "goldenPathHarnessVersion": "1.2.0",
     "status": "deterministic-simulation-only",
     "productionExecutionClaimed": false,
     "sourcePath": "lib/composition/golden-path-harness.ts",
