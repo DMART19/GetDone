@@ -409,16 +409,34 @@ export async function advanceAuthorizedToTasksCreated(input: {
         "Objective-backed Task generation references a missing authoritative Objective"
       );
     }
-    if (
-      objective.scopeId !== input.run.scope.companyId
-      && objective.scopeId !== input.run.scope.portfolioId
-    ) {
-      throw new ControlPlaneError(
-        "FORBIDDEN",
-        "Objective-backed Task generation crossed authoritative tenant scope"
-      );
+    if ("companyId" in objective) {
+      if (
+        objective.portfolioId !== input.run.scope.portfolioId
+        || objective.companyId !== input.run.scope.companyId
+      ) {
+        throw new ControlPlaneError(
+          "FORBIDDEN",
+          "Objective-backed Task generation crossed authoritative tenant scope"
+        );
+      }
+      objectiveStatus =
+        objective.status === "completed"
+          ? "completed"
+          : ["queued", "planning", "executing", "new_work_required"].includes(objective.status)
+            ? "active"
+            : "paused";
+    } else {
+      if (
+        objective.scopeId !== input.run.scope.companyId
+        && objective.scopeId !== input.run.scope.portfolioId
+      ) {
+        throw new ControlPlaneError(
+          "FORBIDDEN",
+          "Objective-backed Task generation crossed authoritative tenant scope"
+        );
+      }
+      objectiveStatus = objective.status;
     }
-    objectiveStatus = objective.status;
   }
 
   const generated = await taskGenerator.generate({
