@@ -1,6 +1,6 @@
 {
   "registrySchemaVersion": "1.6.0",
-  "registryVersion": "2026-09-28.4",
+  "registryVersion": "2026-09-28.5",
   "appVersion": "0.1.0",
   "schemaVersions": {
     "controlApi": {
@@ -332,6 +332,14 @@
       "contractTracked": true,
       "contractSourcePaths": [
         "lib/domain/services/core-tranche-c-coordinator.ts"
+      ]
+    },
+    "ownerExplainability": {
+      "version": "1.0.0",
+      "sourcePath": "lib/explainability/job-owner-explanation.ts",
+      "contractTracked": true,
+      "contractSourcePaths": [
+        "lib/explainability/job-owner-explanation.ts"
       ]
     }
   },
