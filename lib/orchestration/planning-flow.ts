@@ -19,6 +19,15 @@ import type { PlanProposal } from "@/lib/planning/plan-schema";
 
 export const ORCHESTRATION_PLANNING_FLOW_VERSION = "1.0.0";
 
+function deepFreeze<T>(value: T): T {
+  if (!value || typeof value !== "object" || Object.isFrozen(value)) return value;
+  Object.freeze(value);
+  for (const child of Object.values(value as Record<string, unknown>)) {
+    deepFreeze(child);
+  }
+  return value;
+}
+
 export interface PlannerInputEnvelope {
   id: string;
   runId: string;
@@ -215,7 +224,7 @@ export function createPlannerInputEnvelope(input: {
     createdAt: new Date(input.createdAt).toISOString()
   };
 
-  return Object.freeze({
+  return deepFreeze({
     ...base,
     inputHash: sha256Hex(base)
   });
@@ -282,7 +291,7 @@ export function createPersistedPlanProposal(input: {
     createdAt: new Date(input.createdAt).toISOString()
   };
 
-  return Object.freeze({
+  return deepFreeze({
     ...base,
     artifactHash: sha256Hex(base)
   });
