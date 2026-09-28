@@ -338,7 +338,14 @@ export function assertAuthorizationGrantEnvelope(
     requireSameResource: Boolean(scope.resourceId || grant.scope.resourceId)
   });
 
-  if (Date.parse(grant.issuedAt) > now || Date.parse(grant.expiresAt) <= now) {
+  const issuedAt = Date.parse(grant.issuedAt);
+  const expiresAt = Date.parse(grant.expiresAt);
+  if (
+    !Number.isFinite(issuedAt)
+    || !Number.isFinite(expiresAt)
+    || issuedAt > now
+    || expiresAt <= now
+  ) {
     throw new ControlPlaneError(
       "FORBIDDEN",
       "Authorization grant is not currently valid"
