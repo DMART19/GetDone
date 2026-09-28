@@ -8,11 +8,14 @@ import {
 import type { ApprovalProof, StepUpProof } from "@/lib/authorization/proofs";
 import type { AuthoritativeDecision, OrchestrationApprovalBinding } from "@/lib/domain/decision-service";
 import {
+  isOrchestrationTerminal,
   transitionOrchestrationRun,
   type AuthorizationGrantRef,
-  type OrchestrationRunRecord
+  type OrchestrationRunRecord,
+  type OrchestrationRunStore
 } from "@/lib/orchestration/contracts";
 import type { OrchestrationStageOutcome } from "@/lib/orchestration/worker-contracts";
+import { orchestrationTransitionIdempotencyKey } from "@/lib/persistence/postgres/orchestration-store";
 import {
   assertPersistedPlanProposal,
   type OrchestrationPlanProposalStore,
@@ -49,6 +52,31 @@ export interface OrchestrationDecisionStore {
 export interface OrchestrationAuthorizationGrantStore {
   insert(grant: AuthorizationGrant): Promise<void>;
   get(id: string): Promise<AuthorizationGrant | null>;
+}
+
+
+export interface OrchestrationDecisionResumeQueueRecord {
+  id: string;
+  runId: string;
+  decisionId: string;
+  decisionVersion: number;
+  correlationId: string;
+  portfolioId: string;
+  companyId: string;
+  resolution: "approved" | "modified" | "rejected";
+  createdAt: string;
+  requestHash: string;
+  status: "pending" | "processed";
+  processedAt?: string;
+}
+
+export interface OrchestrationDecisionResumeQueue {
+  getByDecisionVersion(
+    decisionId: string,
+    decisionVersion: number
+  ): Promise<OrchestrationDecisionResumeQueueRecord | null>;
+  listPending(limit: number): Promise<readonly OrchestrationDecisionResumeQueueRecord[]>;
+  markProcessed(id: string, requestHash: string, processedAt: string): Promise<void>;
 }
 
 interface AuthorizationLineage {
@@ -712,5 +740,189 @@ export async function advanceAwaitingDecisionToAuthorized(input: {
       };
     }
     throw error;
+  }
+}
+
+
+export type DecisionResumeDispatchResult =
+  | { outcome: "advanced"; state: string; runId: string }
+  | { outcome: "waiting"; state: "awaiting-decision"; runId: string }
+  | { outcome: "not-ready"; state: string; runId: string }
+  | { outcome: "already-finished"; state: string; runId: string };
+
+export class DecisionResumeDispatcher {
+  constructor(
+    private readonly deps: {
+      runStore: OrchestrationRunStore;
+      queue: OrchestrationDecisionResumeQueue;
+      plans: OrchestrationPlanProposalStore;
+      validations: OrchestrationValidationArtifactStore;
+      policies: OrchestrationPolicyEvaluationStore;
+      decisions: OrchestrationDecisionStore;
+      grants: OrchestrationAuthorizationGrantStore;
+      grantTtlMs?: number;
+    },
+    private readonly now: () => Date = () => new Date()
+  ) {}
+
+  async processDecision(
+    decision: AuthoritativeDecision
+  ): Promise<DecisionResumeDispatchResult | null> {
+    const request = await this.deps.queue.getByDecisionVersion(
+      decision.id,
+      decision.version
+    );
+    if (!request || request.status === "processed") return null;
+    return this.processRequest(request);
+  }
+
+  async drain(limit = 25) {
+    const pending = await this.deps.queue.listPending(limit);
+    const results: DecisionResumeDispatchResult[] = [];
+    for (const request of pending) {
+      results.push(await this.processRequest(request));
+    }
+    return Object.freeze(results);
+  }
+
+  private async processRequest(
+    request: OrchestrationDecisionResumeQueueRecord
+  ): Promise<DecisionResumeDispatchResult> {
+    const run = await this.deps.runStore.get(request.runId);
+    if (!run) {
+      throw new ControlPlaneError(
+        "NOT_FOUND",
+        "Decision resume request references a missing orchestration run",
+        { correlationId: request.correlationId }
+      );
+    }
+    if (
+      run.scope.portfolioId !== request.portfolioId
+      || run.scope.companyId !== request.companyId
+      || run.correlationId !== request.correlationId
+      || !run.checkpoints.decisionIds.includes(request.decisionId)
+    ) {
+      throw new ControlPlaneError(
+        "FORBIDDEN",
+        "Decision resume request is outside exact orchestration lineage",
+        { correlationId: request.correlationId }
+      );
+    }
+
+    if (run.state === "policy-evaluated") {
+      return {
+        outcome: "not-ready",
+        state: run.state,
+        runId: run.id
+      };
+    }
+
+    if (run.state !== "awaiting-decision") {
+      if (
+        isOrchestrationTerminal(run.state)
+        || [
+          "authorized",
+          "tasks-created",
+          "jobs-enqueued",
+          "executing",
+          "verifying",
+          "completed"
+        ].includes(run.state)
+      ) {
+        await this.deps.queue.markProcessed(
+          request.id,
+          request.requestHash,
+          this.now().toISOString()
+        );
+        return {
+          outcome: "already-finished",
+          state: run.state,
+          runId: run.id
+        };
+      }
+
+      return {
+        outcome: "not-ready",
+        state: run.state,
+        runId: run.id
+      };
+    }
+
+    const outcome = await advanceAwaitingDecisionToAuthorized({
+      run,
+      plans: this.deps.plans,
+      validations: this.deps.validations,
+      policies: this.deps.policies,
+      decisions: this.deps.decisions,
+      grants: this.deps.grants,
+      now: this.now,
+      grantTtlMs: this.deps.grantTtlMs
+    });
+
+    if (outcome.kind === "defer") {
+      await this.deps.queue.markProcessed(
+        request.id,
+        request.requestHash,
+        this.now().toISOString()
+      );
+      return {
+        outcome: "waiting",
+        state: "awaiting-decision",
+        runId: run.id
+      };
+    }
+
+    if (outcome.kind !== "advance") {
+      throw new ControlPlaneError(
+        "UNAVAILABLE",
+        "Decision resume authorization did not produce a deterministic advance"
+      );
+    }
+
+    try {
+      const persisted = await this.deps.runStore.compareAndSwap(outcome.next, {
+        expectedVersion: run.version,
+        expectedRecordHash: run.recordHash,
+        idempotencyKey: orchestrationTransitionIdempotencyKey(
+          run,
+          outcome.next.state
+        )
+      });
+      await this.deps.queue.markProcessed(
+        request.id,
+        request.requestHash,
+        this.now().toISOString()
+      );
+      return {
+        outcome: "advanced",
+        state: persisted.state,
+        runId: persisted.id
+      };
+    } catch (error) {
+      if (error instanceof ControlPlaneError && error.code === "CONFLICT") {
+        const current = await this.deps.runStore.get(run.id);
+        if (
+          current
+          && current.version > run.version
+          && (
+            current.state === "authorized"
+            || current.state === "blocked"
+            || isOrchestrationTerminal(current.state)
+          )
+        ) {
+          await this.deps.queue.markProcessed(
+            request.id,
+            request.requestHash,
+            this.now().toISOString()
+          );
+          return {
+            outcome: "already-finished",
+            state: current.state,
+            runId: current.id
+          };
+        }
+      }
+      throw error;
+    }
   }
 }
