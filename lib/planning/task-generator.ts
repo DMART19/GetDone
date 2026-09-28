@@ -136,6 +136,8 @@ function logicalKey(plan: PlanProposal, step: PlanStep) {
     plan.scope.companyId,
     plan.source.type,
     sourceReference(plan),
+    plan.id,
+    `v${plan.proposalVersion}`,
     fingerprint
   ].join(":");
 }
