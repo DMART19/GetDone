@@ -675,7 +675,8 @@
     "lib/persistence/postgres/orchestration-execution-artifact-store.test.ts",
     "lib/persistence/postgres/orchestration-task-dedupe-store.test.ts",
     "lib/orchestration/orchestration-execution-postgres.integration.test.ts",
-    "migrations/2026-09-27.3_orchestration_authorization_materialization.sql"
+    "migrations/2026-09-27.3_orchestration_authorization_materialization.sql",
+    "docs/SOL_GOVERNED_EXECUTION_TRANCHE.md"
   ],
   "manualSourcePaths": [
     "docs/ARCHITECTURE.md",
@@ -698,7 +699,8 @@
     "docs/SOL_CREDENTIAL_ROTATION_OBSERVABILITY.md",
     "docs/SOL_OPERATIONAL_ALERTS_CORRELATION.md",
     "docs/SOL_BROWSER_STAGING_WEBAUTHN_ACCEPTANCE.md",
-    "docs/SOL_GOVERNED_PLANNING_TRANCHE.md"
+    "docs/SOL_GOVERNED_PLANNING_TRANCHE.md",
+    "docs/SOL_GOVERNED_EXECUTION_TRANCHE.md"
   ],
   "generatedArtifacts": {
     "machineManifest": "release/out/release-manifest.json",
