@@ -7,6 +7,9 @@ import {
   advanceOwnerIntentAcceptedToContextReady
 } from "@/lib/orchestration/owner-intent-flow";
 import {
+  advanceObjectiveAcceptedToContextReady
+} from "@/lib/orchestration/objective-flow";
+import {
   advanceContextReadyToPlanning,
   advancePlanningToPlanned
 } from "@/lib/orchestration/planning-flow";
@@ -34,6 +37,9 @@ type WithoutRun<T> = Omit<T, "run">;
 export interface AuthoritativeExecutionCoordinatorDependencies {
   ownerIntentContext: WithoutRun<
     Parameters<typeof advanceOwnerIntentAcceptedToContextReady>[0]
+  >;
+  objectiveContext: WithoutRun<
+    Parameters<typeof advanceObjectiveAcceptedToContextReady>[0]
   >;
   contextPlanning: WithoutRun<
     Parameters<typeof advanceContextReadyToPlanning>[0]
@@ -88,17 +94,23 @@ export class AuthoritativeExecutionCoordinator
 
     switch (run.state) {
       case "accepted":
-        if (run.source.type !== "owner-intent") {
-          return Promise.resolve({
-            kind: "failed",
-            code: "SOURCE_CONTEXT_NOT_MATERIALIZED",
-            reason:
-              "Accepted Objective/Investigation sources must enter through an authoritative source-specific Context Snapshot adapter before planning"
+        if (run.source.type === "owner-intent") {
+          return advanceOwnerIntentAcceptedToContextReady({
+            run,
+            ...this.deps.ownerIntentContext
           });
         }
-        return advanceOwnerIntentAcceptedToContextReady({
-          run,
-          ...this.deps.ownerIntentContext
+        if (run.source.type === "objective") {
+          return advanceObjectiveAcceptedToContextReady({
+            run,
+            ...this.deps.objectiveContext
+          });
+        }
+        return Promise.resolve({
+          kind: "failed",
+          code: "SOURCE_CONTEXT_NOT_MATERIALIZED",
+          reason:
+            "Signals and Investigations require an authoritative source-specific Context Snapshot adapter before they can enter the execution chain"
         });
 
       case "context-ready":
