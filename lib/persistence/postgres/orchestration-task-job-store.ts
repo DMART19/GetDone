@@ -27,7 +27,7 @@ const TASK_DAG_TYPE = "orchestration-task-dag";
 const JOB_ARTIFACT_TYPE = "orchestration-job-artifact";
 
 type MaterializedTaskRecord = TaskRecord & {
-  objectiveId?: string;
+  objectiveId: string | null;
   orchestrationRunId: string;
   planId: string;
   planHash: string;
