@@ -192,11 +192,25 @@ describe("verification receipts", () => {
     expect(verified.contractResults?.every((result) => result.verdict === "verified")).toBe(true);
 
     const wrongSha = createVerificationEvidence({
-      ...currentState,
       id: "deploy-probe-wrong-sha",
+      portfolioId: scope.portfolioId,
+      companyId: scope.companyId,
+      subject: { type: "job", id: "job-1" },
+      strategy: "system",
+      result: "pass",
+      sourceType: "system-probe",
+      sourceId: "deployment-verifier",
+      independenceKey: "verifier:deployment",
+      observedAt: now,
+      payloadHash: "deploy-state-wrong-sha",
+      provenance: "deployment-probe",
       observations: {
-        ...currentState.observations,
-        "deployment.sha": "deadbeef"
+        "deployment.exists": true,
+        "deployment.environment": "production",
+        "deployment.sha": "deadbeef",
+        "deployment.health": true,
+        "application.responds": true,
+        "functional.check": true
       }
     });
     const failed = resolveVerificationRequest(
