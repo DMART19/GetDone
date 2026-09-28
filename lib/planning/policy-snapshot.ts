@@ -1,25 +1,27 @@
 import { CAPABILITY_REGISTRY_HASH, CAPABILITY_REGISTRY_VERSION } from "@/lib/domain/capabilities";
 import type { KillSwitch } from "@/lib/domain/kill-switch";
-import type { BudgetPolicy, Guardrail } from "@/lib/domain/objectives";
+import type { Guardrail } from "@/lib/domain/objectives";
 import type { TrustedExecutionScope } from "@/lib/control-plane/trusted-execution-scope";
 import { sha256Hex } from "@/lib/control-plane/canonical-hash";
 import type { ResourceRequirementEnvelope } from "@/lib/planning/plan-schema";
 import type { CredentialAvailabilitySnapshot } from "@/lib/domain/credential-binding";
 import type { BudgetReservation } from "@/lib/domain/budget-reservation";
 import type { ProtectedCapacitySnapshot } from "@/lib/domain/protected-capacity";
-import { POLICY_ENGINE_VERSION, POLICY_RULES_HASH } from "@/lib/planning/policy-engine";
+import {
+  POLICY_ENGINE_VERSION,
+  POLICY_RULES_HASH,
+  type PolicyMonetaryBudgetInput,
+  type PolicyRiskContext,
+  type PolicyUsageBudgetInput
+} from "@/lib/planning/policy-engine";
 import {
   CURRENT_POLICY_REGISTRY_HASH,
   CURRENT_POLICY_VERSION,
   assertCurrentPolicyVersion
 } from "@/lib/domain/policy-registry";
 
-export interface PolicyBudgetSnapshot {
-  policy: BudgetPolicy;
-  currentSpendCents: number;
-  reservedCents?: number;
-  requestedCostCents: number;
-}
+export type PolicyBudgetSnapshot = PolicyMonetaryBudgetInput;
+export type PolicyUsageBudgetSnapshot = PolicyUsageBudgetInput;
 
 export interface PolicyGuardrailSnapshot {
   scopeId: string;
@@ -47,8 +49,14 @@ export interface PolicySnapshotInput {
   failureDomainId?: string;
   workloadClass?: string;
 
+  /** @deprecated Prefer budgets for hierarchical budget evaluation. */
   budget?: PolicyBudgetSnapshot;
+  budgets?: readonly PolicyBudgetSnapshot[];
+  /** @deprecated Prefer budgetReservations for hierarchical budget evaluation. */
   budgetReservation?: BudgetReservation;
+  budgetReservations?: readonly BudgetReservation[];
+  usageBudgets?: readonly PolicyUsageBudgetSnapshot[];
+  riskContext?: PolicyRiskContext;
   guardrails?: PolicyGuardrailSnapshot;
   killSwitches: readonly KillSwitch[];
 
@@ -76,6 +84,7 @@ export interface PolicySnapshot extends PolicySnapshotInput {
   capacityEvidenceRequired: boolean;
   credentialSnapshotHash?: string;
   budgetReservationHash?: string;
+  budgetReservationHashes?: readonly string[];
   capacitySnapshotHash?: string;
   policyInputHash: string;
   snapshotHash: string;
@@ -112,6 +121,18 @@ export function createPolicySnapshot(input: PolicySnapshotInput): PolicySnapshot
   }
 
   const killSwitches = normalizedKillSwitches(input.killSwitches);
+  const budgets = [...(input.budgets ?? [])].sort(
+    (left, right) => left.policy.id.localeCompare(right.policy.id)
+  );
+  const budgetReservations = [...(input.budgetReservations ?? [])].sort(
+    (left, right) => left.policyId.localeCompare(right.policyId) || left.id.localeCompare(right.id)
+  );
+  const usageBudgets = [...(input.usageBudgets ?? [])].sort(
+    (left, right) => left.policy.id.localeCompare(right.policy.id)
+  );
+  const budgetReservationHashes = budgetReservations.map(
+    (reservation) => reservation.reservationHash
+  );
   const killSwitchSnapshotHash = hashKillSwitchSnapshot(killSwitches);
   const resourceRequirementsHash = sha256Hex(input.resourceRequirements);
 
@@ -132,7 +153,11 @@ export function createPolicySnapshot(input: PolicySnapshotInput): PolicySnapshot
     failureDomainId: input.failureDomainId,
     workloadClass: input.workloadClass,
     budget: input.budget,
+    budgets,
     budgetReservationHash: input.budgetReservation?.reservationHash,
+    budgetReservationHashes,
+    usageBudgets,
+    riskContext: input.riskContext,
     guardrails: input.guardrails,
     killSwitchSnapshotHash,
     credentialRequirementIds: [...new Set(input.credentialRequirementIds)].sort(),
@@ -154,6 +179,10 @@ export function createPolicySnapshot(input: PolicySnapshotInput): PolicySnapshot
     allowedEnvironments: [...input.allowedEnvironments],
     allowedDataClasses: [...input.allowedDataClasses],
     allowedRegions: input.allowedRegions ? [...input.allowedRegions] : undefined,
+    budgets,
+    budgetReservations,
+    usageBudgets,
+    riskContext: input.riskContext ? { ...input.riskContext } : undefined,
     killSwitches,
     credentialRequirementIds: [...new Set(input.credentialRequirementIds)].sort(),
     capacityEvidenceRequired,
@@ -165,6 +194,7 @@ export function createPolicySnapshot(input: PolicySnapshotInput): PolicySnapshot
     killSwitchSnapshotHash,
     credentialSnapshotHash: input.credentialSnapshot?.snapshotHash,
     budgetReservationHash: input.budgetReservation?.reservationHash,
+    budgetReservationHashes,
     capacitySnapshotHash: input.capacitySnapshot?.snapshotHash,
     policyInputHash: sha256Hex(policyInput)
   };
