@@ -69,6 +69,18 @@ describe("fresh execution admission", () => {
       .rejects.toThrow(/Objective is paused/i);
   });
 
+  it("requires an integration binding for consequential business capabilities", async () => {
+    const base = autoGrantFor(validPlan());
+    const grant = {
+      ...base,
+      capabilityNames: ["email.send"],
+      integrationId: undefined
+    };
+
+    await expect(gate().assertAllowed(input(grant)))
+      .rejects.toThrow(/requires a current integration binding/i);
+  });
+
   it("blocks a disabled integration immediately", async () => {
     const plan = validPlan();
     const scope = fixtureScope(plan);
