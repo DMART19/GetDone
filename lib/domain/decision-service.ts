@@ -195,7 +195,10 @@ export async function resolveDecision(input: ResolveDecisionInput): Promise<Auth
 
       if (input.action === "approve" && current.approvalBinding) {
         const binding = current.approvalBinding;
-        const expiresAt = approvalExpiry(binding, input.stepUpProof);
+        const boundStepUp = binding.requirement === "strong-approval"
+          ? input.stepUpProof
+          : undefined;
+        const expiresAt = approvalExpiry(binding, boundStepUp);
         if (Date.parse(expiresAt) <= Date.parse(resolvedAt)) {
           throw new ControlPlaneError(
             "POLICY_BLOCKED",
@@ -215,7 +218,7 @@ export async function resolveDecision(input: ResolveDecisionInput): Promise<Auth
           stepHash: binding.stepHash,
           grantedAt: resolvedAt,
           expiresAt,
-          stepUpProofId: input.stepUpProof?.id
+          stepUpProofId: boundStepUp?.id
         });
 
         assertApprovalProof(proof, {
@@ -224,13 +227,13 @@ export async function resolveDecision(input: ResolveDecisionInput): Promise<Auth
           planHash: binding.planHash,
           stepHash: binding.stepHash,
           requiredLevel: binding.requirement,
-          stepUpProof: input.stepUpProof,
+          stepUpProof: boundStepUp,
           now: Date.parse(resolvedAt)
         });
 
         patch.approvalProof = proof;
         if (binding.requirement === "strong-approval") {
-          patch.stepUpProof = input.stepUpProof;
+          patch.stepUpProof = boundStepUp;
         }
       }
 
