@@ -8,10 +8,12 @@ import { ControlPlaneError } from "@/lib/control-plane/errors";
 import { assertTrustedExecutionScopeEqual } from "@/lib/control-plane/trusted-execution-scope";
 import { validateCapabilityInput } from "@/lib/domain/capabilities";
 import type { JobRecord } from "@/lib/domain/services/job-service";
+import type { TaskRecord } from "@/lib/domain/services/task-service";
 import type { AuthorizedBusinessActionRequest } from "@/lib/execution/adapters/business-action";
 import { StaticBusinessActionAdapterRegistry } from "@/lib/execution/adapters/business-action-registry";
 import { createOrdinaryBusinessActionBindingsFromEnv } from "@/lib/execution/adapters/ordinary-integration-registry";
 import { BusinessActionExecutionOrchestrator } from "@/lib/execution/business-action-orchestrator";
+import { PostgresCurrentExecutionAdmissionGate } from "@/lib/execution/current-execution-admission";
 import {
   PostgresProviderConcurrencyGate,
   readProviderConcurrencyConfigFromEnv
@@ -22,12 +24,16 @@ import {
   RoutedJobExecutionHandler
 } from "@/lib/execution/job-execution-router";
 import { createJobQueueEnvelope } from "@/lib/execution/job-runtime-contracts";
+import { jobSideEffectIdempotencyKey } from "@/lib/orchestration/execution-idempotency";
 import { planOwnerNotification } from "@/lib/mobile/notifications";
 import { PostgresBusinessActionExecutionStore } from "@/lib/persistence/postgres/execution-stores";
 import { PostgresAnalyticsIngestionStore } from "@/lib/persistence/postgres/analytics-ingestion-store";
 import { PostgresCredentialBrokerStore } from "@/lib/persistence/postgres/credential-broker-store";
 import { PostgresJobExecutionSpecStore } from "@/lib/persistence/postgres/job-execution-spec-store";
-import { PostgresEntityStore } from "@/lib/persistence/postgres/authority-stores";
+import {
+  PostgresAuthorizationGrantStore,
+  PostgresEntityStore
+} from "@/lib/persistence/postgres/authority-stores";
 import { PostgresJobVerificationEvidenceStore } from "@/lib/persistence/postgres/worker-runtime-stores";
 import { getPostgresRuntimeFromEnv } from "@/lib/persistence/postgres/runtime.server";
 import { runWithPostgresTenantScope } from "@/lib/persistence/postgres/tenant-context.server";
@@ -117,7 +123,11 @@ export class MvpJobRuntime {
         "Production governed Job execution requires persisted correlation lineage"
       );
     }
-    const correlatedRequest = Object.freeze({ ...request, correlationId });
+    const correlatedRequest = Object.freeze({
+      ...request,
+      correlationId,
+      idempotencyKey: jobSideEffectIdempotencyKey(authoritative.id, request.id)
+    });
     const createdAt = this.now().toISOString();
     const spec = createPersistedJobExecutionSpec({
       kind: "business-action",
@@ -134,7 +144,7 @@ export class MvpJobRuntime {
       taskId: authoritative.taskId,
       scope: request.scope,
       authorizationConsumptionHash: request.authorizationConsumptionHash,
-      idempotencyKey: `queue:${request.idempotencyKey}`,
+      idempotencyKey: `queue:${correlatedRequest.idempotencyKey}`,
       scheduledAt: createdAt,
       createdAt
     }));
@@ -204,6 +214,8 @@ export function getMvpJobRuntimeFromEnv(
   );
   const specs = new PostgresJobExecutionSpecStore(database);
   const jobs = new PostgresEntityStore<JobRecord>(database, "job");
+  const tasks = new PostgresEntityStore<TaskRecord>(database, "task");
+  const grants = new PostgresAuthorizationGrantStore(database);
   installed = new MvpJobRuntime(
     getDurableJobEngineFromEnv(env),
     specs,
@@ -213,6 +225,9 @@ export function getMvpJobRuntimeFromEnv(
       undefined,
       {
         jobs,
+        tasks,
+        grants,
+        admission: new PostgresCurrentExecutionAdmissionGate(database),
         verificationEvidence: new PostgresJobVerificationEvidenceStore(database)
       }
     ),
