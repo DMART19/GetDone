@@ -2,6 +2,7 @@ import { sha256Hex } from "@/lib/control-plane/canonical-hash";
 import { ControlPlaneError } from "@/lib/control-plane/errors";
 import type { TrustedExecutionScope } from "@/lib/control-plane/trusted-execution-scope";
 import type { Objective } from "@/lib/domain/objectives";
+import type { ObjectiveRecord } from "@/lib/domain/objective-inbox";
 import {
   assembleContext,
   type ContextAssemblyOptions,
@@ -23,7 +24,7 @@ import {
 } from "@/lib/orchestration/owner-intent-flow";
 import type { OrchestrationStageOutcome } from "@/lib/orchestration/worker-contracts";
 
-export const OBJECTIVE_ORCHESTRATION_FLOW_VERSION = "1.0.0";
+export const OBJECTIVE_ORCHESTRATION_FLOW_VERSION = "1.1.0";
 
 function deepFreeze<T>(value: T): T {
   if (!value || typeof value !== "object" || Object.isFrozen(value)) return value;
@@ -32,20 +33,31 @@ function deepFreeze<T>(value: T): T {
   return value;
 }
 
+export type AuthoritativeObjective = Objective | ObjectiveRecord;
+
 export interface ObjectiveReadStore {
-  get(id: string): Promise<Objective | null>;
+  get(id: string): Promise<AuthoritativeObjective | null>;
+}
+
+function isObjectiveRecord(objective: AuthoritativeObjective): objective is ObjectiveRecord {
+  return "normalizedGoal" in objective && "companyId" in objective;
+}
+
+function objectiveIsRunnable(objective: AuthoritativeObjective) {
+  if (!isObjectiveRecord(objective)) return objective.status === "active";
+  return ["queued", "planning", "executing", "new_work_required"].includes(objective.status);
 }
 
 export interface ObjectiveContextCandidateSource {
   listForObjective(input: {
-    objective: Objective;
+    objective: AuthoritativeObjective;
     run: OrchestrationRunRecord;
   }): Promise<readonly ContextItem[]>;
 }
 
 export interface ObjectiveContextPolicyResolver {
   resolve(input: {
-    objective: Objective;
+    objective: AuthoritativeObjective;
     run: OrchestrationRunRecord;
   }): Promise<{
     scope: ContextScope;
@@ -67,7 +79,21 @@ export function objectiveOrchestrationStartIdempotencyKey(objectiveId: string) {
   return `orchestration:start:objective:${objectiveId}`;
 }
 
-function assertObjectiveScope(objective: Objective, scope: TrustedExecutionScope) {
+function assertObjectiveScope(objective: AuthoritativeObjective, scope: TrustedExecutionScope) {
+  if (isObjectiveRecord(objective)) {
+    if (
+      objective.portfolioId !== scope.portfolioId
+      || objective.companyId !== scope.companyId
+      || objective.environment !== scope.environment
+      || objective.createdByUserId !== scope.userId
+    ) {
+      throw new ControlPlaneError(
+        "FORBIDDEN",
+        "Objective scope does not match the trusted orchestration company/portfolio"
+      );
+    }
+    return;
+  }
   if (
     objective.scopeId !== scope.companyId
     && objective.scopeId !== scope.portfolioId
@@ -80,15 +106,15 @@ function assertObjectiveScope(objective: Objective, scope: TrustedExecutionScope
 }
 
 export function createObjectiveOrchestrationRun(input: {
-  objective: Objective;
+  objective: AuthoritativeObjective;
   scope: TrustedExecutionScope;
   correlationId?: string;
   createdAt: string;
 }): OrchestrationRunRecord {
-  if (input.objective.status !== "active") {
+  if (!objectiveIsRunnable(input.objective)) {
     throw new ControlPlaneError(
       "CONFLICT",
-      "Only an active Objective can enter autonomous orchestration"
+      "Only a runnable Objective can enter autonomous orchestration"
     );
   }
   assertObjectiveScope(input.objective, input.scope);
@@ -110,14 +136,14 @@ export function createObjectiveOrchestrationRun(input: {
 }
 
 function assertObjectiveMatchesRun(
-  objective: Objective,
+  objective: AuthoritativeObjective,
   run: OrchestrationRunRecord
 ) {
   if (
     run.source.type !== "objective"
     || run.source.id !== objective.id
     || run.source.sourceHash !== sha256Hex(objective)
-    || objective.status !== "active"
+    || !objectiveIsRunnable(objective)
   ) {
     throw new ControlPlaneError(
       "FORBIDDEN",
@@ -130,7 +156,7 @@ function assertObjectiveMatchesRun(
 
 export function createObjectiveContextSnapshot(input: {
   run: OrchestrationRunRecord;
-  objective: Objective;
+  objective: AuthoritativeObjective;
   assembledContext: OrchestrationContextSnapshot["assembledContext"];
   createdAt: string;
 }): OrchestrationContextSnapshot {
@@ -152,15 +178,26 @@ export function createObjectiveContextSnapshot(input: {
     sourceType: "objective" as const,
     sourceId: input.objective.id,
     sourceHash: input.run.source.sourceHash,
-    sourceInput: {
-      type: "objective" as const,
-      metric: input.objective.metric,
-      direction: input.objective.direction,
-      target: input.objective.target,
-      priority: input.objective.priority,
-      deadline: input.objective.deadline,
-      budgetCents: input.objective.budgetCents
-    },
+    sourceInput: isObjectiveRecord(input.objective)
+      ? {
+          type: "objective" as const,
+          normalizedGoal: input.objective.normalizedGoal,
+          desiredOutcome: input.objective.desiredOutcome,
+          constraints: [...input.objective.constraints],
+          successCriteria: [...input.objective.successCriteria],
+          priority: input.objective.priority,
+          riskLevel: input.objective.riskLevel,
+          deadline: input.objective.deadline
+        }
+      : {
+          type: "objective" as const,
+          metric: input.objective.metric,
+          direction: input.objective.direction,
+          target: input.objective.target,
+          priority: input.objective.priority,
+          deadline: input.objective.deadline,
+          budgetCents: input.objective.budgetCents
+        },
     assembledContext: input.assembledContext,
     createdAt: new Date(input.createdAt).toISOString()
   };
