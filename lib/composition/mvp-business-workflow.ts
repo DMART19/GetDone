@@ -7,7 +7,6 @@ import type {
 import { sha256Hex } from "@/lib/control-plane/canonical-hash";
 import { ControlPlaneError } from "@/lib/control-plane/errors";
 import type { TrustedExecutionScope } from "@/lib/control-plane/trusted-execution-scope";
-import { assertTrustedExecutionScopeEqual } from "@/lib/control-plane/trusted-execution-scope";
 import type { JobRecord } from "@/lib/domain/services/job-service";
 import type { AuthorizedBusinessActionRequest } from "@/lib/execution/adapters/business-action";
 
