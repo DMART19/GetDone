@@ -221,6 +221,7 @@ describe("decision authority service", () => {
     const transactionManager = new MemoryDecisionTransactionManager(decision({
       correlationId: "orchestration-correlation",
       approvalBinding: {
+        trustedScope: command().scope,
         orchestrationRunId: "orchestration-run-1",
         policyEvaluationArtifactId: "policy-evaluation-1",
         policyEvaluationArtifactHash: "a".repeat(64),
@@ -268,6 +269,7 @@ describe("decision authority service", () => {
       requiresStepUp: true,
       correlationId: "orchestration-correlation",
       approvalBinding: {
+        trustedScope: command().scope,
         orchestrationRunId: "orchestration-run-strong",
         policyEvaluationArtifactId: "policy-evaluation-strong",
         policyEvaluationArtifactHash: "1".repeat(64),
@@ -318,6 +320,7 @@ describe("decision authority service", () => {
     const transactionManager = new MemoryDecisionTransactionManager(decision({
       correlationId: "orchestration-correlation",
       approvalBinding: {
+        trustedScope: command().scope,
         orchestrationRunId: "orchestration-run-reject",
         policyEvaluationArtifactId: "policy-evaluation-reject",
         policyEvaluationArtifactHash: "a".repeat(64),
