@@ -164,7 +164,6 @@ export class AuthoritativeExecutionCoordinator
           ...this.deps.completion
         });
 
-      case "accepted":
       case "blocked":
       case "failed":
       case "cancelled":
