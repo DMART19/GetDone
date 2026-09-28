@@ -27,6 +27,9 @@ import {
   PostgresResourceEnrollmentReadinessStore,
   PostgresResourceEvidenceStore
 } from "@/lib/persistence/postgres/control-api-stores";
+import {
+  PostgresDecisionResumeRequestStore
+} from "@/lib/persistence/postgres/orchestration-authorization-stores";
 import { PostgresControlPlaneTransactionManager } from "@/lib/persistence/postgres/transaction-manager";
 import { getPostgresRuntimeFromEnv } from "@/lib/persistence/postgres/runtime.server";
 import { runWithPostgresTenantScope } from "@/lib/persistence/postgres/tenant-context.server";
@@ -58,7 +61,8 @@ export function createPostgresControlApiAdapter(
   const decisionTransactions = new PostgresControlPlaneTransactionManager(
     db,
     (client) => ({
-      decisions: new PostgresEntityStore<AuthoritativeDecision>(client, "decision")
+      decisions: new PostgresEntityStore<AuthoritativeDecision>(client, "decision"),
+      resumeRequests: new PostgresDecisionResumeRequestStore(client)
     })
   );
 
