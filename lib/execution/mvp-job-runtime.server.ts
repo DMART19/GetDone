@@ -169,10 +169,14 @@ export class MvpJobRuntime {
   }
 
   async ownerView(jobId: string, taskId: string) {
-    const [status, authoritative] = await Promise.all([
-      this.engine.status(jobId),
-      this.jobs.get(jobId)
-    ]);
+    const status = await this.engine.status(jobId);
+    const runtimeScope = status.runtime?.envelope?.scope;
+    const authoritative = runtimeScope
+      ? await runWithPostgresTenantScope(
+          runtimeScope,
+          () => this.jobs.get(jobId)
+        )
+      : null;
 
     if (authoritative && authoritative.taskId !== taskId) {
       throw new ControlPlaneError(
