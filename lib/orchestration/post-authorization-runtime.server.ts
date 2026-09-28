@@ -57,6 +57,48 @@ function iso(value: Date | string) {
   return value instanceof Date ? value.toISOString() : String(value);
 }
 
+function requiredVerificationSatisfied(
+  task: DurableTaskDagArtifact["tasks"][number],
+  evidence: readonly VerificationEvidence[]
+) {
+  const passing = evidence.filter((item) => item.result === "pass");
+  for (const requirement of task.verificationRequirements) {
+    if (!requirement.required) continue;
+    switch (requirement.kind) {
+      case "capability-output":
+      case "metric":
+      case "state":
+        if (passing.length === 0) {
+          return {
+            satisfied: false as const,
+            reason: `Required ${requirement.kind} verification has no passing evidence`
+          };
+        }
+        break;
+      case "independent-check": {
+        const executionKeys = new Set(
+          evidence
+            .filter((item) => item.sourceType === "provider" || item.sourceType === "worker")
+            .map((item) => item.independenceKey)
+        );
+        const independent = passing.some(
+          (item) =>
+            item.sourceType !== "provider"
+            && [...executionKeys].every((key) => item.independenceKey !== key)
+        );
+        if (!independent) {
+          return {
+            satisfied: false as const,
+            reason: "Required independent-check verification has no independent passing evidence"
+          };
+        }
+        break;
+      }
+    }
+  }
+  return { satisfied: true as const };
+}
+
 function nodeHash(input: Omit<OrchestrationJobNode, "nodeHash">) {
   return sha256Hex(input);
 }
@@ -393,6 +435,11 @@ export class PostgresGovernedJobRuntime implements GovernedJobRuntimePort {
 
       const task = input.taskDag.tasks.find((candidate) => candidate.id === node.taskId);
       if (!task) throw new ControlPlaneError("FORBIDDEN", "Verified Job lost parent Task lineage");
+      const requirementCheck = requiredVerificationSatisfied(task, observed);
+      if (!requirementCheck.satisfied) {
+        pendingReason = `Job ${node.id}: ${requirementCheck.reason}`;
+        continue;
+      }
       const verificationRequestId = requestId(node.id);
       const requestedAt = this.now().toISOString();
       const expiresAt = new Date(Date.parse(requestedAt) + 15 * 60_000).toISOString();
