@@ -322,9 +322,16 @@ function textDrafts(rawText: string, source: ObjectiveSource): ObjectiveDraft[] 
     return [draftFromText(rawText)];
   }
 
+  const uploadedListShape =
+    source === "uploaded_text"
+    && nonEmpty.length >= 2
+    && nonEmpty.length <= 50
+    && nonEmpty.every((entry) => entry.trimmed.length <= 240)
+    && !rawText.includes("\n\n");
+
   const listEntries = markedEntries.length >= 2
     ? markedEntries
-    : source === "multiline_list"
+    : source === "multiline_list" || uploadedListShape
       ? nonEmpty
       : markedEntries;
 
