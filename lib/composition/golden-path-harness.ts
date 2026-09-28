@@ -1229,7 +1229,7 @@ export async function runDeterministicGoldenPath(): Promise<GoldenPathSimulation
     executingJob.id,
     jobCommand("provider-completed"),
     {
-      providerResultId: adapterResult.providerOperationId,
+      providerResultId: "golden-provider-operation",
       providerResultHash: verifiedCompletion.recordHash,
       completedAt: "2026-09-20T22:02:03Z",
       verifiedCompletionFactId: completionFact.id
@@ -1407,7 +1407,7 @@ export async function runDeterministicGoldenPath(): Promise<GoldenPathSimulation
     })
   ));
 
-  const ownerJobView = toJobResultView(succeededJob);
+  const ownerJobView = toJobResultView(verifiedJob);
   stages.push(stage(
     "owner-visibility",
     ownerJobView.jobId,
