@@ -609,7 +609,11 @@ function evaluateFrozenPolicySnapshot(
     idempotencyKey: snapshot.idempotencyKey,
     killSwitches: snapshot.killSwitches,
     budget: snapshot.budget,
+    budgets: snapshot.budgets,
     budgetReservation: snapshot.budgetReservation,
+    budgetReservations: snapshot.budgetReservations,
+    usageBudgets: snapshot.usageBudgets,
+    riskContext: snapshot.riskContext,
     guardrails: snapshot.guardrails,
     now
   });
