@@ -87,7 +87,7 @@ export interface AuthoritativeGrantReadStore {
 
 export function createPersistedJobExecutionSpec(
   spec: JobExecutionSpec,
-  createdAt = this.now().toISOString()
+  createdAt = new Date().toISOString()
 ): PersistedJobExecutionSpec {
   if (spec.jobId.trim().length === 0) {
     throw new ControlPlaneError("VALIDATION_FAILED", "Job execution spec requires jobId");
