@@ -42,6 +42,51 @@ Backend/resource complexity must not turn the product into an infrastructure adm
 - architecture dependency-boundary matrix, contract-version drift verification, module/test coverage thresholds, and adversarial contract vectors;
 - Phase 44 deterministic offline adversarial harness over real exported authority boundaries.
 
+### Governed orchestration boundary
+
+The durable OwnerIntent path now begins as:
+
+```text
+OwnerIntent
+  -> tenant-scoped immutable Context Snapshot
+  -> governed AI PlanProposal
+       - existing AI Gateway
+       - structured output
+       - trusted scope/environment/source rebound by GetDone
+       - evidence IDs restricted to persisted context
+       - model output has authorityApplied=false
+  -> deterministic PlanValidator attestation
+       - plan hash
+       - validation-policy hash
+       - ordered steps
+       - owner-decision requirements
+  -> per-step PolicySnapshot + evaluateStepPolicy
+       -> BLOCKED -> blocked
+       -> APPROVAL_REQUIRED / STRONG_APPROVAL -> awaiting-approval
+            -> deterministic Decision + paired Approval
+            -> owner approve/reject
+            -> exact planHash + stepHash ApprovalProof
+       -> AUTO -> policy-cleared
+  -> fresh policy/validation recheck
+  -> exact-hash AuthorizationGrant per plan step
+  -> atomic logical Task claim + grant consumption
+  -> authoritative Task records
+  -> compiled Task DAG
+  -> authoritative Job graph
+  -> queue dependency-free root Tasks/Jobs
+  -> durable JobQueueEnvelope for roots
+  -> queued
+       X provider execution is outside this orchestration tranche
+```
+
+`policy-cleared` is not authorization. The transition graph deliberately forbids `policy-evaluation -> authorized`. Authorization occurs only after a fresh validation/policy check and a persisted exact-hash AuthorizationGrant. Approval-required work additionally requires the paired ApprovalProof (and StepUpProof for strong approval).
+
+Planning and execution evidence are append-only, tenant-RLS protected PostgreSQL state. Context, plan, validation, policy, validation-receipt, authorization-bundle, Task-DAG, and Job-batch artifacts share the OrchestrationRun correlation lineage.
+
+The complete Job graph may be materialized, but existing TaskService/JobService dependency invariants are preserved: only dependency-free roots enter the durable queue in this tranche. Downstream Tasks/Jobs remain inert until predecessors authoritatively succeed.
+
+No orchestration JobExecutionSpec is created. Reaching `queued` does not imply provider execution, placement, provider acceptance, or success. The current connected context source remains authoritative OwnerIntent storage. SignalBus/investigation/objective ingress, live model routing/budget evidence, live orchestration deployment, provider execution, and verification/outcome reconciliation remain intentionally unconnected.
+
 ### Quality and contract-integrity gates
 
 The Resource Fabric public imports remain `@/lib/resources/scheduler` and `@/lib/resources/reservations`; implementation/types are split behind `lib/resources/internal/`.
@@ -89,7 +134,7 @@ Provider `accepted`, HTTP success, resource-agent claims, model output, and fron
 
 The deterministic Phase 13 GetDone-owned AI Gateway now exists under `lib/ai-gateway`. It defines roles, requirement envelopes, validated model profiles, hard eligibility, configuration-driven routes/fallbacks, budget/concurrency admission, kill-switch filtering, schema validation, and audit records.
 
-No live OpenRouter/provider adapter, key, canary, or active routing configuration is connected yet. Provider/model SDK imports and provider HTTP endpoints remain forbidden outside this boundary by `npm run verify:architecture`. DETERMINISTIC work is explicitly prohibited from invoking a model adapter.
+The OpenRouter adapter implementation exists, but no live key, canary, acceptance evidence, or active routing configuration is connected yet. Provider/model SDK imports and provider HTTP endpoints remain forbidden outside this boundary by `npm run verify:architecture`. DETERMINISTIC work is explicitly prohibited from invoking a model adapter.
 
 ### Integration boundary
 

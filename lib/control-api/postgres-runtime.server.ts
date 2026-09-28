@@ -9,6 +9,7 @@ import {
   SessionStepUpEvidenceResolver
 } from "@/lib/control-api/postgres-auth";
 import type { AuthoritativeDecision } from "@/lib/domain/decision-service";
+import type { ApprovalRecord } from "@/lib/domain/services/approval-service";
 import type { Resource } from "@/lib/domain/resources";
 import type {
   ResourceRegistryStores
@@ -58,7 +59,8 @@ export function createPostgresControlApiAdapter(
   const decisionTransactions = new PostgresControlPlaneTransactionManager(
     db,
     (client) => ({
-      decisions: new PostgresEntityStore<AuthoritativeDecision>(client, "decision")
+      decisions: new PostgresEntityStore<AuthoritativeDecision>(client, "decision"),
+      approvals: new PostgresEntityStore<ApprovalRecord>(client, "approval")
     })
   );
 
@@ -132,6 +134,13 @@ export function createPostgresControlApiAdapter(
             "idempotency_records",
             "audit_events",
             "owner_intents",
+            "orchestration_runs",
+            "orchestration_outbox",
+            "orchestration_planning_artifacts",
+            "orchestration_execution_artifacts",
+            "orchestration_task_generation_claims",
+            "authorization_grants",
+            "authorization_consumptions",
             "verification_receipts"
           ]),
           requiredRelationsReady([

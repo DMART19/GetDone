@@ -32,6 +32,9 @@ import {
 } from "@/lib/nodes/contracts";
 import { NODE_DISPATCH_CONTRACT_VERSION } from "@/lib/nodes/dispatch-contracts";
 import { NODE_IDENTITY_CONTRACT_VERSION } from "@/lib/nodes/identity";
+import { ORCHESTRATION_RUNTIME_CONTRACT_VERSION } from "@/lib/orchestration/contracts";
+import { ORCHESTRATION_PLANNING_ARTIFACT_CONTRACT_VERSION } from "@/lib/orchestration/planning-artifacts";
+import { ORCHESTRATION_EXECUTION_ARTIFACT_CONTRACT_VERSION } from "@/lib/orchestration/execution-artifacts";
 
 interface VersionedSource {
   version: string;
@@ -103,6 +106,29 @@ interface ReleaseRegistryShape {
     registryContractVersion: string;
     liveAdaptersStatus: string;
     adapterImplementationStatus: string;
+  };
+  orchestration: {
+    contractVersion: string;
+    planningArtifactContractVersion: string;
+    executionArtifactContractVersion: string;
+    runtimeStatus: string;
+    sourcePaths: string[];
+    ownerIntentTriggerStatus: string;
+    contextSnapshotStatus: string;
+    signalTriggerStatus: string;
+    planningHandlerStatus: string;
+    planValidationStatus: string;
+    policyEvaluationStatus: string;
+    policyClearedRequiresAuthorizationGrant: boolean;
+    decisionContinuationStatus: string;
+    exactHashApprovalStatus: string;
+    authorizationGrantStatus: string;
+    taskDagMaterializationStatus: string;
+    jobMaterializationStatus: string;
+    durableRootJobEnqueueStatus: string;
+    downstreamDependencyEnqueueStatus: string;
+    providerExecutionStatus: string;
+    providerExecutionSpecsCreated: boolean;
   };
   execution: {
     jobRuntimeContractVersion: string;
@@ -279,10 +305,10 @@ const packageJson = readJson<{ version: string }>("package.json");
 
 describe("Phase 41 release/version registry", () => {
   it("binds application policy and machine-readable schema versions", () => {
-    expect(registry.registrySchemaVersion).toBe("1.6.0");
+    expect(registry.registrySchemaVersion).toBe("1.9.0");
     expect(registry.environmentManifestSchemaVersion).toBe("1.7.0");
     expect(environment.manifestSchemaVersion).toBe("1.7.0");
-    expect(registry.schemaVersions.releaseManifest.version).toBe("1.6.0");
+    expect(registry.schemaVersions.releaseManifest.version).toBe("1.9.0");
     expect(registry.appVersion).toBe(packageJson.version);
     expect(registry.policy.registryVersion).toBe(CURRENT_POLICY_VERSION);
     expect(registry.policy.engineVersion).toBe(POLICY_ENGINE_VERSION);
@@ -462,6 +488,43 @@ describe("Phase 41 release/version registry", () => {
       sourcePath: "lib/analytics/ingestion.ts",
       contractTracked: true
     });
+    expect(registry.schemaVersions.orchestrationRuntime).toMatchObject({
+      version: ORCHESTRATION_RUNTIME_CONTRACT_VERSION,
+      sourcePath: "lib/orchestration/contracts.ts",
+      contractTracked: true
+    });
+    expect(registry.schemaVersions.orchestrationPlanningArtifacts).toMatchObject({
+      version: ORCHESTRATION_PLANNING_ARTIFACT_CONTRACT_VERSION,
+      sourcePath: "lib/orchestration/planning-artifacts.ts",
+      contractTracked: true
+    });
+    expect(registry.schemaVersions.orchestrationExecutionArtifacts).toMatchObject({
+      version: ORCHESTRATION_EXECUTION_ARTIFACT_CONTRACT_VERSION,
+      sourcePath: "lib/orchestration/execution-artifacts.ts",
+      contractTracked: true
+    });
+    expect(registry.orchestration).toMatchObject({
+      contractVersion: ORCHESTRATION_RUNTIME_CONTRACT_VERSION,
+      planningArtifactContractVersion: ORCHESTRATION_PLANNING_ARTIFACT_CONTRACT_VERSION,
+      executionArtifactContractVersion: ORCHESTRATION_EXECUTION_ARTIFACT_CONTRACT_VERSION,
+      runtimeStatus: "implemented-unconnected",
+      ownerIntentTriggerStatus: "implemented",
+      contextSnapshotStatus: "implemented-owner-intent",
+      signalTriggerStatus: "not-connected",
+      planningHandlerStatus: "implemented-unconfigured",
+      planValidationStatus: "implemented",
+      policyEvaluationStatus: "implemented",
+      policyClearedRequiresAuthorizationGrant: true,
+      decisionContinuationStatus: "implemented-poll-recovery",
+      exactHashApprovalStatus: "implemented",
+      authorizationGrantStatus: "implemented",
+      taskDagMaterializationStatus: "implemented",
+      jobMaterializationStatus: "implemented",
+      durableRootJobEnqueueStatus: "implemented-unconfigured",
+      downstreamDependencyEnqueueStatus: "deferred-until-predecessor-success",
+      providerExecutionStatus: "not-connected",
+      providerExecutionSpecsCreated: false
+    });
     expect(registry.schemaVersions.environmentEvidence).toMatchObject({
       version: "1.0.0",
       sourcePath: "config/environment-evidence-policy.json",
@@ -538,8 +601,8 @@ describe("Phase 41 release/version registry", () => {
       status: "implemented-unconnected",
       engine: "postgresql",
       minimumEngineVersion: "16",
-      migrationVersion: "2026-09-25.3",
-      schemaVersion: "2.2.0"
+      migrationVersion: "2026-09-27.3",
+      schemaVersion: "2.5.0"
     });
     expect(registry.adapters.postgresPersistence).toMatchObject({
       status: "implemented-unconnected",
@@ -555,7 +618,7 @@ describe("Phase 41 release/version registry", () => {
       contractTracked: true
     });
     expect(registry.schemaVersions.zeroDowntimeMigrationPolicy).toMatchObject({
-      version: "1.0.0",
+      version: "1.1.0",
       sourcePath: "config/zero-downtime-migration-policy.json",
       contractTracked: true
     });
@@ -570,8 +633,8 @@ describe("Phase 41 release/version registry", () => {
         engine: "postgresql",
         minimumEngineVersion: "16",
         adapterStatus: "implemented-unconnected",
-        migrationVersion: "2026-09-25.3",
-        schemaVersion: "2.2.0"
+        migrationVersion: "2026-09-27.3",
+        schemaVersion: "2.5.0"
       });
       expect(state.execution).toMatchObject({
         durableJobStoreStatus: "not-connected",

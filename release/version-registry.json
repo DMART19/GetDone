@@ -1,6 +1,6 @@
 {
-  "registrySchemaVersion": "1.6.0",
-  "registryVersion": "2026-09-24.5",
+  "registrySchemaVersion": "1.9.0",
+  "registryVersion": "2026-09-27.3",
   "appVersion": "0.1.0",
   "schemaVersions": {
     "controlApi": {
@@ -60,7 +60,7 @@
       "sourcePath": "lib/resources/policy-simulator.ts"
     },
     "releaseManifest": {
-      "version": "1.6.0",
+      "version": "1.9.0",
       "sourcePath": "scripts/generate-release-artifacts.mjs"
     },
     "voiceIntent": {
@@ -248,7 +248,7 @@
       ]
     },
     "zeroDowntimeMigrationPolicy": {
-      "version": "1.0.0",
+      "version": "1.1.0",
       "sourcePath": "config/zero-downtime-migration-policy.json",
       "contractTracked": true,
       "contractSourcePaths": [
@@ -283,6 +283,30 @@
         "lib/analytics/ingestion.ts",
         "lib/execution/adapters/analytics-ingestion.ts",
         "lib/persistence/postgres/analytics-ingestion-store.ts"
+      ]
+    },
+    "orchestrationRuntime": {
+      "version": "1.1.0",
+      "sourcePath": "lib/orchestration/contracts.ts",
+      "contractTracked": true,
+      "contractSourcePaths": [
+        "lib/orchestration/contracts.ts"
+      ]
+    },
+    "orchestrationPlanningArtifacts": {
+      "version": "1.0.0",
+      "sourcePath": "lib/orchestration/planning-artifacts.ts",
+      "contractTracked": true,
+      "contractSourcePaths": [
+        "lib/orchestration/planning-artifacts.ts"
+      ]
+    },
+    "orchestrationExecutionArtifacts": {
+      "version": "1.0.0",
+      "sourcePath": "lib/orchestration/execution-artifacts.ts",
+      "contractTracked": true,
+      "contractSourcePaths": [
+        "lib/orchestration/execution-artifacts.ts"
       ]
     }
   },
@@ -629,7 +653,30 @@
     "lib/analytics/ingestion.ts",
     "lib/analytics/analytics-ingestion-postgres.integration.test.ts",
     "lib/persistence/postgres/analytics-ingestion-store.ts",
-    "migrations/2026-09-25.3_analytics_ingestion.sql"
+    "migrations/2026-09-25.3_analytics_ingestion.sql",
+    "lib/orchestration/coordinator.test.ts",
+    "lib/orchestration/orchestration-postgres.integration.test.ts",
+    "lib/persistence/postgres/orchestration-store.test.ts",
+    "lib/orchestration/worker-runtime.test.ts",
+    "docs/SOL_ORCHESTRATION_RUNTIME_FOUNDATION.md",
+    "lib/orchestration/context-builder.test.ts",
+    "lib/orchestration/governed-planner.test.ts",
+    "lib/orchestration/governed-planning-stage-handler.test.ts",
+    "lib/persistence/postgres/orchestration-planning-artifact-store.test.ts",
+    "lib/persistence/postgres/orchestration-context-source.test.ts",
+    "lib/orchestration/orchestration-planning-postgres.integration.test.ts",
+    "migrations/2026-09-27.2_orchestration_planning.sql",
+    "docs/SOL_GOVERNED_PLANNING_TRANCHE.md",
+    "lib/orchestration/decision-approval-materializer.test.ts",
+    "lib/orchestration/governed-authorization-issuer.test.ts",
+    "lib/orchestration/governed-task-materializer.test.ts",
+    "lib/orchestration/governed-job-materializer.test.ts",
+    "lib/orchestration/governed-execution-stage-handler.test.ts",
+    "lib/persistence/postgres/orchestration-execution-artifact-store.test.ts",
+    "lib/persistence/postgres/orchestration-task-dedupe-store.test.ts",
+    "lib/orchestration/orchestration-execution-postgres.integration.test.ts",
+    "migrations/2026-09-27.3_orchestration_authorization_materialization.sql",
+    "docs/SOL_GOVERNED_EXECUTION_TRANCHE.md"
   ],
   "manualSourcePaths": [
     "docs/ARCHITECTURE.md",
@@ -651,7 +698,9 @@
     "docs/SOL_WEBHOOK_STAGING_ACCEPTANCE.md",
     "docs/SOL_CREDENTIAL_ROTATION_OBSERVABILITY.md",
     "docs/SOL_OPERATIONAL_ALERTS_CORRELATION.md",
-    "docs/SOL_BROWSER_STAGING_WEBAUTHN_ACCEPTANCE.md"
+    "docs/SOL_BROWSER_STAGING_WEBAUTHN_ACCEPTANCE.md",
+    "docs/SOL_GOVERNED_PLANNING_TRANCHE.md",
+    "docs/SOL_GOVERNED_EXECUTION_TRANCHE.md"
   ],
   "generatedArtifacts": {
     "machineManifest": "release/out/release-manifest.json",
@@ -661,9 +710,9 @@
     "status": "implemented-unconnected",
     "engine": "postgresql",
     "minimumEngineVersion": "16",
-    "migrationVersion": "2026-09-25.3",
-    "schemaVersion": "2.2.0",
-    "sourcePath": "migrations/2026-09-25.3_analytics_ingestion.sql",
+    "migrationVersion": "2026-09-27.3",
+    "schemaVersion": "2.5.0",
+    "sourcePath": "migrations/2026-09-27.3_orchestration_authorization_materialization.sql",
     "adapterSourcePath": "lib/persistence/postgres/client.ts"
   },
   "voice": {
@@ -898,5 +947,51 @@
     "stagingWorkflow": ".github/workflows/browser-staging-acceptance.yml",
     "authoritativePostgres": true,
     "virtualWebAuthn": true
+  },
+  "orchestration": {
+    "contractVersion": "1.1.0",
+    "planningArtifactContractVersion": "1.0.0",
+    "runtimeStatus": "implemented-unconnected",
+    "sourcePaths": [
+      "lib/orchestration/contracts.ts",
+      "lib/orchestration/coordinator.ts",
+      "lib/orchestration/worker-runtime.server.ts",
+      "lib/orchestration/planning-artifacts.ts",
+      "lib/orchestration/planning-artifact-store.ts",
+      "lib/orchestration/context-builder.ts",
+      "lib/orchestration/governed-planner.ts",
+      "lib/orchestration/governed-planning-stage-handler.ts",
+      "lib/persistence/postgres/orchestration-store.ts",
+      "lib/persistence/postgres/orchestration-context-source.ts",
+      "lib/persistence/postgres/orchestration-planning-artifact-store.ts",
+      "lib/orchestration/execution-artifacts.ts",
+      "lib/orchestration/execution-artifact-store.ts",
+      "lib/orchestration/decision-approval-materializer.ts",
+      "lib/orchestration/governed-authorization-issuer.ts",
+      "lib/orchestration/governed-task-materializer.ts",
+      "lib/orchestration/governed-job-materializer.ts",
+      "lib/orchestration/governed-execution-stage-handler.ts",
+      "lib/orchestration/governed-orchestration-stage-handler.ts",
+      "lib/orchestration/postgres-governed-execution.server.ts",
+      "lib/persistence/postgres/orchestration-execution-artifact-store.ts",
+      "lib/persistence/postgres/orchestration-task-dedupe-store.ts"
+    ],
+    "ownerIntentTriggerStatus": "implemented",
+    "contextSnapshotStatus": "implemented-owner-intent",
+    "signalTriggerStatus": "not-connected",
+    "planningHandlerStatus": "implemented-unconfigured",
+    "planValidationStatus": "implemented",
+    "policyEvaluationStatus": "implemented",
+    "policyClearedRequiresAuthorizationGrant": true,
+    "decisionContinuationStatus": "implemented-poll-recovery",
+    "executionArtifactContractVersion": "1.0.0",
+    "exactHashApprovalStatus": "implemented",
+    "authorizationGrantStatus": "implemented",
+    "taskDagMaterializationStatus": "implemented",
+    "jobMaterializationStatus": "implemented",
+    "durableRootJobEnqueueStatus": "implemented-unconfigured",
+    "downstreamDependencyEnqueueStatus": "deferred-until-predecessor-success",
+    "providerExecutionStatus": "not-connected",
+    "providerExecutionSpecsCreated": false
   }
 }

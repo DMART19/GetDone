@@ -4,6 +4,7 @@ import { createAuditEvent } from "@/lib/domain/audit";
 import { claimIdempotency } from "@/lib/domain/idempotency";
 import type { OwnerIntentRecord } from "@/lib/control-api/contracts";
 import type { OwnerIntentStore } from "@/lib/control-api/service-adapter";
+import { persistOwnerIntentOrchestrationTrigger } from "@/lib/persistence/postgres/orchestration-store";
 import type {
   Resource,
   ResourceCapabilityBinding,
@@ -98,7 +99,10 @@ export class PostgresOwnerIntentStore implements OwnerIntentStore {
         persisted = prior;
       }
 
-      await new PostgresAuditLedger(client).append(createAuditEvent({
+      const orchestration = await persistOwnerIntentOrchestrationTrigger(client, persisted);
+      const audit = new PostgresAuditLedger(client);
+
+      await audit.append(createAuditEvent({
         correlationId: persisted.correlationId ?? `legacy-owner-intent:${persisted.id}`,
         eventType: "owner-intent.accepted",
         actor: { type: "user", id: persisted.userId },
@@ -114,6 +118,29 @@ export class PostgresOwnerIntentStore implements OwnerIntentStore {
         provenance: "control-api:owner-intent",
         metadata: { idempotencyKey }
       }));
+
+      if (orchestration.created) {
+        await audit.append(createAuditEvent({
+          correlationId: orchestration.run.correlationId,
+          eventType: "orchestration.created",
+          actor: { type: "user", id: persisted.userId },
+          scope: {
+            userId: persisted.userId,
+            portfolioId: persisted.portfolioId,
+            companyId: persisted.companyId
+          },
+          environment: persisted.environment,
+          entityType: "orchestration-run",
+          entityId: orchestration.run.id,
+          newState: orchestration.run.state,
+          provenance: "control-api:owner-intent",
+          metadata: {
+            sourceKind: "owner-intent",
+            sourceId: persisted.id,
+            queueEventId: orchestration.eventId
+          }
+        }));
+      }
 
       await idempotency.complete(
         idempotencyKey,

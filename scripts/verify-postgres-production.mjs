@@ -7,7 +7,7 @@ function required(name) {
   return value;
 }
 
-const requiredMigration = "2026-09-25.3";
+const requiredMigration = "2026-09-27.3";
 const maxBackupAgeHours = Number(process.env.GETDONE_BACKUP_MAX_AGE_HOURS || "24");
 if (!Number.isFinite(maxBackupAgeHours) || maxBackupAgeHours <= 0) {
   throw new Error("GETDONE_BACKUP_MAX_AGE_HOURS must be positive");
@@ -104,7 +104,11 @@ try {
     "audit_chain_heads",
     "analytics_ingestion_checkpoints",
     "analytics_ingestion_evidence",
-    "analytics_ingestion_runs"
+    "analytics_ingestion_runs",
+    "orchestration_runs",
+    "orchestration_planning_artifacts",
+    "orchestration_execution_artifacts",
+    "orchestration_task_generation_claims"
   ];
   const rls = await client.query(
     `SELECT required.name, relation.relrowsecurity, relation.relforcerowsecurity
@@ -278,6 +282,119 @@ try {
   );
   if (analyticsIndexes.rows[0]?.count !== 3) {
     throw new Error("Analytics ingestion index verification failed");
+  }
+
+  const orchestrationSchema = await client.query(
+    `SELECT COUNT(*)::int AS count
+     FROM unnest(ARRAY[
+       'orchestration_runs',
+       'orchestration_outbox',
+       'orchestration_planning_artifacts',
+       'orchestration_execution_artifacts',
+       'orchestration_task_generation_claims'
+     ]::text[]) AS required(name)
+     WHERE to_regclass(required.name) IS NOT NULL`
+  );
+  if (orchestrationSchema.rows[0]?.count !== 5) {
+    throw new Error("Orchestration runtime persistence schema verification failed");
+  }
+
+  const orchestrationIndexes = await client.query(
+    `SELECT COUNT(*)::int AS count
+     FROM pg_indexes
+     WHERE schemaname=current_schema()
+       AND indexname IN (
+         'orchestration_runs_scope_state_idx',
+         'orchestration_runs_correlation_idx',
+         'orchestration_outbox_ready_idx',
+         'orchestration_planning_artifacts_run_kind_idx',
+         'orchestration_planning_artifacts_scope_idx',
+         'orchestration_planning_artifacts_correlation_idx',
+         'orchestration_execution_artifacts_run_kind_idx',
+         'orchestration_execution_artifacts_scope_idx',
+         'orchestration_execution_artifacts_correlation_idx',
+         'orchestration_task_generation_claims_grant_idx',
+         'orchestration_task_generation_claims_created_idx'
+       )`
+  );
+  if (orchestrationIndexes.rows[0]?.count !== 11) {
+    throw new Error("Orchestration runtime index verification failed");
+  }
+
+  const planningPrivileges = await client.query(
+    `SELECT
+       has_table_privilege('getdone_tenant_runtime','orchestration_planning_artifacts','SELECT') AS can_select,
+       has_table_privilege('getdone_tenant_runtime','orchestration_planning_artifacts','INSERT') AS can_insert,
+       has_table_privilege('getdone_tenant_runtime','orchestration_planning_artifacts','UPDATE') AS can_update,
+       has_table_privilege('getdone_tenant_runtime','orchestration_planning_artifacts','DELETE') AS can_delete`
+  );
+  const planningPrivilege = planningPrivileges.rows[0];
+  if (
+    planningPrivilege?.can_select !== true
+    || planningPrivilege?.can_insert !== true
+    || planningPrivilege?.can_update !== false
+    || planningPrivilege?.can_delete !== false
+  ) {
+    throw new Error(
+      "Orchestration planning artifacts must be append-only for the tenant runtime role"
+    );
+  }
+
+  const governedExecutionPrivileges = await client.query(
+    `SELECT
+       has_table_privilege('getdone_tenant_runtime','orchestration_execution_artifacts','SELECT') AS artifacts_select,
+       has_table_privilege('getdone_tenant_runtime','orchestration_execution_artifacts','INSERT') AS artifacts_insert,
+       has_table_privilege('getdone_tenant_runtime','orchestration_execution_artifacts','UPDATE') AS artifacts_update,
+       has_table_privilege('getdone_tenant_runtime','orchestration_execution_artifacts','DELETE') AS artifacts_delete,
+       has_table_privilege('getdone_tenant_runtime','orchestration_task_generation_claims','SELECT') AS claims_select,
+       has_table_privilege('getdone_tenant_runtime','orchestration_task_generation_claims','INSERT') AS claims_insert,
+       has_table_privilege('getdone_tenant_runtime','orchestration_task_generation_claims','UPDATE') AS claims_update,
+       has_table_privilege('getdone_tenant_runtime','orchestration_task_generation_claims','DELETE') AS claims_delete`
+  );
+  const governedPrivilege = governedExecutionPrivileges.rows[0];
+  if (
+    governedPrivilege?.artifacts_select !== true
+    || governedPrivilege?.artifacts_insert !== true
+    || governedPrivilege?.artifacts_update !== false
+    || governedPrivilege?.artifacts_delete !== false
+    || governedPrivilege?.claims_select !== true
+    || governedPrivilege?.claims_insert !== true
+    || governedPrivilege?.claims_update !== false
+    || governedPrivilege?.claims_delete !== false
+  ) {
+    throw new Error(
+      "Governed execution artifacts and Task claims must be append-only for the tenant runtime role"
+    );
+  }
+
+  const outboxColumns = await client.query(
+    `SELECT column_name
+     FROM information_schema.columns
+     WHERE table_schema=current_schema()
+       AND table_name='orchestration_outbox'`
+  );
+  const expectedRoutingColumns = [
+    "id",
+    "correlation_id",
+    "portfolio_id",
+    "company_id",
+    "event_type",
+    "run_id",
+    "occurred_at",
+    "available_at",
+    "claimed_by",
+    "claimed_until",
+    "delivered_at",
+    "attempts",
+    "last_error"
+  ].sort();
+  const actualRoutingColumns = outboxColumns.rows
+    .map((row) => String(row.column_name).toLowerCase())
+    .sort();
+  if (JSON.stringify(actualRoutingColumns) !== JSON.stringify(expectedRoutingColumns)) {
+    throw new Error(
+      "Orchestration routing outbox schema changed; global routing metadata requires explicit security review"
+    );
   }
 
   const backup = await client.query(
