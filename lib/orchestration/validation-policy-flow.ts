@@ -600,6 +600,8 @@ function evaluateFrozenPolicySnapshot(
     providerId: snapshot.providerId,
     failureDomainId: snapshot.failureDomainId,
     workloadClass: snapshot.workloadClass,
+    objectiveId: snapshot.objectiveId,
+    jobId: snapshot.jobId,
     credentialRequirementIds: snapshot.credentialRequirementIds,
     credentialSnapshot: snapshot.credentialSnapshot,
     capacitySnapshot: snapshot.capacitySnapshot,
@@ -609,7 +611,11 @@ function evaluateFrozenPolicySnapshot(
     idempotencyKey: snapshot.idempotencyKey,
     killSwitches: snapshot.killSwitches,
     budget: snapshot.budget,
+    budgets: snapshot.budgets,
     budgetReservation: snapshot.budgetReservation,
+    budgetReservations: snapshot.budgetReservations,
+    usageBudgets: snapshot.usageBudgets,
+    riskContext: snapshot.riskContext,
     guardrails: snapshot.guardrails,
     now
   });
@@ -720,6 +726,7 @@ export function assertDurablePolicyStepSnapshotArtifact(
       || artifact.snapshot.scope.companyId !== input.run.scope.companyId
       || artifact.snapshot.scope.environment !== input.run.scope.environment
       || artifact.snapshot.dataClass !== input.planArtifact.proposal.scope.dataClass
+      || artifact.snapshot.objectiveId !== input.planArtifact.proposal.objective?.id
       || sha256Hex(artifact.snapshot.resourceRequirements)
         !== sha256Hex(input.step.resourceRequirements)
       || sha256Hex([...artifact.snapshot.capabilityNames].sort())
@@ -1074,6 +1081,7 @@ export async function advanceValidatedToPolicyEvaluated(input: {
           (request) => request.capability
         ),
         dataClass: planArtifact.proposal.scope.dataClass,
+        objectiveId: planArtifact.proposal.objective?.id,
         idempotencyKey: stepIdempotencyKey,
         resourceRequirements: step.resourceRequirements,
         createdAt

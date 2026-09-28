@@ -52,7 +52,8 @@ import {
   evaluateStepPolicy
 } from "@/lib/planning/policy-engine";
 import {
-  createPolicySnapshot
+  createPolicySnapshot,
+  type PolicySnapshotInput
 } from "@/lib/planning/policy-snapshot";
 import { validationPolicyFor } from "@/lib/planning/test-security-fixture";
 
@@ -359,7 +360,10 @@ function productionDeployPlan(): PlanProposal {
   };
 }
 
-function buildPolicyEvaluated(capability: "repository.inspect" | "email.send" | "production.deploy") {
+function buildPolicyEvaluated(
+  capability: "repository.inspect" | "email.send" | "production.deploy",
+  policyOverrides: Pick<PolicySnapshotInput, "riskContext" | "usageBudgets"> = {}
+) {
   const intent = {
     id: `intent-${capability}`,
     correlationId: `correlation-${capability}`,
@@ -487,6 +491,7 @@ function buildPolicyEvaluated(capability: "repository.inspect" | "email.send" | 
     fallbackAvailable: true,
     idempotencyKey: `policy-${capability}-step-1`,
     resourceRequirements: step.resourceRequirements,
+    ...policyOverrides,
     createdAt: "2026-09-28T13:00:08.000Z"
   });
   const evaluation = evaluateStepPolicy({
@@ -507,6 +512,8 @@ function buildPolicyEvaluated(capability: "repository.inspect" | "email.send" | 
     fallbackAvailable: true,
     idempotencyKey: policySnapshot.idempotencyKey,
     killSwitches: [],
+    usageBudgets: policySnapshot.usageBudgets,
+    riskContext: policySnapshot.riskContext,
     now: Date.parse("2026-09-28T13:00:08.000Z")
   });
   const policyArtifact = createDurablePolicyEvaluationArtifact({
@@ -762,7 +769,9 @@ describe("durable policy-evaluated -> authorized flow", () => {
   });
 
   it("requires strong owner approval plus fresh step-up before issuing a strong grant", async () => {
-    const built = buildPolicyEvaluated("production.deploy");
+    const built = buildPolicyEvaluated("production.deploy", {
+      riskContext: { ownerInstruction: "require-strong-approval" }
+    });
     const decisions = new DecisionStore();
     const grants = new GrantStore();
     const waiting = await advancePolicyEvaluatedToAuthority({
@@ -827,6 +836,41 @@ describe("durable policy-evaluated -> authorized flow", () => {
     expect(grant.disposition).toBe("STRONG_APPROVAL");
     expect(grant.stepUpProofHash).toBe(stepUp.proofHash);
     expect(grant.approvalProofHash).toBe(proof.proofHash);
+  });
+
+  it("blocks hard-limit work before any Decision or authorization grant can be created", async () => {
+    const built = buildPolicyEvaluated("repository.inspect", {
+      usageBudgets: [{
+        policy: {
+          id: "production-deployments-daily",
+          scopeType: "company",
+          scopeId: "company-a",
+          metric: "production-deployments",
+          period: "daily",
+          hardLimit: 5,
+          enabled: true
+        },
+        currentUsage: 5,
+        requestedUsage: 1
+      }]
+    });
+    const decisions = new DecisionStore();
+    const grants = new GrantStore();
+
+    expect(built.policyArtifact.aggregateDisposition).toBe("BLOCKED");
+    const result = await advancePolicyEvaluatedToAuthority({
+      run: built.policyEvaluated,
+      ...built.stores,
+      decisions,
+      grants,
+      now: () => new Date("2026-09-28T13:00:10.000Z")
+    });
+
+    expect(result.kind).toBe("advance");
+    if (result.kind !== "advance") throw new Error("advance expected");
+    expect(result.next.state).toBe("blocked");
+    expect(decisions.creates).toBe(0);
+    expect(grants.values.size).toBe(0);
   });
 
   it("blocks rejected or modified Decisions instead of creating authority", async () => {
