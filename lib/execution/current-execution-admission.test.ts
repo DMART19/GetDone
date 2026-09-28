@@ -135,7 +135,7 @@ describe("fresh execution admission", () => {
     const admission = gate([[{ payload: disabled } as QueryResultRow]]);
 
     await expect(admission.assertAllowed(input(grant)))
-      .rejects.toThrow(/not connected/i);
+      .rejects.toThrow(/Integration is disabled/i);
   });
 
   it("blocks an enabled emergency or scoped kill switch immediately", async () => {
