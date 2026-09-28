@@ -254,6 +254,27 @@ describe("authorization grants", () => {
     )).toThrow(/not active/i);
   });
 
+  it("rejects approval-backed grants missing immutable Decision proof lineage", () => {
+    const plan = validPlan();
+    const grant = autoGrantFor(plan);
+    const { grantHash, ...base } = grant;
+    void grantHash;
+    const malformedBase = {
+      ...base,
+      disposition: "APPROVAL_REQUIRED" as const
+    };
+    const malformed = Object.freeze({
+      ...malformedBase,
+      grantHash: sha256Hex(malformedBase)
+    });
+
+    expect(() => assertAuthorizationGrantEnvelope(
+      malformed,
+      fixtureScope(plan),
+      fixtureNow.getTime()
+    )).toThrow(/Decision proof lineage/i);
+  });
+
   it("rejects a cryptographically valid grant after material policy changes", () => {
     const plan = validPlan();
     const grant = autoGrantFor(plan);
