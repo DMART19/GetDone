@@ -1,15 +1,5 @@
 BEGIN;
 
-ALTER TABLE orchestration_runs
-  ADD COLUMN IF NOT EXISTS scheduler_ready_at timestamptz;
-
-UPDATE orchestration_runs
-SET scheduler_ready_at = COALESCE(scheduler_ready_at, updated_at)
-WHERE scheduler_ready_at IS NULL;
-
-ALTER TABLE orchestration_runs
-  ALTER COLUMN scheduler_ready_at SET NOT NULL;
-
 CREATE TABLE IF NOT EXISTS orchestration_worker_state (
   run_id text PRIMARY KEY REFERENCES orchestration_runs(id),
   portfolio_id text NOT NULL,
@@ -72,7 +62,7 @@ SELECT
   run.version,
   0,
   0,
-  run.scheduler_ready_at,
+  run.updated_at,
   0,
   run.updated_at
 FROM orchestration_runs run
