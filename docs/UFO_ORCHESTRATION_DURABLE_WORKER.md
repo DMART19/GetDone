@@ -108,9 +108,13 @@ These concepts remain separate.
 
 ## Production contract
 
-Migration 2026-09-28.2_ufo_orchestration_worker.sql adds orchestration_worker_state with forced tenant RLS and indexes orchestration_worker_ready_idx, orchestration_worker_lease_expiry_idx, and orchestration_worker_scope_idx.
+Migration 2026-09-28.2_ufo_orchestration_worker.sql introduces orchestration_worker_state and the core lease/retry indexes.
 
-The worker reuses the existing durable idempotency_records primitive for claim, heartbeat, release, retry, and defer replay instead of creating another transaction journal.
+Core Tranche B migration 2026-09-28.7_ufo_orchestration_worker_durability.sql makes orchestration_worker_state the bounded, non-authoritative cross-tenant dispatch surface, projects run_state into it in the same orchestration CAS transaction, and adds persistent worker identity plus immutable dead-letter evidence.
+
+The production database role remains non-superuser/non-BYPASSRLS. After queue discovery, the worker re-enters the exact portfolio/company tenant scope before it reads or writes authoritative orchestration/artifact state. Authoritative tenant relations and orchestration dead letters remain forced-RLS protected.
+
+The worker reuses the existing durable idempotency_records primitive for claim, heartbeat, release, retry, defer, and dead-letter replay instead of creating another transaction journal.
 
 ## Acceptance requirements
 
@@ -130,3 +134,7 @@ The worker reuses the existing durable idempotency_records primitive for claim, 
 14. Stale workers cannot commit.
 15. Business Job execution is handed to the existing Job Engine.
 16. Orchestration leases never become business execution authority.
+17. Cross-tenant dispatch discovery never grants cross-tenant authoritative access.
+18. Terminal failed-state crash windows reconstruct exactly one durable dead letter.
+19. A complete production stage router must cover every worker-resumable lifecycle state.
+20. SIGTERM/SIGINT drains new claims and closes the worker/database cleanly.
