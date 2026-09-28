@@ -17,6 +17,9 @@ import {
 import type {
   PostgresTransactionalDatabase
 } from "@/lib/persistence/postgres/client";
+import {
+  runWithPostgresTenantScope
+} from "@/lib/persistence/postgres/tenant-context.server";
 
 interface GeneratedTaskEnvelope {
   taskHash: string;
@@ -87,7 +90,8 @@ export class PostgresOrchestrationGeneratedTaskStore
       );
     }
 
-    return this.database.transaction(async (client) => {
+    return runWithPostgresTenantScope(this.binding, () =>
+      this.database.transaction(async (client) => {
       const taskHash = this.assertTaskIntegrity(task);
       const fingerprint = sha256Hex({
         runId: this.binding.runId,
@@ -177,29 +181,32 @@ export class PostgresOrchestrationGeneratedTaskStore
         task,
         consumption
       };
-    });
+      })
+    );
   }
 
   async get(id: string): Promise<GeneratedTask | null> {
-    const result = await this.database.query<{
-      payload: GeneratedTaskEnvelope;
-    }>(
-      `SELECT payload
-       FROM control_plane_entities
-       WHERE entity_type=$1
-         AND id=$2
-         AND portfolio_id=$3
-         AND company_id=$4`,
-      [
-        this.entityType(),
-        id,
-        this.binding.portfolioId,
-        this.binding.companyId
-      ]
-    );
-    const envelope = result.rows[0]?.payload;
-    if (!envelope) return null;
-    this.assertTaskIntegrity(envelope.task, envelope.taskHash);
-    return envelope.task;
+    return runWithPostgresTenantScope(this.binding, async () => {
+      const result = await this.database.query<{
+        payload: GeneratedTaskEnvelope;
+      }>(
+        `SELECT payload
+         FROM control_plane_entities
+         WHERE entity_type=$1
+           AND id=$2
+           AND portfolio_id=$3
+           AND company_id=$4`,
+        [
+          this.entityType(),
+          id,
+          this.binding.portfolioId,
+          this.binding.companyId
+        ]
+      );
+      const envelope = result.rows[0]?.payload;
+      if (!envelope) return null;
+      this.assertTaskIntegrity(envelope.task, envelope.taskHash);
+      return envelope.task;
+    });
   }
 }
