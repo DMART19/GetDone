@@ -141,6 +141,7 @@ export class PostgresObjectiveIntakeStore implements ObjectiveIntakeStore {
       portfolioId: record.portfolioId,
       companyId: record.companyId,
       environment: record.environment,
+      createdByUserId: record.createdByUserId,
       source: record.source,
       rawText: record.rawText,
       normalizedGoal: record.normalizedGoal,
@@ -181,9 +182,9 @@ export class PostgresObjectiveIntakeStore implements ObjectiveIntakeStore {
         await audit.append(createAuditEvent({
           correlationId: record.correlationId ?? `objective:${record.id}`,
           eventType: "objective.created",
-          actor: { type: "user", id: record.portfolioId },
+          actor: { type: "user", id: record.createdByUserId },
           scope: {
-            userId: "objective-intake",
+            userId: record.createdByUserId,
             portfolioId: record.portfolioId,
             companyId: record.companyId
           },
