@@ -54,6 +54,10 @@ const decisionMutationSchema = z.object({
   note: z.string().max(2_000).optional()
 });
 
+const preferenceSuggestionResolutionSchema = z.object({
+  action: z.enum(["allow", "keep-asking", "never-suggest"])
+});
+
 const resourceDiscoverySchema = z.object({
   id: z.string().min(1).max(160).regex(/^[A-Za-z0-9._:-]+$/),
   type: z.enum(["compute", "gpu", "storage", "network", "cloud", "partner", "other"]),
@@ -310,6 +314,56 @@ export function handleGetObjective(request: Request, objectiveId: string) {
     );
     if (!value) throw new ControlPlaneError("NOT_FOUND", "Objective was not found");
     return value;
+  });
+}
+
+export function handleListPreferenceSuggestions(request: Request) {
+  return execute(async (adapter) =>
+    adapter.listPreferenceSuggestions(await adapter.authenticate(request))
+  );
+}
+
+export function handleResolvePreferenceSuggestion(
+  request: Request,
+  suggestionId: string
+) {
+  return execute(async (adapter) => {
+    const actor = await adapter.authenticate(request);
+    await enforceRateLimit(
+      RATE_LIMIT_POLICIES.decisionMutation,
+      tenantRateLimitKey({
+        portfolioId: actor.scope.portfolioId,
+        companyId: actor.scope.companyId,
+        userId: actor.scope.userId
+      }, safeId(suggestionId, "suggestionId"))
+    );
+    const body = await parseJson(
+      request,
+      preferenceSuggestionResolutionSchema,
+      "preference suggestion resolution"
+    );
+    return adapter.resolvePreferenceSuggestion(
+      actor,
+      safeId(suggestionId, "suggestionId"),
+      body.action
+    );
+  });
+}
+
+export function handleListConfirmedPreferenceRules(request: Request) {
+  return execute(async (adapter) => {
+    const actor = await adapter.authenticate(request);
+    const capability = new URL(request.url).searchParams.get("capability");
+    if (!capability) {
+      throw new ControlPlaneError(
+        "VALIDATION_FAILED",
+        "capability query parameter is required"
+      );
+    }
+    return adapter.listConfirmedPreferenceRules(
+      actor,
+      safeId(capability, "capability")
+    );
   });
 }
 
