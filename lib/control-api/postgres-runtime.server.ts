@@ -16,6 +16,7 @@ import type {
 import { ResourceRegistryService } from "@/lib/domain/services/resource-registry-service";
 import type { JobRecord } from "@/lib/domain/services/job-service";
 import type { VerificationRequestRecord } from "@/lib/domain/services/verification-service";
+import type { ObjectiveRecord } from "@/lib/domain/objective-inbox";
 import type {
   ResourceEnrollmentRecord,
   ResourceEnrollmentStores
@@ -24,6 +25,7 @@ import { ResourceEnrollmentService } from "@/lib/resources/enrollment";
 import { PostgresEntityStore } from "@/lib/persistence/postgres/authority-stores";
 import {
   PostgresOwnerIntentStore,
+  PostgresObjectiveIntakeStore,
   PostgresResourceEnrollmentReadinessStore,
   PostgresResourceEvidenceStore
 } from "@/lib/persistence/postgres/control-api-stores";
@@ -43,6 +45,7 @@ export function createPostgresControlApiAdapter(
   const db = runtime.database;
   const webAuthn = readWebAuthnServerConfig(env);
 
+  const objectives = new PostgresEntityStore<ObjectiveRecord>(db, "objective");
   const decisions = new PostgresEntityStore<AuthoritativeDecision>(db, "decision");
   const resources = new PostgresEntityStore<Resource>(db, "resource");
   const resourceEnrollments = new PostgresEntityStore<ResourceEnrollmentRecord>(
@@ -101,6 +104,8 @@ export function createPostgresControlApiAdapter(
     scopes: new PostgresControlApiScopeResolver(db, environment),
     authorizationEvidence: new SessionStepUpEvidenceResolver(),
     intents: new PostgresOwnerIntentStore(db),
+    objectives,
+    objectiveIntake: new PostgresObjectiveIntakeStore(db),
     decisions,
     decisionTransactions,
     resources,
