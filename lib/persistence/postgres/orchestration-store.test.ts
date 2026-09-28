@@ -96,7 +96,11 @@ describe("PostgresOrchestrationRunStore", () => {
 
   it("creates a run and initial immutable checkpoint", async () => {
     const run = acceptedRun();
-    const db = new ScriptedDb([{ rowCount: 1 }, { rowCount: 1 }]);
+    const db = new ScriptedDb([
+      { rowCount: 1 },
+      { rowCount: 1 },
+      { rowCount: 1 }
+    ]);
     const result = await new PostgresOrchestrationRunStore(db).create(
       run,
       "orchestration:start:owner-intent:intent-one"
@@ -105,6 +109,7 @@ describe("PostgresOrchestrationRunStore", () => {
     expect(result).toEqual({ status: "created", record: run });
     expect(db.calls[0]).toContain("INSERT INTO orchestration_runs");
     expect(db.calls[1]).toContain("INSERT INTO orchestration_checkpoints");
+    expect(db.calls[2]).toContain("INSERT INTO orchestration_worker_state");
   });
 
   it("returns an exact idempotent start replay", async () => {
