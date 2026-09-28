@@ -509,7 +509,7 @@ export class PostgresGovernedJobRuntime implements GovernedJobRuntimePort {
         receiptTtlSeconds: 15 * 60
       });
       if (receipt.verdict === "failed") {
-        await this.markVerifiedProjection(input.run, node, observed, receipt, "failed");
+        await this.markVerifiedProjection(input.run, node, receipt, "failed");
         return {
           kind: "failed" as const,
           code: "VERIFICATION_FAILED",
@@ -523,7 +523,7 @@ export class PostgresGovernedJobRuntime implements GovernedJobRuntimePort {
         continue;
       }
 
-      await this.markVerifiedProjection(input.run, node, observed, receipt, "verified");
+      await this.markVerifiedProjection(input.run, node, receipt, "verified");
     }
 
     const refreshed = (await this.graphs.getByRunId(input.run.id));
@@ -578,7 +578,6 @@ export class PostgresGovernedJobRuntime implements GovernedJobRuntimePort {
   private async markVerifiedProjection(
     run: OrchestrationRunRecord,
     node: OrchestrationJobNode,
-    evidence: readonly VerificationEvidence[],
     receipt: ReturnType<typeof resolveVerificationRequest>,
     state: "verified" | "failed"
   ) {
