@@ -18,6 +18,10 @@ import {
 } from "@/lib/resources/enrollment";
 import type { VerificationRequestRecord } from "@/lib/domain/services/verification-service";
 import type { Resource } from "@/lib/domain/resources";
+import type {
+  PreferenceLearningService,
+  PreferenceSuggestionResolution
+} from "@/lib/domain/preference-learning";
 import {
   buildJobOwnerExplanation,
   buildOwnerFailurePresentation
@@ -82,6 +86,7 @@ export interface ServiceBackedControlApiDependencies {
   intents: OwnerIntentStore;
   objectives: ScopedReadStore<ObjectiveRecord>;
   objectiveIntake: ObjectiveIntakeStore;
+  preferenceLearning: PreferenceLearningService;
   decisions: ScopedReadStore<AuthoritativeDecision>;
   decisionTransactions: DecisionTransactionManager;
   /**
@@ -291,6 +296,40 @@ export class ServiceBackedControlApiAdapter implements ControlApiApplicationAdap
   async getObjective(principal: ControlApiPrincipal, objectiveId: string) {
     return this.scoped(principal, async () =>
       assertScopedEntity(principal, await this.deps.objectives.get(objectiveId))
+    );
+  }
+
+  listPreferenceSuggestions(principal: ControlApiPrincipal) {
+    requireRole(principal, ["owner", "admin"], "Preference suggestions");
+    return this.scoped(principal, () =>
+      this.deps.preferenceLearning.listSuggestions(principal.scope)
+    );
+  }
+
+  resolvePreferenceSuggestion(
+    principal: ControlApiPrincipal,
+    suggestionId: string,
+    action: PreferenceSuggestionResolution
+  ) {
+    requireRole(principal, ["owner"], "Preference rule confirmation");
+    return this.scoped(principal, () =>
+      this.deps.preferenceLearning.resolveSuggestion({
+        suggestionId,
+        scope: principal.scope,
+        actorId: principal.actor.id,
+        action,
+        resolvedAt: this.now().toISOString()
+      })
+    );
+  }
+
+  listConfirmedPreferenceRules(
+    principal: ControlApiPrincipal,
+    capability: string
+  ) {
+    requireRole(principal, ["owner", "admin"], "Confirmed preference rules");
+    return this.scoped(principal, () =>
+      this.deps.preferenceLearning.listActiveRules(principal.scope, capability)
     );
   }
 
