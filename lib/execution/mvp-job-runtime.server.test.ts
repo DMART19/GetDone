@@ -108,7 +108,8 @@ describe("MVP capability-dispatched Job runtime", () => {
       correlationId,
       jobId: "job-1",
       taskId: "task-1",
-      authorizationConsumptionHash: "consumption-hash"
+      authorizationConsumptionHash: "consumption-hash",
+      idempotencyKey: "queue:job:job-1:side-effect:action-1"
     });
   });
 
