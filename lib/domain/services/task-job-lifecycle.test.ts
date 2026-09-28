@@ -298,6 +298,52 @@ describe("Task and Job authoritative lifecycle hardening", () => {
     expect(audit.events.some((event) => event.eventType === "job.created")).toBe(true);
   });
 
+  it("lets Jobs inherit valid Task authority after ordinary grant expiry but blocks later revocation", async () => {
+    const plan = validPlan();
+    const grant = autoGrantFor(plan);
+    const grants = new GrantStore(grant);
+    const consumption = authorizedConsumption(grant, "task-expiry");
+    await grants.consume(consumption);
+
+    const store = new MapStore<JobRecord>() as MapStore<JobRecord> & JobStore;
+    const service = new JobService(manager<JobStores>({
+      jobs: store,
+      authorizationGrants: grants
+    }), () => fixtureNow);
+
+    const created = await service.create({
+      id: "job-after-grant-expiry",
+      taskId: "task-expiry",
+      maxAttempts: 3,
+      createdAt: fixtureNow.toISOString()
+    }, command("job.create.after-expiry", grant.scope));
+
+    const afterExpiry = new Date(fixtureNow.getTime() + 60_000).toISOString();
+    expect((await service.queue(
+      created.id,
+      command("job.queue.after-expiry", grant.scope),
+      grant,
+      consumption,
+      afterExpiry
+    )).state).toBe("queued");
+
+    const blocked = await service.create({
+      id: "job-after-grant-revocation",
+      taskId: "task-expiry",
+      maxAttempts: 3,
+      createdAt: afterExpiry
+    }, command("job.create.after-revocation", grant.scope));
+
+    grants.grant = { ...grant, status: "revoked" };
+    await expect(service.queue(
+      blocked.id,
+      command("job.queue.after-revocation", grant.scope),
+      grants.grant,
+      consumption,
+      afterExpiry
+    )).rejects.toThrow(/revoked Task authority/i);
+  });
+
   it("prevents duplicate Job execution claims and bounds retry attempts", async () => {
     const grant = autoGrantFor(validPlan());
     const consumption = authorizedConsumption(grant, "task-claim");
