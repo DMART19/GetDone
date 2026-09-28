@@ -94,6 +94,15 @@
       "authorityCompatibilityRequired": true,
       "compatibleConstraintWidening": true,
       "constraintName": "orchestration_runs_state_check"
+    },
+    {
+      "version": "2026-09-27.3",
+      "file": "migrations/2026-09-27.3_orchestration_authorization_materialization.sql",
+      "releaseId": "governed-execution-tranche",
+      "phase": "expand",
+      "transitionSchema": false,
+      "destructive": false,
+      "authorityCompatibilityRequired": true
     }
   ]
 }
