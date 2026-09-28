@@ -12,6 +12,7 @@ import {
 } from "@/lib/orchestration/planning-flow";
 import {
   createDurablePolicyEvaluationArtifact,
+  createDurablePolicyStepSnapshotArtifact,
   createDurableValidationArtifact,
   policyEvaluationIdempotencyKey,
   policySnapshotId,
@@ -41,6 +42,7 @@ import {
 } from "@/lib/planning/policy-snapshot";
 import {
   PostgresOrchestrationPolicyEvaluationStore,
+  PostgresOrchestrationPolicyStepSnapshotStore,
   PostgresOrchestrationValidationArtifactStore
 } from "@/lib/persistence/postgres/orchestration-validation-policy-stores";
 import type { PostgresTransactionalDatabase } from "@/lib/persistence/postgres/client";
@@ -243,6 +245,14 @@ function artifacts() {
     killSwitches: policySnapshot.killSwitches,
     now: Date.parse("2026-09-28T13:30:08.000Z")
   });
+  const policyStepArtifact = createDurablePolicyStepSnapshotArtifact({
+    run: validated,
+    planArtifact,
+    validationArtifact,
+    step,
+    snapshot: policySnapshot,
+    createdAt: "2026-09-28T13:30:08.000Z"
+  });
   const policyArtifact = createDurablePolicyEvaluationArtifact({
     run: validated,
     planArtifact,
@@ -250,13 +260,13 @@ function artifacts() {
     stepPolicies: [{
       stepId: step.id,
       stepHash,
-      snapshot: policySnapshot,
+      snapshot: policyStepArtifact.snapshot,
       evaluation
     }],
     createdAt: "2026-09-28T13:30:08.000Z"
   });
 
-  return { validationArtifact, policyArtifact };
+  return { validationArtifact, policyStepArtifact, policyArtifact };
 }
 
 describe("PostgreSQL validation/policy artifact stores", () => {
@@ -310,6 +320,35 @@ describe("PostgreSQL validation/policy artifact stores", () => {
       new PostgresOrchestrationValidationArtifactStore(db)
         .create(validationArtifact, key)
     ).rejects.toThrow(/Validation artifact conflicts/i);
+  });
+
+  it("creates and exactly replays a per-step policy snapshot artifact", async () => {
+    const { policyStepArtifact } = artifacts();
+    const key = policyStepIdempotencyKey(
+      policyStepArtifact.runId,
+      policyStepArtifact.validatedRunVersion,
+      policyStepArtifact.stepId
+    );
+
+    const createdDb = new ScriptedDb([{ rowCount: 1 }]);
+    expect(await new PostgresOrchestrationPolicyStepSnapshotStore(createdDb)
+      .create(policyStepArtifact, key))
+      .toEqual({ status: "created", artifact: policyStepArtifact });
+
+    const replayDb = new ScriptedDb([
+      { rowCount: 0 },
+      {
+        rows: [{
+          payload: policyStepArtifact,
+          snapshot_hash: policyStepArtifact.snapshot.snapshotHash,
+          artifact_hash: policyStepArtifact.artifactHash,
+          idempotency_key: key
+        }]
+      }
+    ]);
+    expect(await new PostgresOrchestrationPolicyStepSnapshotStore(replayDb)
+      .create(policyStepArtifact, key))
+      .toEqual({ status: "idempotent-replay", artifact: policyStepArtifact });
   });
 
   it("creates and exactly replays a policy evaluation artifact", async () => {
@@ -377,6 +416,18 @@ describe("PostgreSQL validation/policy artifact stores", () => {
       validationArtifact.runId,
       validationArtifact.plannedRunVersion
     )).toEqual(validationArtifact);
+
+    const { policyStepArtifact } = artifacts();
+    const policyStepDb = new ScriptedDb([
+      { rows: [{ payload: policyStepArtifact }] }
+    ]);
+    const policyStepStore =
+      new PostgresOrchestrationPolicyStepSnapshotStore(policyStepDb);
+    expect(await policyStepStore.getByRunVersionStep(
+      policyStepArtifact.runId,
+      policyStepArtifact.validatedRunVersion,
+      policyStepArtifact.stepId
+    )).toEqual(policyStepArtifact);
 
     const policyDb = new ScriptedDb([
       { rows: [{ payload: policyArtifact }] },
