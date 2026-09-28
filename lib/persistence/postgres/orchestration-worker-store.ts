@@ -175,25 +175,35 @@ export class PostgresOrchestrationWorkerStore implements OrchestrationWorkerStor
     }
 
     const routing = await this.db.query<WorkerRow>(
-      `SELECT *
-       FROM orchestration_worker_state
-       WHERE ready_at <= $1
-         AND lease_id IS NULL
-         AND run_state IN (
-           'accepted',
-           'context-ready',
-           'planning',
-           'planned',
-           'validated',
-           'policy-evaluated',
-           'awaiting-decision',
-           'authorized',
-           'tasks-created',
-           'jobs-enqueued',
-           'executing',
-           'verifying'
+      `SELECT worker.*
+       FROM orchestration_worker_state worker
+       WHERE worker.ready_at <= $1
+         AND worker.lease_id IS NULL
+         AND (
+           worker.run_state IN (
+             'accepted',
+             'context-ready',
+             'planning',
+             'planned',
+             'validated',
+             'policy-evaluated',
+             'authorized',
+             'tasks-created',
+             'jobs-enqueued',
+             'executing',
+             'verifying'
+           )
+           OR (
+             worker.run_state='awaiting-decision'
+             AND EXISTS (
+               SELECT 1
+               FROM orchestration_decision_resume_requests resume
+               WHERE resume.run_id=worker.run_id
+                 AND resume.status='pending'
+             )
+           )
          )
-       ORDER BY ready_at,run_id
+       ORDER BY worker.ready_at,worker.run_id
        LIMIT $2`,
       [input.now, input.limit]
     );
