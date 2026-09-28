@@ -9,6 +9,7 @@ import type {
 } from "@/lib/orchestration/contracts";
 import {
   assertOrchestrationRunIntegrity,
+  canTransitionOrchestration,
   isOrchestrationWorkerResumable
 } from "@/lib/orchestration/contracts";
 import type {
@@ -120,6 +121,13 @@ export function createOrchestrationTransitionReceipt(input: {
     throw new ControlPlaneError(
       "CONFLICT",
       "Orchestration CAS must advance the version exactly once"
+    );
+  }
+
+  if (!canTransitionOrchestration(input.current.state, input.next.state)) {
+    throw new ControlPlaneError(
+      "CONFLICT",
+      `Invalid orchestration CAS transition: ${input.current.state} -> ${input.next.state}`
     );
   }
 
