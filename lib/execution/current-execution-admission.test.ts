@@ -48,6 +48,32 @@ function input(grant: AuthorizationGrant) {
 }
 
 describe("fresh execution admission", () => {
+  it("blocks execution when the underlying approval Decision is no longer approved", async () => {
+    const base = autoGrantFor(validPlan());
+    const grant = {
+      ...base,
+      decisionId: "decision-1",
+      approvalProofHash: "proof-hash"
+    };
+    const scope = fixtureScope(validPlan());
+    const admission = gate([[
+      {
+        payload: {
+          id: "decision-1",
+          portfolioId: scope.portfolioId,
+          companyId: scope.companyId,
+          status: "rejected",
+          version: 2,
+          requiresStepUp: false,
+          updatedAt: fixtureNow.toISOString()
+        }
+      } as QueryResultRow
+    ]]);
+
+    await expect(admission.assertAllowed(input(grant)))
+      .rejects.toThrow(/Decision is rejected/i);
+  });
+
   it("blocks a paused Objective immediately", async () => {
     const base = autoGrantFor(validPlan());
     const grant = { ...base, objectiveId: "objective-1" };
