@@ -12,42 +12,47 @@ import type {
   SqlQueryable
 } from "@/lib/persistence/postgres/client";
 
-function isUniqueViolation(error: unknown) {
-  return Boolean(
-    error
-    && typeof error === "object"
-    && "code" in error
-    && (error as { code?: string }).code === "23505"
-  );
-}
-
 export class PostgresPreferenceLearningStore implements PreferenceLearningStore {
   constructor(private readonly db: PostgresTransactionalDatabase) {}
 
   async appendObservation(observation: DecisionPreferenceObservation) {
-    try {
-      await this.db.query(
-        `INSERT INTO preference_decision_observations
-          (id,portfolio_id,company_id,decision_id,capability,pattern_hash,observed_at,payload)
-         VALUES($1,$2,$3,$4,$5,$6,$7,$8::jsonb)
-         ON CONFLICT (portfolio_id,company_id,decision_id,capability) DO NOTHING`,
-        [
-          observation.id,
-          observation.portfolioId,
-          observation.companyId,
-          observation.decisionId,
-          observation.pattern.capability,
-          observation.patternHash,
-          observation.observedAt,
-          JSON.stringify(observation)
-        ]
-      );
-    } catch (error) {
-      if (isUniqueViolation(error)) {
-        throw new ControlPlaneError("CONFLICT", "Preference observation conflicts with existing evidence");
-      }
-      throw error;
-    }
+    const inserted = await this.db.query(
+      `INSERT INTO preference_decision_observations
+        (id,portfolio_id,company_id,decision_id,capability,pattern_hash,observed_at,payload)
+       VALUES($1,$2,$3,$4,$5,$6,$7,$8::jsonb)
+       ON CONFLICT (portfolio_id,company_id,decision_id,capability) DO NOTHING`,
+      [
+        observation.id,
+        observation.portfolioId,
+        observation.companyId,
+        observation.decisionId,
+        observation.pattern.capability,
+        observation.patternHash,
+        observation.observedAt,
+        JSON.stringify(observation)
+      ]
+    );
+    if (inserted.rowCount === 1) return;
+
+    const existing = await this.db.query<{ payload: DecisionPreferenceObservation }>(
+      `SELECT payload
+         FROM preference_decision_observations
+        WHERE portfolio_id=$1
+          AND company_id=$2
+          AND decision_id=$3
+          AND capability=$4`,
+      [
+        observation.portfolioId,
+        observation.companyId,
+        observation.decisionId,
+        observation.pattern.capability
+      ]
+    );
+    if (existing.rows[0]?.payload.observationHash === observation.observationHash) return;
+    throw new ControlPlaneError(
+      "IDEMPOTENCY_CONFLICT",
+      "Preference observation conflicts with existing evidence"
+    );
   }
 
   async listObservations(
@@ -159,7 +164,7 @@ export class PostgresPreferenceLearningStore implements PreferenceLearningStore 
         if (!input.confirmedRule) {
           throw new ControlPlaneError("VALIDATION_FAILED", "Confirmed rule is required for Allow");
         }
-        await client.query(
+        const insertedRule = await client.query(
           `INSERT INTO confirmed_preference_rules
             (id,portfolio_id,company_id,capability,pattern_hash,confirmed_by,confirmed_at,payload)
            VALUES($1,$2,$3,$4,$5,$6,$7,$8::jsonb)
@@ -175,6 +180,18 @@ export class PostgresPreferenceLearningStore implements PreferenceLearningStore 
             JSON.stringify(input.confirmedRule)
           ]
         );
+        if (insertedRule.rowCount !== 1) {
+          const existingRule = await client.query<{ payload: ConfirmedPreferenceRule }>(
+            "SELECT payload FROM confirmed_preference_rules WHERE id=$1 FOR SHARE",
+            [input.confirmedRule.id]
+          );
+          if (existingRule.rows[0]?.payload.ruleHash !== input.confirmedRule.ruleHash) {
+            throw new ControlPlaneError(
+              "IDEMPOTENCY_CONFLICT",
+              "Confirmed preference rule ID already exists with different content"
+            );
+          }
+        }
       }
     });
   }
