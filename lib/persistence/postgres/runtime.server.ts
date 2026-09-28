@@ -4,7 +4,7 @@ import {
   readPostgresConfigFromEnv
 } from "@/lib/persistence/postgres/client";
 
-export const REQUIRED_POSTGRES_MIGRATION = "2026-09-25.3";
+export const REQUIRED_POSTGRES_MIGRATION = "2026-09-28.1";
 
 export const REQUIRED_POSTGRES_RELATIONS = Object.freeze([
   "getdone_schema_migrations",
@@ -55,7 +55,10 @@ export const REQUIRED_POSTGRES_RELATIONS = Object.freeze([
   "migration_compatibility_evidence",
   "analytics_ingestion_checkpoints",
   "analytics_ingestion_evidence",
-  "analytics_ingestion_runs"
+  "analytics_ingestion_runs",
+  "orchestration_runs",
+  "orchestration_transition_receipts",
+  "orchestration_checkpoints"
 ] as const);
 
 export const REQUIRED_POSTGRES_INDEXES = Object.freeze([
@@ -80,7 +83,12 @@ export const REQUIRED_POSTGRES_INDEXES = Object.freeze([
   "migration_compatibility_release_idx",
   "analytics_ingestion_evidence_source_idx",
   "analytics_ingestion_checkpoint_updated_idx",
-  "analytics_ingestion_runs_scope_idx"
+  "analytics_ingestion_runs_scope_idx",
+  "orchestration_runs_scope_idx",
+  "orchestration_runs_source_idx",
+  "orchestration_runs_resumable_idx",
+  "orchestration_transition_receipts_scope_idx",
+  "orchestration_checkpoints_scope_idx"
 ] as const);
 
 export const REQUIRED_POSTGRES_RLS_RELATIONS = Object.freeze([
@@ -103,7 +111,10 @@ export const REQUIRED_POSTGRES_RLS_RELATIONS = Object.freeze([
   "audit_chain_heads",
   "analytics_ingestion_checkpoints",
   "analytics_ingestion_evidence",
-  "analytics_ingestion_runs"
+  "analytics_ingestion_runs",
+  "orchestration_runs",
+  "orchestration_transition_receipts",
+  "orchestration_checkpoints"
 ] as const);
 
 export interface PostgresRuntimeHealth {
