@@ -260,7 +260,15 @@ export async function resolveDecision(input: ResolveDecisionInput): Promise<Auth
         createdAt: resolvedAt
       });
       if (resumeRequest) {
-        await transaction.stores.resumeRequests?.create(resumeRequest);
+        const resumeRequests = transaction.stores.resumeRequests;
+        if (!resumeRequests) {
+          throw new ControlPlaneError(
+            "UNAVAILABLE",
+            "Orchestrated Decision resolution requires a durable resume request store",
+            { correlationId: input.command.correlationId }
+          );
+        }
+        await resumeRequests.create(resumeRequest);
       }
 
       return patch;
