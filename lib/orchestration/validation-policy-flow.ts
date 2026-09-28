@@ -616,6 +616,7 @@ function evaluateFrozenPolicySnapshot(
     budgetReservations: snapshot.budgetReservations,
     usageBudgets: snapshot.usageBudgets,
     riskContext: snapshot.riskContext,
+    learnedRule: snapshot.learnedRule,
     guardrails: snapshot.guardrails,
     now
   });
