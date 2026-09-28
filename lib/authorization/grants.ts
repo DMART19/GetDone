@@ -45,6 +45,15 @@ export interface AuthorizationGrant {
   stepId: string;
   stepHash: string;
   capabilityNames: readonly string[];
+  objectiveId?: string;
+  integrationId?: string;
+  executionLimits?: Readonly<{
+    environment: TrustedExecutionScope["environment"];
+    deadline?: string;
+    expectedDurationSeconds?: number;
+    retryable: boolean;
+    maxJobCostCents?: number;
+  }>;
   validationReceiptId: string;
   validationReceiptHash: string;
   policySnapshotId: string;
@@ -233,6 +242,18 @@ export function issueAuthorizationGrant(input: {
     capabilityNames: [
       ...new Set(step.capabilityRequests.map((request) => request.capability))
     ].sort(),
+    objectiveId: input.plan.source.type === "objective"
+      ? input.plan.source.objectiveId
+      : undefined,
+    integrationId: input.policySnapshot.integrationId,
+    executionLimits: {
+      environment: step.resourceRequirements.execution.environment,
+      deadline: step.resourceRequirements.execution.deadline,
+      expectedDurationSeconds:
+        step.resourceRequirements.execution.expectedDurationSeconds,
+      retryable: step.resourceRequirements.execution.retryable,
+      maxJobCostCents: step.resourceRequirements.economics.maxJobCostCents
+    },
     validationReceiptId: input.receipt.id,
     validationReceiptHash: input.receipt.receiptHash,
     policySnapshotId: input.policySnapshot.id,
