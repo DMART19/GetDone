@@ -209,13 +209,14 @@ Historical coordination evidence cannot be rewritten through the runtime role.
 
 ## Production readiness gate
 
-Required migration becomes 2026-09-28.2.
+Required migration becomes 2026-09-28.3.
 
 Required relations:
 - orchestration_runs
 - orchestration_transition_receipts
 - orchestration_checkpoints
 - orchestration_worker_state
+- orchestration_context_snapshots
 
 Required indexes:
 - orchestration_runs_scope_idx
@@ -226,6 +227,8 @@ Required indexes:
 - orchestration_worker_ready_idx
 - orchestration_worker_lease_expiry_idx
 - orchestration_worker_scope_idx
+- orchestration_context_snapshots_scope_idx
+- orchestration_context_snapshots_source_idx
 
 The verifier also checks correlation uniqueness, start-idempotency uniqueness, transition-idempotency uniqueness, transition-version uniqueness, and checkpoint-version uniqueness.
 
