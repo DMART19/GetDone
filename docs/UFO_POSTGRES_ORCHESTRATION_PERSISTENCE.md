@@ -8,7 +8,7 @@ The existing authority path stays intact: AI thinks → GetDone validates/policy
 
 ## Relations
 
-PR #74 adds three tenant-scoped relations.
+PR #74 adds a tenant-scoped orchestration persistence family: canonical run/checkpoint relations plus durable worker state, frozen context/planner artifacts, validation artifacts, per-step policy snapshots, and aggregate policy-evaluation artifacts.
 
 ### orchestration_runs
 
@@ -50,6 +50,7 @@ Checkpoint JSON stores references/hashes to existing authoritative artifacts rat
 
 ~~~text
 contextSnapshot
+plannerInput
 plan
 validationReceipt
 policySnapshot
