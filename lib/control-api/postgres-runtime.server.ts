@@ -17,6 +17,7 @@ import { ResourceRegistryService } from "@/lib/domain/services/resource-registry
 import type { JobRecord } from "@/lib/domain/services/job-service";
 import type { VerificationRequestRecord } from "@/lib/domain/services/verification-service";
 import type { ObjectiveRecord } from "@/lib/domain/objective-inbox";
+import { PreferenceLearningService } from "@/lib/domain/preference-learning";
 import type {
   ResourceEnrollmentRecord,
   ResourceEnrollmentStores
@@ -50,6 +51,7 @@ import {
   DecisionResumeDispatcher
 } from "@/lib/orchestration/authorization-flow";
 import { PostgresControlPlaneTransactionManager } from "@/lib/persistence/postgres/transaction-manager";
+import { PostgresPreferenceLearningStore } from "@/lib/persistence/postgres/preference-learning-store";
 import { getPostgresRuntimeFromEnv } from "@/lib/persistence/postgres/runtime.server";
 import { runWithPostgresTenantScope } from "@/lib/persistence/postgres/tenant-context.server";
 
@@ -64,6 +66,9 @@ export function createPostgresControlApiAdapter(
   const runtime = getPostgresRuntimeFromEnv(env);
   const db = runtime.database;
   const webAuthn = readWebAuthnServerConfig(env);
+  const preferenceLearning = new PreferenceLearningService(
+    new PostgresPreferenceLearningStore(db)
+  );
 
   const objectives = new PostgresEntityStore<ObjectiveRecord>(db, "objective");
   const decisions = new PostgresEntityStore<AuthoritativeDecision>(db, "decision");
@@ -93,7 +98,8 @@ export function createPostgresControlApiAdapter(
     validations: new PostgresOrchestrationValidationArtifactStore(db),
     policies: new PostgresOrchestrationPolicyEvaluationStore(db),
     decisions: new PostgresOrchestrationDecisionStore(db),
-    grants: new PostgresOrchestrationAuthorizationGrantStore(db)
+    grants: new PostgresOrchestrationAuthorizationGrantStore(db),
+    preferenceLearning
   });
 
   const resourceRegistry = new ResourceRegistryService(
@@ -137,6 +143,7 @@ export function createPostgresControlApiAdapter(
     intents: new PostgresOwnerIntentStore(db),
     objectives,
     objectiveIntake: new PostgresObjectiveIntakeStore(db),
+    preferenceLearning,
     decisions,
     decisionTransactions,
     decisionResumeDispatcher,
