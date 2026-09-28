@@ -12,7 +12,7 @@ import type {
   OwnerOperationExplanation
 } from "@/lib/explainability/job-owner-explanation";
 
-export const CONTROL_API_SURFACE_VERSION = "1.4.0";
+export const CONTROL_API_SURFACE_VERSION = "1.5.0";
 
 export type ControlApiRole = "owner" | "admin" | "operator" | "viewer";
 
