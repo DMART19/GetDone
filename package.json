@@ -58,7 +58,9 @@
     "release:gate-production": "node scripts/verify-production-promotion.mjs",
     "environment:generate": "node scripts/generate-environment-manifest.mjs",
     "environment:check": "node scripts/generate-environment-manifest.mjs --check",
-    "environment:record-evidence": "node scripts/record-environment-evidence.mjs"
+    "environment:record-evidence": "node scripts/record-environment-evidence.mjs",
+    "start:orchestration-worker": "node --require ./scripts/register-worker-alias.cjs dist-worker/lib/orchestration/orchestration-worker-entry.js",
+    "orchestration:test-runtime": "vitest run lib/orchestration/orchestration-worker-runtime.test.ts"
   },
   "dependencies": {
     "lucide-react": "0.468.0",
