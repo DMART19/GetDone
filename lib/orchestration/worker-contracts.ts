@@ -2,7 +2,7 @@ import { sha256Hex } from "@/lib/control-plane/canonical-hash";
 import { ControlPlaneError } from "@/lib/control-plane/errors";
 import type { OrchestrationRunRecord } from "@/lib/orchestration/contracts";
 
-export const ORCHESTRATION_WORKER_CONTRACT_VERSION = "1.0.0";
+export const ORCHESTRATION_WORKER_CONTRACT_VERSION = "1.1.0";
 
 export interface OrchestrationWorkCandidate {
   run: OrchestrationRunRecord;
@@ -59,6 +59,35 @@ export interface OrchestrationStageHandler {
   execute(context: OrchestrationStageContext): Promise<OrchestrationStageOutcome>;
 }
 
+export type OrchestrationWorkerProcessStatus =
+  | "starting"
+  | "running"
+  | "draining"
+  | "stopped"
+  | "failed";
+
+export interface OrchestrationWorkerRegistry {
+  start(input: {
+    workerId: string;
+    processVersion: string;
+    startedAt: string;
+    metadata?: Readonly<Record<string, unknown>>;
+  }): Promise<void>;
+  heartbeat(input: {
+    workerId: string;
+    status: OrchestrationWorkerProcessStatus;
+    heartbeatAt: string;
+    ready: boolean;
+    metadata?: Readonly<Record<string, unknown>>;
+  }): Promise<void>;
+  stop(input: {
+    workerId: string;
+    status: "stopped" | "failed";
+    stoppedAt: string;
+    metadata?: Readonly<Record<string, unknown>>;
+  }): Promise<void>;
+}
+
 export interface OrchestrationWorkerStore {
   listReady(input: {
     now: string;
@@ -105,6 +134,16 @@ export interface OrchestrationWorkerStore {
     idempotencyKey: string;
   }): Promise<void>;
 
+  deadLetter?(input: {
+    lease: OrchestrationLease;
+    now: string;
+    code: string;
+    reason: string;
+    terminalRun: OrchestrationRunRecord;
+    recoveryKind?: "explicit-failure" | "expired-lease-recovery";
+    idempotencyKey: string;
+  }): Promise<void>;
+
   recoverExpired(input: {
     now: string;
     limit: number;
@@ -116,7 +155,7 @@ export interface OrchestrationWorkerStore {
 export interface OrchestrationRecoveryRecord {
   runId: string;
   leaseId: string;
-  outcome: "stage-advanced-before-crash" | "retry-scheduled";
+  outcome: "stage-advanced-before-crash" | "retry-scheduled" | "dead-letter-recovered";
   nextReadyAt: string;
   attempt: number;
 }
@@ -261,6 +300,10 @@ export function orchestrationReleaseIdempotencyKey(lease: OrchestrationLease) {
 
 export function orchestrationRetryIdempotencyKey(lease: OrchestrationLease) {
   return `orchestration-worker:retry:${lease.id}:attempt${lease.attempt}`;
+}
+
+export function orchestrationDeadLetterIdempotencyKey(lease: OrchestrationLease) {
+  return `orchestration-worker:dead-letter:${lease.id}:attempt${lease.attempt}`;
 }
 
 export function orchestrationDeferIdempotencyKey(lease: OrchestrationLease) {
