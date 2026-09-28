@@ -89,11 +89,15 @@ describe("fresh execution admission", () => {
       fixtureNow.toISOString(),
       "disabled"
     );
-    const grant = { ...base, integrationId: disabled.id };
+    const grant = {
+      ...base,
+      capabilityNames: ["email.send"],
+      integrationId: disabled.id
+    };
     const admission = gate([[{ payload: disabled } as QueryResultRow]]);
 
     await expect(admission.assertAllowed(input(grant)))
-      .rejects.toThrow(/Integration is disabled/i);
+      .rejects.toThrow(/not connected/i);
   });
 
   it("blocks an enabled emergency or scoped kill switch immediately", async () => {
