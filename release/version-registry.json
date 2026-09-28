@@ -696,8 +696,8 @@
     "status": "implemented-unconnected",
     "engine": "postgresql",
     "minimumEngineVersion": "16",
-    "migrationVersion": "2026-09-28.6",
-    "schemaVersion": "2.2.0",
+    "migrationVersion": "2026-09-28.7",
+    "schemaVersion": "2.3.0",
     "sourcePath": "migrations/2026-09-28.6_ufo_authorization.sql",
     "adapterSourcePath": "lib/persistence/postgres/client.ts"
   },
