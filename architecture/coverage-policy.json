@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "2.2.0",
+  "schemaVersion": "2.3.0",
   "thresholds": {
     "coveredModulePercent": 100,
     "minimumTotalTestCases": 80,
@@ -444,6 +444,16 @@
     {
       "source": "lib/persistence/postgres/orchestration-validation-policy-stores.ts",
       "test": "lib/persistence/postgres/orchestration-validation-policy-stores.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/orchestration/authorization-flow.ts",
+      "test": "lib/orchestration/authorization-flow.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/persistence/postgres/orchestration-authorization-stores.ts",
+      "test": "lib/persistence/postgres/orchestration-authorization-stores.test.ts",
       "critical": true
     }
   ]
