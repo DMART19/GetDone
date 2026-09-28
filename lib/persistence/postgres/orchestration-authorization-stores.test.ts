@@ -136,6 +136,12 @@ function decision(): AuthoritativeDecision {
     requiresStepUp: false,
     updatedAt: "2026-09-28T13:00:00.000Z",
     approvalBinding: {
+      trustedScope: {
+        userId: "owner-a",
+        portfolioId: "portfolio-a",
+        companyId: "company-a",
+        environment: "staging"
+      },
       orchestrationRunId: "run-1",
       policyEvaluationArtifactId: "policy-1",
       policyEvaluationArtifactHash: "a".repeat(64),
