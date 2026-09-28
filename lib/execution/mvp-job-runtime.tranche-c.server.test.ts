@@ -181,6 +181,64 @@ describe("MVP capability-dispatched Job runtime", () => {
     expect((await runtime.ownerView("job-1", "task-1")).notification).toBeNull();
   });
 
+  it("uses authoritative verified Job truth when the durable queue stopped at provider completion", async () => {
+    const verifiedJob: JobRecord = {
+      ...job,
+      state: "verified",
+      verificationReceiptId: "receipt-1",
+      verificationReceiptHash: "receipt-hash",
+      version: 6
+    };
+    const runtime = new MvpJobRuntime({
+      status: async () => ({
+        runtime: {
+          state: "released",
+          envelope: { correlationId }
+        },
+        outcomes: [{
+          id: "outcome-provider",
+          jobId: "job-1",
+          kind: "provider-completed",
+          runtimeState: "released",
+          attempt: 1,
+          occurredAt: "2026-09-22T12:00:00Z",
+          transactionHash: "provider-transaction",
+          recordHash: "provider-outcome-hash"
+        }],
+        events: []
+      })
+    } as unknown as ConstructorParameters<typeof MvpJobRuntime>[0],
+    {} as unknown as ConstructorParameters<typeof MvpJobRuntime>[1],
+    {} as unknown as ConstructorParameters<typeof MvpJobRuntime>[2],
+    {
+      get: async (id: string) => id === verifiedJob.id ? verifiedJob : null
+    } as ConstructorParameters<typeof MvpJobRuntime>[3]);
+
+    expect((await runtime.ownerView("job-1", "task-1")).notification).toMatchObject({
+      destination: "/?focus=task-result&id=task-1",
+      requiresAuthoritativeFetch: true
+    });
+  });
+
+  it("rejects an owner Job view bound to the wrong Task", async () => {
+    const runtime = new MvpJobRuntime({
+      status: async () => ({
+        runtime: {
+          state: "released",
+          envelope: { correlationId }
+        },
+        outcomes: [],
+        events: []
+      })
+    } as unknown as ConstructorParameters<typeof MvpJobRuntime>[0],
+    {} as unknown as ConstructorParameters<typeof MvpJobRuntime>[1],
+    {} as unknown as ConstructorParameters<typeof MvpJobRuntime>[2],
+    jobs as ConstructorParameters<typeof MvpJobRuntime>[3]);
+
+    await expect(runtime.ownerView("job-1", "task-other"))
+      .rejects.toThrow(/authoritative Job lineage/i);
+  });
+
   it("protects the internal worker trigger with constant-time bearer authentication", () => {
     const env = { GETDONE_INTERNAL_WORKER_TOKEN: "worker-secret" };
     expect(() => assertInternalWorkerToken(new Request("https://getdone.test", {
