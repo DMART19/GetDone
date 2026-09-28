@@ -33,7 +33,6 @@ export interface DecisionApprovalBinding {
 function bindingId(run: OrchestrationRun, stepHash: string) {
   return sha256Hex({
     runId: run.id,
-    correlationId: run.correlationId,
     stepHash
   });
 }
