@@ -448,7 +448,12 @@ export class PostgresOrchestrationWorkerStore implements OrchestrationWorkerStor
     now: string;
     idempotencyKey: string;
   }) {
-    parseTimestamp(input.now, "orchestration release time");
+    const nowMs = parseTimestamp(input.now, "orchestration release time");
+    assertOrchestrationLease(input.lease, {
+      runId: input.lease.runId,
+      workerId: input.lease.workerId,
+      now: nowMs
+    });
     const fingerprint = sha256Hex({ leaseHash: input.lease.leaseHash });
 
     await this.db.transaction(async (client) => {
@@ -482,6 +487,8 @@ export class PostgresOrchestrationWorkerStore implements OrchestrationWorkerStor
       if (
         current.id !== input.lease.id
         || current.workerId !== input.lease.workerId
+        || current.version !== input.lease.version
+        || current.leaseHash !== input.lease.leaseHash
       ) {
         throw new ControlPlaneError("CONFLICT", "Orchestration release lost lease ownership");
       }
@@ -533,6 +540,11 @@ export class PostgresOrchestrationWorkerStore implements OrchestrationWorkerStor
     idempotencyKey: string;
   }) {
     const nowMs = parseTimestamp(input.now, "orchestration defer time");
+    assertOrchestrationLease(input.lease, {
+      runId: input.lease.runId,
+      workerId: input.lease.workerId,
+      now: nowMs
+    });
     const readyAtMs = parseTimestamp(input.readyAt, "orchestration defer readyAt");
     if (readyAtMs < nowMs) {
       throw new ControlPlaneError("VALIDATION_FAILED", "Deferred orchestration readyAt cannot be in the past");
@@ -570,7 +582,8 @@ export class PostgresOrchestrationWorkerStore implements OrchestrationWorkerStor
            AND lease_id=$5
            AND lease_worker_id=$6
            AND claimed_run_version=$7
-           AND claimed_record_hash=$8`,
+           AND claimed_record_hash=$8
+           AND lease_version=$9`,
         [
           input.lease.runId,
           new Date(readyAtMs).toISOString(),
@@ -579,7 +592,8 @@ export class PostgresOrchestrationWorkerStore implements OrchestrationWorkerStor
           input.lease.id,
           input.lease.workerId,
           input.lease.claimedRunVersion,
-          input.lease.claimedRecordHash
+          input.lease.claimedRecordHash,
+          input.lease.version
         ]
       );
       if (result.rowCount !== 1) {
@@ -605,6 +619,11 @@ export class PostgresOrchestrationWorkerStore implements OrchestrationWorkerStor
     idempotencyKey: string;
   }) {
     const nowMs = parseTimestamp(input.now, "orchestration retry time");
+    assertOrchestrationLease(input.lease, {
+      runId: input.lease.runId,
+      workerId: input.lease.workerId,
+      now: nowMs
+    });
     const readyAtMs = parseTimestamp(input.readyAt, "orchestration retry readyAt");
     if (readyAtMs < nowMs) {
       throw new ControlPlaneError("VALIDATION_FAILED", "Retry readyAt cannot be in the past");
@@ -644,7 +663,8 @@ export class PostgresOrchestrationWorkerStore implements OrchestrationWorkerStor
            AND lease_id=$6
            AND lease_worker_id=$7
            AND claimed_run_version=$8
-           AND claimed_record_hash=$9`,
+           AND claimed_record_hash=$9
+           AND lease_version=$10`,
         [
           input.lease.runId,
           new Date(readyAtMs).toISOString(),
@@ -654,7 +674,8 @@ export class PostgresOrchestrationWorkerStore implements OrchestrationWorkerStor
           input.lease.id,
           input.lease.workerId,
           input.lease.claimedRunVersion,
-          input.lease.claimedRecordHash
+          input.lease.claimedRecordHash,
+          input.lease.version
         ]
       );
       if (result.rowCount !== 1) {
