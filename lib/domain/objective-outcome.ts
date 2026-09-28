@@ -4,6 +4,8 @@ import type { TrustedExecutionScope } from "@/lib/control-plane/trusted-executio
 import { assertTrustedExecutionScopeEqual } from "@/lib/control-plane/trusted-execution-scope";
 import type { WorkAdmissionEnvelope } from "@/lib/planning/work-admission";
 import { assertWorkAdmissionEnvelope } from "@/lib/planning/work-admission";
+import type { PlanProposal } from "@/lib/planning/plan-schema";
+import { hashPlan } from "@/lib/planning/plan-hash";
 import {
   assertVerificationContractIntegrity,
   assertVerificationReceiptIntegrity,
@@ -12,6 +14,7 @@ import {
   type VerificationCheckResult,
   type VerificationContract,
   type VerificationReceipt,
+  type VerificationSubject,
   type VerificationValue,
   type VerifiedCurrentState
 } from "@/lib/verification/verification";
@@ -40,6 +43,7 @@ export interface ObjectiveOutcomeEvaluation {
   state: ObjectiveOutcomeState;
   desiredOutcomeHash: string;
   verifiedCurrentState?: VerifiedCurrentState;
+  eligibleSubjects: readonly VerificationSubject[];
   checkResults: readonly VerificationCheckResult[];
   sourceVerificationReceiptIds: readonly string[];
   sourceVerificationReceiptHashes: readonly string[];
@@ -191,6 +195,7 @@ export function evaluateObjectiveOutcome(input: {
   desiredOutcome: ObjectiveDesiredOutcome;
   verificationReceipts: readonly VerificationReceipt[];
   scope: TrustedExecutionScope;
+  eligibleSubjects: readonly VerificationSubject[];
   evaluatedAt: string;
   canGenerateMoreWork: boolean;
   disposition?: Extract<
@@ -201,12 +206,29 @@ export function evaluateObjectiveOutcome(input: {
   assertObjectiveDesiredOutcome(input.desiredOutcome);
   const evaluatedAt = parseTime(input.evaluatedAt, "Objective evaluatedAt");
 
+  if (input.eligibleSubjects.length === 0) {
+    throw new ControlPlaneError(
+      "VALIDATION_FAILED",
+      "Objective evaluation requires at least one authorized verification subject"
+    );
+  }
+  const eligibleSubjects = input.eligibleSubjects.map((subject) => Object.freeze({ ...subject }));
+  const subjectKeys = new Set(eligibleSubjects.map((subject) => `${subject.type}:${subject.id}`));
+  if (subjectKeys.size !== eligibleSubjects.length) {
+    throw new ControlPlaneError(
+      "VALIDATION_FAILED",
+      "Objective evaluation verification subjects must be unique"
+    );
+  }
+
   const receipts = input.verificationReceipts.map((receipt) => {
     assertVerificationReceiptIntegrity(receipt);
+    const subjectKey = `${receipt.subject.type}:${receipt.subject.id}`;
     if (
       receipt.portfolioId !== input.scope.portfolioId
       || receipt.companyId !== input.scope.companyId
       || receipt.environment !== input.scope.environment
+      || !subjectKeys.has(subjectKey)
       || Date.parse(receipt.verifiedAt) > evaluatedAt
       || Date.parse(receipt.expiresAt) <= evaluatedAt
     ) {
@@ -250,6 +272,7 @@ export function evaluateObjectiveOutcome(input: {
     environment: input.scope.environment,
     state,
     desiredOutcomeHash: input.desiredOutcome.desiredOutcomeHash,
+    eligibleSubjects: Object.freeze(eligibleSubjects),
     verifiedCurrentState,
     checkResults: Object.freeze(checkResults),
     sourceVerificationReceiptIds: Object.freeze(receipts.map((receipt) => receipt.id).sort()),
@@ -325,6 +348,7 @@ export function assertGovernedReplanRequest(request: GovernedReplanRequest) {
 export function assertGovernedReplanAdmission(input: {
   request: GovernedReplanRequest;
   admission: WorkAdmissionEnvelope;
+  plan: PlanProposal;
   scope: TrustedExecutionScope;
   now?: number;
 }) {
@@ -339,6 +363,18 @@ export function assertGovernedReplanAdmission(input: {
     scope: input.scope,
     now: input.now
   });
+  const planHash = hashPlan(input.plan);
+  if (
+    input.plan.id !== admission.planId
+    || planHash !== admission.planHash
+    || input.plan.source.type !== "objective"
+    || input.plan.source.objectiveId !== input.request.objectiveId
+  ) {
+    throw new ControlPlaneError(
+      "FORBIDDEN",
+      "Replanned work admission must bind to a fresh governed plan for the same Objective"
+    );
+  }
 
   if (Date.parse(admission.createdAt) < Date.parse(input.request.requestedAt)) {
     throw new ControlPlaneError(
