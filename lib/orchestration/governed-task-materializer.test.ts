@@ -144,8 +144,6 @@ describe("GovernedTaskMaterializer", () => {
       consumedAt: string
     ) => {
       const current = records.get(id)!;
-      const task = (new MemoryDedupe()).task;
-      void task;
       const generated = dedupe.task!;
       const record = {
         ...current,
