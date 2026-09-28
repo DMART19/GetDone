@@ -1,5 +1,8 @@
 import { sha256Hex } from "@/lib/control-plane/canonical-hash";
 import { ControlPlaneError } from "@/lib/control-plane/errors";
+import {
+  claimIdempotency
+} from "@/lib/domain/idempotency";
 import type {
   OrchestrationGeneratedTaskStore
 } from "@/lib/orchestration/task-job-materialization-flow";
@@ -8,16 +11,16 @@ import type {
 } from "@/lib/authorization/grants";
 import type { GeneratedTask } from "@/lib/planning/task-generator";
 import {
-  PostgresAuthorizationGrantStore
+  PostgresAuthorizationGrantStore,
+  PostgresIdempotencyStore
 } from "@/lib/persistence/postgres/authority-stores";
 import type {
   PostgresTransactionalDatabase
 } from "@/lib/persistence/postgres/client";
 
-interface GeneratedTaskRow {
-  payload: GeneratedTask;
-  task_hash: string;
-  authorization_consumption_hash: string;
+interface GeneratedTaskEnvelope {
+  taskHash: string;
+  task: GeneratedTask;
 }
 
 export class PostgresOrchestrationGeneratedTaskStore
@@ -31,6 +34,14 @@ export class PostgresOrchestrationGeneratedTaskStore
     }
   ) {}
 
+  private entityType() {
+    return "orchestration-generated-task";
+  }
+
+  private claimKey(task: GeneratedTask) {
+    return `orchestration-generated-task:${this.binding.runId}:${task.logicalKey}`;
+  }
+
   private assertBinding(task: GeneratedTask) {
     if (
       task.scope.portfolioId !== this.binding.portfolioId
@@ -41,6 +52,21 @@ export class PostgresOrchestrationGeneratedTaskStore
         "Generated Task is outside the bound orchestration tenant"
       );
     }
+  }
+
+  private assertTaskIntegrity(
+    task: GeneratedTask,
+    expectedHash?: string
+  ) {
+    this.assertBinding(task);
+    const taskHash = sha256Hex(task);
+    if (expectedHash && taskHash !== expectedHash) {
+      throw new ControlPlaneError(
+        "FORBIDDEN",
+        "Persisted generated Task failed integrity verification"
+      );
+    }
+    return taskHash;
   }
 
   async claim(
@@ -62,99 +88,118 @@ export class PostgresOrchestrationGeneratedTaskStore
     }
 
     return this.database.transaction(async (client) => {
-      const taskHash = sha256Hex(task);
-      const inserted = await client.query(
-        `INSERT INTO orchestration_generated_tasks
-          (
-            id,run_id,portfolio_id,company_id,logical_key,plan_id,plan_step_id,
-            task_hash,authorization_grant_id,authorization_consumption_hash,
-            created_at,payload
-          )
-         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb)
-         ON CONFLICT (run_id,logical_key) DO NOTHING`,
-        [
-          task.id,
-          this.binding.runId,
-          this.binding.portfolioId,
-          this.binding.companyId,
-          task.logicalKey,
-          task.planId,
-          task.planStepId,
-          taskHash,
-          task.authorizationGrantId,
-          consumption.consumptionHash,
-          task.createdAt,
-          JSON.stringify(task)
-        ]
+      const taskHash = this.assertTaskIntegrity(task);
+      const fingerprint = sha256Hex({
+        runId: this.binding.runId,
+        taskHash,
+        authorizationConsumptionHash: consumption.consumptionHash
+      });
+      const idempotency = new PostgresIdempotencyStore(client);
+      const claim = await claimIdempotency<GeneratedTask>(
+        idempotency,
+        this.claimKey(task),
+        fingerprint,
+        new Date(task.createdAt)
       );
 
-      if (inserted.rowCount === 1) {
-        // The TaskGenerator contract requires the durable logical Task claim
-        // and the single-use grant consumption to commit atomically.
-        await new PostgresAuthorizationGrantStore(client).consume(consumption);
+      if (claim.state === "COMPLETED") {
+        const existing = claim.record.result;
+        if (
+          !existing
+          || this.assertTaskIntegrity(existing) !== taskHash
+          || existing.authorizationConsumption.consumptionHash
+            !== consumption.consumptionHash
+        ) {
+          throw new ControlPlaneError(
+            "IDEMPOTENCY_CONFLICT",
+            "Generated Task replay does not match durable authoritative content"
+          );
+        }
         return {
-          created: true,
-          task,
-          consumption
+          created: false,
+          task: existing,
+          consumption: existing.authorizationConsumption
         };
       }
 
-      const replay = await client.query<GeneratedTaskRow>(
-        `SELECT payload,task_hash,authorization_consumption_hash
-         FROM orchestration_generated_tasks
-         WHERE run_id=$1 AND logical_key=$2`,
-        [this.binding.runId, task.logicalKey]
-      );
-      const existing = replay.rows[0];
-      if (
-        !existing
-        || existing.task_hash !== taskHash
-        || existing.authorization_consumption_hash !== consumption.consumptionHash
-        || sha256Hex(existing.payload) !== existing.task_hash
-        || existing.payload.id !== task.id
-        || existing.payload.planStepId !== task.planStepId
-        || existing.payload.authorizationConsumption.consumptionHash
-          !== consumption.consumptionHash
-      ) {
+      if (claim.state === "IN_PROGRESS" || claim.state === "FAILED") {
         throw new ControlPlaneError(
-          "IDEMPOTENCY_CONFLICT",
-          "Generated Task logical identity already exists with different authoritative content"
+          "CONFLICT",
+          "Generated Task claim is already in progress or previously failed"
         );
       }
 
+      const envelope: GeneratedTaskEnvelope = {
+        taskHash,
+        task
+      };
+      try {
+        await client.query(
+          `INSERT INTO control_plane_entities
+            (entity_type,id,portfolio_id,company_id,version,updated_at,payload)
+           VALUES($1,$2,$3,$4,1,$5,$6::jsonb)`,
+          [
+            this.entityType(),
+            task.id,
+            this.binding.portfolioId,
+            this.binding.companyId,
+            task.createdAt,
+            JSON.stringify(envelope)
+          ]
+        );
+      } catch (error) {
+        if (
+          error
+          && typeof error === "object"
+          && "code" in error
+          && (error as { code?: string }).code === "23505"
+        ) {
+          throw new ControlPlaneError(
+            "IDEMPOTENCY_CONFLICT",
+            "Generated Task ID already exists under different logical authority"
+          );
+        }
+        throw error;
+      }
+
+      // The durable logical claim, generated Task artifact, and single-use
+      // grant consumption commit together in this one SERIALIZABLE transaction.
+      await new PostgresAuthorizationGrantStore(client).consume(consumption);
+      await idempotency.complete(
+        this.claimKey(task),
+        fingerprint,
+        task,
+        task.createdAt
+      );
+
       return {
-        created: false,
-        task: existing.payload,
-        consumption: existing.payload.authorizationConsumption
+        created: true,
+        task,
+        consumption
       };
     });
   }
 
   async get(id: string): Promise<GeneratedTask | null> {
-    const result = await this.database.query<GeneratedTaskRow>(
-      `SELECT payload,task_hash,authorization_consumption_hash
-       FROM orchestration_generated_tasks
-       WHERE id=$1 AND run_id=$2 AND portfolio_id=$3 AND company_id=$4`,
+    const result = await this.database.query<{
+      payload: GeneratedTaskEnvelope;
+    }>(
+      `SELECT payload
+       FROM control_plane_entities
+       WHERE entity_type=$1
+         AND id=$2
+         AND portfolio_id=$3
+         AND company_id=$4`,
       [
+        this.entityType(),
         id,
-        this.binding.runId,
         this.binding.portfolioId,
         this.binding.companyId
       ]
     );
-    const row = result.rows[0];
-    if (!row) return null;
-    if (
-      sha256Hex(row.payload) !== row.task_hash
-      || row.payload.authorizationConsumption.consumptionHash
-        !== row.authorization_consumption_hash
-    ) {
-      throw new ControlPlaneError(
-        "FORBIDDEN",
-        "Persisted generated Task failed integrity verification"
-      );
-    }
-    this.assertBinding(row.payload);
-    return row.payload;
+    const envelope = result.rows[0]?.payload;
+    if (!envelope) return null;
+    this.assertTaskIntegrity(envelope.task, envelope.taskHash);
+    return envelope.task;
   }
 }
