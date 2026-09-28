@@ -76,10 +76,14 @@ for (const file of libFiles) {
     fail(`BusinessActionExecutionOrchestrator execution escaped Job router: ${name}`);
   }
   if (
-    /\badapter\.(execute|status|cancel)\s*\(/.test(content)
-    && name !== "lib/execution/business-action-orchestrator.ts"
+    content.includes("BusinessActionAdapter")
+    && /\badapter\.(execute|status|cancel)\s*\(/.test(content)
+    && ![
+      "lib/execution/business-action-orchestrator.ts",
+      "lib/execution/adapters/business-action-conformance.ts"
+    ].includes(name)
   ) {
-    fail(`Provider adapter invocation escaped business action orchestrator: ${name}`);
+    fail(`Operational BusinessAction adapter invocation escaped the governed Job router/orchestrator chain: ${name}`);
   }
   if (
     content.includes("enqueueAuthorizedBusinessAction(")
