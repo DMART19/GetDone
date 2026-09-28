@@ -38,8 +38,7 @@ function boundedMs(value: number | undefined, fallback: number, label: string) {
 function sleep(ms: number) {
   if (ms <= 0) return Promise.resolve();
   return new Promise<void>((resolve) => {
-    const timer = setTimeout(resolve, ms);
-    timer.unref?.();
+    setTimeout(resolve, ms);
   });
 }
 
@@ -79,7 +78,7 @@ export class PersistentOrchestrationWorkerService {
   private readonly errorBackoffMs: number;
 
   constructor(
-    private readonly worker: DurableOrchestrationWorker,
+    private readonly worker: Pick<DurableOrchestrationWorker, "runOnce">,
     private readonly handler: OrchestrationStageHandler,
     private readonly registry: OrchestrationWorkerRegistry,
     private readonly config: PersistentOrchestrationWorkerConfig,
