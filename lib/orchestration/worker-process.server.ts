@@ -202,7 +202,8 @@ export interface OrchestrationWorkerSignalTarget {
 
 export function installOrchestrationWorkerShutdownHooks(
   workerProcess: Pick<DedicatedOrchestrationWorkerProcess, "requestDrain" | "shutdown">,
-  signalTarget: OrchestrationWorkerSignalTarget = process
+  signalTarget: OrchestrationWorkerSignalTarget =
+    process as unknown as OrchestrationWorkerSignalTarget
 ) {
   let stopping = false;
   const stop = () => {
