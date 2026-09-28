@@ -376,14 +376,6 @@ function transitionFromValidationArtifact(
     };
   }
 
-  try {
-    assertValidationReceipt(receipt, artifact.receipt.planId === artifact.planArtifactId
-      ? artifact.receipt as never
-      : artifact.receipt as never);
-  } catch {
-    // The exact PlanProposal check is performed by the caller before this helper.
-  }
-
   return {
     kind: "advance",
     next: transitionOrchestrationRun(run, {
