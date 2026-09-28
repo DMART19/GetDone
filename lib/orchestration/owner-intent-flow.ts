@@ -49,6 +49,11 @@ export interface OrchestrationContextSnapshot {
   sourceType: "owner-intent";
   sourceId: string;
   sourceHash: string;
+  sourceInput: {
+    type: "owner-intent";
+    message: string;
+    channel: OwnerIntentRecord["channel"];
+  };
   assembledContext: AssembledContext;
   createdAt: string;
   snapshotHash: string;
@@ -169,6 +174,11 @@ export function createOwnerIntentContextSnapshot(input: {
     sourceType: "owner-intent" as const,
     sourceId: input.intent.id,
     sourceHash: input.run.source.sourceHash,
+    sourceInput: {
+      type: "owner-intent" as const,
+      message: input.intent.message,
+      channel: input.intent.channel
+    },
     assembledContext: input.assembledContext,
     createdAt: new Date(input.createdAt).toISOString()
   };
