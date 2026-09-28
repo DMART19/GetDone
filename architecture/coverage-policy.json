@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "2.0.0",
+  "schemaVersion": "2.1.0",
   "thresholds": {
     "coveredModulePercent": 100,
     "minimumTotalTestCases": 80,
@@ -429,6 +429,11 @@
     {
       "source": "lib/persistence/postgres/orchestration-planning-stores.ts",
       "test": "lib/persistence/postgres/orchestration-planning-stores.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/orchestration/ai-gateway-planner.ts",
+      "test": "lib/orchestration/ai-gateway-planner.test.ts",
       "critical": true
     }
   ]
