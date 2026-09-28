@@ -102,6 +102,7 @@ export const REQUIRED_POSTGRES_INDEXES = Object.freeze([
   "orchestration_worker_ready_idx",
   "orchestration_worker_lease_expiry_idx",
   "orchestration_worker_scope_idx",
+  "orchestration_worker_dispatch_ready_idx",
   "orchestration_worker_instances_status_idx",
   "orchestration_worker_dead_letters_scope_idx",
   "orchestration_worker_dead_letters_run_idx",
