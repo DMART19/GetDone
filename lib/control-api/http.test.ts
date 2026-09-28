@@ -198,6 +198,9 @@ function fakeAdapter(): ControlApiApplicationAdapter {
     }],
     listObjectives: async () => [objective],
     getObjective: async (_principal, id) => id === objective.id ? objective : null,
+    listPreferenceSuggestions: async () => [],
+    resolvePreferenceSuggestion: async () => ({ action: "keep-asking", disposition: {} as never }),
+    listConfirmedPreferenceRules: async () => [],
     listDecisions: async () => [decision],
     getDecision: async (_principal, id) => id === decision.id ? decision : null,
     mutateDecision: async (_principal, input) => ({
