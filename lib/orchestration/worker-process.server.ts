@@ -192,3 +192,33 @@ export class DedicatedOrchestrationWorkerProcess {
     if (shutdownError) throw shutdownError;
   }
 }
+
+
+export interface OrchestrationWorkerSignalTarget {
+  once(event: "SIGTERM" | "SIGINT", listener: () => void): unknown;
+  off(event: "SIGTERM" | "SIGINT", listener: () => void): unknown;
+  exitCode?: number;
+}
+
+export function installOrchestrationWorkerShutdownHooks(
+  workerProcess: Pick<DedicatedOrchestrationWorkerProcess, "requestDrain" | "shutdown">,
+  signalTarget: OrchestrationWorkerSignalTarget = process
+) {
+  let stopping = false;
+  const stop = () => {
+    if (stopping) return;
+    stopping = true;
+    workerProcess.requestDrain();
+    void workerProcess.shutdown().catch(() => {
+      signalTarget.exitCode = 1;
+    });
+  };
+
+  signalTarget.once("SIGTERM", stop);
+  signalTarget.once("SIGINT", stop);
+
+  return () => {
+    signalTarget.off("SIGTERM", stop);
+    signalTarget.off("SIGINT", stop);
+  };
+}
