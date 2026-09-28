@@ -36,6 +36,15 @@ import {
 
 export const POSTGRES_GOVERNED_JOB_RUNTIME_VERSION = "1.0.0";
 
+export interface OrchestrationCredentialLeaseResolver {
+  resolve(input: {
+    run: OrchestrationRunRecord;
+    task: DurableTaskDagArtifact["tasks"][number];
+    jobId: string;
+    capability: string;
+  }): Promise<string | undefined>;
+}
+
 function jobId(nodeId: string) {
   return `job:${nodeId}`;
 }
@@ -139,7 +148,8 @@ export class PostgresGovernedJobRuntime implements GovernedJobRuntimePort {
   constructor(
     private readonly db: PostgresTransactionalDatabase,
     private readonly env: Readonly<Record<string, string | undefined>> = process.env,
-    private readonly now: () => Date = () => new Date()
+    private readonly now: () => Date = () => new Date(),
+    private readonly credentialLeases?: OrchestrationCredentialLeaseResolver
   ) {
     this.graphs = new PostgresOrchestrationJobGraphStore(db);
     this.evidence = new PostgresJobVerificationEvidenceStore(db);
@@ -342,6 +352,18 @@ export class PostgresGovernedJobRuntime implements GovernedJobRuntimePort {
       1_000,
       Math.min(30 * 60_000, (expectedDuration ?? 30) * 1_000)
     );
+    const credentialLeaseId = await this.credentialLeases?.resolve({
+      run,
+      task,
+      jobId: node.id,
+      capability: node.capability
+    });
+    if (task.scope.environment === "production" && !credentialLeaseId) {
+      throw new ControlPlaneError(
+        "UNAVAILABLE",
+        "Production Job dispatch requires an authoritative scoped credential lease"
+      );
+    }
     const request: AuthorizedBusinessActionRequest = Object.freeze({
       id: actionId(node.id),
       correlationId: run.correlationId,
@@ -351,9 +373,7 @@ export class PostgresGovernedJobRuntime implements GovernedJobRuntimePort {
       input: node.capabilityInput,
       inputHash: sha256Hex(node.capabilityInput),
       authorizationConsumptionHash: node.authorizationConsumptionHash,
-      credentialLeaseId: task.scope.environment === "production"
-        ? `orchestration-credential:${node.id}`
-        : undefined,
+      credentialLeaseId,
       idempotencyKey: `orchestration:${run.id}:${node.id}:dispatch`,
       timeoutMs,
       attempt: 1
