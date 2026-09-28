@@ -689,6 +689,31 @@ describe("Core Tranche A: AuthorizationGrant -> Task DAG -> Jobs", () => {
     ).rejects.toThrow(/already consumed by different work/i);
   });
 
+  it("stops before grant consumption when the authoritative Objective is paused", async () => {
+    const built = buildAuthorized(validPlan({
+      id: "plan-objective-gate-a",
+      createdAt: "2026-09-28T13:00:04.000Z"
+    }));
+    const materialization = new MemoryMaterializationStore(built.grantStore);
+
+    const result = await advanceAuthorizedToTasksCreated({
+      run: built.authorized,
+      ...built.stores,
+      grants: built.grantStore,
+      materialization,
+      objectiveStatusResolver: {
+        getStatus: async () => "paused"
+      },
+      now: () => new Date("2026-09-28T13:00:11.000Z")
+    });
+
+    expect(result.kind).toBe("advance");
+    if (result.kind !== "advance") throw new Error("blocked advance expected");
+    expect(result.next.state).toBe("blocked");
+    expect(materialization.tasks.size).toBe(0);
+    expect(built.grantStore.consumptions.size).toBe(0);
+  });
+
   it("fails closed for revoked authority before Task materialization", async () => {
     const built = buildAuthorized();
     await built.grantStore.revoke(built.grants[0]!.id, "test", "2026-09-28T13:00:10.500Z");
