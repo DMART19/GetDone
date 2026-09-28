@@ -224,6 +224,16 @@ export class PostgresOrchestrationRunStore implements OrchestrationRunStore {
   }
 
   async create(record: OrchestrationRunRecord, idempotencyKey: string) {
+    return this.db.transaction((client) =>
+      this.createInTransaction(client, record, idempotencyKey)
+    );
+  }
+
+  async createInTransaction(
+    client: SqlQueryable,
+    record: OrchestrationRunRecord,
+    idempotencyKey: string
+  ) {
     requireKey(idempotencyKey, "orchestration start idempotency key");
     assertOrchestrationRunIntegrity(record);
 
@@ -234,98 +244,96 @@ export class PostgresOrchestrationRunStore implements OrchestrationRunStore {
       );
     }
 
-    return this.db.transaction(async (client) => {
-      const inserted = await client.query(
-        `INSERT INTO orchestration_runs
+    const inserted = await client.query(
+      `INSERT INTO orchestration_runs
+        (
+          id,correlation_id,portfolio_id,company_id,user_id,environment,
+          source_type,source_id,source_hash,state,authority,version,attempt,
+          start_idempotency_key,record_hash,checkpoints,payload,created_at,updated_at
+        )
+       VALUES(
+         $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16::jsonb,$17::jsonb,$18,$19
+       )
+       ON CONFLICT DO NOTHING`,
+      [
+        record.id,
+        record.correlationId,
+        record.scope.portfolioId,
+        record.scope.companyId,
+        record.scope.userId,
+        record.scope.environment,
+        record.source.type,
+        record.source.id,
+        record.source.sourceHash,
+        record.state,
+        record.authority,
+        record.version,
+        record.attempt,
+        idempotencyKey,
+        record.recordHash,
+        JSON.stringify(record.checkpoints),
+        JSON.stringify(record),
+        record.createdAt,
+        record.updatedAt
+      ]
+    );
+
+    if (inserted.rowCount === 1) {
+      await this.insertCheckpoint(client, record);
+      await client.query(
+        `INSERT INTO orchestration_worker_state
           (
-            id,correlation_id,portfolio_id,company_id,user_id,environment,
-            source_type,source_id,source_hash,state,authority,version,attempt,
-            start_idempotency_key,record_hash,checkpoints,payload,created_at,updated_at
+            run_id,portfolio_id,company_id,stage_run_version,stage_attempt,
+            consecutive_failures,ready_at,lease_version,updated_at
           )
-         VALUES(
-           $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16::jsonb,$17::jsonb,$18,$19
-         )
-         ON CONFLICT DO NOTHING`,
+         VALUES($1,$2,$3,$4,0,0,$5,0,$5)`,
         [
           record.id,
-          record.correlationId,
           record.scope.portfolioId,
           record.scope.companyId,
-          record.scope.userId,
-          record.scope.environment,
-          record.source.type,
-          record.source.id,
-          record.source.sourceHash,
-          record.state,
-          record.authority,
           record.version,
-          record.attempt,
-          idempotencyKey,
-          record.recordHash,
-          JSON.stringify(record.checkpoints),
-          JSON.stringify(record),
-          record.createdAt,
           record.updatedAt
         ]
       );
+      return { status: "created" as const, record };
+    }
 
-      if (inserted.rowCount === 1) {
-        await this.insertCheckpoint(client, record);
-        await client.query(
-          `INSERT INTO orchestration_worker_state
-            (
-              run_id,portfolio_id,company_id,stage_run_version,stage_attempt,
-              consecutive_failures,ready_at,lease_version,updated_at
-            )
-           VALUES($1,$2,$3,$4,0,0,$5,0,$5)`,
-          [
-            record.id,
-            record.scope.portfolioId,
-            record.scope.companyId,
-            record.version,
-            record.updatedAt
-          ]
-        );
-        return { status: "created" as const, record };
-      }
+    const existing = await client.query<RunRow>(
+      `SELECT payload,start_idempotency_key,record_hash
+       FROM orchestration_runs
+       WHERE portfolio_id=$1
+         AND company_id=$2
+         AND (
+           start_idempotency_key=$3
+           OR correlation_id=$4
+           OR id=$5
+         )
+       FOR UPDATE`,
+      [
+        record.scope.portfolioId,
+        record.scope.companyId,
+        idempotencyKey,
+        record.correlationId,
+        record.id
+      ]
+    );
 
-      const existing = await client.query<RunRow>(
-        `SELECT payload,start_idempotency_key,record_hash
-         FROM orchestration_runs
-         WHERE portfolio_id=$1
-           AND company_id=$2
-           AND (
-             start_idempotency_key=$3
-             OR correlation_id=$4
-             OR id=$5
-           )
-         FOR UPDATE`,
-        [
-          record.scope.portfolioId,
-          record.scope.companyId,
-          idempotencyKey,
-          record.correlationId,
-          record.id
-        ]
-      );
+    const prior = existing.rows[0];
+    if (
+      prior
+      && prior.start_idempotency_key === idempotencyKey
+      && prior.record_hash === record.recordHash
+      && prior.payload.correlationId === record.correlationId
+    ) {
+      assertOrchestrationRunIntegrity(prior.payload);
+      return { status: "idempotent-replay" as const, record: prior.payload };
+    }
 
-      const prior = existing.rows[0];
-      if (
-        prior
-        && prior.start_idempotency_key === idempotencyKey
-        && prior.record_hash === record.recordHash
-        && prior.payload.correlationId === record.correlationId
-      ) {
-        assertOrchestrationRunIntegrity(prior.payload);
-        return { status: "idempotent-replay" as const, record: prior.payload };
-      }
-
-      throw new ControlPlaneError(
-        "IDEMPOTENCY_CONFLICT",
-        "Orchestration start conflicts with an existing run, correlation, or idempotency key",
-        { correlationId: record.correlationId }
-      );
-    });
+    throw new ControlPlaneError(
+      "IDEMPOTENCY_CONFLICT",
+      "Orchestration start conflicts with an existing run, correlation, or idempotency key",
+      { correlationId: record.correlationId }
+    );
   }
 
   async get(id: string): Promise<OrchestrationRunRecord | null> {
