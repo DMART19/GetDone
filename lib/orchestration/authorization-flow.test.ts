@@ -227,8 +227,9 @@ class GrantStore implements OrchestrationAuthorizationGrantStore {
 }
 
 function capabilityPlan(
-  capability: "repository.inspect" | "email.send"
+  capability: "repository.inspect" | "email.send" | "production.deploy"
 ): PlanProposal {
+  if (capability === "production.deploy") return productionDeployPlan();
   if (capability === "repository.inspect") return validPlan({
     id: `plan-${capability}`,
     source: { type: "owner-request", requestId: `intent-${capability}` },
@@ -284,13 +285,81 @@ function capabilityPlan(
   };
 }
 
-function buildPolicyEvaluated(capability: "repository.inspect" | "email.send") {
+function productionDeployPlan(): PlanProposal {
+  const base = validPlan();
+  return {
+    ...base,
+    id: "plan-production.deploy",
+    scope: {
+      ...base.scope,
+      environment: "production",
+      dataClass: "sensitive"
+    },
+    source: {
+      type: "owner-request",
+      requestId: "intent-production.deploy"
+    },
+    objective: undefined,
+    requestedCapabilities: ["production.deploy"],
+    risk: {
+      level: "critical",
+      summary: "Production deployment",
+      blastRadius: "company"
+    },
+    rollback: {
+      strategy: "Rollback to the previous verified release",
+      cancellationAllowed: true
+    },
+    steps: [{
+      ...base.steps[0],
+      title: "Deploy verified release",
+      capabilityRequests: [{
+        capability: "production.deploy",
+        input: {
+          companyId: "company-a",
+          repository: "DMART19/GetDone",
+          commitSha: "abcdef1234567",
+          environment: "production",
+          deploymentId: "deploy-1",
+          rollbackRef: "previous-release",
+          verificationChecks: ["health"]
+        }
+      }],
+      risk: {
+        level: "critical",
+        summary: "Production deployment",
+        blastRadius: "company"
+      },
+      rollback: {
+        strategy: "Rollback to the previous verified release",
+        cancellationAllowed: true
+      },
+      resourceRequirements: {
+        ...base.steps[0].resourceRequirements,
+        execution: {
+          ...base.steps[0].resourceRequirements.execution,
+          environment: "production"
+        },
+        data: {
+          ...base.steps[0].resourceRequirements.data,
+          classification: "sensitive",
+          customerData: false
+        }
+      }
+    }],
+    createdAt: "2026-09-28T13:00:04.000Z"
+  };
+}
+
+function buildPolicyEvaluated(capability: "repository.inspect" | "email.send" | "production.deploy") {
   const intent = {
     id: `intent-${capability}`,
     correlationId: `correlation-${capability}`,
     portfolioId: "portfolio-a",
     companyId: "company-a",
-    environment: "staging" as const,
+    environment: capability === "production.deploy"
+      ? "production" as const
+      : "staging" as const,
     userId: "owner-a",
     message: "govern this work",
     channel: "chat" as const,
@@ -625,6 +694,74 @@ describe("durable policy-evaluated -> authorized flow", () => {
     expect(grant.approvalProofHash).toBe(proof.proofHash);
     expect(grant.planHash).toBe(binding.planHash);
     expect(grant.stepHash).toBe(binding.stepHash);
+  });
+
+  it("requires strong owner approval plus fresh step-up before issuing a strong grant", async () => {
+    const built = buildPolicyEvaluated("production.deploy");
+    const decisions = new DecisionStore();
+    const grants = new GrantStore();
+    const waiting = await advancePolicyEvaluatedToAuthority({
+      run: built.policyEvaluated,
+      ...built.stores,
+      decisions,
+      grants,
+      now: () => new Date("2026-09-28T13:00:10.000Z")
+    });
+    if (waiting.kind !== "advance" || waiting.next.state !== "awaiting-decision") {
+      throw new Error("awaiting-decision expected");
+    }
+
+    const id = waiting.next.checkpoints.decisionIds[0]!;
+    const pending = decisions.values.get(id)!;
+    expect(pending.requiresStepUp).toBe(true);
+    expect(pending.approvalBinding?.requirement).toBe("strong-approval");
+
+    const stepUp = createStepUpProof({
+      id: "step-up-production",
+      actorId: "owner-a",
+      scope: waiting.next.scope,
+      method: "passkey",
+      authenticatedAt: "2026-09-28T13:00:10.000Z",
+      expiresAt: "2026-09-28T13:05:00.000Z"
+    });
+    const binding = pending.approvalBinding!;
+    const proof = createApprovalProof({
+      id: `approval-proof:${id}:v2`,
+      decisionId: id,
+      approvalId: `approval:${id}`,
+      actorId: "owner-a",
+      scope: waiting.next.scope,
+      level: "strong-approval",
+      planHash: binding.planHash,
+      stepHash: binding.stepHash,
+      grantedAt: "2026-09-28T13:00:11.000Z",
+      expiresAt: "2026-09-28T13:05:00.000Z",
+      stepUpProofId: stepUp.id
+    });
+    decisions.values.set(id, Object.freeze({
+      ...pending,
+      status: "approved",
+      version: 2,
+      updatedAt: "2026-09-28T13:00:11.000Z",
+      resolvedBy: "owner-a",
+      approvalProof: proof,
+      stepUpProof: stepUp
+    }));
+
+    const authorized = await advanceAwaitingDecisionToAuthorized({
+      run: waiting.next,
+      ...built.stores,
+      decisions,
+      grants,
+      now: () => new Date("2026-09-28T13:00:12.000Z")
+    });
+    expect(authorized.kind).toBe("advance");
+    if (authorized.kind !== "advance") throw new Error("advance expected");
+    expect(authorized.next.state).toBe("authorized");
+    const grant = [...grants.values.values()][0]!;
+    expect(grant.disposition).toBe("STRONG_APPROVAL");
+    expect(grant.stepUpProofHash).toBe(stepUp.proofHash);
+    expect(grant.approvalProofHash).toBe(proof.proofHash);
   });
 
   it("blocks rejected or modified Decisions instead of creating authority", async () => {
