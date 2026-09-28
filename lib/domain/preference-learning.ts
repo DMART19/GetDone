@@ -66,6 +66,13 @@ export interface ConfirmedPreferenceRule {
   ruleHash: string;
 }
 
+export type PreferenceSuggestionResolutionResult =
+  | { action: "allow"; rule: ConfirmedPreferenceRule }
+  | {
+      action: "keep-asking" | "never-suggest";
+      disposition: PreferenceSuggestionDisposition;
+    };
+
 export interface PreferenceSuggestionDisposition {
   suggestionId: string;
   portfolioId: string;
