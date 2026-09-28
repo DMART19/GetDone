@@ -370,6 +370,18 @@ export function assertDurableValidationArtifact(
         { correlationId: artifact.correlationId }
       );
     }
+
+    if (
+      artifact.receipt.status === "valid"
+      && artifact.receipt.errors.length === 0
+      && artifact.receipt.ownerDecisions.length === 0
+    ) {
+      assertValidationReceipt(
+        artifact.receipt,
+        planArtifact.proposal,
+        Date.parse(artifact.createdAt)
+      );
+    }
   }
 
   return artifact;
@@ -447,38 +459,6 @@ export async function advancePlannedToValidated(input: {
         "FORBIDDEN",
         "Existing validation artifact is outside orchestration tenant scope"
       );
-    }
-
-    if (
-      existing.receipt.status === "valid"
-      && existing.receipt.errors.length === 0
-      && existing.receipt.ownerDecisions.length === 0
-    ) {
-      try {
-        assertValidationReceipt(
-          existing.receipt,
-          planArtifact.proposal,
-          now().getTime()
-        );
-      } catch (error) {
-        if (error instanceof ControlPlaneError && error.code === "POLICY_BLOCKED") {
-          return {
-            kind: "advance",
-            next: transitionOrchestrationRun(input.run, {
-              to: "blocked",
-              now: now().toISOString(),
-              checkpointPatch: {
-                validationReceipt: {
-                  id: existing.receipt.id,
-                  hash: existing.receipt.receiptHash
-                }
-              },
-              blockedReason: "Persisted validation evidence expired before orchestration commit"
-            })
-          };
-        }
-        throw error;
-      }
     }
 
     return transitionFromValidationArtifact(input.run, existing, now());
@@ -736,6 +716,14 @@ export function assertDurablePolicyEvaluationArtifact(
     );
   }
 
+  if (validationArtifact && planArtifact) {
+    assertValidationReceipt(
+      validationArtifact.receipt,
+      planArtifact.proposal,
+      Date.parse(artifact.createdAt)
+    );
+  }
+
   let aggregate: PolicyDisposition = "AUTO";
   for (const item of artifact.stepPolicies) {
     assertPolicySnapshotIntegrity(item.snapshot);
@@ -817,26 +805,6 @@ export async function advanceValidatedToPolicyEvaluated(input: {
     );
   }
 
-  try {
-    assertValidationReceipt(
-      validationArtifact.receipt,
-      planArtifact.proposal,
-      now().getTime()
-    );
-  } catch (error) {
-    if (error instanceof ControlPlaneError && error.code === "POLICY_BLOCKED") {
-      return {
-        kind: "advance",
-        next: transitionOrchestrationRun(input.run, {
-          to: "blocked",
-          now: now().toISOString(),
-          blockedReason: "Validation receipt became stale before policy evaluation"
-        })
-      };
-    }
-    throw error;
-  }
-
   const existing = await input.policies.getByRunVersion(
     input.run.id,
     input.run.version
@@ -860,6 +828,26 @@ export async function advanceValidatedToPolicyEvaluated(input: {
         }
       })
     };
+  }
+
+  try {
+    assertValidationReceipt(
+      validationArtifact.receipt,
+      planArtifact.proposal,
+      now().getTime()
+    );
+  } catch (error) {
+    if (error instanceof ControlPlaneError && error.code === "POLICY_BLOCKED") {
+      return {
+        kind: "advance",
+        next: transitionOrchestrationRun(input.run, {
+          to: "blocked",
+          now: now().toISOString(),
+          blockedReason: "Validation receipt became stale before policy evaluation"
+        })
+      };
+    }
+    throw error;
   }
 
   const stepById = new Map(
