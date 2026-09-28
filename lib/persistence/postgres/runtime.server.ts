@@ -4,7 +4,7 @@ import {
   readPostgresConfigFromEnv
 } from "@/lib/persistence/postgres/client";
 
-export const REQUIRED_POSTGRES_MIGRATION = "2026-09-25.3";
+export const REQUIRED_POSTGRES_MIGRATION = "2026-09-28.7";
 
 export const REQUIRED_POSTGRES_RELATIONS = Object.freeze([
   "getdone_schema_migrations",
@@ -55,7 +55,24 @@ export const REQUIRED_POSTGRES_RELATIONS = Object.freeze([
   "migration_compatibility_evidence",
   "analytics_ingestion_checkpoints",
   "analytics_ingestion_evidence",
-  "analytics_ingestion_runs"
+  "analytics_ingestion_runs",
+  "orchestration_runs",
+  "orchestration_transition_receipts",
+  "orchestration_checkpoints",
+  "orchestration_worker_state",
+  "orchestration_context_snapshots",
+  "orchestration_planner_inputs",
+  "orchestration_plan_proposals",
+  "orchestration_validation_artifacts",
+  "orchestration_policy_step_snapshots",
+  "orchestration_policy_evaluations",
+  "orchestration_decision_resume_requests",
+  "orchestration_task_materializations",
+  "orchestration_task_dags",
+  "orchestration_job_graphs",
+  "orchestration_job_nodes",
+  "orchestration_objective_evaluations",
+  "orchestration_outcomes"
 ] as const);
 
 export const REQUIRED_POSTGRES_INDEXES = Object.freeze([
@@ -80,7 +97,38 @@ export const REQUIRED_POSTGRES_INDEXES = Object.freeze([
   "migration_compatibility_release_idx",
   "analytics_ingestion_evidence_source_idx",
   "analytics_ingestion_checkpoint_updated_idx",
-  "analytics_ingestion_runs_scope_idx"
+  "analytics_ingestion_runs_scope_idx",
+  "orchestration_runs_scope_idx",
+  "orchestration_runs_source_idx",
+  "orchestration_runs_resumable_idx",
+  "orchestration_transition_receipts_scope_idx",
+  "orchestration_checkpoints_scope_idx",
+  "orchestration_worker_ready_idx",
+  "orchestration_worker_lease_expiry_idx",
+  "orchestration_worker_scope_idx",
+  "orchestration_context_snapshots_scope_idx",
+  "orchestration_context_snapshots_source_idx",
+  "orchestration_planner_inputs_scope_idx",
+  "orchestration_planner_inputs_snapshot_idx",
+  "orchestration_plan_proposals_scope_idx",
+  "orchestration_plan_proposals_input_idx",
+  "orchestration_validation_artifacts_scope_idx",
+  "orchestration_validation_artifacts_plan_idx",
+  "orchestration_policy_step_snapshots_scope_idx",
+  "orchestration_policy_step_snapshots_run_idx",
+  "orchestration_policy_evaluations_scope_idx",
+  "orchestration_policy_evaluations_plan_idx",
+  "orchestration_policy_evaluations_validation_idx",
+  "orchestration_decision_resume_scope_idx",
+  "orchestration_decision_resume_pending_idx",
+  "orchestration_task_materializations_scope_idx",
+  "orchestration_task_materializations_run_idx",
+  "orchestration_task_dags_scope_idx",
+  "orchestration_job_graphs_scope_idx",
+  "orchestration_job_nodes_ready_idx",
+  "orchestration_job_nodes_scope_idx",
+  "orchestration_objective_evaluations_scope_idx",
+  "orchestration_outcomes_scope_idx"
 ] as const);
 
 export const REQUIRED_POSTGRES_RLS_RELATIONS = Object.freeze([
@@ -103,7 +151,24 @@ export const REQUIRED_POSTGRES_RLS_RELATIONS = Object.freeze([
   "audit_chain_heads",
   "analytics_ingestion_checkpoints",
   "analytics_ingestion_evidence",
-  "analytics_ingestion_runs"
+  "analytics_ingestion_runs",
+  "orchestration_runs",
+  "orchestration_transition_receipts",
+  "orchestration_checkpoints",
+  "orchestration_worker_state",
+  "orchestration_context_snapshots",
+  "orchestration_planner_inputs",
+  "orchestration_plan_proposals",
+  "orchestration_validation_artifacts",
+  "orchestration_policy_step_snapshots",
+  "orchestration_policy_evaluations",
+  "orchestration_decision_resume_requests",
+  "orchestration_task_materializations",
+  "orchestration_task_dags",
+  "orchestration_job_graphs",
+  "orchestration_job_nodes",
+  "orchestration_objective_evaluations",
+  "orchestration_outcomes"
 ] as const);
 
 export interface PostgresRuntimeHealth {

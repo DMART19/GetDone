@@ -7,7 +7,6 @@ import type {
 import { sha256Hex } from "@/lib/control-plane/canonical-hash";
 import { ControlPlaneError } from "@/lib/control-plane/errors";
 import type { TrustedExecutionScope } from "@/lib/control-plane/trusted-execution-scope";
-import { assertTrustedExecutionScopeEqual } from "@/lib/control-plane/trusted-execution-scope";
 import type { JobRecord } from "@/lib/domain/services/job-service";
 import type { AuthorizedBusinessActionRequest } from "@/lib/execution/adapters/business-action";
 
@@ -57,10 +56,6 @@ export interface AIReasoningGateway {
 }
 
 export interface AuthorizedBusinessActionRuntime {
-  enqueueAuthorizedBusinessAction(
-    job: JobRecord,
-    request: AuthorizedBusinessActionRequest
-  ): Promise<unknown>;
   ownerView(jobId: string, taskId: string): Promise<unknown>;
 }
 
@@ -141,28 +136,12 @@ export class MvpBusinessWorkflow {
     proposal: ProposedBusinessAction;
     job: JobRecord;
     request: AuthorizedBusinessActionRequest;
-  }) {
-    const proposal = assertProposal(input.proposal);
-    assertTrustedExecutionScopeEqual(proposal.scope, input.request.scope, {
-      requireSameResource: Boolean(proposal.scope.resourceId || input.request.scope.resourceId)
-    });
-    if (
-      input.job.state !== "queued"
-      || !input.job.authorizationGrantId
-      || !input.job.authorizationGrantHash
-      || !input.job.authorizationConsumption
-      || input.request.jobId !== input.job.id
-      || input.request.capability !== proposal.capability
-      || input.request.inputHash !== sha256Hex(proposal.input)
-      || input.request.authorizationConsumptionHash
-        !== input.job.authorizationConsumption.consumptionHash
-    ) {
-      throw new ControlPlaneError(
-        "FORBIDDEN",
-        "AI proposal cannot execute without an authoritative Decision/Grant/Task/Job chain"
-      );
-    }
-    return this.runtime.enqueueAuthorizedBusinessAction(input.job, input.request);
+  }): never {
+    assertProposal(input.proposal);
+    throw new ControlPlaneError(
+      "FORBIDDEN",
+      "Parallel MVP execution is disabled; submit OwnerIntent/Objective work to the authoritative orchestration path"
+    );
   }
 
   ownerResult(jobId: string, taskId: string) {
