@@ -36,6 +36,10 @@ class MemorySnapshotStore implements OrchestrationContextSnapshotStore {
     return { status: "created" as const, snapshot };
   }
 
+  async get(id: string) {
+    return this.snapshot?.id === id ? this.snapshot : null;
+  }
+
   async getByRunVersion(runId: string, runVersion: number) {
     if (
       this.snapshot?.runId === runId
