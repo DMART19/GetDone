@@ -125,12 +125,10 @@ export function assertAuthorizedBusinessActionRequest(request: AuthorizedBusines
       "Business action input hash does not match the authorized payload"
     );
   }
-  if (request.scope.environment === "production" && !request.credentialLeaseId) {
-    throw new ControlPlaneError(
-      "FORBIDDEN",
-      "Production business actions require a scoped credential lease reference"
-    );
-  }
+  // Credential requirements are operation-specific. The execution
+  // orchestrator asks the resolved adapter for its requirement and the
+  // governed broker then enforces a scoped lease. Credentialless configured
+  // HTTPS/webhook operations must remain valid in production.
   return request;
 }
 
