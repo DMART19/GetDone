@@ -63,6 +63,11 @@ export interface ScopedReadStore<T extends { id: string; portfolioId: string; co
 }
 
 export interface OwnerIntentStore {
+  /**
+   * Production persistence MUST not acknowledge an accepted OwnerIntent until
+   * the intent and its initial durable orchestration admission have committed
+   * together. In-memory/test implementations may remain non-durable.
+   */
   create(record: OwnerIntentRecord, idempotencyKey: string): Promise<OwnerIntentRecord>;
 }
 
@@ -75,6 +80,14 @@ export interface ServiceBackedControlApiDependencies {
   objectiveIntake: ObjectiveIntakeStore;
   decisions: ScopedReadStore<AuthoritativeDecision>;
   decisionTransactions: DecisionTransactionManager;
+  /**
+   * Optional post-commit dispatcher for orchestration Decisions. The Decision
+   * transaction already emits a durable resume request; dispatcher failures
+   * must not roll back or misreport the committed owner Decision.
+   */
+  decisionResumeDispatcher?: {
+    processDecision(decision: AuthoritativeDecision): Promise<unknown>;
+  };
   resources: ScopedReadStore<Resource>;
   resourceRegistry: ResourceRegistryService;
   resourceEnrollments: ScopedReadStore<ResourceEnrollmentRecord>;
@@ -317,7 +330,7 @@ export class ServiceBackedControlApiAdapter implements ControlApiApplicationAdap
         }
       });
 
-      return resolveDecision({
+      const resolved = await resolveDecision({
         command,
         transactionManager: this.deps.decisionTransactions,
         decisionId: input.decisionId,
@@ -325,6 +338,14 @@ export class ServiceBackedControlApiAdapter implements ControlApiApplicationAdap
         stepUpProof: principal.stepUpProof,
         now: this.now
       });
+
+      try {
+        await this.deps.decisionResumeDispatcher?.processDecision(resolved);
+      } catch {
+        // The durable resume request committed with the Decision; wakeup failure is recoverable.
+      }
+
+      return resolved;
     });
   }
 
