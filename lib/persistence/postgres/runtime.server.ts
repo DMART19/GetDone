@@ -143,6 +143,7 @@ export const REQUIRED_POSTGRES_RLS_RELATIONS = Object.freeze([
   "orchestration_planner_inputs",
   "orchestration_plan_proposals",
   "orchestration_validation_artifacts",
+  "orchestration_policy_step_snapshots",
   "orchestration_policy_evaluations"
 ] as const);
 
