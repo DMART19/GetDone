@@ -2,6 +2,7 @@ import { sha256Hex } from "@/lib/control-plane/canonical-hash";
 import { ControlPlaneError } from "@/lib/control-plane/errors";
 import type { OwnerIntentRecord } from "@/lib/control-api/contracts";
 import type { Objective } from "@/lib/domain/objectives";
+import type { ObjectiveRecord } from "@/lib/domain/objective-inbox";
 import {
   createOrchestrationRun,
   createOrchestrationSourceRef,
@@ -64,6 +65,16 @@ export type OrchestrationContextSourceInput =
       priority: Objective["priority"];
       deadline?: Objective["deadline"];
       budgetCents?: Objective["budgetCents"];
+    }
+  | {
+      type: "objective";
+      normalizedGoal: ObjectiveRecord["normalizedGoal"];
+      desiredOutcome: ObjectiveRecord["desiredOutcome"];
+      constraints: ObjectiveRecord["constraints"];
+      successCriteria: ObjectiveRecord["successCriteria"];
+      priority: ObjectiveRecord["priority"];
+      riskLevel: ObjectiveRecord["riskLevel"];
+      deadline?: ObjectiveRecord["deadline"];
     };
 
 export interface OrchestrationContextSnapshot {
