@@ -600,6 +600,8 @@ function evaluateFrozenPolicySnapshot(
     providerId: snapshot.providerId,
     failureDomainId: snapshot.failureDomainId,
     workloadClass: snapshot.workloadClass,
+    objectiveId: snapshot.objectiveId,
+    jobId: snapshot.jobId,
     credentialRequirementIds: snapshot.credentialRequirementIds,
     credentialSnapshot: snapshot.credentialSnapshot,
     capacitySnapshot: snapshot.capacitySnapshot,
@@ -1078,6 +1080,7 @@ export async function advanceValidatedToPolicyEvaluated(input: {
           (request) => request.capability
         ),
         dataClass: planArtifact.proposal.scope.dataClass,
+        objectiveId: planArtifact.proposal.objective?.id,
         idempotencyKey: stepIdempotencyKey,
         resourceRequirements: step.resourceRequirements,
         createdAt
