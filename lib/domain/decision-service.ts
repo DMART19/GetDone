@@ -41,6 +41,14 @@ export interface AuthoritativeDecision {
   resolvedBy?: string;
   approvalProofId?: string;
   approvalProofHash?: string;
+
+  /** Owner-facing presentation remains evidence about the authority object, not authority itself. */
+  title?: string;
+  subtitle?: string;
+  priority?: "high" | "normal" | "fyi";
+  category?: "resource" | "growth" | "incident" | "budget" | "outreach";
+  rationale?: string;
+  impact?: readonly string[];
 }
 
 export interface DecisionAuthorityStore {
