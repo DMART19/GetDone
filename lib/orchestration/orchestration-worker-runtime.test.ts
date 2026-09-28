@@ -6,7 +6,10 @@ import {
   issueCredentialLease
 } from "@/lib/credentials/broker";
 import type { OrchestrationRunRecord } from "@/lib/orchestration/contracts";
+import { createCompanyIntegration, beginIntegrationAuthentication, activateIntegration } from "@/lib/integrations/registry";
+import { sha256Hex } from "@/lib/control-plane/canonical-hash";
 import {
+  credentialReferencesFromRuntimeIntegrations,
   PostgresOrchestrationCredentialLeaseResolver,
   readAuthoritativeOrchestrationRuntimeConfig
 } from "@/lib/orchestration/orchestration-worker-runtime.server";
@@ -122,6 +125,63 @@ describe("authoritative orchestration worker runtime", () => {
     expect(() => readAuthoritativeOrchestrationRuntimeConfig({
       GETDONE_AI_COMPANY_DAILY_BUDGET_CENTS: "0"
     })).toThrow(/positive integer/i);
+  });
+
+  it("recognizes the authoritative CompanyIntegration shape during credential validation", () => {
+    const created = createCompanyIntegration({
+      id: "github-prod",
+      scope,
+      kind: "github",
+      displayName: "GitHub Production",
+      adapterId: "github-standard-operation",
+      adapterVersion: "1.0.0",
+      credentialBindingId: "binding-github-prod",
+      readScopes: ["contents:read"],
+      writeScopes: ["contents:write"],
+      createdAt: "2026-09-28T22:00:00.000Z"
+    });
+    const authenticating = beginIntegrationAuthentication(
+      created,
+      scope,
+      "2026-09-28T22:00:01.000Z"
+    );
+    const evidenceBase = {
+      source: "integration-adapter" as const,
+      integrationId: authenticating.id,
+      companyId: authenticating.companyId,
+      environment: authenticating.environment,
+      adapterId: authenticating.adapterId,
+      adapterVersion: authenticating.adapterVersion,
+      authenticated: true,
+      credentialBindingId: authenticating.credentialBindingId,
+      observedAt: "2026-09-28T22:00:02.000Z"
+    };
+    const connected = activateIntegration({
+      record: authenticating,
+      scope,
+      evidence: Object.freeze({
+        ...evidenceBase,
+        evidenceHash: sha256Hex(evidenceBase)
+      }),
+      activatedAt: "2026-09-28T22:00:03.000Z"
+    });
+
+    expect(credentialReferencesFromRuntimeIntegrations({
+      integrations: [connected],
+      portfolioId: scope.portfolioId,
+      companyId: scope.companyId,
+      environment: scope.environment
+    })).toEqual([expect.objectContaining({
+      id: "binding-github-prod",
+      companyId: scope.companyId,
+      capabilityNames: expect.arrayContaining([
+        "github.repository.read",
+        "github.commit.create",
+        "github.pull-request.merge"
+      ]),
+      grantedScopes: ["contents:read", "contents:write"],
+      status: "active"
+    })]);
   });
 
   it("reuses only an authoritative active lease for production dispatch", async () => {
