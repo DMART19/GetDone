@@ -48,6 +48,8 @@ export interface PolicySnapshotInput {
   providerId?: string;
   failureDomainId?: string;
   workloadClass?: string;
+  objectiveId?: string;
+  jobId?: string;
 
   /** @deprecated Prefer budgets for hierarchical budget evaluation. */
   budget?: PolicyBudgetSnapshot;
@@ -152,6 +154,8 @@ export function createPolicySnapshot(input: PolicySnapshotInput): PolicySnapshot
     providerId: input.providerId,
     failureDomainId: input.failureDomainId,
     workloadClass: input.workloadClass,
+    objectiveId: input.objectiveId,
+    jobId: input.jobId,
     budget: input.budget,
     budgets,
     budgetReservationHash: input.budgetReservation?.reservationHash,
