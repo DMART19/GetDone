@@ -51,6 +51,17 @@ export class PostgresOwnerIntentStore implements OwnerIntentStore {
     }));
   }
 
+  private idempotencyRecordKey(
+    record: OwnerIntentRecord,
+    idempotencyKey: string
+  ) {
+    return `owner-intent:${sha256Hex({
+      portfolioId: record.portfolioId,
+      companyId: record.companyId,
+      idempotencyKey
+    })}`;
+  }
+
   private async ensureOrchestration(
     client: SqlQueryable,
     intent: OwnerIntentRecord
@@ -66,12 +77,16 @@ export class PostgresOwnerIntentStore implements OwnerIntentStore {
 
   async create(record: OwnerIntentRecord, idempotencyKey: string) {
     const fingerprint = this.fingerprint(record);
+    const idempotencyRecordKey = this.idempotencyRecordKey(
+      record,
+      idempotencyKey
+    );
 
     return this.db.transaction(async (client) => {
       const idempotency = new PostgresIdempotencyStore(client);
       const claim = await claimIdempotency<OwnerIntentRecord>(
         idempotency,
-        idempotencyKey,
+        idempotencyRecordKey,
         fingerprint,
         new Date(record.receivedAt)
       );
@@ -150,7 +165,7 @@ export class PostgresOwnerIntentStore implements OwnerIntentStore {
       }));
 
       await idempotency.complete(
-        idempotencyKey,
+        idempotencyRecordKey,
         fingerprint,
         persisted,
         persisted.receivedAt
