@@ -347,6 +347,63 @@ describe("deterministic policy engine", () => {
     expect(result.reasons.some((reason) => reason.code === "USAGE_BUDGET_BLOCKED")).toBe(true);
   });
 
+  it("binds budget scope types to the actual execution context", () => {
+    const matchingJob = evaluatePolicy(input({
+      jobId: "job-a",
+      usageBudgets: [{
+        policy: {
+          id: "emails-per-job",
+          scopeType: "job",
+          scopeId: "job-a",
+          metric: "outbound-emails",
+          period: "per-job",
+          hardLimit: 100,
+          enabled: true
+        },
+        currentUsage: 99,
+        requestedUsage: 2
+      }]
+    }));
+    expect(matchingJob.disposition).toBe("BLOCKED");
+    expect(matchingJob.reasons.some((reason) => reason.code === "USAGE_BUDGET_BLOCKED")).toBe(true);
+
+    const otherJob = evaluatePolicy(input({
+      jobId: "job-b",
+      usageBudgets: [{
+        policy: {
+          id: "emails-per-job",
+          scopeType: "job",
+          scopeId: "job-a",
+          metric: "outbound-emails",
+          period: "per-job",
+          hardLimit: 100,
+          enabled: true
+        },
+        currentUsage: 99,
+        requestedUsage: 2
+      }]
+    }));
+    expect(otherJob.disposition).toBe("AUTO");
+
+    const missingJobBinding = evaluatePolicy(input({
+      usageBudgets: [{
+        policy: {
+          id: "emails-per-job",
+          scopeType: "job",
+          scopeId: "job-a",
+          metric: "outbound-emails",
+          period: "per-job",
+          hardLimit: 100,
+          enabled: true
+        },
+        currentUsage: 1,
+        requestedUsage: 1
+      }]
+    }));
+    expect(missingJobBinding.disposition).toBe("BLOCKED");
+    expect(missingJobBinding.reasons.some((reason) => reason.code === "USAGE_BUDGET_INVALID")).toBe(true);
+  });
+
   it("fails closed instead of throwing when authoritative budget state is malformed", () => {
     const result = evaluatePolicy(input({
       usageBudgets: [{
