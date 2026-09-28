@@ -1,10 +1,13 @@
 import { ControlPlaneError } from "@/lib/control-plane/errors";
 import {
   assertDurablePolicyEvaluationArtifact,
+  assertDurablePolicyStepSnapshotArtifact,
   assertDurableValidationArtifact,
   type DurablePolicyEvaluationArtifact,
+  type DurablePolicyStepSnapshotArtifact,
   type DurableValidationArtifact,
   type OrchestrationPolicyEvaluationStore,
+  type OrchestrationPolicyStepSnapshotStore,
   type OrchestrationValidationArtifactStore
 } from "@/lib/orchestration/validation-policy-flow";
 import type { PostgresTransactionalDatabase } from "@/lib/persistence/postgres/client";
@@ -12,6 +15,13 @@ import type { PostgresTransactionalDatabase } from "@/lib/persistence/postgres/c
 interface ValidationRow {
   payload: DurableValidationArtifact;
   receipt_hash: string;
+  artifact_hash: string;
+  idempotency_key: string;
+}
+
+interface PolicyStepRow {
+  payload: DurablePolicyStepSnapshotArtifact;
+  snapshot_hash: string;
   artifact_hash: string;
   idempotency_key: string;
 }
@@ -137,6 +147,123 @@ export class PostgresOrchestrationValidationArtifactStore
     );
     const artifact = result.rows[0]?.payload ?? null;
     if (artifact) assertDurableValidationArtifact(artifact);
+    return artifact;
+  }
+}
+
+export class PostgresOrchestrationPolicyStepSnapshotStore
+  implements OrchestrationPolicyStepSnapshotStore {
+  constructor(private readonly db: PostgresTransactionalDatabase) {}
+
+  async create(
+    artifact: DurablePolicyStepSnapshotArtifact,
+    idempotencyKey: string
+  ) {
+    if (!idempotencyKey.trim()) {
+      throw new ControlPlaneError(
+        "VALIDATION_FAILED",
+        "Policy step snapshot idempotency key is required"
+      );
+    }
+    assertDurablePolicyStepSnapshotArtifact(artifact);
+
+    return this.db.transaction(async (client) => {
+      const inserted = await client.query(
+        `INSERT INTO orchestration_policy_step_snapshots
+          (
+            id,run_id,portfolio_id,company_id,validated_run_version,
+            plan_artifact_id,plan_artifact_hash,
+            validation_receipt_id,validation_receipt_hash,
+            step_id,step_hash,snapshot_hash,artifact_hash,
+            idempotency_key,payload,created_at
+          )
+         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15::jsonb,$16)
+         ON CONFLICT DO NOTHING`,
+        [
+          artifact.id,
+          artifact.runId,
+          artifact.portfolioId,
+          artifact.companyId,
+          artifact.validatedRunVersion,
+          artifact.planArtifactId,
+          artifact.planArtifactHash,
+          artifact.validationReceiptId,
+          artifact.validationReceiptHash,
+          artifact.stepId,
+          artifact.stepHash,
+          artifact.snapshot.snapshotHash,
+          artifact.artifactHash,
+          idempotencyKey,
+          JSON.stringify(artifact),
+          artifact.createdAt
+        ]
+      );
+
+      if (inserted.rowCount === 1) {
+        return { status: "created" as const, artifact };
+      }
+
+      const existing = await client.query<PolicyStepRow>(
+        `SELECT payload,snapshot_hash,artifact_hash,idempotency_key
+         FROM orchestration_policy_step_snapshots
+         WHERE portfolio_id=$1
+           AND company_id=$2
+           AND (
+             idempotency_key=$3
+             OR (
+               run_id=$4
+               AND validated_run_version=$5
+               AND step_id=$6
+             )
+             OR id=$7
+           )
+         FOR SHARE`,
+        [
+          artifact.portfolioId,
+          artifact.companyId,
+          idempotencyKey,
+          artifact.runId,
+          artifact.validatedRunVersion,
+          artifact.stepId,
+          artifact.id
+        ]
+      );
+
+      const prior = existing.rows[0];
+      if (
+        prior
+        && prior.idempotency_key === idempotencyKey
+        && prior.snapshot_hash === artifact.snapshot.snapshotHash
+        && prior.artifact_hash === artifact.artifactHash
+      ) {
+        assertDurablePolicyStepSnapshotArtifact(prior.payload);
+        return {
+          status: "idempotent-replay" as const,
+          artifact: prior.payload
+        };
+      }
+
+      throw new ControlPlaneError(
+        "IDEMPOTENCY_CONFLICT",
+        "Policy step snapshot conflicts with existing run/version/step or idempotency key",
+        { correlationId: artifact.correlationId }
+      );
+    });
+  }
+
+  async getByRunVersionStep(
+    runId: string,
+    validatedRunVersion: number,
+    stepId: string
+  ): Promise<DurablePolicyStepSnapshotArtifact | null> {
+    const result = await this.db.query<{ payload: DurablePolicyStepSnapshotArtifact }>(
+      `SELECT payload
+       FROM orchestration_policy_step_snapshots
+       WHERE run_id=$1 AND validated_run_version=$2 AND step_id=$3`,
+      [runId, validatedRunVersion, stepId]
+    );
+    const artifact = result.rows[0]?.payload ?? null;
+    if (artifact) assertDurablePolicyStepSnapshotArtifact(artifact);
     return artifact;
   }
 }
