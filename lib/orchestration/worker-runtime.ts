@@ -279,6 +279,13 @@ export class DurableOrchestrationWorker {
 
     if (!lease) return null;
 
+    if (lease.consecutiveFailures >= this.maxConsecutiveFailures) {
+      return this.failRun(candidate.run, lease, {
+        code: "ORCHESTRATION_MAX_RETRIES",
+        reason: "Maximum stage retries were already exhausted before this claim"
+      });
+    }
+
     let activeLease = lease;
     let heartbeatBusy = false;
     let leaseLost = false;
