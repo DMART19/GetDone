@@ -22,6 +22,7 @@ import {
 } from "@/lib/persistence/postgres/orchestration-planning-stores";
 import {
   PostgresOrchestrationPolicyEvaluationStore,
+  PostgresOrchestrationPolicyStepSnapshotStore,
   PostgresOrchestrationValidationArtifactStore
 } from "@/lib/persistence/postgres/orchestration-validation-policy-stores";
 import {
@@ -261,6 +262,8 @@ integrationDescribe("PostgreSQL durable planned -> validated -> policy-evaluated
     const record = intent("full");
     const { planned, planArtifact, runStore, plans } = await advanceToPlanned(record);
     const validations = new PostgresOrchestrationValidationArtifactStore(db());
+    const policyStepSnapshots =
+      new PostgresOrchestrationPolicyStepSnapshotStore(db());
     const policies = new PostgresOrchestrationPolicyEvaluationStore(db());
 
     const validationOutcome = await inScope(() =>
@@ -289,6 +292,7 @@ integrationDescribe("PostgreSQL durable planned -> validated -> policy-evaluated
         run: validated,
         plans,
         validations,
+        policyStepSnapshots,
         policies,
         resolver: policyResolver(planArtifact),
         now: () => new Date("2026-09-28T14:00:07.000Z")
@@ -369,6 +373,8 @@ integrationDescribe("PostgreSQL durable planned -> validated -> policy-evaluated
     const record = intent("policy-crash");
     const { planned, planArtifact, runStore, plans } = await advanceToPlanned(record);
     const validations = new PostgresOrchestrationValidationArtifactStore(db());
+    const policyStepSnapshots =
+      new PostgresOrchestrationPolicyStepSnapshotStore(db());
     const policies = new PostgresOrchestrationPolicyEvaluationStore(db());
 
     const validationOutcome = await inScope(() =>
@@ -396,6 +402,7 @@ integrationDescribe("PostgreSQL durable planned -> validated -> policy-evaluated
         run: validated,
         plans,
         validations,
+        policyStepSnapshots,
         policies,
         resolver: {
           resolveStep: async () => {
@@ -414,6 +421,7 @@ integrationDescribe("PostgreSQL durable planned -> validated -> policy-evaluated
         run: validated,
         plans,
         validations,
+        policyStepSnapshots,
         policies,
         resolver: {
           resolveStep: async () => {
@@ -436,6 +444,8 @@ integrationDescribe("PostgreSQL durable planned -> validated -> policy-evaluated
     const record = intent("rls");
     const { planned, planArtifact, runStore, plans } = await advanceToPlanned(record);
     const validations = new PostgresOrchestrationValidationArtifactStore(db());
+    const policyStepSnapshots =
+      new PostgresOrchestrationPolicyStepSnapshotStore(db());
     const policies = new PostgresOrchestrationPolicyEvaluationStore(db());
 
     const validationOutcome = await inScope(() =>
@@ -462,6 +472,7 @@ integrationDescribe("PostgreSQL durable planned -> validated -> policy-evaluated
         run: validated,
         plans,
         validations,
+        policyStepSnapshots,
         policies,
         resolver: policyResolver(planArtifact),
         now: () => new Date("2026-09-28T14:00:07.000Z")
@@ -472,6 +483,15 @@ integrationDescribe("PostgreSQL durable planned -> validated -> policy-evaluated
     const foreignCompany = `validation-other-${suffix}`;
     expect(await inScope(
       () => validations.get(policyOutcome.next.checkpoints.validationReceipt!.id),
+      foreignCompany
+    )).toBeNull();
+    const firstStepId = planArtifact.proposal.steps[0]!.id;
+    expect(await inScope(
+      () => policyStepSnapshots.getByRunVersionStep(
+        validated.id,
+        validated.version,
+        firstStepId
+      ),
       foreignCompany
     )).toBeNull();
     expect(await inScope(
