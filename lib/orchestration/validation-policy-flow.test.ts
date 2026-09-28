@@ -168,8 +168,6 @@ function validationResolver(plan: PersistedPlanProposal) {
     resolve: async () => ({
       validationPolicy: validationPolicyFor(plan.proposal),
       snapshot: {
-        policyVersion: CURRENT_POLICY_VERSION,
-        environment: plan.proposal.scope.environment,
         configurationVersion: "validation-config-v1",
         evidenceRequirements: {
           health: "not-applicable" as const,
