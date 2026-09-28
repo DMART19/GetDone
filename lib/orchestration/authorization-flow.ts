@@ -232,6 +232,7 @@ function decisionBinding(input: {
   );
   return Object.freeze({
     orchestrationRunId: input.run.id,
+    trustedScope: { ...input.run.scope },
     policyEvaluationArtifactId: input.lineage.policyArtifact.id,
     policyEvaluationArtifactHash: input.lineage.policyArtifact.artifactHash,
     planArtifactId: input.lineage.planArtifact.id,
@@ -294,6 +295,11 @@ function assertDecisionMatchesStep(input: {
     || input.decision.requiresStepUp !== (input.requirement === "strong-approval")
     || !binding
     || binding.orchestrationRunId !== input.run.id
+    || binding.trustedScope.userId !== input.run.scope.userId
+    || binding.trustedScope.portfolioId !== input.run.scope.portfolioId
+    || binding.trustedScope.companyId !== input.run.scope.companyId
+    || binding.trustedScope.environment !== input.run.scope.environment
+    || binding.trustedScope.resourceId !== input.run.scope.resourceId
     || binding.policyEvaluationArtifactId !== input.lineage.policyArtifact.id
     || binding.policyEvaluationArtifactHash !== input.lineage.policyArtifact.artifactHash
     || binding.planArtifactId !== input.lineage.planArtifact.id
