@@ -72,6 +72,14 @@ export interface ServiceBackedControlApiDependencies {
   intents: OwnerIntentStore;
   decisions: ScopedReadStore<AuthoritativeDecision>;
   decisionTransactions: DecisionTransactionManager;
+  /**
+   * Optional post-commit dispatcher for orchestration Decisions. The Decision
+   * transaction already emits a durable resume request; dispatcher failures
+   * must not roll back or misreport the committed owner Decision.
+   */
+  decisionResumeDispatcher?: {
+    processDecision(decision: AuthoritativeDecision): Promise<unknown>;
+  };
   resources: ScopedReadStore<Resource>;
   resourceRegistry: ResourceRegistryService;
   resourceEnrollments: ScopedReadStore<ResourceEnrollmentRecord>;
@@ -284,7 +292,7 @@ export class ServiceBackedControlApiAdapter implements ControlApiApplicationAdap
         }
       });
 
-      return resolveDecision({
+      const resolved = await resolveDecision({
         command,
         transactionManager: this.deps.decisionTransactions,
         decisionId: input.decisionId,
@@ -292,6 +300,17 @@ export class ServiceBackedControlApiAdapter implements ControlApiApplicationAdap
         stepUpProof: principal.stepUpProof,
         now: this.now
       });
+
+      // Orchestrated Decisions already wrote a durable resume request in the
+      // same authoritative transaction. This call is only a low-latency wakeup;
+      // if it fails, the durable queue remains pending for later recovery.
+      try {
+        await this.deps.decisionResumeDispatcher?.processDecision(resolved);
+      } catch {
+        // Do not return an HTTP failure after the owner Decision has committed.
+      }
+
+      return resolved;
     });
   }
 
