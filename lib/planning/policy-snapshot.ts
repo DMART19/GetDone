@@ -1,4 +1,5 @@
 import { CAPABILITY_REGISTRY_HASH, CAPABILITY_REGISTRY_VERSION } from "@/lib/domain/capabilities";
+import type { ConfirmedPreferenceRule } from "@/lib/domain/preference-learning";
 import type { KillSwitch } from "@/lib/domain/kill-switch";
 import type { Guardrail } from "@/lib/domain/objectives";
 import type { TrustedExecutionScope } from "@/lib/control-plane/trusted-execution-scope";
@@ -59,6 +60,7 @@ export interface PolicySnapshotInput {
   budgetReservations?: readonly BudgetReservation[];
   usageBudgets?: readonly PolicyUsageBudgetSnapshot[];
   riskContext?: PolicyRiskContext;
+  confirmedPreferenceRule?: ConfirmedPreferenceRule;
   guardrails?: PolicyGuardrailSnapshot;
   killSwitches: readonly KillSwitch[];
 
@@ -162,6 +164,7 @@ export function createPolicySnapshot(input: PolicySnapshotInput): PolicySnapshot
     budgetReservationHashes,
     usageBudgets,
     riskContext: input.riskContext,
+    confirmedPreferenceRuleHash: input.confirmedPreferenceRule?.ruleHash,
     guardrails: input.guardrails,
     killSwitchSnapshotHash,
     credentialRequirementIds: [...new Set(input.credentialRequirementIds)].sort(),
@@ -187,6 +190,9 @@ export function createPolicySnapshot(input: PolicySnapshotInput): PolicySnapshot
     budgetReservations,
     usageBudgets,
     riskContext: input.riskContext ? { ...input.riskContext } : undefined,
+    confirmedPreferenceRule: input.confirmedPreferenceRule
+      ? { ...input.confirmedPreferenceRule, pattern: { ...input.confirmedPreferenceRule.pattern }, sourceDecisionIds: [...input.confirmedPreferenceRule.sourceDecisionIds] }
+      : undefined,
     killSwitches,
     credentialRequirementIds: [...new Set(input.credentialRequirementIds)].sort(),
     capacityEvidenceRequired,
