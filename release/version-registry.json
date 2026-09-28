@@ -669,7 +669,9 @@
     "lib/persistence/postgres/orchestration-authorization.integration.test.ts",
     "lib/orchestration/persistent-worker.server.test.ts",
     "lib/orchestration/worker-process.server.test.ts",
-    "lib/persistence/postgres/orchestration-crash-matrix.integration.test.ts"
+    "lib/persistence/postgres/orchestration-crash-matrix.integration.test.ts",
+    "lib/orchestration/stage-router.test.ts",
+    "docs/CORE_TRANCHE_B_DURABLE_ORCHESTRATION_WORKER.md"
   ],
   "manualSourcePaths": [
     "docs/ARCHITECTURE.md",
