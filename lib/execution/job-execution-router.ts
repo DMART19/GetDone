@@ -18,7 +18,7 @@ import type { SoftwareWorkerRuntime } from "@/lib/execution/software-worker-runt
 import type { JobVerificationEvidenceStore } from "@/lib/persistence/postgres/worker-runtime-stores";
 import { runWithPostgresTenantScope } from "@/lib/persistence/postgres/tenant-context.server";
 
-export const JOB_EXECUTION_ROUTER_VERSION = "1.1.0";
+export const JOB_EXECUTION_ROUTER_VERSION = "1.2.0";
 
 export type JobExecutionSpec =
   | {
@@ -221,7 +221,7 @@ export class RoutedJobExecutionHandler implements DurableJobExecutionHandler {
                 reason: "Completed business action did not produce verification evidence"
               };
             }
-            return { kind: "succeeded" };
+            return { kind: "provider-completed" };
           case "cancelled":
             return { kind: "cancelled", reason: "Provider operation was cancelled" };
           case "rejected":
@@ -242,14 +242,14 @@ export class RoutedJobExecutionHandler implements DurableJobExecutionHandler {
         if (!this.software) return { kind: "dead-letter", reason: "Software executor is not installed" };
         const runtime = await this.software.prepare(spec.plan);
         return runtime.pipeline.state === "awaiting-production-approval"
-          ? { kind: "succeeded" }
+          ? { kind: "provider-completed" }
           : { kind: "retry", reason: `Software preparation paused at ${runtime.pipeline.state}` };
       }
       case "software-deploy": {
         if (!this.software) return { kind: "dead-letter", reason: "Software executor is not installed" };
         const result = await this.software.deployProduction(spec.plan, spec.promotion);
         return result.runtime.pipeline.state === "post-deploy-verifying"
-          ? { kind: "succeeded" }
+          ? { kind: "provider-completed" }
           : { kind: "retry", reason: "Software deployment did not reach verification handoff" };
       }
       case "software-verify": {
@@ -259,14 +259,14 @@ export class RoutedJobExecutionHandler implements DurableJobExecutionHandler {
           spec.verification
         );
         return runtime.pipeline.state === "succeeded"
-          ? { kind: "succeeded" }
-          : { kind: "dead-letter", reason: "Software verification failed to establish success" };
+          ? { kind: "verified" }
+          : { kind: "dead-letter", reason: "Software verification failed to establish verified state" };
       }
       case "software-rollback": {
         if (!this.software) return { kind: "dead-letter", reason: "Software executor is not installed" };
         const runtime = await this.software.rollback(spec.plan);
         return runtime.pipeline.state === "rolled-back"
-          ? { kind: "succeeded" }
+          ? { kind: "provider-completed" }
           : { kind: "dead-letter", reason: "Software rollback did not reach terminal state" };
       }
     }
