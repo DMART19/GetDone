@@ -127,7 +127,7 @@ export class PostgresAtomicReservationStore implements AtomicReservationStore {
   }
 
   async insertLedger(input: AtomicReservationCommit["nextLedger"]): Promise<void> {
-    await this.database.query(
+    const inserted = await this.database.query(
       `INSERT INTO capacity_ledgers
         (id,portfolio_id,company_id,revision,ledger_hash,payload)
        VALUES($1,$2,$3,$4,$5,$6::jsonb)
@@ -140,6 +140,17 @@ export class PostgresAtomicReservationStore implements AtomicReservationStore {
         input.ledgerHash,
         JSON.stringify(input)
       ]
+    );
+    if (inserted.rowCount === 1) return;
+
+    const existing = await this.database.query<{ ledger_hash: string }>(
+      "SELECT ledger_hash FROM capacity_ledgers WHERE id=$1",
+      [input.id]
+    );
+    if (existing.rows[0]?.ledger_hash === input.ledgerHash) return;
+    throw new ControlPlaneError(
+      "IDEMPOTENCY_CONFLICT",
+      "Capacity ledger ID already exists with different authoritative content"
     );
   }
 }
