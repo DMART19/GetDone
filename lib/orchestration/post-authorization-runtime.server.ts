@@ -381,10 +381,13 @@ export class PostgresGovernedJobRuntime implements GovernedJobRuntimePort {
       jobId: node.id,
       capability: node.capability
     });
-    if (task.scope.environment === "production" && !credentialLeaseId) {
+    if (
+      task.resourceRequirements.credentialBindingRequired
+      && !credentialLeaseId
+    ) {
       throw new ControlPlaneError(
         "UNAVAILABLE",
-        "Production Job dispatch requires an authoritative scoped credential lease"
+        "Credential-bearing Job dispatch requires an authoritative scoped credential lease"
       );
     }
     const request: AuthorizedBusinessActionRequest = Object.freeze({
