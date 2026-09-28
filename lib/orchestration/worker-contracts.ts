@@ -89,6 +89,16 @@ export interface OrchestrationWorkerRegistry {
 }
 
 export interface OrchestrationWorkerStore {
+  /**
+   * PostgreSQL workers may discover bounded cross-tenant dispatch metadata
+   * globally, then re-enter the exact tenant scope before touching any
+   * authoritative orchestration/artifact row.
+   */
+  withCandidateScope?<T>(
+    candidate: OrchestrationWorkCandidate,
+    operation: () => Promise<T>
+  ): Promise<T>;
+
   listReady(input: {
     now: string;
     limit: number;
