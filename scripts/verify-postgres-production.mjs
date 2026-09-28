@@ -415,6 +415,35 @@ try {
     throw new Error("OwnerIntent ContextSnapshot index verification failed");
   }
 
+  const orchestrationContextConstraints = await client.query(
+    `SELECT
+       COUNT(*) FILTER (
+         WHERE conrelid='orchestration_context_snapshots'::regclass
+           AND contype='u'
+           AND pg_get_constraintdef(oid)='UNIQUE (run_id, run_version)'
+       )::int AS run_version_unique,
+       COUNT(*) FILTER (
+         WHERE conrelid='orchestration_context_snapshots'::regclass
+           AND contype='u'
+           AND pg_get_constraintdef(oid)='UNIQUE (portfolio_id, company_id, idempotency_key)'
+       )::int AS tenant_idempotency_unique,
+       COUNT(*) FILTER (
+         WHERE conrelid='orchestration_context_snapshots'::regclass
+           AND contype='u'
+           AND pg_get_constraintdef(oid)='UNIQUE (snapshot_hash)'
+       )::int AS snapshot_hash_unique
+     FROM pg_constraint
+     WHERE conrelid='orchestration_context_snapshots'::regclass`
+  );
+  const contextConstraintRow = orchestrationContextConstraints.rows[0];
+  if (
+    contextConstraintRow?.run_version_unique !== 1
+    || contextConstraintRow?.tenant_idempotency_unique !== 1
+    || contextConstraintRow?.snapshot_hash_unique !== 1
+  ) {
+    throw new Error("OwnerIntent ContextSnapshot uniqueness constraints are incomplete");
+  }
+
   const backup = await client.query(
     `SELECT completed_at,verification_hash
      FROM database_backup_evidence
@@ -484,6 +513,7 @@ try {
     orchestrationCasConstraints: "verified",
     orchestrationWorkerSchema: "verified",
     orchestrationContextSchema: "verified",
+    orchestrationContextConstraints: "verified",
     backupFresh: true
   }, null, 2));
 } finally {
