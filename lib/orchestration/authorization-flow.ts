@@ -53,7 +53,10 @@ export interface OrchestrationAuthorizationGrantStore {
    * Persist the complete Plan-step grant set atomically. A failed batch must
    * not leave a subset of active execution authority behind.
    */
-  insertMany(grants: readonly AuthorizationGrant[]): Promise<void>;
+  insertMany(
+    grants: readonly AuthorizationGrant[],
+    idempotencyKey: string
+  ): Promise<void>;
   get(id: string): Promise<AuthorizationGrant | null>;
 }
 
@@ -127,6 +130,14 @@ export function authorizationGrantIdempotencyKey(
   stepId: string
 ) {
   return `orchestration:${runId}:policy-v${policyArtifact.validatedRunVersion}:authorization:${stepId}`;
+}
+
+
+export function authorizationBatchIdempotencyKey(
+  runId: string,
+  policyArtifact: DurablePolicyEvaluationArtifact
+) {
+  return `orchestration:${runId}:policy-v${policyArtifact.validatedRunVersion}:authorization-batch`;
 }
 
 export function orchestrationDecisionId(
@@ -485,7 +496,13 @@ async function issueOrReplayGrants(input: {
 
   // The full Plan-step authority set commits atomically. This prevents a
   // later-step persistence conflict from stranding a subset of active grants.
-  await input.grants.insertMany(candidates);
+  await input.grants.insertMany(
+    candidates,
+    authorizationBatchIdempotencyKey(
+      input.run.id,
+      input.lineage.policyArtifact
+    )
+  );
 
   const refs: AuthorizationGrantRef[] = [];
   for (const candidate of candidates) {
