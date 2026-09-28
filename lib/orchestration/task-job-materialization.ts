@@ -612,19 +612,35 @@ export function buildTaskDagArtifact(input: {
 
 export function assertTaskDagArtifact(dag: TaskDagArtifact) {
   const { dagHash, ...base } = dag;
-  if (sha256Hex(base) !== dagHash) {
+  if (
+    sha256Hex(base) !== dagHash
+    || dag.dagVersion !== ORCHESTRATION_TASK_DAG_VERSION
+  ) {
     throw new ControlPlaneError("FORBIDDEN", "Task DAG integrity check failed");
   }
   const ids = new Set(dag.nodes.map((node) => node.taskId));
   if (
     ids.size !== dag.nodes.length
     || dag.topologicalOrder.length !== dag.nodes.length
+    || new Set(dag.topologicalOrder).size !== dag.topologicalOrder.length
     || dag.topologicalOrder.some((id) => !ids.has(id))
   ) {
     throw new ControlPlaneError("FORBIDDEN", "Task DAG ordering is invalid");
   }
   const position = new Map(dag.topologicalOrder.map((id, index) => [id, index]));
+  const inverseEdges = new Map<string, string[]>(
+    dag.nodes.map((node) => [node.taskId, []])
+  );
   for (const node of dag.nodes) {
+    if (
+      new Set(node.dependencies).size !== node.dependencies.length
+      || new Set(node.dependents).size !== node.dependents.length
+    ) {
+      throw new ControlPlaneError(
+        "FORBIDDEN",
+        "Task DAG contains duplicate dependency edges"
+      );
+    }
     for (const dependency of node.dependencies) {
       if (!ids.has(dependency) || position.get(dependency)! >= position.get(node.taskId)!) {
         throw new ControlPlaneError(
@@ -632,6 +648,25 @@ export function assertTaskDagArtifact(dag: TaskDagArtifact) {
           "Task DAG dependency order is invalid"
         );
       }
+      inverseEdges.get(dependency)!.push(node.taskId);
+    }
+    for (const dependent of node.dependents) {
+      if (!ids.has(dependent) || position.get(dependent)! <= position.get(node.taskId)!) {
+        throw new ControlPlaneError(
+          "FORBIDDEN",
+          "Task DAG dependent order is invalid"
+        );
+      }
+    }
+  }
+  for (const node of dag.nodes) {
+    const expected = [...(inverseEdges.get(node.taskId) ?? [])].sort();
+    const declared = [...node.dependents].sort();
+    if (sha256Hex(expected) !== sha256Hex(declared)) {
+      throw new ControlPlaneError(
+        "FORBIDDEN",
+        "Task DAG dependent edges do not mirror dependency edges"
+      );
     }
   }
   return dag;
