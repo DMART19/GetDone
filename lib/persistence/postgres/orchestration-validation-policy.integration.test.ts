@@ -218,8 +218,6 @@ integrationDescribe("PostgreSQL durable planned -> validated -> policy-evaluated
       resolve: async () => ({
         validationPolicy: validationPolicyFor(planArtifact.proposal),
         snapshot: {
-          policyVersion: CURRENT_POLICY_VERSION,
-          environment: planArtifact.proposal.scope.environment,
           configurationVersion: "validation-integration-v1",
           evidenceRequirements: {
             health: "not-applicable" as const,
