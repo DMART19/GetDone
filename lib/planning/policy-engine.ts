@@ -28,6 +28,10 @@ import {
   type ApprovalProof,
   type StepUpProof
 } from "@/lib/authorization/proofs";
+import {
+  matchesConfirmedLearnedRule,
+  type LearnedRuleRecord
+} from "@/lib/domain/learned-rules";
 
 export type PolicyDisposition =
   | "AUTO"
@@ -35,7 +39,7 @@ export type PolicyDisposition =
   | "STRONG_APPROVAL"
   | "BLOCKED";
 
-export const POLICY_ENGINE_VERSION = "2026-09-28.1";
+export const POLICY_ENGINE_VERSION = "2026-09-28.2";
 export const POLICY_PRECEDENCE: readonly PolicyDisposition[] = Object.freeze([
   "AUTO",
   "APPROVAL_REQUIRED",
@@ -59,6 +63,7 @@ export const POLICY_RULES_HASH = sha256Hex({
     "usage-budgets",
     "budget-reservation",
     "guardrails",
+    "confirmed-learned-rule",
     "approval-proof",
     "strong-step-up-proof"
   ]
@@ -94,6 +99,10 @@ export interface PolicyRiskContext {
     | "require-approval"
     | "require-strong-approval"
     | "block";
+  learnedRuleTriggerPattern?: string;
+  repositoryId?: string;
+  verificationRequirementsHash?: string;
+  rollbackAvailable?: boolean;
 }
 
 export interface PolicyEvaluationInput {
@@ -138,6 +147,8 @@ export interface PolicyEvaluationInput {
   budgetReservations?: readonly BudgetReservation[];
   usageBudgets?: readonly PolicyUsageBudgetInput[];
   riskContext?: PolicyRiskContext;
+  /** Only an integrity-checked, explicitly owner-confirmed exact-match rule may lower approval. */
+  learnedRule?: LearnedRuleRecord;
 
   guardrails?: {
     scopeId?: string;
@@ -180,6 +191,7 @@ export interface PolicyReason {
     | "BUDGET_RESERVATION_INVALID"
     | "GUARDRAIL_BLOCKED"
     | "GUARDRAIL_APPROVAL"
+    | "CONFIRMED_LEARNED_RULE"
     | "CAPABILITY_APPROVAL"
     | "CAPABILITY_STRONG_APPROVAL"
     | "APPROVAL_PROOF_INVALID"
@@ -710,6 +722,51 @@ export function evaluatePolicy(input: PolicyEvaluationInput): PolicyEvaluation {
     } else if (guardrails.disposition === "approval-required") {
       disposition = strongestDisposition(disposition, "APPROVAL_REQUIRED");
       reasons.push({ code: "GUARDRAIL_APPROVAL", message: "Guardrail exception requires approval" });
+    }
+  }
+
+  if (
+    capability
+    && input.learnedRule
+    && disposition === "APPROVAL_REQUIRED"
+    && capability.reversible
+    && input.riskContext?.learnedRuleTriggerPattern
+  ) {
+    const hardApprovalReason = reasons.some((reason) =>
+      ["BUDGET_APPROVAL", "USAGE_BUDGET_APPROVAL", "GUARDRAIL_APPROVAL"].includes(reason.code)
+    );
+    const exactMatch = !hardApprovalReason && matchesConfirmedLearnedRule(
+      input.learnedRule,
+      {
+        scope: input.trustedScope,
+        capability: input.capability,
+        triggerPattern: input.riskContext.learnedRuleTriggerPattern,
+        integrationId: input.integrationId,
+        dataClass: input.dataClass,
+        repositoryId: input.riskContext.repositoryId,
+        customerImpact: input.riskContext.customerImpact,
+        publicVisibility: input.riskContext.publicVisibility,
+        monetaryAmountCents: input.riskContext.monetaryAmountCents,
+        executionFrequency: input.riskContext.executionFrequency,
+        blastRadius: capability.blastRadius,
+        reversible: capability.reversible,
+        productionEffect: capability.productionEffect,
+        verificationRequirementsHash: input.riskContext.verificationRequirementsHash,
+        rollbackAvailable: input.riskContext.rollbackAvailable
+      }
+    );
+
+    if (exactMatch) {
+      disposition = "AUTO";
+      for (let index = reasons.length - 1; index >= 0; index -= 1) {
+        if (reasons[index]?.code === "CAPABILITY_APPROVAL" || reasons[index]?.code === "RISK_APPROVAL") {
+          reasons.splice(index, 1);
+        }
+      }
+      reasons.push({
+        code: "CONFIRMED_LEARNED_RULE",
+        message: `Explicit owner-confirmed learned rule permits AUTO under this exact pattern: ${input.learnedRule.id}`
+      });
     }
   }
 
