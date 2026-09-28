@@ -34,6 +34,9 @@ class UnavailableControlApiAdapter implements ControlApiApplicationAdapter {
   async submitObjectives(): Promise<never> { return this.unavailable(); }
   async listObjectives(): Promise<never> { return this.unavailable(); }
   async getObjective(): Promise<never> { return this.unavailable(); }
+  async listPreferenceSuggestions(): Promise<never> { return this.unavailable(); }
+  async resolvePreferenceSuggestion(): Promise<never> { return this.unavailable(); }
+  async listConfirmedPreferenceRules(): Promise<never> { return this.unavailable(); }
   async listDecisions(): Promise<never> { return this.unavailable(); }
   async getDecision(): Promise<never> { return this.unavailable(); }
   async mutateDecision(): Promise<never> { return this.unavailable(); }
