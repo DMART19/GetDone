@@ -31,7 +31,7 @@ import type {
   DecisionMutationInput,
   JobResultView,
   OwnerIntentInput,
-  type ObjectiveIntakeInput,
+  ObjectiveIntakeInput,
   OwnerIntentRecord,
   ResourceDiscoveryInput,
   ResourceEnrollmentActionInput,
