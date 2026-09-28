@@ -110,15 +110,56 @@ verifyDeployment("getdone-worker", {
   readiness:"/readyz",
   liveness:"/livez"
 });
+verifyDeployment("getdone-orchestration-worker", {
+  imageToken:"__WORKER_IMAGE__",
+  readiness:"/readyz",
+  liveness:"/livez"
+});
 
-const worker = by("Deployment","getdone-worker");
-if (worker?.spec?.template?.spec?.terminationGracePeriodSeconds < 120) {
-  failures.push("worker termination grace period must allow durable drain");
+for (const name of ["getdone-worker","getdone-orchestration-worker"]) {
+  const worker = by("Deployment",name);
+  if (worker?.spec?.template?.spec?.terminationGracePeriodSeconds < 120) {
+    failures.push(`${name} termination grace period must allow durable drain`);
+  }
+  const workerContainer = worker?.spec?.template?.spec?.containers?.[0];
+  if (!workerContainer?.lifecycle?.preStop) {
+    failures.push(`${name} requires a preStop drain window`);
+  }
 }
-const workerContainer = worker?.spec?.template?.spec?.containers?.[0];
-if (!workerContainer?.lifecycle?.preStop) failures.push("worker requires a preStop drain window");
 
-for (const name of ["getdone-web","getdone-worker"]) {
+const orchestrationWorker = by("Deployment","getdone-orchestration-worker");
+const orchestrationContainer = orchestrationWorker?.spec?.template?.spec?.containers?.[0];
+const orchestrationEnv = new Map(
+  (orchestrationContainer?.env ?? []).map((entry) => [entry.name,entry])
+);
+if (orchestrationEnv.get("GETDONE_PROCESS_ROLE")?.value !== "orchestration-worker") {
+  failures.push("orchestration worker must run with GETDONE_PROCESS_ROLE=orchestration-worker");
+}
+if (!orchestrationEnv.get("GETDONE_ORCHESTRATION_WORKER_ID")?.valueFrom?.fieldRef) {
+  failures.push("orchestration worker must derive a unique durable worker id from the Pod");
+}
+if (JSON.stringify(orchestrationContainer?.command)
+    !== JSON.stringify(["npm","run","start:orchestration-worker"])) {
+  failures.push("orchestration worker must run the dedicated orchestration entrypoint");
+}
+if (orchestrationContainer?.ports?.[0]?.containerPort !== 3002) {
+  failures.push("orchestration worker health port must be 3002");
+}
+
+for (const key of [
+  "GETDONE_ORCHESTRATION_LEASE_SECONDS",
+  "GETDONE_ORCHESTRATION_HEARTBEAT_SECONDS",
+  "GETDONE_ORCHESTRATION_BATCH_SIZE",
+  "GETDONE_ORCHESTRATION_CONCURRENCY",
+  "GETDONE_ORCHESTRATION_MAX_PLAN_COST_CENTS",
+  "GETDONE_ORCHESTRATION_MAX_STEP_COST_CENTS",
+  "GETDONE_AI_COMPANY_DAILY_BUDGET_CENTS",
+  "GETDONE_AI_PORTFOLIO_DAILY_BUDGET_CENTS"
+]) {
+  if (!config?.data?.[key]) failures.push(`runtime ConfigMap missing ${key}`);
+}
+
+for (const name of ["getdone-web","getdone-worker","getdone-orchestration-worker"]) {
   const pdb = requireItem("PodDisruptionBudget", name);
   if (pdb?.spec?.minAvailable !== 1) failures.push(`${name} PDB must keep one instance available`);
   const hpa = requireItem("HorizontalPodAutoscaler", name);
@@ -158,6 +199,7 @@ console.log(JSON.stringify({
   resources:items.length,
   webReplicas:topology.services.web.replicas,
   workerReplicas:topology.services.worker.replicas,
+  orchestrationWorkerReplicas:topology.services.orchestrationWorker?.replicas,
   tls:true,
   defaultDenyNetwork:true,
   managedPostgres:true
