@@ -268,11 +268,9 @@ export class PostgresOrchestrationJobGraphStore
     job: OrchestrationJobNode;
     expectedState: OrchestrationJobNodeState;
   }) {
-    const nextHash = sha256Hex({
-      ...input.job,
-      nodeHash: undefined
-    });
-    const next = Object.freeze({ ...input.job, nodeHash: nextHash });
+    const { nodeHash: _priorHash, ...hashBase } = input.job;
+    const nextHash = sha256Hex(hashBase);
+    const next = Object.freeze({ ...hashBase, nodeHash: nextHash });
     const result = await this.db.query(
       `UPDATE orchestration_job_nodes
        SET state=$4,
