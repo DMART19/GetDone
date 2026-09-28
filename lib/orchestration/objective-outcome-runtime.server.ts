@@ -15,7 +15,10 @@ import {
   PostgresAuditLedger,
   PostgresVerificationReceiptStore
 } from "@/lib/persistence/postgres/authority-stores";
-import type { PostgresTransactionalDatabase } from "@/lib/persistence/postgres/client";
+import type {
+  PostgresTransactionalDatabase,
+  SqlQueryable
+} from "@/lib/persistence/postgres/client";
 import {
   createVerificationEvidence,
   createVerificationRequest,
@@ -361,11 +364,11 @@ export class PostgresObjectiveOutcomePort implements ObjectiveOutcomePort {
   }
 
   private async insertEvaluation(
-    db: PostgresTransactionalDatabase | Parameters<PostgresTransactionalDatabase["transaction"]>[0] extends never ? never : any,
+    db: SqlQueryable,
     run: OrchestrationRunRecord,
     evaluation: ObjectiveEvaluationArtifact
   ) {
-    await (db as { query: PostgresTransactionalDatabase["query"] }).query(
+    await db.query(
       `INSERT INTO orchestration_objective_evaluations(
         id,run_id,portfolio_id,company_id,status,evaluation_hash,payload,evaluated_at
       ) VALUES($1,$2,$3,$4,$5,$6,$7::jsonb,$8)
