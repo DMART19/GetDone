@@ -52,11 +52,14 @@ function assertExecutionLimits(
       "Execution timeout and attempt must be positive integers"
     );
   }
-  if (limits.deadline && Date.parse(limits.deadline) <= now) {
-    throw new ControlPlaneError(
-      "POLICY_BLOCKED",
-      "Authorized execution deadline has elapsed"
-    );
+  if (limits.deadline) {
+    const deadline = Date.parse(limits.deadline);
+    if (!Number.isFinite(deadline) || deadline <= now) {
+      throw new ControlPlaneError(
+        "POLICY_BLOCKED",
+        "Authorized execution deadline is invalid or has elapsed"
+      );
+    }
   }
   if (
     limits.expectedDurationSeconds !== undefined
