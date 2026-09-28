@@ -190,15 +190,28 @@ PostgreSQL integration coverage additionally exercises:
 - correlation audit reconstruction
 - lease-aware routing deferral
 
-## Intentionally deferred after governed planning
+## Current continuation status
 
-1. Decision/Approval binding and exact-hash continuation.
-2. AuthorizationGrant issuance and Task materialization.
-3. Job materialization/enqueue handoff.
-4. Verification/outcome reconciliation.
-5. SignalBus/Sensing/Investigation trigger bridge.
-6. Additional authoritative context sources beyond OwnerIntent.
-7. Live orchestration worker heartbeat/health reporting.
-8. Live AI model routing, budget evidence, and provider acceptance.
+The governed planning and governed authorization/materialization tranches now extend this runtime through:
 
-These should reuse this runtime rather than create a second OwnerIntent or signal execution path.
+- exact-hash Decision/Approval authority
+- AuthorizationGrant issuance
+- Task DAG materialization
+- Job graph materialization
+- dependency-free root durable enqueue
+
+See:
+- `docs/SOL_GOVERNED_PLANNING_TRANCHE.md`
+- `docs/SOL_GOVERNED_EXECUTION_TRANCHE.md`
+
+Still intentionally deferred:
+
+1. Provider JobExecutionSpec creation/execution.
+2. Verification/outcome reconciliation.
+3. Downstream Job enqueue before predecessor success.
+4. SignalBus/Sensing/Investigation trigger bridge.
+5. Additional authoritative context sources beyond OwnerIntent.
+6. Live orchestration worker heartbeat/health reporting.
+7. Live AI model routing, budget evidence, and provider acceptance.
+
+These must continue through this same runtime rather than create a second authority path.
