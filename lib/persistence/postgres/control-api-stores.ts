@@ -3,6 +3,10 @@ import { ControlPlaneError } from "@/lib/control-plane/errors";
 import { createAuditEvent } from "@/lib/domain/audit";
 import { claimIdempotency } from "@/lib/domain/idempotency";
 import type { OwnerIntentRecord } from "@/lib/control-api/contracts";
+import {
+  createOwnerIntentOrchestrationRun,
+  ownerIntentOrchestrationStartIdempotencyKey
+} from "@/lib/orchestration/owner-intent-flow";
 import type { OwnerIntentStore } from "@/lib/control-api/service-adapter";
 import type {
   Resource,
@@ -28,18 +32,40 @@ import {
   PostgresEntityStore,
   PostgresIdempotencyStore
 } from "@/lib/persistence/postgres/authority-stores";
+import { PostgresOrchestrationRunStore } from "@/lib/persistence/postgres/orchestration-store";
 
 export class PostgresOwnerIntentStore implements OwnerIntentStore {
-  constructor(private readonly db: PostgresTransactionalDatabase) {}
+  private readonly orchestrations: PostgresOrchestrationRunStore;
 
-  async create(record: OwnerIntentRecord, idempotencyKey: string) {
-    const fingerprint = sha256Hex(JSON.stringify({
+  constructor(private readonly db: PostgresTransactionalDatabase) {
+    this.orchestrations = new PostgresOrchestrationRunStore(db);
+  }
+
+  private fingerprint(record: OwnerIntentRecord) {
+    return sha256Hex(JSON.stringify({
       portfolioId: record.portfolioId,
       companyId: record.companyId,
       userId: record.userId,
       message: record.message,
       channel: record.channel
     }));
+  }
+
+  private async ensureOrchestration(
+    client: SqlQueryable,
+    intent: OwnerIntentRecord
+  ) {
+    const orchestration = createOwnerIntentOrchestrationRun(intent);
+    await this.orchestrations.createInTransaction(
+      client,
+      orchestration,
+      ownerIntentOrchestrationStartIdempotencyKey(intent.id)
+    );
+    return orchestration;
+  }
+
+  async create(record: OwnerIntentRecord, idempotencyKey: string) {
+    const fingerprint = this.fingerprint(record);
 
     return this.db.transaction(async (client) => {
       const idempotency = new PostgresIdempotencyStore(client);
@@ -51,7 +77,9 @@ export class PostgresOwnerIntentStore implements OwnerIntentStore {
       );
 
       if (claim.state === "COMPLETED" && claim.record.result) {
-        return claim.record.result;
+        const persisted = claim.record.result;
+        await this.ensureOrchestration(client, persisted);
+        return persisted;
       }
       if (claim.state === "IN_PROGRESS" || claim.state === "FAILED") {
         throw new ControlPlaneError(
@@ -80,7 +108,8 @@ export class PostgresOwnerIntentStore implements OwnerIntentStore {
       if (inserted.rowCount !== 1) {
         const existing = await client.query<{ payload: OwnerIntentRecord }>(
           `SELECT payload FROM owner_intents
-           WHERE portfolio_id=$1 AND company_id=$2 AND idempotency_key=$3`,
+           WHERE portfolio_id=$1 AND company_id=$2 AND idempotency_key=$3
+           FOR UPDATE`,
           [record.portfolioId, record.companyId, idempotencyKey]
         );
         const prior = existing.rows[0]?.payload;
@@ -98,8 +127,10 @@ export class PostgresOwnerIntentStore implements OwnerIntentStore {
         persisted = prior;
       }
 
+      await this.ensureOrchestration(client, persisted);
+
       await new PostgresAuditLedger(client).append(createAuditEvent({
-        correlationId: persisted.correlationId ?? `legacy-owner-intent:${persisted.id}`,
+        correlationId: persisted.correlationId ?? `owner-intent:${persisted.id}`,
         eventType: "owner-intent.accepted",
         actor: { type: "user", id: persisted.userId },
         scope: {
@@ -112,7 +143,10 @@ export class PostgresOwnerIntentStore implements OwnerIntentStore {
         entityId: persisted.id,
         newState: "accepted",
         provenance: "control-api:owner-intent",
-        metadata: { idempotencyKey }
+        metadata: {
+          idempotencyKey,
+          orchestrationRunId: createOwnerIntentOrchestrationRun(persisted).id
+        }
       }));
 
       await idempotency.complete(
@@ -124,6 +158,14 @@ export class PostgresOwnerIntentStore implements OwnerIntentStore {
 
       return persisted;
     });
+  }
+
+  async get(id: string): Promise<OwnerIntentRecord | null> {
+    const result = await this.db.query<{ payload: OwnerIntentRecord }>(
+      "SELECT payload FROM owner_intents WHERE id=$1",
+      [id]
+    );
+    return result.rows[0]?.payload ?? null;
   }
 }
 
