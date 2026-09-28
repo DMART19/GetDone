@@ -7,6 +7,7 @@ import {
 import {
   computeOrchestrationBackoffMs,
   orchestrationClaimIdempotencyKey,
+  orchestrationDeadLetterIdempotencyKey,
   orchestrationDeferIdempotencyKey,
   orchestrationHeartbeatIdempotencyKey,
   orchestrationReleaseIdempotencyKey,
@@ -223,7 +224,20 @@ export class DurableOrchestrationWorker {
       throw error;
     }
 
-    await this.safeRelease(lease);
+    if (this.workerStore.deadLetter) {
+      await this.retrySerializableConflict(() => this.workerStore.deadLetter!({
+        lease,
+        now: this.now().toISOString(),
+        code: input.code,
+        reason: input.reason,
+        terminalRun: next,
+        recoveryKind: "explicit-failure",
+        idempotencyKey: orchestrationDeadLetterIdempotencyKey(lease)
+      }));
+    } else {
+      await this.safeRelease(lease);
+    }
+
     await getTelemetry().counter("getdone.orchestration.failed.total", 1, {
       [OTEL_SEMANTIC.workerId]: this.config.workerId,
       [OTEL_SEMANTIC.companyId]: run.scope.companyId
