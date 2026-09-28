@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "1.6.0",
+  "schemaVersion": "1.7.0",
   "thresholds": {
     "coveredModulePercent": 100,
     "minimumTotalTestCases": 80,
@@ -384,6 +384,16 @@
     {
       "source": "lib/persistence/postgres/disaster-recovery-store.ts",
       "test": "lib/persistence/postgres/disaster-recovery-store.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/orchestration/contracts.ts",
+      "test": "lib/orchestration/contracts.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/persistence/postgres/orchestration-store.ts",
+      "test": "lib/persistence/postgres/orchestration-store.test.ts",
       "critical": true
     }
   ]
