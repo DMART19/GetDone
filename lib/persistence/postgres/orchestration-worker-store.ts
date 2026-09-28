@@ -22,9 +22,13 @@ import type {
   SqlQueryable
 } from "@/lib/persistence/postgres/client";
 import { PostgresIdempotencyStore } from "@/lib/persistence/postgres/authority-stores";
+import { runWithPostgresTenantScope } from "@/lib/persistence/postgres/tenant-context.server";
 
 interface WorkerRow extends QueryResultRow {
   run_id: string;
+  portfolio_id: string;
+  company_id: string;
+  run_state: OrchestrationRunRecord["state"];
   stage_run_version: number;
   stage_attempt: number;
   consecutive_failures: number;
@@ -150,6 +154,14 @@ async function claimOperation<T>(
 export class PostgresOrchestrationWorkerStore implements OrchestrationWorkerStore {
   constructor(private readonly db: PostgresTransactionalDatabase) {}
 
+  async withCandidateScope<T>(
+    candidate: OrchestrationWorkCandidate,
+    operation: () => Promise<T>
+  ): Promise<T> {
+    assertOrchestrationRunIntegrity(candidate.run);
+    return runWithPostgresTenantScope(candidate.run.scope, operation);
+  }
+
   async listReady(input: {
     now: string;
     limit: number;
@@ -162,27 +174,12 @@ export class PostgresOrchestrationWorkerStore implements OrchestrationWorkerStor
       );
     }
 
-    const result = await this.db.query<CandidateRow>(
-      `SELECT
-         run.payload,
-         worker.run_id,
-         worker.stage_run_version,
-         worker.stage_attempt,
-         worker.consecutive_failures,
-         worker.ready_at,
-         worker.lease_id,
-         worker.lease_worker_id,
-         worker.lease_issued_at,
-         worker.lease_heartbeat_at,
-         worker.lease_expires_at,
-         worker.lease_version,
-         worker.claimed_run_version,
-         worker.claimed_record_hash
-       FROM orchestration_worker_state worker
-       JOIN orchestration_runs run ON run.id=worker.run_id
-       WHERE worker.ready_at <= $1
-         AND worker.lease_id IS NULL
-         AND run.state IN (
+    const routing = await this.db.query<WorkerRow>(
+      `SELECT *
+       FROM orchestration_worker_state
+       WHERE ready_at <= $1
+         AND lease_id IS NULL
+         AND run_state IN (
            'accepted',
            'context-ready',
            'planning',
@@ -195,28 +192,51 @@ export class PostgresOrchestrationWorkerStore implements OrchestrationWorkerStor
            'executing',
            'verifying'
          )
-       ORDER BY worker.ready_at,worker.run_id
+       ORDER BY ready_at,run_id
        LIMIT $2`,
       [input.now, input.limit]
     );
 
-    return Object.freeze(result.rows.map((row) => {
-      assertOrchestrationRunIntegrity(row.payload);
-      if (!isOrchestrationWorkerResumable(row.payload)) {
+    const candidates: OrchestrationWorkCandidate[] = [];
+    for (const row of routing.rows) {
+      const authoritative = await runWithPostgresTenantScope(
+        { portfolioId: row.portfolio_id, companyId: row.company_id },
+        () => this.db.query<{ payload: OrchestrationRunRecord }>(
+          "SELECT payload FROM orchestration_runs WHERE id=$1",
+          [row.run_id]
+        )
+      );
+      const run = authoritative.rows[0]?.payload;
+      if (!run) {
         throw new ControlPlaneError(
           "FORBIDDEN",
-          "Worker readiness query returned a non-resumable orchestration run"
+          "Orchestration dispatch row references a missing tenant-scoped run"
         );
       }
-      const sameStage = row.stage_run_version === row.payload.version;
-      return Object.freeze({
-        run: row.payload,
-        stageRunVersion: row.payload.version,
+      assertOrchestrationRunIntegrity(run);
+      if (
+        run.scope.portfolioId !== row.portfolio_id
+        || run.scope.companyId !== row.company_id
+        || run.state !== row.run_state
+        || !isOrchestrationWorkerResumable(run)
+      ) {
+        throw new ControlPlaneError(
+          "FORBIDDEN",
+          "Orchestration dispatch metadata drifted from authoritative run"
+        );
+      }
+
+      const sameStage = row.stage_run_version === run.version;
+      candidates.push(Object.freeze({
+        run,
+        stageRunVersion: run.version,
         stageAttempt: sameStage ? row.stage_attempt : 0,
         consecutiveFailures: sameStage ? row.consecutive_failures : 0,
         readyAt: iso(row.ready_at)
-      });
-    }));
+      }));
+    }
+
+    return Object.freeze(candidates);
   }
 
   async claimAtomic(input: {
@@ -692,6 +712,171 @@ export class PostgresOrchestrationWorkerStore implements OrchestrationWorkerStor
     });
   }
 
+  async deadLetter(input: {
+    lease: OrchestrationLease;
+    now: string;
+    code: string;
+    reason: string;
+    terminalRun: OrchestrationRunRecord;
+    recoveryKind?: "explicit-failure" | "expired-lease-recovery";
+    idempotencyKey: string;
+  }) {
+    const nowMs = parseTimestamp(input.now, "orchestration dead-letter time");
+    assertOrchestrationLease(input.lease, {
+      runId: input.lease.runId,
+      workerId: input.lease.workerId,
+      now: nowMs
+    });
+    assertOrchestrationRunIntegrity(input.terminalRun);
+    if (input.terminalRun.state !== "failed") {
+      throw new ControlPlaneError(
+        "CONFLICT",
+        "Only failed orchestration runs may be dead-lettered"
+      );
+    }
+    if (!input.code.trim() || !input.reason.trim()) {
+      throw new ControlPlaneError(
+        "VALIDATION_FAILED",
+        "Dead-letter code and reason are required"
+      );
+    }
+
+    const recoveryKind = input.recoveryKind ?? "explicit-failure";
+    const fingerprint = sha256Hex({
+      leaseHash: input.lease.leaseHash,
+      terminalRecordHash: input.terminalRun.recordHash,
+      code: input.code,
+      reasonHash: sha256Hex(input.reason),
+      recoveryKind
+    });
+
+    await this.db.transaction(async (client) => {
+      const operation = await claimOperation<{ deadLettered: true }>(client, {
+        idempotencyKey: input.idempotencyKey,
+        fingerprint,
+        now: input.now
+      });
+      if (operation.replay) return;
+
+      const selected = await client.query<CandidateRow>(
+        `SELECT run.payload,worker.*
+         FROM orchestration_runs run
+         JOIN orchestration_worker_state worker ON worker.run_id=run.id
+         WHERE run.id=$1
+         FOR UPDATE OF run,worker`,
+        [input.lease.runId]
+      );
+      const row = selected.rows[0];
+      const current = row ? leaseFromRow(row) : null;
+      if (
+        !row
+        || !current
+        || current.id !== input.lease.id
+        || current.workerId !== input.lease.workerId
+        || current.version !== input.lease.version
+        || row.payload.version !== input.terminalRun.version
+        || row.payload.recordHash !== input.terminalRun.recordHash
+      ) {
+        throw new ControlPlaneError(
+          "CONFLICT",
+          "Orchestration dead-letter lost lease or terminal run lineage"
+        );
+      }
+
+      const failureMessageHash = sha256Hex(input.reason);
+      const deadLetterBase = {
+        runId: input.terminalRun.id,
+        portfolioId: input.terminalRun.scope.portfolioId,
+        companyId: input.terminalRun.scope.companyId,
+        leaseId: input.lease.id,
+        workerId: input.lease.workerId,
+        claimedRunVersion: input.lease.claimedRunVersion,
+        claimedRecordHash: input.lease.claimedRecordHash,
+        terminalRunVersion: input.terminalRun.version,
+        terminalRecordHash: input.terminalRun.recordHash,
+        attempt: input.lease.attempt,
+        failureCode: input.code,
+        failureMessageHash,
+        deadLetteredAt: input.now,
+        recoveryKind
+      };
+      const evidenceHash = sha256Hex(deadLetterBase);
+      const id = `orchestration-dead-letter:${sha256Hex({
+        runId: input.terminalRun.id,
+        leaseId: input.lease.id
+      }).slice(0, 40)}`;
+
+      await client.query(
+        `INSERT INTO orchestration_worker_dead_letters(
+           id,run_id,portfolio_id,company_id,lease_id,worker_id,
+           claimed_run_version,claimed_record_hash,terminal_run_version,terminal_record_hash,
+           attempt,failure_code,failure_message_hash,dead_lettered_at,recovery_kind,evidence_hash
+         )
+         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+         ON CONFLICT(run_id,lease_id) DO NOTHING`,
+        [
+          id,
+          deadLetterBase.runId,
+          deadLetterBase.portfolioId,
+          deadLetterBase.companyId,
+          deadLetterBase.leaseId,
+          deadLetterBase.workerId,
+          deadLetterBase.claimedRunVersion,
+          deadLetterBase.claimedRecordHash,
+          deadLetterBase.terminalRunVersion,
+          deadLetterBase.terminalRecordHash,
+          deadLetterBase.attempt,
+          deadLetterBase.failureCode,
+          deadLetterBase.failureMessageHash,
+          deadLetterBase.deadLetteredAt,
+          deadLetterBase.recoveryKind,
+          evidenceHash
+        ]
+      );
+
+      const cleared = await client.query(
+        `UPDATE orchestration_worker_state
+         SET
+           stage_run_version=$2,
+           stage_attempt=0,
+           consecutive_failures=0,
+           ready_at=$3,
+           lease_id=NULL,
+           lease_worker_id=NULL,
+           lease_issued_at=NULL,
+           lease_heartbeat_at=NULL,
+           lease_expires_at=NULL,
+           lease_version=lease_version+1,
+           claimed_run_version=NULL,
+           claimed_record_hash=NULL,
+           last_error_code=$4,
+           last_error_message=$5,
+           updated_at=$3
+         WHERE run_id=$1 AND lease_id=$6 AND lease_version=$7`,
+        [
+          input.terminalRun.id,
+          input.terminalRun.version,
+          input.now,
+          input.code,
+          input.reason,
+          input.lease.id,
+          input.lease.version
+        ]
+      );
+      if (cleared.rowCount !== 1) {
+        throw new ControlPlaneError("CONFLICT", "Orchestration dead-letter lease cleanup failed");
+      }
+
+      await completeIdempotency(
+        client,
+        input.idempotencyKey,
+        fingerprint,
+        { deadLettered: true },
+        input.now
+      );
+    });
+  }
+
   async recoverExpired(input: {
     now: string;
     limit: number;
@@ -703,84 +888,202 @@ export class PostgresOrchestrationWorkerStore implements OrchestrationWorkerStor
       throw new ControlPlaneError("VALIDATION_FAILED", "Recovery limit must be from 1 to 500");
     }
 
-    return this.db.transaction(async (client) => {
-      const selected = await client.query<CandidateRow>(
-        `SELECT run.payload,worker.*
-         FROM orchestration_worker_state worker
-         JOIN orchestration_runs run ON run.id=worker.run_id
-         WHERE worker.lease_id IS NOT NULL
-           AND worker.lease_expires_at <= $1
-         ORDER BY worker.lease_expires_at,worker.run_id
-         FOR UPDATE OF worker SKIP LOCKED
-         LIMIT $2`,
-        [input.now, input.limit]
+    const routing = await this.db.query<WorkerRow>(
+      `SELECT *
+       FROM orchestration_worker_state
+       WHERE lease_id IS NOT NULL
+         AND lease_expires_at <= $1
+       ORDER BY lease_expires_at,run_id
+       LIMIT $2`,
+      [input.now, input.limit]
+    );
+
+    const recovered: OrchestrationRecoveryRecord[] = [];
+    for (const routingRow of routing.rows) {
+      const record = await runWithPostgresTenantScope(
+        {
+          portfolioId: routingRow.portfolio_id,
+          companyId: routingRow.company_id
+        },
+        () => this.db.transaction(async (client) => {
+          const selected = await client.query<CandidateRow>(
+            `SELECT run.payload,worker.*
+             FROM orchestration_worker_state worker
+             JOIN orchestration_runs run ON run.id=worker.run_id
+             WHERE worker.run_id=$1
+               AND worker.lease_id=$2
+               AND worker.lease_expires_at <= $3
+             FOR UPDATE OF run,worker`,
+            [routingRow.run_id, routingRow.lease_id, input.now]
+          );
+          const row = selected.rows[0];
+          if (!row) return null;
+
+          const run = row.payload;
+          assertOrchestrationRunIntegrity(run);
+          if (
+            run.scope.portfolioId !== row.portfolio_id
+            || run.scope.companyId !== row.company_id
+          ) {
+            throw new ControlPlaneError(
+              "FORBIDDEN",
+              "Expired orchestration lease crossed tenant scope"
+            );
+          }
+
+          const lease = leaseFromRow(row);
+          if (!lease) return null;
+
+          if (run.state === "failed" && run.version > lease.claimedRunVersion) {
+            const code = run.failure?.code ?? "ORCHESTRATION_FAILED";
+            const reason = run.failure?.message ?? "Orchestration failed before lease cleanup";
+            const failureMessageHash = sha256Hex(reason);
+            const deadLetterBase = {
+              runId: run.id,
+              portfolioId: run.scope.portfolioId,
+              companyId: run.scope.companyId,
+              leaseId: lease.id,
+              workerId: lease.workerId,
+              claimedRunVersion: lease.claimedRunVersion,
+              claimedRecordHash: lease.claimedRecordHash,
+              terminalRunVersion: run.version,
+              terminalRecordHash: run.recordHash,
+              attempt: lease.attempt,
+              failureCode: code,
+              failureMessageHash,
+              deadLetteredAt: input.now,
+              recoveryKind: "expired-lease-recovery" as const
+            };
+            const evidenceHash = sha256Hex(deadLetterBase);
+            const id = `orchestration-dead-letter:${sha256Hex({
+              runId: run.id,
+              leaseId: lease.id
+            }).slice(0, 40)}`;
+
+            await client.query(
+              `INSERT INTO orchestration_worker_dead_letters(
+                 id,run_id,portfolio_id,company_id,lease_id,worker_id,
+                 claimed_run_version,claimed_record_hash,terminal_run_version,terminal_record_hash,
+                 attempt,failure_code,failure_message_hash,dead_lettered_at,recovery_kind,evidence_hash
+               )
+               VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+               ON CONFLICT(run_id,lease_id) DO NOTHING`,
+              [
+                id,
+                deadLetterBase.runId,
+                deadLetterBase.portfolioId,
+                deadLetterBase.companyId,
+                deadLetterBase.leaseId,
+                deadLetterBase.workerId,
+                deadLetterBase.claimedRunVersion,
+                deadLetterBase.claimedRecordHash,
+                deadLetterBase.terminalRunVersion,
+                deadLetterBase.terminalRecordHash,
+                deadLetterBase.attempt,
+                deadLetterBase.failureCode,
+                deadLetterBase.failureMessageHash,
+                deadLetterBase.deadLetteredAt,
+                deadLetterBase.recoveryKind,
+                evidenceHash
+              ]
+            );
+
+            await client.query(
+              `UPDATE orchestration_worker_state
+               SET
+                 run_state=$2,
+                 stage_run_version=$3,
+                 stage_attempt=0,
+                 consecutive_failures=0,
+                 ready_at=$4,
+                 lease_id=NULL,
+                 lease_worker_id=NULL,
+                 lease_issued_at=NULL,
+                 lease_heartbeat_at=NULL,
+                 lease_expires_at=NULL,
+                 lease_version=lease_version+1,
+                 claimed_run_version=NULL,
+                 claimed_record_hash=NULL,
+                 last_error_code=$5,
+                 last_error_message=$6,
+                 updated_at=$4
+               WHERE run_id=$1 AND lease_id=$7`,
+              [run.id, run.state, run.version, input.now, code, reason, lease.id]
+            );
+
+            return Object.freeze({
+              runId: run.id,
+              leaseId: lease.id,
+              outcome: "dead-letter-recovered" as const,
+              nextReadyAt: input.now,
+              attempt: lease.attempt
+            });
+          }
+
+          const stageAdvanced = run.version > lease.claimedRunVersion;
+          const nextFailures = stageAdvanced ? 0 : row.consecutive_failures + 1;
+          const delayMs = stageAdvanced
+            ? 0
+            : computeOrchestrationBackoffMs({
+                runId: run.id,
+                attempt: Math.max(1, nextFailures),
+                baseDelayMs: input.retryBaseDelayMs,
+                maxDelayMs: input.retryMaxDelayMs
+              });
+          const readyAt = new Date(nowMs + delayMs).toISOString();
+
+          await client.query(
+            `UPDATE orchestration_worker_state
+             SET
+               run_state=$2,
+               stage_run_version=$3,
+               stage_attempt=CASE WHEN $4 THEN 0 ELSE stage_attempt END,
+               consecutive_failures=$5,
+               ready_at=$6,
+               lease_id=NULL,
+               lease_worker_id=NULL,
+               lease_issued_at=NULL,
+               lease_heartbeat_at=NULL,
+               lease_expires_at=NULL,
+               lease_version=lease_version+1,
+               claimed_run_version=NULL,
+               claimed_record_hash=NULL,
+               last_error_code=$7,
+               last_error_message=$8,
+               updated_at=$9
+             WHERE run_id=$1 AND lease_id=$10`,
+            [
+              run.id,
+              run.state,
+              run.version,
+              stageAdvanced,
+              nextFailures,
+              readyAt,
+              stageAdvanced ? null : "LEASE_EXPIRED",
+              stageAdvanced
+                ? null
+                : "Worker lease expired before checkpoint commit",
+              input.now,
+              lease.id
+            ]
+          );
+
+          return Object.freeze({
+            runId: run.id,
+            leaseId: lease.id,
+            outcome: stageAdvanced
+              ? "stage-advanced-before-crash" as const
+              : "retry-scheduled" as const,
+            nextReadyAt: readyAt,
+            attempt: lease.attempt
+          });
+        })
       );
 
-      const recovered: OrchestrationRecoveryRecord[] = [];
-      for (const row of selected.rows) {
-        const run = row.payload;
-        assertOrchestrationRunIntegrity(run);
-        const lease = leaseFromRow(row);
-        if (!lease) continue;
+      if (record) recovered.push(record);
+    }
 
-        const stageAdvanced = run.version > lease.claimedRunVersion;
-        const nextFailures = stageAdvanced ? 0 : row.consecutive_failures + 1;
-        const delayMs = stageAdvanced
-          ? 0
-          : computeOrchestrationBackoffMs({
-              runId: run.id,
-              attempt: Math.max(1, nextFailures),
-              baseDelayMs: input.retryBaseDelayMs,
-              maxDelayMs: input.retryMaxDelayMs
-            });
-        const readyAt = new Date(nowMs + delayMs).toISOString();
-
-        await client.query(
-          `UPDATE orchestration_worker_state
-           SET
-             stage_run_version=$2,
-             stage_attempt=CASE WHEN $3 THEN 0 ELSE stage_attempt END,
-             consecutive_failures=$4,
-             ready_at=$5,
-             lease_id=NULL,
-             lease_worker_id=NULL,
-             lease_issued_at=NULL,
-             lease_heartbeat_at=NULL,
-             lease_expires_at=NULL,
-             lease_version=lease_version+1,
-             claimed_run_version=NULL,
-             claimed_record_hash=NULL,
-             last_error_code=$6,
-             last_error_message=$7,
-             updated_at=$8
-           WHERE run_id=$1 AND lease_id=$9`,
-          [
-            run.id,
-            run.version,
-            stageAdvanced,
-            nextFailures,
-            readyAt,
-            stageAdvanced ? null : "LEASE_EXPIRED",
-            stageAdvanced
-              ? null
-              : "Worker lease expired before checkpoint commit",
-            input.now,
-            lease.id
-          ]
-        );
-
-        recovered.push(Object.freeze({
-          runId: run.id,
-          leaseId: lease.id,
-          outcome: stageAdvanced
-            ? "stage-advanced-before-crash"
-            : "retry-scheduled",
-          nextReadyAt: readyAt,
-          attempt: lease.attempt
-        }));
-      }
-
-      return Object.freeze(recovered);
-    });
+    return Object.freeze(recovered);
   }
+
 }

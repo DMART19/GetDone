@@ -202,6 +202,35 @@ describe("UFO nervous-system coordinator contracts", () => {
     expect(run.checkpoints.authorizationGrants[0]?.disposition).toBe("AUTO");
   });
 
+  it("requires an immutable Task DAG checkpoint at tasks-created", () => {
+    let run = throughPolicy();
+    run = transitionOrchestrationRun(run, {
+      to: "authorized",
+      now: "2026-09-27T20:00:06.000Z",
+      checkpointPatch: {
+        authorizationGrants: [{
+          id: "grant-auto-1",
+          hash: "grant-auto-hash",
+          disposition: "AUTO"
+        }]
+      }
+    });
+
+    expect(() =>
+      transitionOrchestrationRun(run, {
+        to: "tasks-created",
+        now: "2026-09-27T20:00:07.000Z",
+        checkpointPatch: {
+          tasks: [{
+            id: "task-1",
+            hash: "task-hash",
+            authorizationConsumptionHash: "consumption-hash"
+          }]
+        }
+      })
+    ).toThrowError(/Task DAG checkpoint/);
+  });
+
   it("cannot claim completion without verified Outcome lineage", () => {
     let run = throughPolicy();
     run = transitionOrchestrationRun(run, {
@@ -219,6 +248,10 @@ describe("UFO nervous-system coordinator contracts", () => {
       to: "tasks-created",
       now: "2026-09-27T20:00:07.000Z",
       checkpointPatch: {
+        taskDag: {
+          id: "task-dag-1",
+          hash: "task-dag-hash"
+        },
         tasks: [{
           id: "task-1",
           hash: "task-hash",

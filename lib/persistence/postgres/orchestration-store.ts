@@ -481,6 +481,27 @@ export class PostgresOrchestrationRunStore implements OrchestrationRunStore {
         );
       }
 
+      const resumable = isOrchestrationWorkerResumable(next);
+      const queueProjection = await client.query(
+        `UPDATE orchestration_worker_state
+         SET
+           run_state=$2,
+           ready_at=CASE
+             WHEN $3 THEN LEAST(ready_at,$4::timestamptz)
+             ELSE ready_at
+           END,
+           updated_at=GREATEST(updated_at,$4::timestamptz)
+         WHERE run_id=$1`,
+        [next.id, next.state, resumable, next.updatedAt]
+      );
+      if (queueProjection.rowCount !== 1) {
+        throw new ControlPlaneError(
+          "CONFLICT",
+          "Orchestration queue projection is missing for authoritative run",
+          { correlationId: next.correlationId }
+        );
+      }
+
       await this.insertCheckpoint(client, next);
 
       await client.query(

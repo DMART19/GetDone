@@ -45,7 +45,7 @@ integrationDescribe("PostgreSQL UFO orchestration worker", () => {
     return runWithPostgresTenantScope(scope, operation);
   }
 
-  function run(name: string) {
+  function run(name: string, runScope = scope) {
     const source = {
       id: `intent-worker-${name}-${suffix}`,
       message: `worker ${name}`
@@ -54,7 +54,7 @@ integrationDescribe("PostgreSQL UFO orchestration worker", () => {
       id: `run-worker-${name}-${suffix}`,
       correlationId: `correlation-worker-${name}-${suffix}`,
       source: createOrchestrationSourceRef("owner-intent", source.id, source),
-      scope,
+      scope: runScope,
       createdAt: "2026-09-28T11:00:00.000Z",
       updatedAt: "2026-09-28T11:00:00.000Z"
     });
@@ -227,6 +227,136 @@ integrationDescribe("PostgreSQL UFO orchestration worker", () => {
     expect(candidate?.run.state).toBe("context-ready");
     expect(candidate?.stageAttempt).toBe(0);
     expect(candidate?.consecutiveFailures).toBe(0);
+  });
+
+  it("discovers routing metadata across companies then re-enters exact tenant scope", async () => {
+    const otherScope = {
+      userId: `owner-other-${suffix}`,
+      portfolioId: `portfolio-other-${suffix}`,
+      companyId: `company-other-${suffix}`,
+      environment: "staging" as const
+    };
+    const first = run("global-discovery-a");
+    const second = run("global-discovery-b", otherScope);
+
+    await inScope(() => runStore.create(
+      first,
+      `orchestration:start:owner-intent:${first.source.id}`
+    ));
+    await runWithPostgresTenantScope(otherScope, () => runStore.create(
+      second,
+      `orchestration:start:owner-intent:${second.source.id}`
+    ));
+
+    const candidates = await workerStore.listReady({
+      now: "2026-09-28T11:00:01.000Z",
+      limit: 100
+    });
+    const discovered = new Map(candidates.map((candidate) => [
+      candidate.run.id,
+      candidate.run.scope.companyId
+    ]));
+
+    expect(discovered.get(first.id)).toBe(scope.companyId);
+    expect(discovered.get(second.id)).toBe(otherScope.companyId);
+
+    const firstCandidate = candidates.find((candidate) => candidate.run.id === first.id);
+    const secondCandidate = candidates.find((candidate) => candidate.run.id === second.id);
+    expect(firstCandidate).toBeTruthy();
+    expect(secondCandidate).toBeTruthy();
+    if (!firstCandidate || !secondCandidate) throw new Error("both candidates expected");
+
+    const firstVisible = await workerStore.withCandidateScope(firstCandidate, () =>
+      runStore.get(first.id)
+    );
+    const crossTenantHidden = await workerStore.withCandidateScope(firstCandidate, () =>
+      runStore.get(second.id)
+    );
+    const secondVisible = await workerStore.withCandidateScope(secondCandidate, () =>
+      runStore.get(second.id)
+    );
+
+    expect(firstVisible?.id).toBe(first.id);
+    expect(crossTenantHidden).toBeNull();
+    expect(secondVisible?.id).toBe(second.id);
+  });
+
+  it("reconstructs one durable dead letter after a crash following failed-state CAS", async () => {
+    const current = run("dead-letter-recovery");
+    await inScope(() => runStore.create(
+      current,
+      `orchestration:start:owner-intent:${current.source.id}`
+    ));
+
+    const lease = await inScope(() => workerStore.claimAtomic({
+      runId: current.id,
+      workerId: "worker-dead-letter",
+      now: "2026-09-28T11:04:00.000Z",
+      leaseSeconds: 2,
+      expectedRunVersion: current.version,
+      expectedRecordHash: current.recordHash,
+      idempotencyKey: orchestrationClaimIdempotencyKey({
+        runId: current.id,
+        runVersion: current.version,
+        workerId: "worker-dead-letter"
+      })
+    }));
+    expect(lease).not.toBeNull();
+    if (!lease) throw new Error("lease expected");
+
+    const failed = transitionOrchestrationRun(current, {
+      to: "failed",
+      now: "2026-09-28T11:04:01.000Z",
+      failure: {
+        code: "TEST_TERMINAL",
+        message: "crash after terminal checkpoint",
+        retryable: false,
+        failedAt: "2026-09-28T11:04:01.000Z"
+      }
+    });
+    await inScope(() => runStore.compareAndSwap(failed, {
+      expectedVersion: current.version,
+      expectedRecordHash: current.recordHash,
+      idempotencyKey: orchestrationTransitionIdempotencyKey(current, failed.state)
+    }));
+
+    const recovered = await workerStore.recoverExpired({
+      now: "2026-09-28T11:04:03.000Z",
+      limit: 100,
+      retryBaseDelayMs: 1_000,
+      retryMaxDelayMs: 10_000
+    });
+    expect(
+      recovered.find((item) => item.runId === current.id)?.outcome
+    ).toBe("dead-letter-recovered");
+
+    const deadLetters = await inScope(() => db().query<{
+      failure_code: string;
+      recovery_kind: string;
+    }>(
+      `SELECT failure_code,recovery_kind
+       FROM orchestration_worker_dead_letters
+       WHERE run_id=$1`,
+      [current.id]
+    ));
+    expect(deadLetters.rows).toEqual([{
+      failure_code: "TEST_TERMINAL",
+      recovery_kind: "expired-lease-recovery"
+    }]);
+
+    await workerStore.recoverExpired({
+      now: "2026-09-28T11:04:04.000Z",
+      limit: 100,
+      retryBaseDelayMs: 1_000,
+      retryMaxDelayMs: 10_000
+    });
+    const replay = await inScope(() => db().query<{ count: number }>(
+      `SELECT COUNT(*)::int AS count
+       FROM orchestration_worker_dead_letters
+       WHERE run_id=$1`,
+      [current.id]
+    ));
+    expect(replay.rows[0]?.count).toBe(1);
   });
 
   it("recovers a crash before checkpoint commit by scheduling the same stage for retry", async () => {

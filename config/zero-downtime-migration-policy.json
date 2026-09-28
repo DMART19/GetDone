@@ -127,6 +127,15 @@
       "transitionSchema": true,
       "destructive": false,
       "authorityCompatibilityRequired": true
+    },
+    {
+      "version": "2026-09-28.7",
+      "file": "migrations/2026-09-28.7_ufo_orchestration_worker_durability.sql",
+      "releaseId": "ufo-orchestration-worker-durability",
+      "phase": "expand",
+      "transitionSchema": true,
+      "destructive": false,
+      "authorityCompatibilityRequired": true
     }
   ]
 }

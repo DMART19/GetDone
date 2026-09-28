@@ -7,6 +7,7 @@ import {
 import {
   computeOrchestrationBackoffMs,
   orchestrationClaimIdempotencyKey,
+  orchestrationDeadLetterIdempotencyKey,
   orchestrationDeferIdempotencyKey,
   orchestrationHeartbeatIdempotencyKey,
   orchestrationReleaseIdempotencyKey,
@@ -154,7 +155,11 @@ export class DurableOrchestrationWorker {
         const index = nextIndex;
         nextIndex += 1;
         if (index >= candidates.length) return;
-        const result = await this.runCandidate(candidates[index], handler);
+        const candidate = candidates[index];
+        const execute = () => this.runCandidate(candidate, handler);
+        const result = this.workerStore.withCandidateScope
+          ? await this.workerStore.withCandidateScope(candidate, execute)
+          : await execute();
         if (result) results[index] = result;
       }
     };
@@ -223,7 +228,20 @@ export class DurableOrchestrationWorker {
       throw error;
     }
 
-    await this.safeRelease(lease);
+    if (this.workerStore.deadLetter) {
+      await this.retrySerializableConflict(() => this.workerStore.deadLetter!({
+        lease,
+        now: this.now().toISOString(),
+        code: input.code,
+        reason: input.reason,
+        terminalRun: next,
+        recoveryKind: "explicit-failure",
+        idempotencyKey: orchestrationDeadLetterIdempotencyKey(lease)
+      }));
+    } else {
+      await this.safeRelease(lease);
+    }
+
     await getTelemetry().counter("getdone.orchestration.failed.total", 1, {
       [OTEL_SEMANTIC.workerId]: this.config.workerId,
       [OTEL_SEMANTIC.companyId]: run.scope.companyId
