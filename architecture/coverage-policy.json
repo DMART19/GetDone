@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "1.9.0",
+  "schemaVersion": "2.0.0",
   "thresholds": {
     "coveredModulePercent": 100,
     "minimumTotalTestCases": 80,
@@ -419,6 +419,16 @@
     {
       "source": "lib/persistence/postgres/orchestration-context-snapshot-store.ts",
       "test": "lib/persistence/postgres/orchestration-context-snapshot-store.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/orchestration/planning-flow.ts",
+      "test": "lib/orchestration/planning-flow.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/persistence/postgres/orchestration-planning-stores.ts",
+      "test": "lib/persistence/postgres/orchestration-planning-stores.test.ts",
       "critical": true
     }
   ]
