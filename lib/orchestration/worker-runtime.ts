@@ -400,13 +400,24 @@ export class DurableOrchestrationWorker {
 
     if (outcome.kind === "defer") {
       const delayMs = Math.max(0, Math.min(outcome.delayMs, this.retryMaxDelayMs));
-      await this.retrySerializableConflict(() => this.workerStore.defer({
-        lease: activeLease,
-        now: this.now().toISOString(),
-        readyAt: new Date(this.now().getTime() + delayMs).toISOString(),
-        reason: outcome.reason,
-        idempotencyKey: orchestrationDeferIdempotencyKey(activeLease)
-      }));
+      try {
+        await this.retrySerializableConflict(() => this.workerStore.defer({
+          lease: activeLease,
+          now: this.now().toISOString(),
+          readyAt: new Date(this.now().getTime() + delayMs).toISOString(),
+          reason: outcome.reason,
+          idempotencyKey: orchestrationDeferIdempotencyKey(activeLease)
+        }));
+      } catch (error) {
+        if (error instanceof ControlPlaneError && error.code === "CONFLICT") {
+          return {
+            runId: candidate.run.id,
+            outcome: "stale",
+            state: candidate.run.state
+          };
+        }
+        throw error;
+      }
       return {
         runId: candidate.run.id,
         outcome: "deferred",
@@ -439,14 +450,25 @@ export class DurableOrchestrationWorker {
       ? computedDelay
       : Math.max(0, Math.min(outcome.retryAfterMs, this.retryMaxDelayMs));
 
-    await this.retrySerializableConflict(() => this.workerStore.scheduleRetry({
-      lease: activeLease,
-      now: this.now().toISOString(),
-      readyAt: new Date(this.now().getTime() + delayMs).toISOString(),
-      code: outcome.code,
-      reason: outcome.reason,
-      idempotencyKey: orchestrationRetryIdempotencyKey(activeLease)
-    }));
+    try {
+      await this.retrySerializableConflict(() => this.workerStore.scheduleRetry({
+        lease: activeLease,
+        now: this.now().toISOString(),
+        readyAt: new Date(this.now().getTime() + delayMs).toISOString(),
+        code: outcome.code,
+        reason: outcome.reason,
+        idempotencyKey: orchestrationRetryIdempotencyKey(activeLease)
+      }));
+    } catch (error) {
+      if (error instanceof ControlPlaneError && error.code === "CONFLICT") {
+        return {
+          runId: candidate.run.id,
+          outcome: "stale",
+          state: candidate.run.state
+        };
+      }
+      throw error;
+    }
 
     await getTelemetry().counter("getdone.orchestration.retry.total", 1, {
       [OTEL_SEMANTIC.workerId]: this.config.workerId,
