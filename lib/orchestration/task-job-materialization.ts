@@ -9,7 +9,6 @@ import {
 } from "@/lib/authorization/grants";
 import { assertCurrentPolicyVersion } from "@/lib/domain/policy-registry";
 import {
-  isOrchestrationTerminal,
   transitionOrchestrationRun,
   type OrchestrationRunRecord,
   type TaskRef
@@ -128,6 +127,7 @@ export interface OrchestrationJobArtifact {
   input: unknown;
   inputHash: string;
   idempotencyKey: string;
+  sideEffectIdempotencyKey: string;
   sideEffectIdempotencyKeyPrefix: string;
   dependencyJobIds: readonly string[];
   retryPolicy: Readonly<{
@@ -168,7 +168,7 @@ export interface OrchestrationTaskJobMaterializationStore {
   getJob(jobId: string): Promise<OrchestrationJobArtifact | null>;
 }
 
-interface MaterializationLineage {
+export interface MaterializationLineage {
   planArtifact: PersistedPlanProposal;
   validationArtifact: DurableValidationArtifact;
   policyArtifact: DurablePolicyEvaluationArtifact;
@@ -354,20 +354,33 @@ async function loadMaterializationLineage(input: {
   const expectedRefs = new Map(
     input.run.checkpoints.authorizationGrants.map((ref) => [ref.id, ref])
   );
+  const persistedGrants = await Promise.all(
+    input.run.checkpoints.authorizationGrants.map(async (ref) => ({
+      ref,
+      grant: await input.grants.get(ref.id)
+    }))
+  );
   const grantsByStep = new Map<string, AuthorizationGrant>();
+  for (const { ref, grant } of persistedGrants) {
+    if (!grant || grant.grantHash !== ref.hash) {
+      throw new ControlPlaneError(
+        "FORBIDDEN",
+        "AuthorizationGrant checkpoint is missing or changed in authoritative storage"
+      );
+    }
+    if (grantsByStep.has(grant.stepId)) {
+      throw new ControlPlaneError(
+        "FORBIDDEN",
+        `Multiple AuthorizationGrants resolve to Plan step: ${grant.stepId}`
+      );
+    }
+    grantsByStep.set(grant.stepId, grant);
+  }
 
   for (const step of planArtifact.proposal.steps) {
     const policyStep = policyStepFor(policyArtifact, step.id);
     assertCurrentPolicyVersion(policyStep.snapshot.policyVersion);
-
-    const matchingRef = input.run.checkpoints.authorizationGrants.find(
-      (ref) => ref.hash && ref.id
-    );
-    const grant = await Promise.all(
-      input.run.checkpoints.authorizationGrants.map((ref) => input.grants.get(ref.id))
-    ).then((items) =>
-      items.find((candidate) => candidate?.stepId === step.id) ?? null
-    );
+    const grant = grantsByStep.get(step.id);
 
     if (!grant) {
       throw new ControlPlaneError(
@@ -400,8 +413,6 @@ async function loadMaterializationLineage(input: {
         "AuthorizationGrant no longer matches the authoritative policy result"
       );
     }
-    grantsByStep.set(step.id, grant);
-    void matchingRef;
   }
 
   if (
@@ -663,6 +674,7 @@ function createJobArtifact(input: {
     input: operation.input,
     inputHash,
     idempotencyKey: `${jobEnqueueIdempotencyKey(input.run)}:${jobId}`,
+    sideEffectIdempotencyKey: `job:${jobId}:side-effect:${operation.capability}`,
     sideEffectIdempotencyKeyPrefix: `job:${jobId}:side-effect`,
     dependencyJobIds: Object.freeze([...input.dependencyJobIds]),
     retryPolicy: Object.freeze({
@@ -696,6 +708,7 @@ export function assertJobArtifact(job: OrchestrationJobArtifact) {
     || job.authorityLineage.taskId !== job.taskId
     || job.authorityLineage.authorizationConsumptionHash.length === 0
     || !job.idempotencyKey.includes(job.jobId)
+    || job.sideEffectIdempotencyKey !== `job:${job.jobId}:side-effect:${job.capabilityId}`
     || job.sideEffectIdempotencyKeyPrefix !== `job:${job.jobId}:side-effect`
   ) {
     throw new ControlPlaneError(
@@ -797,10 +810,6 @@ export async function advanceAuthorizedToTasksCreated(input: {
       "Task generation requires authorized orchestration state"
     );
   }
-  if (isOrchestrationTerminal(input.run.state)) {
-    throw new ControlPlaneError("CONFLICT", "Terminal orchestration cannot materialize Tasks");
-  }
-
   const now = input.now ?? (() => new Date());
   const lineage = await loadMaterializationLineage({
     ...input,
