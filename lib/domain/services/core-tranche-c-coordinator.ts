@@ -205,14 +205,22 @@ export class CoreTrancheCCoordinator {
     }
 
     const receipts = [...(input.priorObjectiveReceipts ?? []), receipt];
-    const eligibleSubjects = receipts.map((item) => item.subject);
+    const eligibleSubjects = [
+      ...new Map(
+        receipts.map((item) => [
+          `${item.subject.type}:${item.subject.id}`,
+          item.subject
+        ])
+      ).values()
+    ];
+    const evaluationAt = receipt.verifiedAt;
     const objectiveEvaluation = evaluateObjectiveOutcome({
       id: `objective-evaluation:${input.desiredOutcome.objectiveId}:${input.verificationRequest.id}`,
       desiredOutcome: input.desiredOutcome,
       verificationReceipts: receipts,
       scope: context.scope,
       eligibleSubjects,
-      evaluatedAt: verifiedAt,
+      evaluatedAt: evaluationAt,
       canGenerateMoreWork: input.canGenerateMoreWork,
       ...(receipt.verdict === "uncertain"
         ? { disposition: input.uncertainObjectiveState ?? "blocked" as const }
@@ -224,7 +232,7 @@ export class CoreTrancheCCoordinator {
           id: `replan:${objectiveEvaluation.id}`,
           evaluation: objectiveEvaluation,
           scope: context.scope,
-          requestedAt: verifiedAt,
+          requestedAt: evaluationAt,
           previousPlanId: input.previousPlanId
         })
       : undefined;
