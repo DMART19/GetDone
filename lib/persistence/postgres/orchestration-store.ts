@@ -31,6 +31,7 @@ const DEFAULT_RESUMABLE_STATES = Object.freeze<readonly OrchestrationState[]>([
   "planned",
   "validated",
   "policy-evaluated",
+  "awaiting-decision",
   "authorized",
   "tasks-created",
   "jobs-enqueued",
@@ -679,6 +680,18 @@ export class PostgresOrchestrationRunStore implements OrchestrationRunStore {
         );
       }
 
+      if (
+        current.state === "awaiting-decision"
+        && next.state !== "awaiting-decision"
+      ) {
+        await client.query(
+          `UPDATE orchestration_decision_resume_requests
+              SET status='processed', processed_at=$2
+            WHERE run_id=$1 AND status='pending'`,
+          [next.id, next.updatedAt]
+        );
+      }
+
       const resumable = isOrchestrationWorkerResumable(next);
       const queueProjection = await client.query(
         `UPDATE orchestration_worker_state
@@ -749,13 +762,6 @@ export class PostgresOrchestrationRunStore implements OrchestrationRunStore {
     const states = input.states?.length
       ? [...new Set(input.states)]
       : [...DEFAULT_RESUMABLE_STATES];
-
-    if (states.some((state) => state === "awaiting-decision")) {
-      throw new ControlPlaneError(
-        "VALIDATION_FAILED",
-        "awaiting-decision is resumed only by an authoritative Decision event"
-      );
-    }
 
     const result = await this.db.query<{ payload: OrchestrationRunRecord }>(
       `SELECT payload
