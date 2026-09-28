@@ -23,6 +23,7 @@ import {
   assertDurableValidationArtifact,
   type DurablePolicyEvaluationArtifact,
   type DurableStepPolicyRecord,
+  type DurableValidationArtifact,
   type OrchestrationPolicyEvaluationStore,
   type OrchestrationValidationArtifactStore
 } from "@/lib/orchestration/validation-policy-flow";
@@ -52,7 +53,7 @@ export interface OrchestrationAuthorizationGrantStore {
 
 interface AuthorizationLineage {
   planArtifact: PersistedPlanProposal;
-  validationArtifact: Awaited<ReturnType<OrchestrationValidationArtifactStore["get"]>> & {};
+  validationArtifact: DurableValidationArtifact;
   policyArtifact: DurablePolicyEvaluationArtifact;
 }
 
