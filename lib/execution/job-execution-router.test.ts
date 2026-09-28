@@ -96,7 +96,7 @@ describe("RoutedJobExecutionHandler", () => {
     });
   });
 
-  it("routes completed business actions to durable Job success and persists evidence", async () => {
+  it("routes completed business actions to verification handoff and persists evidence", async () => {
     const specs = new MemorySpecStore();
     const payload = { message: "hello" };
     specs.value = createPersistedJobExecutionSpec({
@@ -145,7 +145,7 @@ describe("RoutedJobExecutionHandler", () => {
       undefined,
       auth.value as never
     );
-    expect(await handler.execute(context)).toEqual({ kind: "succeeded" });
+    expect(await handler.execute(context)).toEqual({ kind: "provider-completed" });
     expect(auth.persisted).toEqual([evidence]);
   });
 
