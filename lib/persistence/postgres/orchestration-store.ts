@@ -271,6 +271,21 @@ export class PostgresOrchestrationRunStore implements OrchestrationRunStore {
 
       if (inserted.rowCount === 1) {
         await this.insertCheckpoint(client, record);
+        await client.query(
+          `INSERT INTO orchestration_worker_state
+            (
+              run_id,portfolio_id,company_id,stage_run_version,stage_attempt,
+              consecutive_failures,ready_at,lease_version,updated_at
+            )
+           VALUES($1,$2,$3,$4,0,0,$5,0,$5)`,
+          [
+            record.id,
+            record.scope.portfolioId,
+            record.scope.companyId,
+            record.version,
+            record.updatedAt
+          ]
+        );
         return { status: "created" as const, record };
       }
 
