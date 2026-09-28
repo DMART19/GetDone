@@ -144,7 +144,7 @@ export class MvpJobRuntime {
       taskId: authoritative.taskId,
       scope: request.scope,
       authorizationConsumptionHash: request.authorizationConsumptionHash,
-      idempotencyKey: `queue:${request.idempotencyKey}`,
+      idempotencyKey: `queue:${correlatedRequest.idempotencyKey}`,
       scheduledAt: createdAt,
       createdAt
     }));
