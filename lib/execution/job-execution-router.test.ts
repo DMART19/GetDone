@@ -43,6 +43,11 @@ const grantBase = {
   stepId: "step-1",
   stepHash: "step-hash",
   capabilityNames: ["email.send"],
+  executionLimits: {
+    environment: "staging" as const,
+    expectedDurationSeconds: 30,
+    retryable: true
+  },
   validationReceiptId: "validation-1",
   validationReceiptHash: "validation-hash",
   policySnapshotId: "policy-snapshot-1",
@@ -158,6 +163,7 @@ function authority(
       jobs: { get: async () => job },
       tasks: { get: async () => task },
       grants: { get: async () => grant },
+      admission: { assertAllowed: async () => undefined },
       verificationEvidence: {
         put: async (_jobId: string, _requestId: string, evidence: unknown) => {
           persisted.push(evidence);
@@ -169,7 +175,7 @@ function authority(
 
 const context = {
   envelope,
-  lease: {} as never,
+  lease: { attempt: 1 } as never,
   heartbeat: async () => undefined,
   runtimeVersion: () => 1,
   runtimeHash: () => "hash"
