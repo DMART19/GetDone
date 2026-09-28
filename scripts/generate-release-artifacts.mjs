@@ -149,6 +149,10 @@ const orchestrationPlanningArtifactContractVersion = extractStringConst(
   registry.schemaVersions.orchestrationPlanningArtifacts.sourcePath,
   "ORCHESTRATION_PLANNING_ARTIFACT_CONTRACT_VERSION"
 );
+const orchestrationExecutionArtifactContractVersion = extractStringConst(
+  registry.schemaVersions.orchestrationExecutionArtifacts.sourcePath,
+  "ORCHESTRATION_EXECUTION_ARTIFACT_CONTRACT_VERSION"
+);
 if (
   registry.aiGateway.contractVersion !== aiGatewayContractVersion
   || registry.aiGateway.routingPolicyContractVersion !== aiRoutingPolicyContractVersion
@@ -171,6 +175,8 @@ if (
   || registry.orchestration.contractVersion !== orchestrationRuntimeContractVersion
   || registry.schemaVersions.orchestrationPlanningArtifacts?.version !== orchestrationPlanningArtifactContractVersion
   || registry.orchestration.planningArtifactContractVersion !== orchestrationPlanningArtifactContractVersion
+  || registry.schemaVersions.orchestrationExecutionArtifacts?.version !== orchestrationExecutionArtifactContractVersion
+  || registry.orchestration.executionArtifactContractVersion !== orchestrationExecutionArtifactContractVersion
 ) {
   throw new Error("Release registry deterministic contract versions are stale");
 }
@@ -351,11 +357,19 @@ const manualLines = [
   `- Policy evaluation: ${registry.orchestration.policyEvaluationStatus}`,
   `- Policy-cleared still requires AuthorizationGrant: ${registry.orchestration.policyClearedRequiresAuthorizationGrant ? "YES" : "NO"}`,
   `- Decision continuation: ${registry.orchestration.decisionContinuationStatus}`,
+  `- Exact-hash Approval authority: ${registry.orchestration.exactHashApprovalStatus}`,
+  `- AuthorizationGrant issuance: ${registry.orchestration.authorizationGrantStatus}`,
+  `- Task DAG materialization: ${registry.orchestration.taskDagMaterializationStatus}`,
+  `- Job materialization: ${registry.orchestration.jobMaterializationStatus}`,
+  `- Root durable Job enqueue: ${registry.orchestration.durableRootJobEnqueueStatus}`,
+  `- Downstream dependency enqueue: ${registry.orchestration.downstreamDependencyEnqueueStatus}`,
+  `- Provider execution: ${registry.orchestration.providerExecutionStatus}`,
+  `- Provider execution specs created by orchestration: ${registry.orchestration.providerExecutionSpecsCreated ? "YES" : "NO"}`,
   ...registry.orchestration.sourcePaths.map(
     (sourcePath) => `- Orchestration source: ${sourcePath} — ${fileHash(sourcePath)}`
   ),
   "",
-  "OwnerIntent context snapshots, governed plan proposals, deterministic plan validation, and per-step policy evaluation are implemented. Live model routing/budget evidence remains unconfigured; SignalBus ingress and approval/AuthorizationGrant continuation remain not connected.",
+  "OwnerIntent context snapshots, governed plan proposals, deterministic validation/policy, exact-hash Approval continuation, AuthorizationGrant issuance, Task DAG materialization, Job materialization, and root durable enqueue are implemented. Provider execution remains not connected; downstream dependency Jobs remain inert until predecessor success." ,
   "",
   "## Durable execution contracts",
   "",
