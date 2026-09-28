@@ -54,7 +54,10 @@ function throughPolicy() {
   let run = contextReady(acceptedRun());
   run = transitionOrchestrationRun(run, {
     to: "planning",
-    now: "2026-09-27T20:00:02.000Z"
+    now: "2026-09-27T20:00:02.000Z",
+    checkpointPatch: {
+      plannerInput: { id: "planner-input-1", hash: "planner-input-hash" }
+    }
   });
   run = transitionOrchestrationRun(run, {
     to: "planned",
@@ -129,6 +132,17 @@ describe("UFO nervous-system coordinator contracts", () => {
         now: "2026-09-27T20:00:01.000Z"
       })
     ).toThrowError(/frozen context snapshot/);
+  });
+
+  it("requires a frozen planner input before entering planning", () => {
+    const run = contextReady(acceptedRun());
+
+    expect(() =>
+      transitionOrchestrationRun(run, {
+        to: "planning",
+        now: "2026-09-27T20:00:02.000Z"
+      })
+    ).toThrowError(/frozen planner input/);
   });
 
   it("can pause for an authoritative Decision and resume only with grant lineage", () => {
