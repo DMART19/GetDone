@@ -3,7 +3,6 @@ import { createCommandEnvelope } from "@/lib/control-plane/command-envelope";
 import type { OwnerIntentRecord } from "@/lib/control-api/contracts";
 import type { AuthoritativeDecision } from "@/lib/domain/decision-service";
 import { resolveDecision } from "@/lib/domain/decision-service";
-import { CURRENT_POLICY_VERSION } from "@/lib/domain/policy-registry";
 import {
   advancePolicyEvaluatedToAuthority,
   DecisionResumeDispatcher
@@ -14,8 +13,7 @@ import {
 import {
   advanceContextReadyToPlanning,
   advancePlanningToPlanned,
-  type DurablePlanner,
-  type PersistedPlanProposal
+  type DurablePlanner
 } from "@/lib/orchestration/planning-flow";
 import {
   advancePlannedToValidated,
