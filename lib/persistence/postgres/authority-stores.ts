@@ -320,14 +320,22 @@ export class PostgresAuthorizationGrantStore implements AuthorizationGrantStore 
           JSON.stringify(record)
         ]
       );
-    } catch {
+    } catch (error) {
+      const uniqueViolation = Boolean(
+        error
+        && typeof error === "object"
+        && "code" in error
+        && (error as { code?: string }).code === "23505"
+      );
+      if (!uniqueViolation) throw error;
+
       const existing = await this.db.query<{ payload: AuthorizationConsumptionRecord }>(
         "SELECT payload FROM authorization_consumptions WHERE grant_id=$1",
         [record.grantId]
       );
       if (existing.rows[0]?.payload.consumptionHash === record.consumptionHash) return;
       throw new ControlPlaneError(
-        "CONFLICT",
+        "IDEMPOTENCY_CONFLICT",
         "Authorization grant already has a different persisted consumption"
       );
     }
