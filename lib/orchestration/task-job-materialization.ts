@@ -225,7 +225,7 @@ function policyStepFor(
   return step;
 }
 
-function validatePlanDag(plan: PlanProposal) {
+export function deterministicPlanDagOrder(plan: PlanProposal) {
   const ids = new Set<string>();
   for (const step of plan.steps) {
     if (ids.has(step.id)) {
@@ -425,7 +425,7 @@ async function loadMaterializationLineage(input: {
     );
   }
 
-  validatePlanDag(planArtifact.proposal);
+  deterministicPlanDagOrder(planArtifact.proposal);
   return { planArtifact, validationArtifact, policyArtifact, grantsByStep };
 }
 
@@ -491,7 +491,7 @@ export function buildTaskDagArtifact(input: {
   planArtifact: PersistedPlanProposal;
   tasks: readonly OrchestrationTaskArtifact[];
 }): TaskDagArtifact {
-  const order = validatePlanDag(input.planArtifact.proposal);
+  const order = deterministicPlanDagOrder(input.planArtifact.proposal);
   const byStep = new Map(
     input.tasks.map((task) => [task.generatedTask.planStepId, task])
   );
@@ -816,7 +816,7 @@ export async function advanceAuthorizedToTasksCreated(input: {
     now: now()
   });
   const plan = lineage.planArtifact.proposal;
-  const stepOrder = validatePlanDag(plan);
+  const stepOrder = deterministicPlanDagOrder(plan);
 
   for (const stepId of stepOrder) {
     const grant = lineage.grantsByStep.get(stepId)!;
