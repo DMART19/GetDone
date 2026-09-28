@@ -8,10 +8,7 @@ import type {
 import type {
   OrchestrationDecisionStore
 } from "@/lib/orchestration/authorization-flow";
-import type {
-  PostgresTransactionalDatabase,
-  SqlQueryable
-} from "@/lib/persistence/postgres/client";
+import type { SqlQueryable } from "@/lib/persistence/postgres/client";
 
 export interface DurableDecisionResumeRequest extends DecisionResumeRequest {
   status: "pending" | "processed";
