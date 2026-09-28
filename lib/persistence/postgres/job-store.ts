@@ -141,17 +141,83 @@ async function persistOutcomeAndEvent(
     eventType: string;
   }
 ) {
-  const outcome = createDurableJobExecutionOutcome({
-    id: crypto.randomUUID(),
-    correlationId: input.correlationId,
-    jobId: input.jobId,
-    kind: input.kind,
-    runtimeState: input.runtimeState,
-    attempt: input.attempt,
-    reason: input.reason,
-    occurredAt: input.occurredAt,
-    transactionHash: input.transactionHash
-  });
+  const priorOutcome = await db.query<{
+    payload: DurableJobExecutionOutcomeRecord;
+  }>(
+    `SELECT payload
+       FROM job_execution_outcomes
+      WHERE job_id=$1 AND transaction_hash=$2
+      FOR SHARE`,
+    [input.jobId, input.transactionHash]
+  );
+
+  let outcome = priorOutcome.rows[0]?.payload;
+  if (outcome) {
+    const sameOutcome = outcome.jobId === input.jobId
+      && outcome.correlationId === input.correlationId
+      && outcome.kind === input.kind
+      && outcome.runtimeState === input.runtimeState
+      && outcome.attempt === input.attempt
+      && outcome.reason === input.reason
+      && outcome.occurredAt === input.occurredAt
+      && outcome.transactionHash === input.transactionHash;
+    if (!sameOutcome) {
+      throw new ControlPlaneError(
+        "IDEMPOTENCY_CONFLICT",
+        "Durable Job transaction already has a different execution outcome"
+      );
+    }
+  } else {
+    outcome = createDurableJobExecutionOutcome({
+      id: crypto.randomUUID(),
+      correlationId: input.correlationId,
+      jobId: input.jobId,
+      kind: input.kind,
+      runtimeState: input.runtimeState,
+      attempt: input.attempt,
+      reason: input.reason,
+      occurredAt: input.occurredAt,
+      transactionHash: input.transactionHash
+    });
+    await db.query(
+      `INSERT INTO job_execution_outcomes
+        (id,job_id,kind,runtime_state,attempt,occurred_at,transaction_hash,record_hash,payload)
+       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb)`,
+      [
+        outcome.id, outcome.jobId, outcome.kind, outcome.runtimeState, outcome.attempt,
+        outcome.occurredAt, outcome.transactionHash, outcome.recordHash, JSON.stringify(outcome)
+      ]
+    );
+  }
+
+  const priorEvent = await db.query<{
+    payload: DurableJobRuntimeEventRecord;
+  }>(
+    `SELECT payload
+       FROM job_runtime_events
+      WHERE job_id=$1 AND transaction_hash=$2 AND event_type=$3
+      FOR SHARE`,
+    [input.jobId, input.transactionHash, input.eventType]
+  );
+  const existingEvent = priorEvent.rows[0]?.payload;
+  if (existingEvent) {
+    if (
+      existingEvent.jobId !== input.jobId
+      || existingEvent.correlationId !== outcome.correlationId
+      || existingEvent.eventType !== input.eventType
+      || existingEvent.attempt !== input.attempt
+      || existingEvent.occurredAt !== input.occurredAt
+      || existingEvent.transactionHash !== input.transactionHash
+      || existingEvent.outcomeHash !== outcome.recordHash
+    ) {
+      throw new ControlPlaneError(
+        "IDEMPOTENCY_CONFLICT",
+        "Durable Job transaction already has a different runtime event"
+      );
+    }
+    return;
+  }
+
   const event = createDurableJobRuntimeEvent({
     id: crypto.randomUUID(),
     jobId: input.jobId,
@@ -161,22 +227,10 @@ async function persistOutcomeAndEvent(
     transactionHash: input.transactionHash,
     outcome
   });
-
-  await db.query(
-    `INSERT INTO job_execution_outcomes
-      (id,job_id,kind,runtime_state,attempt,occurred_at,transaction_hash,record_hash,payload)
-     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb)
-     ON CONFLICT (job_id, transaction_hash) DO NOTHING`,
-    [
-      outcome.id, outcome.jobId, outcome.kind, outcome.runtimeState, outcome.attempt,
-      outcome.occurredAt, outcome.transactionHash, outcome.recordHash, JSON.stringify(outcome)
-    ]
-  );
   await db.query(
     `INSERT INTO job_runtime_events
       (id,job_id,event_type,attempt,occurred_at,transaction_hash,outcome_hash,record_hash,payload)
-     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb)
-     ON CONFLICT (job_id, transaction_hash, event_type) DO NOTHING`,
+     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb)`,
     [
       event.id, event.jobId, event.eventType, event.attempt, event.occurredAt,
       event.transactionHash, event.outcomeHash, event.recordHash, JSON.stringify(event)
