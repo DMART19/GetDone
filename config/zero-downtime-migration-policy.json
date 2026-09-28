@@ -145,6 +145,15 @@
       "transitionSchema": true,
       "destructive": false,
       "authorityCompatibilityRequired": true
+    },
+    {
+      "version": "2026-09-28.9",
+      "file": "migrations/2026-09-28.9_confirmed_preference_learning.sql",
+      "releaseId": "confirmed-preference-learning",
+      "phase": "expand",
+      "transitionSchema": true,
+      "destructive": false,
+      "authorityCompatibilityRequired": true
     }
   ]
 }
