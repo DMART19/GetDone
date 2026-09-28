@@ -391,6 +391,7 @@ function buildAuthorized(plan = fanPlan()) {
       allowedEnvironments: [plan.scope.environment],
       allowedDataClasses: [plan.scope.dataClass],
       allowedRegions: ["us-west"],
+      integrationId: "github-primary",
       killSwitches: [],
       credentialRequirementIds: [],
       fallbackRequired: false,
@@ -412,6 +413,7 @@ function buildAuthorized(plan = fanPlan()) {
       allowedEnvironments: snapshot.allowedEnvironments,
       allowedDataClasses: snapshot.allowedDataClasses,
       allowedRegions: snapshot.allowedRegions,
+      integrationId: snapshot.integrationId,
       credentialRequirementIds: [],
       fallbackRequired: false,
       fallbackAvailable: true,
@@ -638,6 +640,8 @@ describe("Core Tranche A: AuthorizationGrant -> Task DAG -> Jobs", () => {
     ]);
     expect(joinJob.authorityLineage.authorizationConsumptionHash)
       .toBe(materialization.tasks.get(joinTaskId)!.authorizationConsumptionHash);
+    expect(joinJob.capabilityId).toBe("repository.inspect");
+    expect(joinJob.integrationId).toBe("github-primary");
     expect(joinJob.inputHash).toMatch(/^[a-f0-9]{64}$/);
     expect(joinJob.sideEffectIdempotencyKey)
       .toBe(`job:${joinJob.jobId}:side-effect:repository.inspect`);
