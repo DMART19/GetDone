@@ -10,6 +10,7 @@ import { assembleContext } from "@/lib/intelligence/context";
 import {
   advanceAwaitingDecisionToAuthorized,
   advancePolicyEvaluatedToAuthority,
+  DecisionResumeDispatcher,
   orchestrationDecisionId,
   type OrchestrationAuthorizationGrantStore,
   type OrchestrationDecisionStore
@@ -32,7 +33,11 @@ import {
   type OrchestrationPolicyEvaluationStore,
   type OrchestrationValidationArtifactStore
 } from "@/lib/orchestration/validation-policy-flow";
-import { transitionOrchestrationRun } from "@/lib/orchestration/contracts";
+import {
+  transitionOrchestrationRun,
+  type OrchestrationRunRecord,
+  type OrchestrationRunStore
+} from "@/lib/orchestration/contracts";
 import { validPlan } from "@/lib/planning/test-fixture";
 import type { PlanProposal } from "@/lib/planning/plan-schema";
 import {
@@ -115,6 +120,87 @@ class DecisionStore implements OrchestrationDecisionStore {
 
   async get(id: string) {
     return this.values.get(id) ?? null;
+  }
+}
+
+class RunStore implements OrchestrationRunStore {
+  readonly descriptor = {
+    persistence: "durable-external" as const,
+    compareAndSwap: true,
+    uniqueCorrelationId: true,
+    restartSafe: true,
+    multiProcessSafe: true,
+    productionEligible: true
+  };
+  constructor(public value: OrchestrationRunRecord) {}
+  async create() {
+    return { status: "idempotent-replay" as const, record: this.value };
+  }
+  async get(id: string) {
+    return this.value.id === id ? this.value : null;
+  }
+  async getByCorrelationId(correlationId: string) {
+    return this.value.correlationId === correlationId ? this.value : null;
+  }
+  async compareAndSwap(
+    next: OrchestrationRunRecord,
+    input: { expectedVersion: number; expectedRecordHash: string }
+  ) {
+    if (
+      this.value.version !== input.expectedVersion
+      || this.value.recordHash !== input.expectedRecordHash
+    ) {
+      throw new Error("run CAS conflict");
+    }
+    this.value = next;
+    return next;
+  }
+  async listResumable() {
+    return [this.value];
+  }
+}
+
+class ResumeQueue {
+  processed = false;
+  failMarkOnce = false;
+  constructor(public record: {
+    id: string;
+    runId: string;
+    decisionId: string;
+    decisionVersion: number;
+    correlationId: string;
+    portfolioId: string;
+    companyId: string;
+    resolution: "approved";
+    createdAt: string;
+    requestHash: string;
+    status: "pending" | "processed";
+    processedAt?: string;
+  }) {}
+
+  async getByDecisionVersion(decisionId: string, decisionVersion: number) {
+    return this.record.decisionId === decisionId
+      && this.record.decisionVersion === decisionVersion
+      ? this.record
+      : null;
+  }
+  async listPending() {
+    return this.record.status === "pending" ? [this.record] : [];
+  }
+  async markProcessed(id: string, requestHash: string, processedAt: string) {
+    if (this.failMarkOnce) {
+      this.failMarkOnce = false;
+      throw new Error("simulated crash after orchestration CAS");
+    }
+    if (id !== this.record.id || requestHash !== this.record.requestHash) {
+      throw new Error("resume queue mismatch");
+    }
+    this.processed = true;
+    this.record = {
+      ...this.record,
+      status: "processed",
+      processedAt
+    };
   }
 }
 
@@ -574,6 +660,84 @@ describe("durable policy-evaluated -> authorized flow", () => {
       expect(result.next.state).toBe("blocked");
       expect(grants.values.size).toBe(0);
     }
+  });
+
+  it("recovers a crash after authorized CAS but before the Decision resume outbox is marked processed", async () => {
+    const built = buildPolicyEvaluated("email.send");
+    const decisions = new DecisionStore();
+    const grants = new GrantStore();
+    const waiting = await advancePolicyEvaluatedToAuthority({
+      run: built.policyEvaluated,
+      ...built.stores,
+      decisions,
+      grants,
+      now: () => new Date("2026-09-28T13:00:10.000Z")
+    });
+    if (waiting.kind !== "advance" || waiting.next.state !== "awaiting-decision") {
+      throw new Error("awaiting-decision expected");
+    }
+
+    const id = waiting.next.checkpoints.decisionIds[0]!;
+    const pending = decisions.values.get(id)!;
+    const binding = pending.approvalBinding!;
+    const proof = createApprovalProof({
+      id: `approval-proof:${id}:v2`,
+      decisionId: id,
+      approvalId: `approval:${id}`,
+      actorId: "owner-a",
+      scope: waiting.next.scope,
+      level: "approval",
+      planHash: binding.planHash,
+      stepHash: binding.stepHash,
+      grantedAt: "2026-09-28T13:00:11.000Z",
+      expiresAt: "2026-09-28T13:10:00.000Z"
+    });
+    const approved = Object.freeze({
+      ...pending,
+      status: "approved" as const,
+      version: 2,
+      updatedAt: "2026-09-28T13:00:11.000Z",
+      approvalProof: proof
+    });
+    decisions.values.set(id, approved);
+
+    const runStore = new RunStore(waiting.next);
+    const queue = new ResumeQueue({
+      id: `decision-resume:${id}:v2`,
+      runId: waiting.next.id,
+      decisionId: id,
+      decisionVersion: 2,
+      correlationId: waiting.next.correlationId,
+      portfolioId: waiting.next.scope.portfolioId,
+      companyId: waiting.next.scope.companyId,
+      resolution: "approved",
+      createdAt: "2026-09-28T13:00:11.000Z",
+      requestHash: "a".repeat(64),
+      status: "pending"
+    });
+    queue.failMarkOnce = true;
+
+    const dispatcher = new DecisionResumeDispatcher({
+      runStore,
+      queue,
+      ...built.stores,
+      decisions,
+      grants
+    }, () => new Date("2026-09-28T13:00:12.000Z"));
+
+    await expect(dispatcher.processDecision(approved))
+      .rejects.toThrow(/simulated crash/i);
+    expect(runStore.value.state).toBe("authorized");
+    expect(queue.record.status).toBe("pending");
+
+    const replay = await dispatcher.processDecision(approved);
+    expect(replay).toMatchObject({
+      outcome: "already-finished",
+      state: "authorized",
+      runId: waiting.next.id
+    });
+    expect(queue.record.status).toBe("processed");
+    expect(grants.values.size).toBe(1);
   });
 
   it("rejects a tampered Decision binding and never mints a grant", async () => {
