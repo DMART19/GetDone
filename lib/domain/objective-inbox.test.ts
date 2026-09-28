@@ -100,6 +100,14 @@ describe("objective inbox normalization", () => {
     expect(objectives.every((objective) => objective.source === "multiline_list")).toBe(true);
   });
 
+  it("classifies pasted multi-paragraph text as one document objective", () => {
+    const objectives = parse(
+      "Onboarding review\n\nInvestigate where users abandon signup.\nVerify the resulting fix in staging before release."
+    );
+    expect(objectives).toHaveLength(1);
+    expect(objectives[0].source).toBe("pasted_document");
+  });
+
   it("splits a list-shaped uploaded task file but keeps prose documents together", () => {
     const tasks = parse("Patch onboarding\nVerify staging\nThen: request production approval", "uploaded_text");
     expect(tasks).toHaveLength(3);
