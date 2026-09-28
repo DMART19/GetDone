@@ -4,7 +4,7 @@ import {
   readPostgresConfigFromEnv
 } from "@/lib/persistence/postgres/client";
 
-export const REQUIRED_POSTGRES_MIGRATION = "2026-09-28.6";
+export const REQUIRED_POSTGRES_MIGRATION = "2026-09-28.7";
 
 export const REQUIRED_POSTGRES_RELATIONS = Object.freeze([
   "getdone_schema_migrations",
@@ -66,7 +66,13 @@ export const REQUIRED_POSTGRES_RELATIONS = Object.freeze([
   "orchestration_validation_artifacts",
   "orchestration_policy_step_snapshots",
   "orchestration_policy_evaluations",
-  "orchestration_decision_resume_requests"
+  "orchestration_decision_resume_requests",
+  "orchestration_task_materializations",
+  "orchestration_task_dags",
+  "orchestration_job_graphs",
+  "orchestration_job_nodes",
+  "orchestration_objective_evaluations",
+  "orchestration_outcomes"
 ] as const);
 
 export const REQUIRED_POSTGRES_INDEXES = Object.freeze([
@@ -114,7 +120,15 @@ export const REQUIRED_POSTGRES_INDEXES = Object.freeze([
   "orchestration_policy_evaluations_plan_idx",
   "orchestration_policy_evaluations_validation_idx",
   "orchestration_decision_resume_scope_idx",
-  "orchestration_decision_resume_pending_idx"
+  "orchestration_decision_resume_pending_idx",
+  "orchestration_task_materializations_scope_idx",
+  "orchestration_task_materializations_run_idx",
+  "orchestration_task_dags_scope_idx",
+  "orchestration_job_graphs_scope_idx",
+  "orchestration_job_nodes_ready_idx",
+  "orchestration_job_nodes_scope_idx",
+  "orchestration_objective_evaluations_scope_idx",
+  "orchestration_outcomes_scope_idx"
 ] as const);
 
 export const REQUIRED_POSTGRES_RLS_RELATIONS = Object.freeze([
@@ -148,7 +162,13 @@ export const REQUIRED_POSTGRES_RLS_RELATIONS = Object.freeze([
   "orchestration_validation_artifacts",
   "orchestration_policy_step_snapshots",
   "orchestration_policy_evaluations",
-  "orchestration_decision_resume_requests"
+  "orchestration_decision_resume_requests",
+  "orchestration_task_materializations",
+  "orchestration_task_dags",
+  "orchestration_job_graphs",
+  "orchestration_job_nodes",
+  "orchestration_objective_evaluations",
+  "orchestration_outcomes"
 ] as const);
 
 export interface PostgresRuntimeHealth {
