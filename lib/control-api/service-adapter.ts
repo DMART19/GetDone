@@ -18,6 +18,12 @@ import {
 } from "@/lib/resources/enrollment";
 import type { VerificationRequestRecord } from "@/lib/domain/services/verification-service";
 import type { Resource } from "@/lib/domain/resources";
+import {
+  normalizeObjectiveIntake,
+  type ObjectiveIntakeInput,
+  type ObjectiveIntakeStore,
+  type ObjectiveRecord
+} from "@/lib/domain/objective-inbox";
 import type {
   ControlApiApplicationAdapter,
   ControlApiHealth,
@@ -57,11 +63,6 @@ export interface ScopedReadStore<T extends { id: string; portfolioId: string; co
 }
 
 export interface OwnerIntentStore {
-  /**
-   * Production persistence MUST not acknowledge an accepted OwnerIntent until
-   * the intent and its initial durable orchestration admission have committed
-   * together. In-memory/test implementations may remain non-durable.
-   */
   create(record: OwnerIntentRecord, idempotencyKey: string): Promise<OwnerIntentRecord>;
 }
 
@@ -70,16 +71,10 @@ export interface ServiceBackedControlApiDependencies {
   scopes: ControlApiScopeResolver;
   authorizationEvidence?: ControlApiAuthorizationEvidenceResolver;
   intents: OwnerIntentStore;
+  objectives: ScopedReadStore<ObjectiveRecord>;
+  objectiveIntake: ObjectiveIntakeStore;
   decisions: ScopedReadStore<AuthoritativeDecision>;
   decisionTransactions: DecisionTransactionManager;
-  /**
-   * Optional post-commit dispatcher for orchestration Decisions. The Decision
-   * transaction already emits a durable resume request; dispatcher failures
-   * must not roll back or misreport the committed owner Decision.
-   */
-  decisionResumeDispatcher?: {
-    processDecision(decision: AuthoritativeDecision): Promise<unknown>;
-  };
   resources: ScopedReadStore<Resource>;
   resourceRegistry: ResourceRegistryService;
   resourceEnrollments: ScopedReadStore<ResourceEnrollmentRecord>;
@@ -249,6 +244,36 @@ export class ServiceBackedControlApiAdapter implements ControlApiApplicationAdap
     });
   }
 
+  async submitObjectives(
+    principal: ControlApiPrincipal,
+    input: ObjectiveIntakeInput,
+    idempotencyKey: string,
+    correlationId?: string
+  ) {
+    return this.scoped(principal, async () => {
+      requireRole(principal, ["owner"], "Objective submission");
+      const records = normalizeObjectiveIntake(input, {
+        scope: principal.scope,
+        correlationId: correlationId ?? createCorrelationId(),
+        now: this.now().toISOString()
+      });
+      return this.deps.objectiveIntake.createBatch(records, idempotencyKey);
+    });
+  }
+
+  listObjectives(principal: ControlApiPrincipal) {
+    return this.scoped(principal, () => this.deps.objectives.listByScope(
+      principal.scope.portfolioId,
+      principal.scope.companyId
+    ));
+  }
+
+  async getObjective(principal: ControlApiPrincipal, objectiveId: string) {
+    return this.scoped(principal, async () =>
+      assertScopedEntity(principal, await this.deps.objectives.get(objectiveId))
+    );
+  }
+
   listDecisions(principal: ControlApiPrincipal) {
     return this.scoped(principal, () => this.deps.decisions.listByScope(
       principal.scope.portfolioId,
@@ -292,7 +317,7 @@ export class ServiceBackedControlApiAdapter implements ControlApiApplicationAdap
         }
       });
 
-      const resolved = await resolveDecision({
+      return resolveDecision({
         command,
         transactionManager: this.deps.decisionTransactions,
         decisionId: input.decisionId,
@@ -300,17 +325,6 @@ export class ServiceBackedControlApiAdapter implements ControlApiApplicationAdap
         stepUpProof: principal.stepUpProof,
         now: this.now
       });
-
-      // Orchestrated Decisions already wrote a durable resume request in the
-      // same authoritative transaction. This call is only a low-latency wakeup;
-      // if it fails, the durable queue remains pending for later recovery.
-      try {
-        await this.deps.decisionResumeDispatcher?.processDecision(resolved);
-      } catch {
-        // Do not return an HTTP failure after the owner Decision has committed.
-      }
-
-      return resolved;
     });
   }
 
