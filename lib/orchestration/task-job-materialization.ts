@@ -249,6 +249,12 @@ export function deterministicPlanDagOrder(plan: PlanProposal) {
 
   for (const step of plan.steps) {
     const uniqueDependencies = [...new Set(step.dependsOn)];
+    if (uniqueDependencies.length !== step.dependsOn.length) {
+      throw new ControlPlaneError(
+        "VALIDATION_FAILED",
+        `Plan step contains duplicate dependencies: ${step.id}`
+      );
+    }
     if (uniqueDependencies.includes(step.id)) {
       throw new ControlPlaneError(
         "VALIDATION_FAILED",
@@ -443,9 +449,9 @@ function taskArtifact(input: {
   if (!step) {
     throw new ControlPlaneError("FORBIDDEN", "Generated Task is not a Plan step");
   }
-  const dependencies = step.dependsOn.map((stepId) =>
-    deterministicTaskId(input.run.id, stepId)
-  );
+  const dependencies = [...step.dependsOn]
+    .sort()
+    .map((stepId) => deterministicTaskId(input.run.id, stepId));
   const base = {
     id: `task-artifact:${input.task.id}`,
     taskId: input.task.id,
@@ -473,13 +479,27 @@ function taskArtifact(input: {
 
 export function assertTaskArtifact(artifact: OrchestrationTaskArtifact) {
   const { taskHash, ...base } = artifact;
+  const generated = artifact.generatedTask;
+  const expectedCapabilities = [...generated.capabilityRequirements].sort();
+  const expectedInputs = generated.operations.map((operation) => operation.input);
   if (
     sha256Hex(base) !== taskHash
-    || artifact.taskId !== artifact.generatedTask.id
-    || artifact.authorizationGrantId !== artifact.generatedTask.authorizationGrantId
-    || artifact.authorizationGrantHash !== artifact.generatedTask.authorizationGrantHash
+    || artifact.taskId !== generated.id
+    || artifact.portfolioId !== generated.scope.portfolioId
+    || artifact.companyId !== generated.scope.companyId
+    || artifact.planId !== generated.planId
+    || artifact.authorizationGrantId !== generated.authorizationGrantId
+    || artifact.authorizationGrantHash !== generated.authorizationGrantHash
     || artifact.authorizationConsumptionHash
-      !== artifact.generatedTask.authorizationConsumption.consumptionHash
+      !== generated.authorizationConsumption.consumptionHash
+    || generated.authorizationConsumption.grantId !== artifact.authorizationGrantId
+    || generated.authorizationConsumption.consumerType !== "task"
+    || generated.authorizationConsumption.consumerId !== artifact.taskId
+    || generated.authorizationConsumption.scope.portfolioId !== artifact.portfolioId
+    || generated.authorizationConsumption.scope.companyId !== artifact.companyId
+    || sha256Hex(artifact.capability) !== sha256Hex(expectedCapabilities)
+    || sha256Hex(artifact.inputs) !== sha256Hex(expectedInputs)
+    || artifact.createdAt !== generated.createdAt
   ) {
     throw new ControlPlaneError(
       "FORBIDDEN",
@@ -495,11 +515,13 @@ export function buildTaskDagArtifact(input: {
   tasks: readonly OrchestrationTaskArtifact[];
 }): TaskDagArtifact {
   const order = deterministicPlanDagOrder(input.planArtifact.proposal);
+  for (const task of input.tasks) assertTaskArtifact(task);
   const byStep = new Map(
     input.tasks.map((task) => [task.generatedTask.planStepId, task])
   );
   if (
-    byStep.size !== input.planArtifact.proposal.steps.length
+    input.tasks.length !== input.planArtifact.proposal.steps.length
+    || byStep.size !== input.planArtifact.proposal.steps.length
     || input.tasks.some(
       (task) =>
         task.portfolioId !== input.run.scope.portfolioId
@@ -534,6 +556,26 @@ export function buildTaskDagArtifact(input: {
       throw new ControlPlaneError(
         "FORBIDDEN",
         `Task missing for Plan step: ${stepId}`
+      );
+    }
+    const step = input.planArtifact.proposal.steps.find(
+      (candidate) => candidate.id === stepId
+    )!;
+    const expectedDependencies = [...step.dependsOn]
+      .sort()
+      .map((dependency) => deterministicTaskId(input.run.id, dependency));
+    if (
+      task.taskId !== deterministicTaskId(input.run.id, stepId)
+      || task.generatedTask.planStepId !== stepId
+      || task.planId !== input.planArtifact.proposal.id
+      || task.generatedTask.planId !== input.planArtifact.proposal.id
+      || task.riskClass !== step.risk.level
+      || sha256Hex(task.dependencies) !== sha256Hex(expectedDependencies)
+      || sha256Hex(task.generatedTask.operations) !== sha256Hex(step.capabilityRequests)
+    ) {
+      throw new ControlPlaneError(
+        "FORBIDDEN",
+        `Task does not exactly materialize authorized Plan step: ${stepId}`
       );
     }
     return Object.freeze({
@@ -715,7 +757,11 @@ export function assertJobArtifact(job: OrchestrationJobArtifact) {
     sha256Hex(base) !== jobHash
     || job.authorityLineage.taskId !== job.taskId
     || job.authorityLineage.authorizationConsumptionHash.length === 0
-    || !job.idempotencyKey.includes(job.jobId)
+    || job.inputHash !== sha256Hex({
+      capabilityId: job.capabilityId,
+      input: job.input
+    })
+    || !job.idempotencyKey.endsWith(`:${job.jobId}`)
     || job.sideEffectIdempotencyKey !== `job:${job.jobId}:side-effect:${job.capabilityId}`
     || job.sideEffectIdempotencyKeyPrefix !== `job:${job.jobId}:side-effect`
   ) {
@@ -734,7 +780,28 @@ export function buildJobArtifacts(input: {
   tasks: readonly OrchestrationTaskArtifact[];
 }) {
   assertTaskDagArtifact(input.dag);
+  if (
+    input.dag.orchestrationRunId !== input.run.id
+    || input.dag.portfolioId !== input.run.scope.portfolioId
+    || input.dag.companyId !== input.run.scope.companyId
+    || input.dag.planId !== input.lineage.planArtifact.proposal.id
+    || input.dag.planHash !== input.lineage.planArtifact.planHash
+  ) {
+    throw new ControlPlaneError(
+      "FORBIDDEN",
+      "Task DAG does not match current authoritative orchestration lineage"
+    );
+  }
   const tasksById = new Map(input.tasks.map((task) => [task.taskId, task]));
+  if (
+    input.tasks.length !== input.dag.nodes.length
+    || tasksById.size !== input.dag.nodes.length
+  ) {
+    throw new ControlPlaneError(
+      "FORBIDDEN",
+      "Job materialization requires exactly the Tasks in the authoritative DAG"
+    );
+  }
   const jobIdsByTask = new Map<string, string[]>();
 
   for (const taskId of input.dag.topologicalOrder) {
@@ -743,6 +810,18 @@ export function buildJobArtifacts(input: {
       throw new ControlPlaneError("FORBIDDEN", `Missing Task artifact: ${taskId}`);
     }
     assertTaskArtifact(task);
+    if (
+      task.orchestrationRunId !== input.run.id
+      || task.portfolioId !== input.run.scope.portfolioId
+      || task.companyId !== input.run.scope.companyId
+      || task.planId !== input.lineage.planArtifact.proposal.id
+      || task.planHash !== input.lineage.planArtifact.planHash
+    ) {
+      throw new ControlPlaneError(
+        "FORBIDDEN",
+        `Task lineage changed before Job materialization: ${taskId}`
+      );
+    }
     jobIdsByTask.set(
       taskId,
       task.generatedTask.operations.map((_, index) =>
