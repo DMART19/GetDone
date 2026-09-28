@@ -34,6 +34,7 @@ import {
 } from "@/lib/orchestration/validation-policy-flow";
 import { transitionOrchestrationRun } from "@/lib/orchestration/contracts";
 import { validPlan } from "@/lib/planning/test-fixture";
+import type { PlanProposal } from "@/lib/planning/plan-schema";
 import {
   attestPlanValidation
 } from "@/lib/planning/plan-validator";
@@ -135,7 +136,9 @@ class GrantStore implements OrchestrationAuthorizationGrantStore {
   }
 }
 
-function capabilityPlan(capability: "repository.inspect" | "email.send") {
+function capabilityPlan(
+  capability: "repository.inspect" | "email.send"
+): PlanProposal {
   if (capability === "repository.inspect") return validPlan({
     id: `plan-${capability}`,
     source: { type: "owner-request", requestId: `intent-${capability}` },
