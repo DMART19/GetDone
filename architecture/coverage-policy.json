@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "1.6.0",
+  "schemaVersion": "1.7.0",
   "thresholds": {
     "coveredModulePercent": 100,
     "minimumTotalTestCases": 80,
@@ -184,6 +184,11 @@
     {
       "source": "lib/ai-gateway/budget-reservation.ts",
       "test": "lib/ai-gateway/budget-reservation.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/explainability/job-owner-explanation.ts",
+      "test": "lib/explainability/job-owner-explanation.test.ts",
       "critical": true
     },
     {
