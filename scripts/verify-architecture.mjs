@@ -428,6 +428,17 @@ for (const required of [
   }
 }
 
+const credentialRuntimeBroker = read("lib/credentials/runtime-broker.ts");
+for (const required of [
+  "Credential-bearing business action requires a credential lease reference",
+  "assertCredentialLease(lease",
+  "Credential lease provider does not match adapter requirement"
+]) {
+  if (!credentialRuntimeBroker.includes(required)) {
+    fail(`Credential broker authority guard missing: ${required}`);
+  }
+}
+
 const businessAdapter = read("lib/execution/adapters/business-action.ts");
 for (const required of [
   "authorizationConsumptionHash",
@@ -435,7 +446,7 @@ for (const required of [
   "jobStateMutationApplied: false",
   "sha256Hex(request.input) !== request.inputHash",
   "assertBusinessActionStatus",
-  "Production business actions require a scoped credential lease reference",
+  "Credential requirements are operation-specific.",
   "BusinessActionRetryClass",
   "retryClass?: BusinessActionRetryClass"
 ]) {
