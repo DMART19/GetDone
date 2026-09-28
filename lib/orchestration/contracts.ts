@@ -616,8 +616,9 @@ export function transitionOrchestrationRun(
     );
   }
 
+  const { recordHash: _currentRecordHash, ...currentWithoutHash } = current;
   const base = recordBase({
-    ...current,
+    ...currentWithoutHash,
     state: input.to,
     checkpoints,
     failure: input.to === "failed" ? input.failure : undefined,
@@ -626,9 +627,8 @@ export function transitionOrchestrationRun(
     attempt: current.attempt + (input.incrementAttempt ? 1 : 0),
     updatedAt: new Date(now).toISOString()
   });
-  delete (base as Partial<OrchestrationRunRecord>).recordHash;
 
-  return Object.freeze({ ...base, recordHash: sha256Hex(base) }) as OrchestrationRunRecord;
+  return Object.freeze({ ...base, recordHash: sha256Hex(base) });
 }
 
 export function isOrchestrationTerminal(state: OrchestrationState) {
