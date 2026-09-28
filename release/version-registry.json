@@ -294,11 +294,16 @@
       ]
     },
     "orchestrationWorkerContract": {
-      "version": "1.0.0",
+      "version": "1.1.0",
       "sourcePath": "lib/orchestration/worker-contracts.ts",
       "contractTracked": true,
       "contractSourcePaths": [
-        "lib/orchestration/worker-contracts.ts"
+        "lib/orchestration/worker-contracts.ts",
+        "lib/orchestration/worker-runtime.ts",
+        "lib/orchestration/persistent-worker.server.ts",
+        "lib/orchestration/worker-process.server.ts",
+        "lib/persistence/postgres/orchestration-worker-store.ts",
+        "lib/persistence/postgres/orchestration-worker-registry.ts"
       ]
     }
   },
