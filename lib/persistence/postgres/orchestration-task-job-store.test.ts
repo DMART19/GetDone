@@ -141,12 +141,7 @@ function fixture() {
     capabilityRequirements: Object.freeze(
       step.capabilityRequests.map((item) => item.capability)
     ),
-    operations: Object.freeze(
-      step.capabilityRequests.map((item) => Object.freeze({
-        capability: item.capability,
-        input: item.input
-      }))
-    ),
+    operations: step.capabilityRequests,
     authorizationLineage: Object.freeze([Object.freeze({
       kind: "auto-policy" as const,
       referenceId: grant.id,
@@ -161,21 +156,10 @@ function fixture() {
     policySnapshotId: grant.policySnapshotId,
     policySnapshotHash: grant.policySnapshotHash,
     dependsOnLogicalKeys: Object.freeze([]),
-    preconditions: Object.freeze(step.preconditions.map((item) => Object.freeze({ ...item }))),
-    resourceRequirements: Object.freeze({
-      ...step.resourceRequirements,
-      execution: Object.freeze({ ...step.resourceRequirements.execution }),
-      reliability: Object.freeze({ ...step.resourceRequirements.reliability }),
-      data: Object.freeze({
-        ...step.resourceRequirements.data,
-        allowedRegions: Object.freeze([...step.resourceRequirements.data.allowedRegions])
-      }),
-      economics: Object.freeze({ ...step.resourceRequirements.economics })
-    }),
-    verificationRequirements: Object.freeze(
-      step.verificationRequirements.map((item) => Object.freeze({ ...item }))
-    ),
-    rollback: Object.freeze({ ...step.rollback }),
+    preconditions: step.preconditions,
+    resourceRequirements: step.resourceRequirements,
+    verificationRequirements: step.verificationRequirements,
+    rollback: step.rollback,
     estimatedCostCents: step.estimatedCostCents,
     createdAt: new Date(fixtureNow.getTime() + 1_000).toISOString()
   });
