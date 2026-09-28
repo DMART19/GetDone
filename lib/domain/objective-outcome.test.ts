@@ -106,6 +106,7 @@ describe("Core Tranche C objective outcome loop", () => {
       desiredOutcome,
       verificationReceipts: [verified],
       scope,
+      eligibleSubjects: [{ type: "job", id: "job-verified" }],
       evaluatedAt: new Date(fixtureNow.getTime() + 1_000).toISOString(),
       canGenerateMoreWork: true
     });
@@ -133,6 +134,7 @@ describe("Core Tranche C objective outcome loop", () => {
       desiredOutcome,
       verificationReceipts: [failedVerification],
       scope,
+      eligibleSubjects: [{ type: "job", id: "job-wrong-sha" }],
       evaluatedAt: new Date(fixtureNow.getTime() + 1_000).toISOString(),
       canGenerateMoreWork: true
     });
@@ -164,6 +166,11 @@ describe("Core Tranche C objective outcome loop", () => {
         expiresAt: new Date(replanRequestedAt.getTime() + 10_000).toISOString(),
         admissionHash: "fake"
       } as never,
+      plan: validPlan({
+        id: "plan-forged",
+        proposalVersion: 2,
+        source: { type: "objective", objectiveId: desiredOutcome.objectiveId }
+      }),
       scope,
       now: replanRequestedAt.getTime()
     })).toThrow();
@@ -195,6 +202,7 @@ describe("Core Tranche C objective outcome loop", () => {
     expect(assertGovernedReplanAdmission({
       request: replan,
       admission,
+      plan,
       scope: replanScope,
       now: admittedAt.getTime()
     })).toBe(admission);
@@ -209,6 +217,7 @@ describe("Core Tranche C objective outcome loop", () => {
       desiredOutcome,
       verificationReceipts: [repaired],
       scope,
+      eligibleSubjects: [{ type: "job", id: "job-repaired" }],
       evaluatedAt: new Date(fixtureNow.getTime() + 5_000).toISOString(),
       canGenerateMoreWork: true
     });
