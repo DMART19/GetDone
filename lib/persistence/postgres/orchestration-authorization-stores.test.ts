@@ -1,11 +1,20 @@
 import { describe, expect, it } from "vitest";
-import type { QueryResult, QueryResultRow } from "pg";
+import type {
+  PoolClient,
+  QueryResult,
+  QueryResultRow
+} from "pg";
 import type { AuthoritativeDecision, DecisionResumeRequest } from "@/lib/domain/decision-service";
 import {
   PostgresDecisionResumeRequestStore,
+  PostgresOrchestrationAuthorizationGrantStore,
   PostgresOrchestrationDecisionStore
 } from "@/lib/persistence/postgres/orchestration-authorization-stores";
-import type { SqlQueryable } from "@/lib/persistence/postgres/client";
+import type {
+  PostgresTransactionalDatabase,
+  SqlQueryable
+} from "@/lib/persistence/postgres/client";
+import { autoGrantFor } from "@/lib/planning/test-security-fixture";
 import { sha256Hex } from "@/lib/control-plane/canonical-hash";
 
 interface ResponseSpec {
@@ -28,6 +37,90 @@ class ScriptedDb implements SqlQueryable {
       oid: 0,
       fields: [],
       rows: (response.rows ?? []) as R[]
+    };
+  }
+}
+
+class AuthorizationBatchDb implements PostgresTransactionalDatabase {
+  grantInserts = 0;
+  private record: {
+    key: string;
+    fingerprint: string;
+    status: "IN_PROGRESS" | "COMPLETED";
+    created_at: string;
+    completed_at: string | null;
+    result: unknown;
+  } | null = null;
+
+  async query<R extends QueryResultRow = QueryResultRow>(
+    text: string,
+    values: readonly unknown[] = []
+  ): Promise<QueryResult<R>> {
+    const normalized = text.replace(/\s+/g, " ").trim();
+
+    if (normalized.startsWith("INSERT INTO idempotency_records")) {
+      if (this.record) return this.result([], 0);
+      this.record = {
+        key: String(values[0]),
+        fingerprint: String(values[1]),
+        status: "IN_PROGRESS",
+        created_at: String(values[2]),
+        completed_at: null,
+        result: null
+      };
+      return this.result([], 1);
+    }
+
+    if (normalized.startsWith("SELECT * FROM idempotency_records")) {
+      if (!this.record) return this.result([], 0);
+      return this.result([{
+        ...this.record,
+        failed_at: null,
+        error_code: null
+      }], 1);
+    }
+
+    if (normalized.startsWith("INSERT INTO authorization_grants")) {
+      this.grantInserts += 1;
+      return this.result([], 1);
+    }
+
+    if (normalized.startsWith("UPDATE idempotency_records") && normalized.includes("COMPLETED")) {
+      if (!this.record) return this.result([], 0);
+      this.record = {
+        ...this.record,
+        status: "COMPLETED",
+        completed_at: String(values[2]),
+        result: JSON.parse(String(values[3]))
+      };
+      return this.result([{
+        ...this.record,
+        failed_at: null,
+        error_code: null
+      }], 1);
+    }
+
+    if (normalized.startsWith("SELECT payload FROM authorization_grants")) {
+      return this.result([], 0);
+    }
+
+    throw new Error(`Unexpected SQL in authorization batch test: ${normalized}`);
+  }
+
+  async transaction<T>(operation: (client: PoolClient) => Promise<T>) {
+    return operation(this as unknown as PoolClient);
+  }
+
+  private result<R extends QueryResultRow>(
+    rows: R[],
+    rowCount: number
+  ): QueryResult<R> {
+    return {
+      command: "",
+      rowCount,
+      oid: 0,
+      fields: [],
+      rows
     };
   }
 }
@@ -80,6 +173,17 @@ function resumeRequest(): DecisionResumeRequest {
 }
 
 describe("PostgreSQL orchestration authorization stores", () => {
+  it("commits the complete authorization grant batch atomically under one idempotency claim", async () => {
+    const db = new AuthorizationBatchDb();
+    const store = new PostgresOrchestrationAuthorizationGrantStore(db);
+    const grant = autoGrantFor();
+
+    await store.insertMany([grant], "authorization-batch-test");
+    await store.insertMany([grant], "authorization-batch-test");
+
+    expect(db.grantInserts).toBe(1);
+  });
+
   it("creates an orchestration Decision and replays only identical authoritative content", async () => {
     const value = decision();
     const createDb = new ScriptedDb([{ rowCount: 1 }]);
