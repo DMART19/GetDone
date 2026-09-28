@@ -460,6 +460,11 @@
       "source": "lib/persistence/postgres/orchestration-authorization-stores.ts",
       "test": "lib/persistence/postgres/orchestration-authorization-stores.test.ts",
       "critical": true
+    },
+    {
+      "source": "lib/explainability/job-owner-explanation.ts",
+      "test": "lib/explainability/job-owner-explanation.test.ts",
+      "critical": true
     }
   ]
 }
