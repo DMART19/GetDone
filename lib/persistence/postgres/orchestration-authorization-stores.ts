@@ -11,8 +11,10 @@ import type {
 } from "@/lib/orchestration/authorization-flow";
 import type { AuthorizationGrant } from "@/lib/authorization/grants";
 import {
-  PostgresAuthorizationGrantStore
+  PostgresAuthorizationGrantStore,
+  PostgresIdempotencyStore
 } from "@/lib/persistence/postgres/authority-stores";
+import { claimIdempotency } from "@/lib/domain/idempotency";
 import type {
   PostgresTransactionalDatabase,
   SqlQueryable
@@ -36,19 +38,66 @@ export class PostgresOrchestrationAuthorizationGrantStore
   implements OrchestrationAuthorizationGrantStore {
   constructor(private readonly db: PostgresTransactionalDatabase) {}
 
-  async insertMany(grants: readonly AuthorizationGrant[]) {
+  async insertMany(
+    grants: readonly AuthorizationGrant[],
+    idempotencyKey: string
+  ) {
     if (grants.length === 0) {
       throw new ControlPlaneError(
         "VALIDATION_FAILED",
         "Authorization grant batch must not be empty"
       );
     }
+    if (!idempotencyKey.trim()) {
+      throw new ControlPlaneError(
+        "VALIDATION_FAILED",
+        "Authorization grant batch idempotency key is required"
+      );
+    }
+
+    const fingerprint = sha256Hex({
+      grants: grants
+        .map((grant) => ({
+          id: grant.id,
+          hash: grant.grantHash
+        }))
+        .sort((left, right) => left.id.localeCompare(right.id))
+    });
 
     await this.db.transaction(async (client) => {
+      const idempotency = new PostgresIdempotencyStore(client);
+      const claim = await claimIdempotency<{
+        grantIds: readonly string[];
+        grantHashes: readonly string[];
+      }>(
+        idempotency,
+        idempotencyKey,
+        fingerprint,
+        new Date(grants[0]!.issuedAt)
+      );
+
+      if (claim.state === "COMPLETED") return;
+      if (claim.state === "IN_PROGRESS" || claim.state === "FAILED") {
+        throw new ControlPlaneError(
+          "CONFLICT",
+          "Authorization grant batch is already in progress or previously failed"
+        );
+      }
+
       const store = new PostgresAuthorizationGrantStore(client);
       for (const grant of grants) {
         await store.insert(grant);
       }
+
+      await idempotency.complete(
+        idempotencyKey,
+        fingerprint,
+        {
+          grantIds: grants.map((grant) => grant.id),
+          grantHashes: grants.map((grant) => grant.grantHash)
+        },
+        grants[0]!.issuedAt
+      );
     });
   }
 
