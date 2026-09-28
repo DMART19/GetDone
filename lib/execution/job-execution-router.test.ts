@@ -4,7 +4,14 @@ import {
   createAuthorizationConsumptionRecord,
   type AuthorizationGrant
 } from "@/lib/authorization/grants";
-import { CURRENT_POLICY_VERSION } from "@/lib/domain/policy-registry";
+import {
+  CAPABILITY_REGISTRY_HASH,
+  CAPABILITY_REGISTRY_VERSION
+} from "@/lib/domain/capabilities";
+import {
+  CURRENT_POLICY_REGISTRY_HASH,
+  CURRENT_POLICY_VERSION
+} from "@/lib/domain/policy-registry";
 import type { JobRecord } from "@/lib/domain/services/job-service";
 import type { TaskRecord } from "@/lib/domain/services/task-service";
 import { POLICY_ENGINE_VERSION, POLICY_RULES_HASH } from "@/lib/planning/policy-engine";
@@ -53,8 +60,11 @@ const grantBase = {
   policySnapshotId: "policy-snapshot-1",
   policySnapshotHash: "policy-snapshot-hash",
   policyVersion: CURRENT_POLICY_VERSION,
+  policyRegistryHash: CURRENT_POLICY_REGISTRY_HASH,
   policyEngineVersion: POLICY_ENGINE_VERSION,
   policyRulesHash: POLICY_RULES_HASH,
+  capabilityRegistryVersion: CAPABILITY_REGISTRY_VERSION,
+  capabilityRegistryHash: CAPABILITY_REGISTRY_HASH,
   actor: { type: "user" as const, id: "owner" },
   issuedAt: "2026-09-21T03:58:00Z",
   expiresAt: "2026-09-21T04:10:00Z"
