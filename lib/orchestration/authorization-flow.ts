@@ -570,6 +570,8 @@ export async function advancePolicyEvaluatedToAuthority(input: {
 
   if (approvalSteps.length > 0) {
     const decisionIds: string[] = [];
+    const resolvedDecisions = new Map<string, AuthoritativeDecision>();
+
     for (const stepPolicy of approvalSteps) {
       const requirement = approvalRequirement(stepPolicy)!;
       const decision = createOrchestrationDecision({
@@ -597,6 +599,66 @@ export async function advancePolicyEvaluatedToAuthority(input: {
         requirement
       });
       decisionIds.push(persisted.decision.id);
+      resolvedDecisions.set(persisted.decision.id, persisted.decision);
+    }
+
+    const decisionsInOrder = decisionIds.map((id) => resolvedDecisions.get(id)!);
+    const rejected = decisionsInOrder.find((decision) => decision.status === "rejected");
+    const modified = decisionsInOrder.find((decision) => decision.status === "modified");
+
+    if (rejected || modified) {
+      return {
+        kind: "advance",
+        next: transitionOrchestrationRun(input.run, {
+          to: "blocked",
+          now: now().toISOString(),
+          checkpointPatch: { decisionIds },
+          blockedReason: rejected
+            ? "Owner rejected a required authorization Decision"
+            : "Owner modified a required Decision; replanning is required before authorization"
+        })
+      };
+    }
+
+    if (decisionsInOrder.every((decision) => decision.status === "approved")) {
+      try {
+        const grantRefs = await issueOrReplayGrants({
+          run: input.run,
+          lineage,
+          decisions: resolvedDecisions,
+          grants: input.grants,
+          now: now(),
+          grantTtlMs: input.grantTtlMs ?? DEFAULT_AUTHORIZATION_GRANT_TTL_MS
+        });
+        return {
+          kind: "advance",
+          next: transitionOrchestrationRun(input.run, {
+            to: "authorized",
+            now: now().toISOString(),
+            checkpointPatch: {
+              decisionIds,
+              authorizationGrants: grantRefs
+            }
+          })
+        };
+      } catch (error) {
+        if (
+          error instanceof ControlPlaneError
+          && (error.code === "POLICY_BLOCKED" || error.code === "FORBIDDEN")
+        ) {
+          return {
+            kind: "advance",
+            next: transitionOrchestrationRun(input.run, {
+              to: "blocked",
+              now: now().toISOString(),
+              checkpointPatch: { decisionIds },
+              blockedReason:
+                `Approval/authorization evidence is no longer valid: ${error.message}`
+            })
+          };
+        }
+        throw error;
+      }
     }
 
     return {
