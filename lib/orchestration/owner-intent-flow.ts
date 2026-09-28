@@ -67,6 +67,7 @@ export interface OrchestrationContextSnapshotStore {
     status: "created" | "idempotent-replay";
     snapshot: OrchestrationContextSnapshot;
   }>;
+  get(id: string): Promise<OrchestrationContextSnapshot | null>;
   getByRunVersion(
     runId: string,
     runVersion: number
