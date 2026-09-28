@@ -14,8 +14,10 @@ import {
   advancePlannedToValidated,
   advanceValidatedToPolicyEvaluated,
   type DurablePolicyEvaluationArtifact,
+  type DurablePolicyStepSnapshotArtifact,
   type DurableValidationArtifact,
   type OrchestrationPolicyEvaluationStore,
+  type OrchestrationPolicyStepSnapshotStore,
   type OrchestrationValidationArtifactStore
 } from "@/lib/orchestration/validation-policy-flow";
 import { transitionOrchestrationRun } from "@/lib/orchestration/contracts";
@@ -137,6 +139,31 @@ class MemoryValidationStore implements OrchestrationValidationArtifactStore {
       && this.value.plannedRunVersion === plannedRunVersion
       ? this.value
       : null;
+  }
+}
+
+class MemoryPolicyStepSnapshotStore
+  implements OrchestrationPolicyStepSnapshotStore {
+  values = new Map<string, DurablePolicyStepSnapshotArtifact>();
+  creates = 0;
+
+  async create(artifact: DurablePolicyStepSnapshotArtifact) {
+    this.creates += 1;
+    const key = `${artifact.runId}:${artifact.validatedRunVersion}:${artifact.stepId}`;
+    const existing = this.values.get(key);
+    if (existing) {
+      return { status: "idempotent-replay" as const, artifact: existing };
+    }
+    this.values.set(key, artifact);
+    return { status: "created" as const, artifact };
+  }
+
+  async getByRunVersionStep(
+    runId: string,
+    validatedRunVersion: number,
+    stepId: string
+  ) {
+    return this.values.get(`${runId}:${validatedRunVersion}:${stepId}`) ?? null;
   }
 }
 
@@ -310,6 +337,7 @@ describe("durable planned -> validated -> policy-evaluated flow", () => {
       run: validatedOutcome.next,
       plans: new MemoryPlanStore(artifact),
       validations,
+      policyStepSnapshots: new MemoryPolicyStepSnapshotStore(),
       policies,
       resolver: policyResolver(artifact),
       now: () => new Date("2026-09-28T13:00:07.000Z")
@@ -345,11 +373,13 @@ describe("durable planned -> validated -> policy-evaluated flow", () => {
     }
 
     const policies = new MemoryPolicyStore();
+    const policyStepSnapshots = new MemoryPolicyStepSnapshotStore();
     let policyReads = 0;
     const first = await advanceValidatedToPolicyEvaluated({
       run: validatedOutcome.next,
       plans: new MemoryPlanStore(artifact),
       validations,
+      policyStepSnapshots,
       policies,
       resolver: {
         resolveStep: async () => {
@@ -366,6 +396,7 @@ describe("durable planned -> validated -> policy-evaluated flow", () => {
       run: validatedOutcome.next,
       plans: new MemoryPlanStore(artifact),
       validations,
+      policyStepSnapshots,
       policies,
       resolver: {
         resolveStep: async () => {
