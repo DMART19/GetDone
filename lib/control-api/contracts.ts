@@ -7,6 +7,10 @@ import type { JobRecord } from "@/lib/domain/services/job-service";
 import type { VerificationRequestRecord } from "@/lib/domain/services/verification-service";
 import type { Resource } from "@/lib/domain/resources";
 import type { ResourceEnrollmentRecord } from "@/lib/resources/enrollment";
+import type {
+  OwnerFailurePresentation,
+  OwnerOperationExplanation
+} from "@/lib/explainability/job-owner-explanation";
 import type { ObjectiveIntakeInput, ObjectiveRecord } from "@/lib/domain/objective-inbox";
 
 export const CONTROL_API_SURFACE_VERSION = "1.5.0";
@@ -107,7 +111,10 @@ export interface JobResultView {
   verificationReceiptHash?: string;
   verifiedCompletionFactId?: string;
   verifiedCompletionFactHash?: string;
+  /** Owner-safe interpreted failure summary; raw provider errors remain internal. */
   failureReason?: string;
+  explanation: OwnerOperationExplanation;
+  failure?: OwnerFailurePresentation;
 }
 
 export interface StepUpSessionView {
