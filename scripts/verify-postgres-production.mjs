@@ -315,19 +315,29 @@ try {
   const orchestrationConstraints = await client.query(
     `SELECT
        COUNT(*) FILTER (
-         WHERE conname='orchestration_runs_portfolio_id_company_id_correlation_id_key'
+         WHERE conrelid='orchestration_runs'::regclass
+           AND contype='u'
+           AND pg_get_constraintdef(oid)='UNIQUE (portfolio_id, company_id, correlation_id)'
        )::int AS correlation_unique,
        COUNT(*) FILTER (
-         WHERE conname='orchestration_runs_portfolio_id_company_id_start_idempotency_key_key'
+         WHERE conrelid='orchestration_runs'::regclass
+           AND contype='u'
+           AND pg_get_constraintdef(oid)='UNIQUE (portfolio_id, company_id, start_idempotency_key)'
        )::int AS start_idempotency_unique,
        COUNT(*) FILTER (
-         WHERE conname='orchestration_transition_receipts_run_id_idempotency_key_key'
+         WHERE conrelid='orchestration_transition_receipts'::regclass
+           AND contype='u'
+           AND pg_get_constraintdef(oid)='UNIQUE (run_id, idempotency_key)'
        )::int AS transition_idempotency_unique,
        COUNT(*) FILTER (
-         WHERE conname='orchestration_transition_receipts_run_id_next_version_key'
+         WHERE conrelid='orchestration_transition_receipts'::regclass
+           AND contype='u'
+           AND pg_get_constraintdef(oid)='UNIQUE (run_id, next_version)'
        )::int AS transition_version_unique,
        COUNT(*) FILTER (
-         WHERE conname='orchestration_checkpoints_run_id_run_version_key'
+         WHERE conrelid='orchestration_checkpoints'::regclass
+           AND contype='u'
+           AND pg_get_constraintdef(oid)='UNIQUE (run_id, run_version)'
        )::int AS checkpoint_version_unique
      FROM pg_constraint
      WHERE conrelid IN (
