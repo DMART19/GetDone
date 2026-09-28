@@ -1,6 +1,6 @@
 {
   "registrySchemaVersion": "1.6.0",
-  "registryVersion": "2026-09-28.1",
+  "registryVersion": "2026-09-28.2",
   "appVersion": "0.1.0",
   "schemaVersions": {
     "controlApi": {
@@ -80,7 +80,7 @@
       ]
     },
     "integrationRegistry": {
-      "version": "1.0.0",
+      "version": "1.1.0",
       "sourcePath": "lib/integrations/contracts.ts",
       "contractTracked": true,
       "contractSourcePaths": [
@@ -323,12 +323,22 @@
       "contractSourcePaths": [
         "lib/domain/services/core-tranche-c-coordinator.ts"
       ]
+    },
+    "learnedRule": {
+      "version": "1.0.0",
+      "sourcePath": "lib/domain/learned-rules.ts",
+      "contractTracked": true,
+      "contractSourcePaths": [
+        "lib/domain/learned-rules.ts",
+        "lib/planning/policy-engine.ts",
+        "lib/planning/policy-snapshot.ts"
+      ]
     }
   },
   "policy": {
     "registryVersion": "2026-09-21.1",
     "registrySourcePath": "lib/domain/policy-registry.ts",
-    "engineVersion": "2026-09-28.1",
+    "engineVersion": "2026-09-28.2",
     "engineSourcePath": "lib/planning/policy-engine.ts"
   },
   "aiGateway": {
