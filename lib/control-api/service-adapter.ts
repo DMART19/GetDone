@@ -86,7 +86,7 @@ export interface ServiceBackedControlApiDependencies {
   intents: OwnerIntentStore;
   objectives: ScopedReadStore<ObjectiveRecord>;
   objectiveIntake: ObjectiveIntakeStore;
-  preferenceLearning: PreferenceLearningService;
+  preferenceLearning?: PreferenceLearningService;
   decisions: ScopedReadStore<AuthoritativeDecision>;
   decisionTransactions: DecisionTransactionManager;
   /**
@@ -301,8 +301,11 @@ export class ServiceBackedControlApiAdapter implements ControlApiApplicationAdap
 
   listPreferenceSuggestions(principal: ControlApiPrincipal) {
     requireRole(principal, ["owner", "admin"], "Preference suggestions");
+    if (!this.deps.preferenceLearning) {
+      throw new ControlPlaneError("UNAVAILABLE", "Preference learning is not connected");
+    }
     return this.scoped(principal, () =>
-      this.deps.preferenceLearning.listSuggestions(principal.scope)
+      this.deps.preferenceLearning!.listSuggestions(principal.scope)
     );
   }
 
@@ -312,8 +315,11 @@ export class ServiceBackedControlApiAdapter implements ControlApiApplicationAdap
     action: PreferenceSuggestionResolution
   ) {
     requireRole(principal, ["owner"], "Preference rule confirmation");
+    if (!this.deps.preferenceLearning) {
+      throw new ControlPlaneError("UNAVAILABLE", "Preference learning is not connected");
+    }
     return this.scoped(principal, () =>
-      this.deps.preferenceLearning.resolveSuggestion({
+      this.deps.preferenceLearning!.resolveSuggestion({
         suggestionId,
         scope: principal.scope,
         actorId: principal.actor.id,
@@ -328,8 +334,11 @@ export class ServiceBackedControlApiAdapter implements ControlApiApplicationAdap
     capability: string
   ) {
     requireRole(principal, ["owner", "admin"], "Confirmed preference rules");
+    if (!this.deps.preferenceLearning) {
+      throw new ControlPlaneError("UNAVAILABLE", "Preference learning is not connected");
+    }
     return this.scoped(principal, () =>
-      this.deps.preferenceLearning.listActiveRules(principal.scope, capability)
+      this.deps.preferenceLearning!.listActiveRules(principal.scope, capability)
     );
   }
 
