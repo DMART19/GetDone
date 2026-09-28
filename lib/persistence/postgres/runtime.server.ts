@@ -64,6 +64,7 @@ export const REQUIRED_POSTGRES_RELATIONS = Object.freeze([
   "orchestration_planner_inputs",
   "orchestration_plan_proposals",
   "orchestration_validation_artifacts",
+  "orchestration_policy_step_snapshots",
   "orchestration_policy_evaluations"
 ] as const);
 
@@ -106,6 +107,8 @@ export const REQUIRED_POSTGRES_INDEXES = Object.freeze([
   "orchestration_plan_proposals_input_idx",
   "orchestration_validation_artifacts_scope_idx",
   "orchestration_validation_artifacts_plan_idx",
+  "orchestration_policy_step_snapshots_scope_idx",
+  "orchestration_policy_step_snapshots_run_idx",
   "orchestration_policy_evaluations_scope_idx",
   "orchestration_policy_evaluations_plan_idx",
   "orchestration_policy_evaluations_validation_idx"
