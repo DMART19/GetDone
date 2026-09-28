@@ -890,21 +890,32 @@ export class DecisionResumeDispatcher {
       run.scope.portfolioId !== request.portfolioId
       || run.scope.companyId !== request.companyId
       || run.correlationId !== request.correlationId
-      || !run.checkpoints.decisionIds.includes(request.decisionId)
     ) {
       throw new ControlPlaneError(
         "FORBIDDEN",
-        "Decision resume request is outside exact orchestration lineage",
+        "Decision resume request is outside orchestration tenant/correlation lineage",
         { correlationId: request.correlationId }
       );
     }
 
+    // A Decision can be resolved in the narrow window after its durable create
+    // but before policy-evaluated -> awaiting-decision CAS. The Decision IDs
+    // are not yet present in the run checkpoint, so leave the outbox pending.
+    // The scoped resume pump will retry after the CAS.
     if (run.state === "policy-evaluated") {
       return {
         outcome: "not-ready",
         state: run.state,
         runId: run.id
       };
+    }
+
+    if (!run.checkpoints.decisionIds.includes(request.decisionId)) {
+      throw new ControlPlaneError(
+        "FORBIDDEN",
+        "Decision resume request is not referenced by orchestration checkpoints",
+        { correlationId: request.correlationId }
+      );
     }
 
     if (run.state !== "awaiting-decision") {
