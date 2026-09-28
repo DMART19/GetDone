@@ -647,7 +647,7 @@ export class GovernedPlanningStageHandler implements OrchestrationStageHandler {
       return Object.freeze({
         kind: "transition" as const,
         state: "awaiting-approval" as const,
-        wake: "external" as const,
+        wake: "immediate" as const,
         reason: `policy:${disposition.toLowerCase()}`
       });
     }
@@ -655,7 +655,7 @@ export class GovernedPlanningStageHandler implements OrchestrationStageHandler {
     return Object.freeze({
       kind: "transition" as const,
       state: "policy-cleared" as const,
-      wake: "external" as const,
+      wake: "immediate" as const,
       reason: "policy-cleared-without-authorization-grant"
     });
   }
