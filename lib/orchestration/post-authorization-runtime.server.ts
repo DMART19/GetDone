@@ -20,8 +20,7 @@ import {
   PostgresVerificationReceiptStore
 } from "@/lib/persistence/postgres/authority-stores";
 import type {
-  PostgresTransactionalDatabase,
-  SqlQueryable
+  PostgresTransactionalDatabase
 } from "@/lib/persistence/postgres/client";
 import {
   PostgresOrchestrationJobGraphStore
@@ -51,10 +50,6 @@ function requestId(job: string) {
 
 function receiptId(job: string) {
   return `verification-receipt:${job}`;
-}
-
-function iso(value: Date | string) {
-  return value instanceof Date ? value.toISOString() : String(value);
 }
 
 function requiredVerificationSatisfied(
