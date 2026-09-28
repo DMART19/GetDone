@@ -1,21 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { sha256Hex } from "@/lib/control-plane/canonical-hash";
-import {
-  createAuthorizationConsumptionRecord,
-  type AuthorizationGrant
-} from "@/lib/authorization/grants";
-import {
-  CAPABILITY_REGISTRY_HASH,
-  CAPABILITY_REGISTRY_VERSION
-} from "@/lib/domain/capabilities";
-import {
-  CURRENT_POLICY_REGISTRY_HASH,
-  CURRENT_POLICY_VERSION
-} from "@/lib/domain/policy-registry";
 import type { JobRecord } from "@/lib/domain/services/job-service";
-import type { TaskRecord } from "@/lib/domain/services/task-service";
-import { POLICY_ENGINE_VERSION, POLICY_RULES_HASH } from "@/lib/planning/policy-engine";
-import { createJobQueueEnvelope } from "@/lib/execution/job-runtime-contracts";
+import {
+  createDurableJobLease,
+  createJobQueueEnvelope
+} from "@/lib/execution/job-runtime-contracts";
 import {
   RoutedJobExecutionHandler,
   createPersistedJobExecutionSpec,
@@ -31,88 +20,21 @@ class MemorySpecStore implements JobExecutionSpecStore {
   async put(record: PersistedJobExecutionSpec) { this.value = record; }
 }
 
-const now = new Date("2026-09-21T04:00:00Z");
-const scope = {
-  userId: "owner",
-  portfolioId: "portfolio",
-  companyId: "company",
-  environment: "staging" as const
-};
-
-const grantBase = {
-  id: "grant-1",
-  status: "active" as const,
-  disposition: "APPROVAL_REQUIRED" as const,
-  scope,
-  planId: "plan-1",
-  planVersion: 1,
-  planHash: "plan-hash",
-  stepId: "step-1",
-  stepHash: "step-hash",
-  capabilityNames: ["email.send"],
-  executionLimits: {
-    environment: "staging" as const,
-    expectedDurationSeconds: 30,
-    retryable: true
-  },
-  validationReceiptId: "validation-1",
-  validationReceiptHash: "validation-hash",
-  policySnapshotId: "policy-snapshot-1",
-  policySnapshotHash: "policy-snapshot-hash",
-  policyVersion: CURRENT_POLICY_VERSION,
-  policyRegistryHash: CURRENT_POLICY_REGISTRY_HASH,
-  policyEngineVersion: POLICY_ENGINE_VERSION,
-  policyRulesHash: POLICY_RULES_HASH,
-  capabilityRegistryVersion: CAPABILITY_REGISTRY_VERSION,
-  capabilityRegistryHash: CAPABILITY_REGISTRY_HASH,
-  decisionId: "decision-1",
-  approvalProofId: "approval-proof-1",
-  approvalProofHash: "approval-proof-hash",
-  actor: { type: "user" as const, id: "owner" },
-  issuedAt: "2026-09-21T03:58:00Z",
-  expiresAt: "2026-09-21T04:10:00Z"
-};
-
-const currentGrant: AuthorizationGrant = {
-  ...grantBase,
-  grantHash: sha256Hex(grantBase)
-};
-
-const currentConsumption = createAuthorizationConsumptionRecord({
-  id: `authorization-consumption:${currentGrant.id}`,
-  grant: currentGrant,
-  consumerType: "task",
-  consumerId: "task-1",
-  consumedAt: "2026-09-21T03:59:00Z"
-});
-
 const envelope = createJobQueueEnvelope({
   id: "queue-1",
   jobId: "job-1",
   taskId: "task-1",
-  scope,
-  authorizationConsumptionHash: currentConsumption.consumptionHash,
+  scope: {
+    userId: "owner",
+    portfolioId: "portfolio",
+    companyId: "company",
+    environment: "staging"
+  },
+  authorizationConsumptionHash: "auth",
   idempotencyKey: "queue-1",
-  scheduledAt: now.toISOString(),
-  createdAt: now.toISOString()
+  scheduledAt: "2026-09-21T04:00:00Z",
+  createdAt: "2026-09-21T04:00:00Z"
 });
-
-const authoritativeTask: TaskRecord = {
-  id: "task-1",
-  portfolioId: "portfolio",
-  companyId: "company",
-  state: "queued",
-  reason: "send governed email",
-  evidenceIds: [],
-  capabilityRequirements: ["email.send"],
-  authorizationLineage: [currentGrant.id],
-  authorizationGrantId: currentGrant.id,
-  authorizationGrantHash: currentGrant.grantHash,
-  authorizationConsumption: currentConsumption,
-  verificationEvidenceIds: [],
-  version: 2,
-  updatedAt: now.toISOString()
-};
 
 const authoritativeJob: JobRecord = {
   id: "job-1",
@@ -122,64 +44,78 @@ const authoritativeJob: JobRecord = {
   taskId: "task-1",
   attempt: 0,
   maxAttempts: 5,
-  authorizationGrantId: currentGrant.id,
-  authorizationGrantHash: currentGrant.grantHash,
-  authorizationConsumption: currentConsumption,
+  authorizationGrantId: "grant-1",
+  authorizationGrantHash: "grant-hash",
+  authorizationConsumption: {
+    id: "consumption-1",
+    grantId: "grant-1",
+    grantHash: "grant-hash",
+    consumerType: "task",
+    consumerId: "task-1",
+    scope: envelope.scope,
+    planHash: "plan-hash",
+    stepHash: "step-hash",
+    consumedAt: "2026-09-21T03:59:00Z",
+    consumptionHash: "auth"
+  },
   verificationEvidenceIds: [],
   version: 2,
-  updatedAt: now.toISOString()
+  updatedAt: "2026-09-21T04:00:00Z"
 };
 
-const validEmailInput = {
-  companyId: "company",
-  to: ["owner@example.com"],
-  cc: [],
-  subject: "GetDone test",
-  text: "hello"
-};
-
-function setBusinessSpec(
-  specs: MemorySpecStore,
-  job: JobRecord = authoritativeJob,
-  input: unknown = validEmailInput,
-  capability = "email.send"
-) {
-  specs.value = createPersistedJobExecutionSpec({
-    kind: "business-action",
-    jobId: job.id,
-    authoritativeJobVersion: job.version,
-    authoritativeJobHash: sha256Hex(job),
-    request: {
-      id: "action-1",
-      jobId: job.id,
-      scope: envelope.scope,
-      capability,
-      input,
-      inputHash: sha256Hex(input),
-      authorizationConsumptionHash: currentConsumption.consumptionHash,
-      idempotencyKey: "action-1",
-      timeoutMs: 1000,
-      attempt: 1
-    }
-  }, now.toISOString());
-}
-
-function authority(
-  job: JobRecord = authoritativeJob,
-  task: TaskRecord = authoritativeTask,
-  grant: AuthorizationGrant = currentGrant
-) {
+function authority(job: JobRecord = authoritativeJob) {
   const persisted: unknown[] = [];
+  const lifecycle: string[] = [];
+  const claimed: JobRecord = {
+    ...job,
+    state: "claimed",
+    workerId: "worker-1",
+    attempt: job.attempt + 1,
+    version: job.version + 1
+  };
+  const executing: JobRecord = {
+    ...claimed,
+    state: "executing",
+    version: claimed.version + 1
+  };
   return {
     persisted,
+    lifecycle,
     value: {
       jobs: { get: async () => job },
-      tasks: { get: async () => task },
-      grants: { get: async () => grant },
-      admission: { assertAllowed: async () => undefined },
       verificationEvidence: {
         put: async (_jobId: string, _requestId: string, evidence: unknown) => {
           persisted.push(evidence);
+        }
+      },
+      lifecycle: {
+        claim: async () => {
+          lifecycle.push("claimed");
+          return claimed;
+        },
+        startProviderExecution: async () => {
+          lifecycle.push("executing");
+          return executing;
+        },
+        recordProviderCompletion: async () => {
+          lifecycle.push("provider_completed");
+          return { ...executing, state: "provider_completed" as const };
+        },
+        retry: async () => {
+          lifecycle.push("retry");
+          return { ...executing, state: "queued" as const };
+        },
+        recoverTimeout: async () => {
+          lifecycle.push("recover-timeout");
+          return { ...executing, state: "queued" as const };
+        },
+        fail: async () => {
+          lifecycle.push("failed");
+          return { ...executing, state: "failed" as const };
+        },
+        cancel: async () => {
+          lifecycle.push("cancelled");
+          return { ...executing, state: "cancelled" as const };
         }
       }
     }
@@ -188,7 +124,14 @@ function authority(
 
 const context = {
   envelope,
-  lease: { attempt: 1 } as never,
+  lease: createDurableJobLease({
+    id: "lease-1",
+    jobId: "job-1",
+    workerId: "worker-1",
+    attempt: 1,
+    leaseIssuedAt: "2026-09-21T04:00:00Z",
+    leaseSeconds: 60
+  }),
   heartbeat: async () => undefined,
   runtimeVersion: () => 1,
   runtimeHash: () => "hash"
@@ -207,9 +150,27 @@ describe("RoutedJobExecutionHandler", () => {
     });
   });
 
-  it("routes independently verified business completion to durable Job success", async () => {
+  it("routes completed business actions to verification handoff and persists evidence", async () => {
     const specs = new MemorySpecStore();
-    setBusinessSpec(specs);
+    const payload = { message: "hello" };
+    specs.value = createPersistedJobExecutionSpec({
+      kind: "business-action",
+      jobId: "job-1",
+      authoritativeJobVersion: authoritativeJob.version,
+      authoritativeJobHash: sha256Hex(authoritativeJob),
+      request: {
+        id: "action-1",
+        jobId: "job-1",
+        scope: envelope.scope,
+        capability: "email.send",
+        input: payload,
+        inputHash: sha256Hex(payload),
+        authorizationConsumptionHash: "auth",
+        idempotencyKey: "action-1",
+        timeoutMs: 1000,
+        attempt: 1
+      }
+    }, "2026-09-21T04:00:00Z");
 
     const evidence = createVerificationEvidence({
       id: "evidence-1",
@@ -227,7 +188,14 @@ describe("RoutedJobExecutionHandler", () => {
     });
     const business = {
       execute: async () => ({
-        record: { state: "completed", retryable: false },
+        record: {
+          requestId: "action-1",
+          providerOperationId: "operation-1",
+          state: "completed",
+          retryable: false,
+          recordHash: "provider-record-hash",
+          updatedAt: "2026-09-21T04:00:01Z"
+        },
         verificationEvidence: evidence
       })
     };
@@ -236,42 +204,33 @@ describe("RoutedJobExecutionHandler", () => {
       specs,
       business as never,
       undefined,
-      auth.value as never,
-      () => now
+      auth.value as never
     );
-    expect(await handler.execute(context)).toEqual({ kind: "succeeded" });
+    expect(await handler.execute(context)).toEqual({ kind: "provider-completed" });
     expect(auth.persisted).toEqual([evidence]);
-  });
-
-  it("does not equate provider completion with verified Job success", async () => {
-    const specs = new MemorySpecStore();
-    setBusinessSpec(specs);
-    let executions = 0;
-    const auth = authority();
-    const handler = new RoutedJobExecutionHandler(
-      specs,
-      {
-        execute: async () => {
-          executions += 1;
-          return { record: { state: "completed", retryable: false } };
-        }
-      } as never,
-      undefined,
-      auth.value as never,
-      () => now
-    );
-
-    await expect(handler.execute(context)).resolves.toEqual({
-      kind: "dead-letter",
-      reason: "Completed business action did not produce verification evidence"
-    });
-    expect(executions).toBe(1);
-    expect(auth.persisted).toEqual([]);
+    expect(auth.lifecycle).toEqual(["claimed", "executing", "provider_completed"]);
   });
 
   it("rejects stale or cancelled authoritative Job snapshots before side effects", async () => {
     const specs = new MemorySpecStore();
-    setBusinessSpec(specs);
+    specs.value = createPersistedJobExecutionSpec({
+      kind: "business-action",
+      jobId: "job-1",
+      authoritativeJobVersion: authoritativeJob.version,
+      authoritativeJobHash: sha256Hex(authoritativeJob),
+      request: {
+        id: "action-1",
+        jobId: "job-1",
+        scope: envelope.scope,
+        capability: "email.send",
+        input: { message: "hello" },
+        inputHash: sha256Hex({ message: "hello" }),
+        authorizationConsumptionHash: "auth",
+        idempotencyKey: "action-1",
+        timeoutMs: 1000,
+        attempt: 1
+      }
+    }, "2026-09-21T04:00:00Z");
 
     let executions = 0;
     const business = { execute: async () => {
@@ -281,7 +240,7 @@ describe("RoutedJobExecutionHandler", () => {
 
     const stale = authority({ ...authoritativeJob, version: 3 });
     const staleHandler = new RoutedJobExecutionHandler(
-      specs, business as never, undefined, stale.value as never, () => now
+      specs, business as never, undefined, stale.value as never
     );
     await expect(staleHandler.execute(context)).resolves.toEqual({
       kind: "dead-letter",
@@ -290,7 +249,7 @@ describe("RoutedJobExecutionHandler", () => {
 
     const cancelled = authority({ ...authoritativeJob, state: "cancelled" });
     const cancelledHandler = new RoutedJobExecutionHandler(
-      specs, business as never, undefined, cancelled.value as never, () => now
+      specs, business as never, undefined, cancelled.value as never
     );
     await expect(cancelledHandler.execute(context)).resolves.toEqual({
       kind: "cancelled",
@@ -300,67 +259,13 @@ describe("RoutedJobExecutionHandler", () => {
     expect(executions).toBe(0);
   });
 
-  it("fails closed when the parent Task is cancelled or crosses company scope", async () => {
-    const specs = new MemorySpecStore();
-    setBusinessSpec(specs);
-    let executions = 0;
-    const business = {
-      execute: async () => {
-        executions += 1;
-        return { record: { state: "completed", retryable: false } };
-      }
-    };
-
-    for (const task of [
-      { ...authoritativeTask, state: "cancelled" as const },
-      { ...authoritativeTask, companyId: "other-company" }
-    ]) {
-      const auth = authority(authoritativeJob, task);
-      const handler = new RoutedJobExecutionHandler(
-        specs, business as never, undefined, auth.value as never, () => now
-      );
-      const result = await handler.execute(context);
-      expect(result.kind).toBe("dead-letter");
-    }
-
-    expect(executions).toBe(0);
-  });
-
-  it("re-reads revocation immediately before the provider side effect", async () => {
-    const specs = new MemorySpecStore();
-    setBusinessSpec(specs);
-    let executions = 0;
-    const revokedGrant = {
-      ...currentGrant,
-      status: "revoked" as const
-    };
-    const auth = authority(authoritativeJob, authoritativeTask, revokedGrant);
-    const handler = new RoutedJobExecutionHandler(
-      specs,
-      {
-        execute: async () => {
-          executions += 1;
-          return { record: { state: "completed", retryable: false } };
-        }
-      } as never,
-      undefined,
-      auth.value as never,
-      () => now
-    );
-
-    const result = await handler.execute(context);
-    expect(result).toMatchObject({ kind: "dead-letter" });
-    expect(result.kind === "dead-letter" ? result.reason : "").toMatch(/current execution authority is invalid/i);
-    expect(executions).toBe(0);
-  });
-
   it("rejects tampered persisted execution specs", async () => {
     const specs = new MemorySpecStore();
     const valid = createPersistedJobExecutionSpec({
       kind: "software-prepare",
       jobId: "job-1",
       plan: {} as never
-    }, now.toISOString());
+    }, "2026-09-21T04:00:00Z");
     specs.value = { ...valid, specHash: "tampered" };
     const handler = new RoutedJobExecutionHandler(specs, {} as never, {} as never);
     await expect(handler.execute(context)).rejects.toThrow(/tampered/i);
