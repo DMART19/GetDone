@@ -198,7 +198,7 @@ If a worker dies after a downstream write but before orchestration CAS, retry mu
 
 ## Tenant isolation and permissions
 
-All three relations enable and FORCE RLS through getdone_tenant_scope_matches(portfolio_id, company_id).
+All tenant-scoped orchestration relations enable and FORCE RLS through getdone_tenant_scope_matches(portfolio_id, company_id).
 
 Tenant runtime permissions are asymmetric:
 
@@ -210,7 +210,7 @@ Historical coordination evidence cannot be rewritten through the runtime role.
 
 ## Production readiness gate
 
-Required migration becomes 2026-09-28.5.
+Required migration becomes 2026-09-28.6.
 
 Required relations:
 - orchestration_runs
@@ -223,6 +223,7 @@ Required relations:
 - orchestration_validation_artifacts
 - orchestration_policy_step_snapshots
 - orchestration_policy_evaluations
+- orchestration_decision_resume_requests
 
 Required indexes:
 - orchestration_runs_scope_idx
@@ -246,6 +247,8 @@ Required indexes:
 - orchestration_policy_evaluations_scope_idx
 - orchestration_policy_evaluations_plan_idx
 - orchestration_policy_evaluations_validation_idx
+- orchestration_decision_resume_scope_idx
+- orchestration_decision_resume_pending_idx
 
 The verifier also checks correlation uniqueness, start-idempotency uniqueness, transition-idempotency uniqueness, transition-version uniqueness, and checkpoint-version uniqueness.
 
@@ -266,16 +269,20 @@ The persistence slice is green only when:
 12. restart does not duplicate receipts/checkpoints;
 13. orchestration persistence never grants execution authority.
 
-## Next slice
+## Current durable frontier
 
-After this contract is green:
+PR #74 now carries the persisted nervous-system lineage through:
 
 ~~~text
-OwnerIntent persisted
-→ create orchestration_run
-→ trigger one coordinator advancement
-→ assemble frozen ContextSnapshot
-→ CAS accepted -> context-ready
+OwnerIntent
+→ accepted
+→ context-ready
+→ planning
+→ planned
+→ validated
+→ policy-evaluated
+→ awaiting-decision when required
+→ authorized
 ~~~
 
-That is the first point where an accepted owner request begins moving through the durable nervous system.
+Decision resolution emits a durable resume outbox record, and authorization grant sets are persisted atomically before the orchestration CAS. The next execution slice begins at authorized -> tasks-created.
