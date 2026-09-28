@@ -19,6 +19,7 @@ export interface OrchestrationLease {
   claimedRunVersion: number;
   claimedRecordHash: string;
   attempt: number;
+  consecutiveFailures: number;
   version: number;
   issuedAt: string;
   heartbeatAt: string;
@@ -135,6 +136,7 @@ export function createOrchestrationLease(input: {
   claimedRunVersion: number;
   claimedRecordHash: string;
   attempt: number;
+  consecutiveFailures: number;
   version?: number;
   issuedAt: string;
   leaseSeconds: number;
@@ -148,6 +150,8 @@ export function createOrchestrationLease(input: {
     || input.claimedRunVersion < 1
     || !Number.isInteger(input.attempt)
     || input.attempt < 1
+    || !Number.isInteger(input.consecutiveFailures)
+    || input.consecutiveFailures < 0
     || !Number.isInteger(input.leaseSeconds)
     || input.leaseSeconds < 2
   ) {
@@ -170,6 +174,7 @@ export function createOrchestrationLease(input: {
     claimedRunVersion: input.claimedRunVersion,
     claimedRecordHash: input.claimedRecordHash,
     attempt: input.attempt,
+    consecutiveFailures: input.consecutiveFailures,
     version,
     issuedAt: new Date(issuedAtMs).toISOString(),
     heartbeatAt: new Date(issuedAtMs).toISOString(),
