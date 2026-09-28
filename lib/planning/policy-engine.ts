@@ -287,8 +287,12 @@ function budgetReservations(input: PolicyEvaluationInput) {
   return reservations;
 }
 
-function validRatio(value: number | undefined) {
+function validNonNegativeNumber(value: number | undefined) {
   return value === undefined || (Number.isFinite(value) && value >= 0);
+}
+
+function validUnitInterval(value: number | undefined) {
+  return value === undefined || (Number.isFinite(value) && value >= 0 && value <= 1);
 }
 
 export function evaluatePolicy(input: PolicyEvaluationInput): PolicyEvaluation {
@@ -322,9 +326,9 @@ export function evaluatePolicy(input: PolicyEvaluationInput): PolicyEvaluation {
   const risk = input.riskContext;
   if (risk) {
     if (
-      !validRatio(risk.confidence)
-      || !validRatio(risk.novelty)
-      || !validRatio(risk.budgetConsumptionRatio)
+      !validUnitInterval(risk.confidence)
+      || !validUnitInterval(risk.novelty)
+      || !validNonNegativeNumber(risk.budgetConsumptionRatio)
       || (risk.monetaryAmountCents !== undefined
         && (!Number.isInteger(risk.monetaryAmountCents) || risk.monetaryAmountCents < 0))
       || (risk.autoMonetaryLimitCents !== undefined
@@ -436,9 +440,11 @@ export function evaluatePolicy(input: PolicyEvaluationInput): PolicyEvaluation {
       });
     }
 
+  }
+
+  if (capability) {
     if (
-      capability
-      && input.environment === "production"
+      input.environment === "production"
       && capability.productionEffect
       && disposition === "AUTO"
     ) {
@@ -450,15 +456,34 @@ export function evaluatePolicy(input: PolicyEvaluationInput): PolicyEvaluation {
     }
 
     if (
-      capability
-      && !capability.reversible
-      && (capability.blastRadius === "portfolio" || capability.blastRadius === "infrastructure")
+      capability.access === "write"
+      && (input.dataClass === "customer" || input.dataClass === "sensitive")
+      && disposition === "AUTO"
     ) {
-      disposition = strongestDisposition(disposition, "STRONG_APPROVAL");
+      disposition = "APPROVAL_REQUIRED";
       reasons.push({
-        code: "RISK_STRONG_APPROVAL",
-        message: "Irreversible wide-blast-radius work requires strong approval"
+        code: "RISK_APPROVAL",
+        message: "Writes over customer or sensitive data may not execute with AUTO authority"
       });
+    }
+
+    if (!capability.reversible) {
+      if (
+        capability.blastRadius === "portfolio"
+        || capability.blastRadius === "infrastructure"
+      ) {
+        disposition = strongestDisposition(disposition, "STRONG_APPROVAL");
+        reasons.push({
+          code: "RISK_STRONG_APPROVAL",
+          message: "Irreversible wide-blast-radius work requires strong approval"
+        });
+      } else if (capability.blastRadius === "company") {
+        disposition = strongestDisposition(disposition, "APPROVAL_REQUIRED");
+        reasons.push({
+          code: "RISK_APPROVAL",
+          message: "Irreversible company-wide work requires approval"
+        });
+      }
     }
   }
 
