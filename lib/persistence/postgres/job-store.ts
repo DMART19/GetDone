@@ -651,9 +651,32 @@ export class PostgresDurableJobStore implements DurableJobWorkStore {
         [input.lease.jobId]
       );
       const row = runtime.rows[0];
+      if (!row) {
+        throw new ControlPlaneError("NOT_FOUND", "Job release runtime state was not found");
+      }
+      const prior = await loadTransaction(db, input.lease.jobId, input.idempotencyKey);
+      if (prior) {
+        const priorOutcome = await db.query<{
+          payload: DurableJobExecutionOutcomeRecord;
+        }>(
+          "SELECT payload FROM job_execution_outcomes WHERE job_id=$1 AND transaction_hash=$2",
+          [input.lease.jobId, prior.transactionHash]
+        );
+        if (
+          prior.operation === "release"
+          && prior.expectedVersion === input.expectedJobVersion
+          && prior.expectedHash === input.expectedJobHash
+          && priorOutcome.rows[0]?.payload.kind === input.outcomeKind
+        ) {
+          return prior;
+        }
+        throw new ControlPlaneError(
+          "IDEMPOTENCY_CONFLICT",
+          "Job release idempotency key conflicts with prior content"
+        );
+      }
       if (
-        !row
-        || row.version !== input.expectedJobVersion
+        row.version !== input.expectedJobVersion
         || row.state_hash !== input.expectedJobHash
       ) {
         throw new ControlPlaneError("CONFLICT", "Job release lost its runtime compare-and-swap");
@@ -737,6 +760,29 @@ export class PostgresDurableJobStore implements DurableJobWorkStore {
       if (!row || row.envelope_hash !== record.sourceEnvelopeHash) {
         throw new ControlPlaneError("CONFLICT", "Retry lineage does not match durable Job envelope");
       }
+      const prior = await loadTransaction(db, record.jobId, record.id);
+      if (prior) {
+        const existing = await db.query<{ record_hash: string }>(
+          "SELECT record_hash FROM job_retry_schedule WHERE id=$1",
+          [record.id]
+        );
+        if (
+          prior.operation === "retry"
+          && existing.rows[0]?.record_hash === record.recordHash
+        ) {
+          return prior;
+        }
+        throw new ControlPlaneError(
+          "IDEMPOTENCY_CONFLICT",
+          "Job retry idempotency key conflicts with prior content"
+        );
+      }
+      if (row.runtime_state !== "claimed") {
+        throw new ControlPlaneError(
+          "CONFLICT",
+          `Job retry requires claimed runtime state, received ${row.runtime_state}`
+        );
+      }
       const nextVersion = row.version + 1;
       const nextHash = runtimeHash({
         jobId: row.job_id,
@@ -760,8 +806,7 @@ export class PostgresDurableJobStore implements DurableJobWorkStore {
 
       await db.query(
         `INSERT INTO job_retry_schedule(id,job_id,run_at,record_hash,payload)
-         VALUES($1,$2,$3,$4,$5::jsonb)
-         ON CONFLICT (id) DO NOTHING`,
+         VALUES($1,$2,$3,$4,$5::jsonb)`,
         [record.id, record.jobId, record.runAt, record.recordHash, JSON.stringify(record)]
       );
       await closeActiveLease(db, row.job_id);
@@ -797,6 +842,29 @@ export class PostgresDurableJobStore implements DurableJobWorkStore {
       if (!row || row.envelope_hash !== record.sourceEnvelopeHash) {
         throw new ControlPlaneError("CONFLICT", "Dead-letter lineage does not match durable Job envelope");
       }
+      const prior = await loadTransaction(db, record.jobId, record.id);
+      if (prior) {
+        const existing = await db.query<{ record_hash: string }>(
+          "SELECT record_hash FROM job_dead_letters WHERE job_id=$1",
+          [record.jobId]
+        );
+        if (
+          prior.operation === "dead-letter"
+          && existing.rows[0]?.record_hash === record.recordHash
+        ) {
+          return prior;
+        }
+        throw new ControlPlaneError(
+          "IDEMPOTENCY_CONFLICT",
+          "Job dead-letter idempotency key conflicts with prior content"
+        );
+      }
+      if (row.runtime_state !== "claimed") {
+        throw new ControlPlaneError(
+          "CONFLICT",
+          `Job dead-letter requires claimed runtime state, received ${row.runtime_state}`
+        );
+      }
       const nextVersion = row.version + 1;
       const nextHash = runtimeHash({
         jobId: row.job_id,
@@ -819,8 +887,7 @@ export class PostgresDurableJobStore implements DurableJobWorkStore {
       });
       await db.query(
         `INSERT INTO job_dead_letters(id,job_id,failed_at,record_hash,payload)
-         VALUES($1,$2,$3,$4,$5::jsonb)
-         ON CONFLICT (job_id) DO NOTHING`,
+         VALUES($1,$2,$3,$4,$5::jsonb)`,
         [record.id, record.jobId, record.failedAt, record.recordHash, JSON.stringify(record)]
       );
       await closeActiveLease(db, row.job_id);
@@ -860,9 +927,33 @@ export class PostgresDurableJobStore implements DurableJobWorkStore {
         [input.jobId]
       );
       const row = runtime.rows[0];
+      if (!row) {
+        throw new ControlPlaneError("NOT_FOUND", "Job cancellation runtime state was not found");
+      }
+      const prior = await loadTransaction(db, input.jobId, input.idempotencyKey);
+      if (prior) {
+        const priorOutcome = await db.query<{
+          payload: DurableJobExecutionOutcomeRecord;
+        }>(
+          "SELECT payload FROM job_execution_outcomes WHERE job_id=$1 AND transaction_hash=$2",
+          [input.jobId, prior.transactionHash]
+        );
+        if (
+          prior.operation === "cancel"
+          && prior.expectedVersion === input.expectedJobVersion
+          && prior.expectedHash === input.expectedJobHash
+          && priorOutcome.rows[0]?.payload.kind === "cancelled"
+          && priorOutcome.rows[0]?.payload.reason === input.reason
+        ) {
+          return prior;
+        }
+        throw new ControlPlaneError(
+          "IDEMPOTENCY_CONFLICT",
+          "Job cancellation idempotency key conflicts with prior content"
+        );
+      }
       if (
-        !row
-        || row.version !== input.expectedJobVersion
+        row.version !== input.expectedJobVersion
         || row.state_hash !== input.expectedJobHash
       ) {
         throw new ControlPlaneError("CONFLICT", "Job cancellation lost its runtime compare-and-swap");
