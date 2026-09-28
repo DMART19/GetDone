@@ -55,6 +55,22 @@
         "minAvailable": 1
       },
       "terminationGracePeriodSeconds": 120
+    },
+    "orchestrationWorker": {
+      "replicas": 2,
+      "minReplicas": 2,
+      "maxReplicas": 6,
+      "healthPort": 3002,
+      "livenessPath": "/livez",
+      "readinessPath": "/readyz",
+      "rollout": {
+        "maxUnavailable": 0,
+        "maxSurge": 1
+      },
+      "disruptionBudget": {
+        "minAvailable": 1
+      },
+      "terminationGracePeriodSeconds": 120
     }
   },
   "tls": {
