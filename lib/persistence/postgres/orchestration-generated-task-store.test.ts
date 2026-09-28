@@ -107,25 +107,65 @@ function taskFixture(): GeneratedTask {
 }
 
 class GeneratedTaskDb {
-  row: {
-    payload: GeneratedTask;
-    task_hash: string;
-    authorization_consumption_hash: string;
+  entity: { payload: { taskHash: string; task: GeneratedTask } } | null = null;
+  idempotency: {
+    key: string;
+    fingerprint: string;
+    status: "IN_PROGRESS" | "COMPLETED";
+    created_at: string;
+    completed_at: string | null;
+    failed_at: null;
+    result: GeneratedTask | null;
+    error_code: null;
   } | null = null;
   authorizationConsumptionInserts = 0;
 
   async query(sql: string, values: unknown[] = []) {
-    const normalized = sql.replace(/\s+/g, " ").trim();
+    const normalized = sql.replace(/\\s+/g, " ").trim();
 
-    if (normalized.startsWith("INSERT INTO orchestration_generated_tasks")) {
-      if (this.row) {
-        return { rows: [], rowCount: 0 };
+    if (normalized.startsWith("INSERT INTO idempotency_records")) {
+      if (this.idempotency) return { rows: [], rowCount: 0 };
+      this.idempotency = {
+        key: String(values[0]),
+        fingerprint: String(values[1]),
+        status: "IN_PROGRESS",
+        created_at: String(values[2]),
+        completed_at: null,
+        failed_at: null,
+        result: null,
+        error_code: null
+      };
+      return { rows: [], rowCount: 1 };
+    }
+
+    if (normalized.startsWith("SELECT * FROM idempotency_records")) {
+      return {
+        rows: this.idempotency ? [this.idempotency] : [],
+        rowCount: this.idempotency ? 1 : 0
+      };
+    }
+
+    if (normalized.startsWith("UPDATE idempotency_records") && normalized.includes("COMPLETED")) {
+      if (!this.idempotency) return { rows: [], rowCount: 0 };
+      this.idempotency = {
+        ...this.idempotency,
+        status: "COMPLETED",
+        completed_at: String(values[2]),
+        result: JSON.parse(String(values[3])) as GeneratedTask
+      };
+      return { rows: [this.idempotency], rowCount: 1 };
+    }
+
+    if (normalized.startsWith("INSERT INTO control_plane_entities")) {
+      if (this.entity) {
+        const error = Object.assign(new Error("duplicate"), { code: "23505" });
+        throw error;
       }
-      const payload = JSON.parse(String(values[11])) as GeneratedTask;
-      this.row = {
-        payload,
-        task_hash: String(values[7]),
-        authorization_consumption_hash: String(values[9])
+      this.entity = {
+        payload: JSON.parse(String(values[5])) as {
+          taskHash: string;
+          task: GeneratedTask;
+        }
       };
       return { rows: [], rowCount: 1 };
     }
@@ -135,14 +175,14 @@ class GeneratedTaskDb {
       return { rows: [], rowCount: 1 };
     }
 
-    if (normalized.startsWith("SELECT payload,task_hash,authorization_consumption_hash")) {
+    if (normalized.startsWith("SELECT payload FROM control_plane_entities")) {
       return {
-        rows: this.row ? [this.row] : [],
-        rowCount: this.row ? 1 : 0
+        rows: this.entity ? [this.entity] : [],
+        rowCount: this.entity ? 1 : 0
       };
     }
 
-    throw new Error(`Unexpected SQL: ${normalized}`);
+    throw new Error("Unexpected SQL: " + normalized);
   }
 
   async transaction<T>(operation: (client: never) => Promise<T>) {
@@ -207,6 +247,6 @@ describe("PostgresOrchestrationGeneratedTaskStore", () => {
     await expect(
       store.claim(task, task.authorizationConsumption)
     ).rejects.toThrow(/outside the bound orchestration tenant/i);
-    expect(db.row).toBeNull();
+    expect(db.entity).toBeNull();
   });
 });
