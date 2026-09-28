@@ -12,6 +12,7 @@ import type { JobRecord } from "@/lib/domain/services/job-service";
 import type { TaskRecord } from "@/lib/domain/services/task-service";
 import type { AuthorizedBusinessActionRequest } from "@/lib/execution/adapters/business-action";
 import type { BusinessActionExecutionOrchestrator } from "@/lib/execution/business-action-orchestrator";
+import type { CurrentExecutionAdmissionGate } from "@/lib/execution/current-execution-admission";
 import type {
   DurableJobExecutionContext,
   DurableJobExecutionHandler,
@@ -118,6 +119,7 @@ export class RoutedJobExecutionHandler implements DurableJobExecutionHandler {
       jobs: AuthoritativeJobReadStore;
       tasks: AuthoritativeTaskReadStore;
       grants: Pick<AuthorizationGrantStore, "get">;
+      admission: CurrentExecutionAdmissionGate;
       verificationEvidence: JobVerificationEvidenceStore;
     },
     private readonly now: () => Date = () => new Date()
@@ -277,6 +279,13 @@ export class RoutedJobExecutionHandler implements DurableJobExecutionHandler {
       }
 
       validateCapabilityInput(spec.request.capability, spec.request.input);
+      await this.authority.admission.assertAllowed({
+        scope: context.envelope.scope,
+        grant,
+        capability: spec.request.capability,
+        timeoutMs: spec.request.timeoutMs,
+        attempt: context.lease.attempt
+      });
     } catch (error) {
       return {
         kind: "dead-letter",
