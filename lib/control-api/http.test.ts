@@ -191,7 +191,18 @@ function fakeAdapter(): ControlApiApplicationAdapter {
       state: job.state,
       verificationEvidenceIds: job.verificationEvidenceIds,
       verificationReceiptId: job.verificationReceiptId,
-      verificationReceiptHash: job.verificationReceiptHash
+      verificationReceiptHash: job.verificationReceiptHash,
+      explanation: {
+        title: "Completed and verified",
+        summary: "GetDone verified the intended outcome before marking this job successful.",
+        reasons: ["Verification passed with 1 evidence item(s)."],
+        authority: { capabilityNames: [] },
+        verification: {
+          status: "verified",
+          evidenceCount: 1,
+          receiptId: job.verificationReceiptId
+        }
+      }
     } : null,
     listVerifications: async () => [verification],
     getVerification: async (_principal, id) => id === verification.id ? verification : null
