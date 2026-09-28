@@ -408,7 +408,7 @@
     },
     {
       "source": "lib/persistence/postgres/orchestration-worker-store.ts",
-      "test": "lib/persistence/postgres/orchestration-worker-store.integration.test.ts",
+      "test": "lib/persistence/postgres/orchestration-worker-store.test.ts",
       "critical": true
     }
   ]
