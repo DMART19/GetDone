@@ -57,11 +57,11 @@ describe("Phase 20 business action adapter contracts", () => {
     })).toThrow(/input hash/i);
   });
 
-  it("requires a credential lease reference for production side effects", () => {
+  it("allows credentialless production requests to reach adapter-specific credential policy", () => {
     expect(() => assertAuthorizedBusinessActionRequest({
       ...request,
       scope: { ...request.scope, environment: "production" as const }
-    })).toThrow(/credential lease/i);
+    })).not.toThrow();
   });
 
   it("conformance rejects forged status identity even after provider acceptance", async () => {
