@@ -146,7 +146,6 @@ export const REQUIRED_POSTGRES_RLS_RELATIONS = Object.freeze([
   "orchestration_runs",
   "orchestration_transition_receipts",
   "orchestration_checkpoints",
-  "orchestration_worker_state",
   "orchestration_worker_dead_letters",
   "orchestration_context_snapshots",
   "orchestration_planner_inputs",
