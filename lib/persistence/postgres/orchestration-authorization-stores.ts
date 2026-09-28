@@ -6,9 +6,17 @@ import type {
   DecisionResumeRequestStore
 } from "@/lib/domain/decision-service";
 import type {
+  OrchestrationAuthorizationGrantStore,
   OrchestrationDecisionStore
 } from "@/lib/orchestration/authorization-flow";
-import type { SqlQueryable } from "@/lib/persistence/postgres/client";
+import type { AuthorizationGrant } from "@/lib/authorization/grants";
+import {
+  PostgresAuthorizationGrantStore
+} from "@/lib/persistence/postgres/authority-stores";
+import type {
+  PostgresTransactionalDatabase,
+  SqlQueryable
+} from "@/lib/persistence/postgres/client";
 
 export interface DurableDecisionResumeRequest extends DecisionResumeRequest {
   status: "pending" | "processed";
@@ -22,6 +30,31 @@ export interface DecisionResumeQueue {
   ): Promise<DurableDecisionResumeRequest | null>;
   listPending(limit: number): Promise<readonly DurableDecisionResumeRequest[]>;
   markProcessed(id: string, requestHash: string, processedAt: string): Promise<void>;
+}
+
+export class PostgresOrchestrationAuthorizationGrantStore
+  implements OrchestrationAuthorizationGrantStore {
+  constructor(private readonly db: PostgresTransactionalDatabase) {}
+
+  async insertMany(grants: readonly AuthorizationGrant[]) {
+    if (grants.length === 0) {
+      throw new ControlPlaneError(
+        "VALIDATION_FAILED",
+        "Authorization grant batch must not be empty"
+      );
+    }
+
+    await this.db.transaction(async (client) => {
+      const store = new PostgresAuthorizationGrantStore(client);
+      for (const grant of grants) {
+        await store.insert(grant);
+      }
+    });
+  }
+
+  get(id: string) {
+    return new PostgresAuthorizationGrantStore(this.db).get(id);
+  }
 }
 
 export class PostgresOrchestrationDecisionStore
