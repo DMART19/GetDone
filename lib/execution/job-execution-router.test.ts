@@ -354,6 +354,17 @@ describe("RoutedJobExecutionHandler", () => {
     expect(executions).toBe(0);
   });
 
+  it("creates a persisted Job execution spec with a timestamp when callers omit one", () => {
+    const spec = createPersistedJobExecutionSpec({
+      kind: "software-prepare",
+      jobId: "job-default-time",
+      plan: {} as never
+    });
+
+    expect(Number.isFinite(Date.parse(spec.createdAt))).toBe(true);
+    expect(spec.specHash).toBeTruthy();
+  });
+
   it("rejects tampered persisted execution specs", async () => {
     const specs = new MemorySpecStore();
     const valid = createPersistedJobExecutionSpec({
