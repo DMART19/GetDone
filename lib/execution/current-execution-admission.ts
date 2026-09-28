@@ -2,6 +2,7 @@ import { ControlPlaneError } from "@/lib/control-plane/errors";
 import type { TrustedExecutionScope } from "@/lib/control-plane/trusted-execution-scope";
 import type { AuthorizationGrant } from "@/lib/authorization/grants";
 import type { Objective } from "@/lib/domain/objectives";
+import type { AuthoritativeDecision } from "@/lib/domain/decision-service";
 import { requireEnabledCapability } from "@/lib/domain/capabilities";
 import {
   blockingKillSwitches,
@@ -103,6 +104,52 @@ export class PostgresCurrentExecutionAdmissionGate
         "FORBIDDEN",
         "Consequential business capability requires a current integration binding"
       );
+    }
+
+    if (input.grant.decisionId) {
+      const decision = await this.db.query<{ payload: AuthoritativeDecision }>(
+        `SELECT payload
+         FROM control_plane_entities
+         WHERE entity_type='decision'
+           AND id=$1
+           AND portfolio_id=$2
+           AND company_id=$3`,
+        [
+          input.grant.decisionId,
+          input.scope.portfolioId,
+          input.scope.companyId
+        ]
+      );
+      const current = decision.rows[0]?.payload;
+      if (
+        !current
+        || current.id !== input.grant.decisionId
+        || current.portfolioId !== input.scope.portfolioId
+        || current.companyId !== input.scope.companyId
+      ) {
+        throw new ControlPlaneError(
+          "FORBIDDEN",
+          "Approval Decision is missing from the current company scope"
+        );
+      }
+      if (current.status !== "approved") {
+        throw new ControlPlaneError(
+          "POLICY_BLOCKED",
+          `Approval Decision is ${current.status}; new execution is blocked`
+        );
+      }
+      if (
+        current.approvalProof?.proofHash !== input.grant.approvalProofHash
+        || (
+          input.grant.stepUpProofHash !== undefined
+          && current.stepUpProof?.proofHash !== input.grant.stepUpProofHash
+        )
+      ) {
+        throw new ControlPlaneError(
+          "FORBIDDEN",
+          "Current Decision proof no longer matches the issued authorization grant"
+        );
+      }
     }
 
     if (input.grant.objectiveId) {
