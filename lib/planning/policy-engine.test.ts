@@ -108,7 +108,7 @@ describe("deterministic policy engine", () => {
   it("requires matching fresh strong approval and step-up proofs", () => {
     const pending = evaluatePolicy(input({
       trustedScope: productionScope,
-      capability: "production.deploy",
+      capability: "github.protected-branch.commit",
       environment: "production",
       dataClass: "sensitive",
       allowedEnvironments: ["production"],
@@ -120,7 +120,7 @@ describe("deterministic policy engine", () => {
 
     const satisfied = evaluatePolicy(input({
       trustedScope: productionScope,
-      capability: "production.deploy",
+      capability: "github.protected-branch.commit",
       environment: "production",
       dataClass: "sensitive",
       allowedEnvironments: ["production"],
@@ -226,6 +226,147 @@ describe("deterministic policy engine", () => {
 
     expect(result.disposition).toBe("STRONG_APPROVAL");
     expect(result.readyForTaskGeneration).toBe(true);
+  });
+
+  it("keeps routine repository branch work AUTO but never AUTO when public visibility is requested", () => {
+    const automatic = evaluatePolicy(input({
+      capability: "github.branch.create",
+      riskContext: {
+        customerImpact: "internal",
+        publicVisibility: false,
+        confidence: 0.99,
+        novelty: 0.1,
+        previousApprovedPolicy: true,
+        executionFrequency: 1,
+        autoFrequencyLimit: 10,
+        budgetConsumptionRatio: 0.1
+      }
+    }));
+    expect(automatic.disposition).toBe("AUTO");
+    expect(automatic.readyForTaskGeneration).toBe(true);
+
+    const publicChange = evaluatePolicy(input({
+      capability: "github.branch.create",
+      riskContext: {
+        publicVisibility: true,
+        confidence: 0.99,
+        novelty: 0.1,
+        previousApprovedPolicy: true
+      }
+    }));
+    expect(publicChange.disposition).toBe("APPROVAL_REQUIRED");
+    expect(publicChange.readyForTaskGeneration).toBe(false);
+    expect(publicChange.reasons.some((reason) => reason.code === "RISK_APPROVAL")).toBe(true);
+  });
+
+  it("enforces hierarchical monetary budgets across portfolio and company scopes", () => {
+    const reservations = [
+      createBudgetReservation({
+        id: "reservation-portfolio",
+        portfolioId: "portfolio-a",
+        companyId: "company-a",
+        policyId: "budget-portfolio",
+        policyVersion: "budget-v1",
+        planHash: "plan-hash",
+        stepHash: "step-hash",
+        amountCents: 1_000,
+        currency: "USD",
+        reservedAt: "2026-09-20T18:29:00Z",
+        expiresAt: "2026-09-20T18:35:00Z"
+      }),
+      createBudgetReservation({
+        id: "reservation-company",
+        portfolioId: "portfolio-a",
+        companyId: "company-a",
+        policyId: "budget-company",
+        policyVersion: "budget-v1",
+        planHash: "plan-hash",
+        stepHash: "step-hash",
+        amountCents: 1_000,
+        currency: "USD",
+        reservedAt: "2026-09-20T18:29:00Z",
+        expiresAt: "2026-09-20T18:35:00Z"
+      })
+    ];
+
+    const result = evaluatePolicy(input({
+      budgets: [
+        {
+          policy: {
+            id: "budget-portfolio",
+            scopeType: "portfolio",
+            scopeId: "portfolio-a",
+            currency: "USD",
+            period: "daily",
+            hardLimitCents: 5_000,
+            enabled: true
+          },
+          currentSpendCents: 2_000,
+          requestedCostCents: 1_000
+        },
+        {
+          policy: {
+            id: "budget-company",
+            scopeType: "company",
+            scopeId: "company-a",
+            currency: "USD",
+            period: "daily",
+            hardLimitCents: 4_000,
+            enabled: true
+          },
+          currentSpendCents: 1_000,
+          requestedCostCents: 1_000
+        }
+      ],
+      budgetReservations: reservations
+    }));
+
+    expect(result.disposition).toBe("AUTO");
+    expect(result.readyForTaskGeneration).toBe(true);
+  });
+
+  it("blocks hard usage limits before provider authorization", () => {
+    const result = evaluatePolicy(input({
+      usageBudgets: [{
+        policy: {
+          id: "outbound-company-daily",
+          scopeType: "company",
+          scopeId: "company-a",
+          metric: "outbound-emails",
+          period: "daily",
+          hardLimit: 500,
+          enabled: true
+        },
+        currentUsage: 499,
+        requestedUsage: 2
+      }]
+    }));
+
+    expect(result.disposition).toBe("BLOCKED");
+    expect(result.readyForTaskGeneration).toBe(false);
+    expect(result.reasons.some((reason) => reason.code === "USAGE_BUDGET_BLOCKED")).toBe(true);
+  });
+
+  it("fails closed instead of throwing when authoritative budget state is malformed", () => {
+    const result = evaluatePolicy(input({
+      usageBudgets: [{
+        policy: {
+          id: "deployments-company-daily",
+          scopeType: "company",
+          scopeId: "company-a",
+          metric: "production-deployments",
+          period: "daily",
+          hardLimit: 5,
+          enabled: true
+        },
+        currentUsage: -1,
+        requestedUsage: 1
+      }]
+    }));
+
+    expect(result.disposition).toBe("BLOCKED");
+    expect(result.readyForTaskGeneration).toBe(false);
+    expect(result.reasons.some((reason) => reason.code === "USAGE_BUDGET_INVALID")).toBe(true);
   });
 
   it("fails closed for missing idempotency, credentials, fallback or protected headroom", () => {
