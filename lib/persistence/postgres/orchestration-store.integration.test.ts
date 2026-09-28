@@ -216,7 +216,7 @@ integrationDescribe("PostgreSQL UFO orchestration persistence", () => {
     ).rejects.toThrow(/changed before compare-and-swap/);
   });
 
-  it("keeps recovery scans tenant-scoped and excludes owner-waiting runs", async () => {
+  it("keeps recovery scans tenant-scoped and recovers owner-waiting runs safely", async () => {
     const resumable = acceptedRun("resumable");
     await inScope(() =>
       store.create(
@@ -303,7 +303,7 @@ integrationDescribe("PostgreSQL UFO orchestration persistence", () => {
 
     const candidates = await inScope(() => store.listResumable({ limit: 100 }));
     expect(candidates.some((candidate) => candidate.id === resumable.id)).toBe(true);
-    expect(candidates.some((candidate) => candidate.id === waitingBase.id)).toBe(false);
+    expect(candidates.some((candidate) => candidate.id === waitingBase.id)).toBe(true);
 
     const otherScope = {
       portfolioId: scope.portfolioId,
