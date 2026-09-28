@@ -184,7 +184,13 @@ describe("Task and Job authoritative lifecycle hardening", () => {
       version: 1
     };
     const store = new MapStore<TaskRecord>([dependency, child]) as MapStore<TaskRecord> & TaskStore;
-    const service = new TaskService(manager<TaskStores>({ tasks: store }), () => fixtureNow);
+    const service = new TaskService(
+      manager<TaskStores>({
+        tasks: store,
+        authorizationGrants: new GrantStore(grant)
+      }),
+      () => fixtureNow
+    );
 
     await expect(service.queue(child.id, command("task.queue.blocked")))
       .rejects.toThrow(/dependency is not authoritatively succeeded/i);
@@ -214,7 +220,13 @@ describe("Task and Job authoritative lifecycle hardening", () => {
       version: 3,
       updatedAt: fixtureNow.toISOString()
     }]) as MapStore<TaskRecord> & TaskStore;
-    const service = new TaskService(manager<TaskStores>({ tasks: store }), () => fixtureNow);
+    const service = new TaskService(
+      manager<TaskStores>({
+        tasks: store,
+        authorizationGrants: new GrantStore(grant)
+      }),
+      () => fixtureNow
+    );
 
     const recovered = await service.recoverTimeout(
       "task-retry",
