@@ -4,7 +4,7 @@ import {
   readPostgresConfigFromEnv
 } from "@/lib/persistence/postgres/client";
 
-export const REQUIRED_POSTGRES_MIGRATION = "2026-09-28.1";
+export const REQUIRED_POSTGRES_MIGRATION = "2026-09-28.2";
 
 export const REQUIRED_POSTGRES_RELATIONS = Object.freeze([
   "getdone_schema_migrations",
@@ -58,7 +58,8 @@ export const REQUIRED_POSTGRES_RELATIONS = Object.freeze([
   "analytics_ingestion_runs",
   "orchestration_runs",
   "orchestration_transition_receipts",
-  "orchestration_checkpoints"
+  "orchestration_checkpoints",
+  "orchestration_worker_state"
 ] as const);
 
 export const REQUIRED_POSTGRES_INDEXES = Object.freeze([
@@ -88,7 +89,10 @@ export const REQUIRED_POSTGRES_INDEXES = Object.freeze([
   "orchestration_runs_source_idx",
   "orchestration_runs_resumable_idx",
   "orchestration_transition_receipts_scope_idx",
-  "orchestration_checkpoints_scope_idx"
+  "orchestration_checkpoints_scope_idx",
+  "orchestration_worker_ready_idx",
+  "orchestration_worker_lease_expiry_idx",
+  "orchestration_worker_scope_idx"
 ] as const);
 
 export const REQUIRED_POSTGRES_RLS_RELATIONS = Object.freeze([
@@ -114,7 +118,8 @@ export const REQUIRED_POSTGRES_RLS_RELATIONS = Object.freeze([
   "analytics_ingestion_runs",
   "orchestration_runs",
   "orchestration_transition_receipts",
-  "orchestration_checkpoints"
+  "orchestration_checkpoints",
+  "orchestration_worker_state"
 ] as const);
 
 export interface PostgresRuntimeHealth {
