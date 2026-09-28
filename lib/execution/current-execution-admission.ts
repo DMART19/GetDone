@@ -2,12 +2,16 @@ import { ControlPlaneError } from "@/lib/control-plane/errors";
 import type { TrustedExecutionScope } from "@/lib/control-plane/trusted-execution-scope";
 import type { AuthorizationGrant } from "@/lib/authorization/grants";
 import type { Objective } from "@/lib/domain/objectives";
+import { requireEnabledCapability } from "@/lib/domain/capabilities";
 import {
   blockingKillSwitches,
   type KillSwitch
 } from "@/lib/domain/kill-switch";
 import type { CompanyIntegration } from "@/lib/integrations/contracts";
-import { assertCompanyIntegrationScope } from "@/lib/integrations/registry";
+import {
+  assertCompanyIntegrationScope,
+  assertIntegrationUsable
+} from "@/lib/integrations/registry";
 import type { SqlQueryable } from "@/lib/persistence/postgres/client";
 
 export interface CurrentExecutionAdmissionInput {
@@ -90,6 +94,17 @@ export class PostgresCurrentExecutionAdmissionGate
       );
     }
 
+    const capability = requireEnabledCapability(input.capability);
+    const requiresBusinessIntegration =
+      capability.productionEffect
+      && capability.adapterBinding.startsWith("business.");
+    if (requiresBusinessIntegration && !input.grant.integrationId) {
+      throw new ControlPlaneError(
+        "FORBIDDEN",
+        "Consequential business capability requires a current integration binding"
+      );
+    }
+
     if (input.grant.objectiveId) {
       const objective = await this.db.query<{ payload: Objective }>(
         `SELECT payload
@@ -141,12 +156,18 @@ export class PostgresCurrentExecutionAdmissionGate
         );
       }
       assertCompanyIntegrationScope(current, input.scope);
-      if (current.state !== "connected") {
+      if (current.adapterId !== capability.adapterBinding) {
         throw new ControlPlaneError(
-          "POLICY_BLOCKED",
-          `Integration is ${current.state}; new execution is blocked`
+          "FORBIDDEN",
+          "Current integration adapter does not match the authorized capability binding"
         );
       }
+      assertIntegrationUsable({
+        record: current,
+        scope: input.scope,
+        access: capability.access,
+        requiredScope: input.capability
+      });
     }
 
     const killSwitchResult = await this.db.query<{ payload: KillSwitch }>(
