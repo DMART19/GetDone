@@ -23,6 +23,7 @@ export interface ApprovalRecord extends StatefulEntity {
   grantedBy?: string;
   deniedBy?: string;
   approvalProof?: ApprovalProof;
+  stepUpProof?: StepUpProof;
 }
 
 export interface ApprovalStores {
@@ -34,6 +35,65 @@ export interface GrantApprovalInput {
   stepHash: string;
   proofExpiresAt: string;
   stepUpProof?: StepUpProof;
+}
+
+export function createApprovalGrantPatch(input: {
+  current: ApprovalRecord;
+  command: AuthoritativeCommandEnvelope;
+  grant: GrantApprovalInput;
+  grantedAt: string;
+}) {
+  const { current, command, grant, grantedAt } = input;
+  if (!grant.planHash || !grant.stepHash) {
+    throw new ControlPlaneError(
+      "VALIDATION_FAILED",
+      "Approval proof must bind to an exact plan and step"
+    );
+  }
+
+  if (current.requirement === "strong-approval") {
+    if (!grant.stepUpProof) {
+      throw new ControlPlaneError(
+        "FORBIDDEN",
+        "Fresh step-up proof is required for strong approval"
+      );
+    }
+    assertStepUpProof(grant.stepUpProof, {
+      actorId: command.actor.id,
+      scope: command.scope,
+      now: Date.parse(grantedAt)
+    });
+  }
+
+  const proof = createApprovalProof({
+    id: `approval-proof:${current.id}:${current.version + 1}`,
+    decisionId: current.decisionId,
+    approvalId: current.id,
+    actorId: command.actor.id,
+    scope: command.scope,
+    level: current.requirement,
+    planHash: grant.planHash,
+    stepHash: grant.stepHash,
+    grantedAt,
+    expiresAt: grant.proofExpiresAt,
+    stepUpProofId: grant.stepUpProof?.id
+  });
+
+  assertApprovalProof(proof, {
+    actorId: command.actor.id,
+    scope: command.scope,
+    planHash: grant.planHash,
+    stepHash: grant.stepHash,
+    requiredLevel: current.requirement,
+    stepUpProof: grant.stepUpProof,
+    now: Date.parse(grantedAt)
+  });
+
+  return Object.freeze({
+    grantedBy: command.actor.id,
+    approvalProof: proof,
+    stepUpProof: grant.stepUpProof
+  });
 }
 
 export class ApprovalService {
@@ -55,58 +115,12 @@ export class ApprovalService {
       to: "granted",
       command,
       triggeringEvent: "approval-granted",
-      patch: (current) => {
-        if (!input.planHash || !input.stepHash) {
-          throw new ControlPlaneError(
-            "VALIDATION_FAILED",
-            "Approval proof must bind to an exact plan and step"
-          );
-        }
-
-        if (current.requirement === "strong-approval") {
-          if (!input.stepUpProof) {
-            throw new ControlPlaneError(
-              "FORBIDDEN",
-              "Fresh step-up proof is required for strong approval"
-            );
-          }
-          assertStepUpProof(input.stepUpProof, {
-            actorId: command.actor.id,
-            scope: command.scope,
-            now: this.now().getTime()
-          });
-        }
-
-        const grantedAt = this.now().toISOString();
-        const proof = createApprovalProof({
-          id: `approval-proof:${current.id}:${current.version + 1}`,
-          decisionId: current.decisionId,
-          approvalId: current.id,
-          actorId: command.actor.id,
-          scope: command.scope,
-          level: current.requirement,
-          planHash: input.planHash,
-          stepHash: input.stepHash,
-          grantedAt,
-          expiresAt: input.proofExpiresAt,
-          stepUpProofId: input.stepUpProof?.id
-        });
-
-        assertApprovalProof(proof, {
-          actorId: command.actor.id,
-          scope: command.scope,
-          planHash: input.planHash,
-          stepHash: input.stepHash,
-          requiredLevel: current.requirement,
-          stepUpProof: input.stepUpProof,
-          now: this.now().getTime()
-        });
-
-        return {
-          grantedBy: command.actor.id,
-          approvalProof: proof
-        };
-      },
+      patch: (current) => createApprovalGrantPatch({
+        current,
+        command,
+        grant: input,
+        grantedAt: this.now().toISOString()
+      }),
       metadata: (current) => ({
         requirement: current.requirement,
         stepUpProofId: input.stepUpProof?.id ?? null,
