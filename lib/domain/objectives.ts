@@ -111,21 +111,24 @@ export function evaluateBudget(
   budget: BudgetPolicy,
   input: { scopeId: string; currentSpendCents: number; reservedCents?: number; requestedCostCents: number }
 ): BudgetEvaluation {
-  if (!budget.enabled || budget.scopeId !== input.scopeId) {
-    return {
-      disposition: "allow",
-      projectedSpendCents: input.currentSpendCents + (input.reservedCents ?? 0) + input.requestedCostCents,
-      remainingCents: Math.max(0, budget.hardLimitCents - input.currentSpendCents)
-    };
-  }
-
-  const values = [input.currentSpendCents, input.reservedCents ?? 0, input.requestedCostCents, budget.hardLimitCents];
+  const values = [
+    input.currentSpendCents,
+    input.reservedCents ?? 0,
+    input.requestedCostCents,
+    budget.hardLimitCents,
+    budget.approvalThresholdCents ?? 0
+  ];
   if (values.some((value) => !Number.isInteger(value) || value < 0)) {
     throw new TypeError("Budget values must be non-negative integer cents");
   }
 
-  const projectedSpendCents = input.currentSpendCents + (input.reservedCents ?? 0) + input.requestedCostCents;
+  const projectedSpendCents =
+    input.currentSpendCents + (input.reservedCents ?? 0) + input.requestedCostCents;
   const remainingCents = Math.max(0, budget.hardLimitCents - projectedSpendCents);
+
+  if (!budget.enabled || budget.scopeId !== input.scopeId) {
+    return { disposition: "allow", projectedSpendCents, remainingCents };
+  }
 
   if (projectedSpendCents > budget.hardLimitCents) {
     return {
