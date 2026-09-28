@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { CURRENT_POLICY_VERSION } from "@/lib/domain/policy-registry";
 import { assembleContext } from "@/lib/intelligence/context";
 import {
   createOwnerIntentContextSnapshot,
