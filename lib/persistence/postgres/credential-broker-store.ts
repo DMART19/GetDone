@@ -1,3 +1,4 @@
+import { ControlPlaneError } from "@/lib/control-plane/errors";
 import type { CredentialLease, CredentialUsageAudit } from "@/lib/credentials/broker";
 import type { CredentialLeaseReader, CredentialUsageAuditWriter } from "@/lib/credentials/runtime-broker";
 import type { SqlQueryable } from "@/lib/persistence/postgres/client";
@@ -6,7 +7,7 @@ export class PostgresCredentialBrokerStore implements CredentialLeaseReader, Cre
   constructor(private readonly db: SqlQueryable) {}
 
   async putLease(lease: CredentialLease) {
-    await this.db.query(
+    const result = await this.db.query(
       `INSERT INTO credential_leases
         (id,portfolio_id,company_id,job_id,resource_id,provider_id,capability,status,expires_at,lease_hash,payload)
        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb)
@@ -29,6 +30,13 @@ export class PostgresCredentialBrokerStore implements CredentialLeaseReader, Cre
         lease.leaseHash,
         JSON.stringify(lease)
       ]
+    );
+    if (result.rowCount === 1) return;
+    const existing = await this.get(lease.id);
+    if (existing?.leaseHash === lease.leaseHash) return;
+    throw new ControlPlaneError(
+      "IDEMPOTENCY_CONFLICT",
+      "Credential lease ID already exists with different authoritative content"
     );
   }
 
