@@ -73,8 +73,24 @@ const worker = readJson(
   process.env.GETDONE_WORKER_HEALTH_EVIDENCE_PATH
     || "test-results/production-gate/worker-health.json"
 );
-if (worker.ready !== true || worker.state !== "running") {
-  throw new Error("Worker readiness canary did not pass");
+if (
+  worker.ready !== true
+  || worker.state !== "running"
+  || worker.role !== "job-worker"
+) {
+  throw new Error("Job worker readiness canary did not pass");
+}
+
+const orchestrationWorker = readJson(
+  process.env.GETDONE_ORCHESTRATION_WORKER_HEALTH_EVIDENCE_PATH
+    || "test-results/production-gate/orchestration-worker-health.json"
+);
+if (
+  orchestrationWorker.ready !== true
+  || orchestrationWorker.state !== "running"
+  || orchestrationWorker.role !== "orchestration-worker"
+) {
+  throw new Error("Orchestration worker readiness canary did not pass");
 }
 
 const dependency = runJson("node",["scripts/verify-dependencies.mjs"]);
@@ -100,6 +116,7 @@ const reportBase = {
     liveOpenRouterCanary:true,
     liveSafeIntegrationCanary:true,
     workerHealth:true,
+    orchestrationWorkerHealth:true,
     vulnerabilityScan:true,
     contractDrift:true,
     zeroDowntimeMigrationPolicy:true,
@@ -110,6 +127,7 @@ const reportBase = {
     openRouterScenarioCount:openrouter.scenarios.length,
     safeIntegrationCaseCount:safeIntegration.cases.length,
     workerEvidenceHash:worker.evidenceHash,
+    orchestrationWorkerEvidenceHash:orchestrationWorker.evidenceHash,
     postgres,
     dependency,
     contracts,
