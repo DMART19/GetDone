@@ -186,6 +186,7 @@ export class PostgresOrchestrationWorkerStore implements OrchestrationWorkerStor
            'planned',
            'validated',
            'policy-evaluated',
+           'awaiting-decision',
            'authorized',
            'tasks-created',
            'jobs-enqueued',
