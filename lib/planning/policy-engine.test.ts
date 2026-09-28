@@ -221,7 +221,7 @@ describe("deterministic policy engine", () => {
 
     const result = evaluateStepPolicy({
       ...stepInput,
-      capabilities: ["revenue.read", "production.deploy"]
+      capabilities: ["revenue.read", "github.protected-branch.commit"]
     });
 
     expect(result.disposition).toBe("STRONG_APPROVAL");
