@@ -669,7 +669,7 @@
     "lib/persistence/postgres/orchestration-validation-policy.integration.test.ts",
     "lib/persistence/postgres/orchestration-authorization.integration.test.ts",
     "lib/orchestration/task-job-materialization.test.ts",
-    "lib/persistence/postgres/orchestration-task-job-store.ts"
+    "lib/persistence/postgres/orchestration-task-job-store.test.ts"
   ],
   "manualSourcePaths": [
     "docs/ARCHITECTURE.md",
