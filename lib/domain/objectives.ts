@@ -21,13 +21,33 @@ export interface Guardrail {
   protected: boolean;
 }
 
+export type BudgetScopeType =
+  | "portfolio"
+  | "company"
+  | "integration"
+  | "capability"
+  | "objective"
+  | "job";
+
 export interface BudgetPolicy {
   id: string;
+  scopeType?: BudgetScopeType;
   scopeId: string;
   currency: string;
-  period: "per-action" | "daily" | "monthly";
+  period: "per-action" | "per-job" | "daily" | "monthly";
   hardLimitCents: number;
   approvalThresholdCents?: number;
+  enabled: boolean;
+}
+
+export interface UsageBudgetPolicy {
+  id: string;
+  scopeType: BudgetScopeType;
+  scopeId: string;
+  metric: string;
+  period: "per-action" | "per-job" | "daily" | "monthly";
+  hardLimit: number;
+  approvalThreshold?: number;
   enabled: boolean;
 }
 
@@ -37,6 +57,13 @@ export interface BudgetEvaluation {
   disposition: ConstraintDisposition;
   projectedSpendCents: number;
   remainingCents: number;
+  reason?: string;
+}
+
+export interface UsageBudgetEvaluation {
+  disposition: ConstraintDisposition;
+  projectedUsage: number;
+  remaining: number;
   reason?: string;
 }
 
@@ -122,6 +149,58 @@ export function evaluateBudget(
   }
 
   return { disposition: "allow", projectedSpendCents, remainingCents };
+}
+
+export function evaluateUsageBudget(
+  budget: UsageBudgetPolicy,
+  input: {
+    scopeId: string;
+    currentUsage: number;
+    reservedUsage?: number;
+    requestedUsage: number;
+  }
+): UsageBudgetEvaluation {
+  const values = [
+    input.currentUsage,
+    input.reservedUsage ?? 0,
+    input.requestedUsage,
+    budget.hardLimit,
+    budget.approvalThreshold ?? 0
+  ];
+  if (values.some((value) => !Number.isInteger(value) || value < 0)) {
+    throw new TypeError("Usage budget values must be non-negative integers");
+  }
+
+  const projectedUsage =
+    input.currentUsage + (input.reservedUsage ?? 0) + input.requestedUsage;
+  const remaining = Math.max(0, budget.hardLimit - projectedUsage);
+
+  if (!budget.enabled || budget.scopeId !== input.scopeId) {
+    return { disposition: "allow", projectedUsage, remaining };
+  }
+
+  if (projectedUsage > budget.hardLimit) {
+    return {
+      disposition: "blocked",
+      projectedUsage,
+      remaining,
+      reason: `Projected ${budget.metric} usage exceeds the hard budget limit`
+    };
+  }
+
+  if (
+    budget.approvalThreshold !== undefined
+    && projectedUsage > budget.approvalThreshold
+  ) {
+    return {
+      disposition: "approval-required",
+      projectedUsage,
+      remaining,
+      reason: `Projected ${budget.metric} usage exceeds the configured approval threshold`
+    };
+  }
+
+  return { disposition: "allow", projectedUsage, remaining };
 }
 
 function violatesGuardrail(guardrail: Guardrail, actual: number | string | boolean | undefined) {
