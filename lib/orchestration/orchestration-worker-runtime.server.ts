@@ -11,6 +11,10 @@ import {
   type CredentialBindingRequirement
 } from "@/lib/domain/credential-binding";
 import { PreferenceLearningService } from "@/lib/domain/preference-learning";
+import {
+  assertCredentialLease,
+  type CredentialLease
+} from "@/lib/credentials/broker";
 import type { ContextItem, ContextScope } from "@/lib/intelligence/context";
 import {
   AIGatewayDurablePlanner,
@@ -20,7 +24,10 @@ import { AuthoritativeExecutionCoordinator } from "@/lib/orchestration/authorita
 import type { OrchestrationRunRecord } from "@/lib/orchestration/contracts";
 import type { AuthoritativeObjective } from "@/lib/orchestration/objective-flow";
 import { PostgresObjectiveOutcomePort } from "@/lib/orchestration/objective-outcome-runtime.server";
-import { PostgresGovernedJobRuntime } from "@/lib/orchestration/post-authorization-runtime.server";
+import {
+  PostgresGovernedJobRuntime,
+  type OrchestrationCredentialLeaseResolver
+} from "@/lib/orchestration/post-authorization-runtime.server";
 import {
   createDedicatedOrchestrationWorkerProcessFromEnv
 } from "@/lib/orchestration/runtime.server";
@@ -325,15 +332,30 @@ async function credentialSnapshot(input: {
   });
 }
 
+const KILL_SWITCH_SCOPES = new Set<KillSwitch["scopeType"]>([
+  "global",
+  "portfolio",
+  "company",
+  "integration",
+  "capability",
+  "resource",
+  "pool",
+  "provider",
+  "failure-domain",
+  "workload-class"
+]);
+
 function validKillSwitch(value: unknown): value is KillSwitch {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const item = value as Partial<KillSwitch>;
   return typeof item.id === "string"
     && typeof item.scopeType === "string"
+    && KILL_SWITCH_SCOPES.has(item.scopeType as KillSwitch["scopeType"])
     && typeof item.scopeId === "string"
     && typeof item.enabled === "boolean"
     && typeof item.reason === "string"
     && typeof item.activatedAt === "string"
+    && Number.isFinite(Date.parse(item.activatedAt))
     && typeof item.activatedBy === "string";
 }
 
@@ -426,6 +448,66 @@ export function createRunScopedTaskDedupeStore(
       ).claim(task, consumption);
     }
   };
+}
+
+export class PostgresOrchestrationCredentialLeaseResolver
+  implements OrchestrationCredentialLeaseResolver {
+  constructor(
+    private readonly db: PostgresTransactionalDatabase,
+    private readonly now: () => Date = () => new Date()
+  ) {}
+
+  async resolve(input: {
+    run: OrchestrationRunRecord;
+    task: GeneratedTask;
+    jobId: string;
+    capability: string;
+  }): Promise<string | undefined> {
+    const resourceId = input.task.scope.resourceId?.trim();
+    if (!resourceId) return undefined;
+
+    const resolvedAt = this.now();
+    const result = await this.db.query<{ payload: CredentialLease }>(
+      `SELECT payload
+         FROM credential_leases
+        WHERE portfolio_id=$1
+          AND company_id=$2
+          AND job_id=$3
+          AND resource_id=$4
+          AND capability=$5
+          AND status='active'
+          AND expires_at>$6
+        ORDER BY expires_at DESC,id
+        LIMIT 2`,
+      [
+        input.run.scope.portfolioId,
+        input.run.scope.companyId,
+        input.jobId,
+        resourceId,
+        input.capability,
+        resolvedAt.toISOString()
+      ]
+    );
+
+    if (result.rows.length === 0) return undefined;
+    if (result.rows.length > 1) {
+      throw new ControlPlaneError(
+        "FORBIDDEN",
+        "Multiple active credential leases matched one production Job"
+      );
+    }
+
+    const lease = result.rows[0]?.payload;
+    if (!lease) return undefined;
+    assertCredentialLease(lease, {
+      scope: input.task.scope,
+      jobId: input.jobId,
+      resourceId,
+      capability: input.capability,
+      now: resolvedAt.getTime()
+    });
+    return lease.id;
+  }
 }
 
 function validationResolver(
@@ -559,7 +641,12 @@ export function createAuthoritativeExecutionCoordinatorFromEnv(
   const preferenceLearning = new PreferenceLearningService(
     new PostgresPreferenceLearningStore(db)
   );
-  const governedJobs = new PostgresGovernedJobRuntime(db, env, now);
+  const governedJobs = new PostgresGovernedJobRuntime(
+    db,
+    env,
+    now,
+    new PostgresOrchestrationCredentialLeaseResolver(db, now)
+  );
   const outcomes = new PostgresObjectiveOutcomePort(db, now);
   const planner = new AIGatewayDurablePlanner(
     getAIGatewayFromEnv(env),
