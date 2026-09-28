@@ -104,6 +104,18 @@ export class PostgresOrchestrationContextSnapshotStore
     });
   }
 
+  async get(id: string): Promise<OrchestrationContextSnapshot | null> {
+    const result = await this.db.query<{ payload: OrchestrationContextSnapshot }>(
+      `SELECT payload
+       FROM orchestration_context_snapshots
+       WHERE id=$1`,
+      [id]
+    );
+    const snapshot = result.rows[0]?.payload ?? null;
+    if (snapshot) assertOrchestrationContextSnapshot(snapshot);
+    return snapshot;
+  }
+
   async getByRunVersion(
     runId: string,
     runVersion: number
