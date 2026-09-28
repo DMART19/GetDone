@@ -33,6 +33,9 @@ import type {
 import {
   PostgresControlPlaneTransactionManager
 } from "@/lib/persistence/postgres/transaction-manager";
+import {
+  runWithPostgresTenantScope
+} from "@/lib/persistence/postgres/tenant-context.server";
 
 export interface OrchestrationCredentialLeaseResolver {
   resolve(input: {
@@ -47,13 +50,19 @@ function orchestrationCommand(
   suffix: string,
   mutationType: string
 ) {
+  const identity = sha256Hex({
+    runId: run.id,
+    runVersion: run.version,
+    suffix,
+    mutationType
+  });
   return createCommandEnvelope({
-    commandId: `orchestration:${run.id}:${suffix}`,
+    commandId: `orchestration:${identity}`,
     actor: { type: "system", id: "getdone-orchestration" },
     scope: run.scope,
     correlationId: run.correlationId,
     environment: run.scope.environment,
-    idempotencyKey: `orchestration:${run.id}:${suffix}`,
+    idempotencyKey: `orchestration:${identity}`,
     provenance: "core-product-orchestration",
     requestedMutation: { type: mutationType }
   });
@@ -134,6 +143,7 @@ export class PostgresOrchestrationTaskJobAuthority
     dependencyTaskIds?: readonly string[];
     dependencyJobIds?: readonly string[];
   }): Promise<TaskRecord | JobRecord> {
+    return runWithPostgresTenantScope(input.run.scope, async () => {
     if (input.operationIndex === undefined) {
       const service = this.taskService();
       const retryable = input.task.resourceRequirements.execution.retryable;
@@ -196,6 +206,7 @@ export class PostgresOrchestrationTaskJobAuthority
       `job:${input.task.planStepId}:op:${input.operationIndex + 1}:create`,
       "job.create"
     ));
+    });
   }
 
   async enqueue(input: {
@@ -205,6 +216,7 @@ export class PostgresOrchestrationTaskJobAuthority
     operationIndex: number;
     job: JobRecord;
   }) {
+    return runWithPostgresTenantScope(input.run.scope, async () => {
     const operation = input.task.operations[input.operationIndex];
     if (!operation) {
       throw new ControlPlaneError(
@@ -263,5 +275,6 @@ export class PostgresOrchestrationTaskJobAuthority
     // Provider execution remains the responsibility of the separate Job worker.
     await this.jobRuntime.enqueueAuthorizedBusinessAction(queued, request);
     return queued;
+    });
   }
 }
