@@ -71,7 +71,7 @@
       "database": {
         "engine": "postgresql",
         "minimumEngineVersion": "16",
-        "migrationVersion": "2026-09-25.3",
+        "migrationVersion": "2026-09-28.6",
         "schemaVersion": "2.2.0",
         "adapterStatus": "implemented-unconnected"
       },
@@ -197,7 +197,7 @@
       "database": {
         "engine": "postgresql",
         "minimumEngineVersion": "16",
-        "migrationVersion": "2026-09-25.3",
+        "migrationVersion": "2026-09-28.6",
         "schemaVersion": "2.2.0",
         "adapterStatus": "implemented-unconnected"
       },
@@ -323,7 +323,7 @@
       "database": {
         "engine": "postgresql",
         "minimumEngineVersion": "16",
-        "migrationVersion": "2026-09-25.3",
+        "migrationVersion": "2026-09-28.6",
         "schemaVersion": "2.2.0",
         "adapterStatus": "implemented-unconnected"
       },
