@@ -1,6 +1,11 @@
 import { sha256Hex } from "@/lib/control-plane/canonical-hash";
 import { ControlPlaneError } from "@/lib/control-plane/errors";
 import type {
+  ObjectiveProgressItem,
+  ObjectiveRecord,
+  ObjectiveStatus
+} from "@/lib/domain/objective-inbox";
+import type {
   OrchestrationCheckpoints,
   OrchestrationRunRecord,
   OrchestrationRunStore,
@@ -60,6 +65,199 @@ function requireKey(value: string, label: string) {
 
 function checkpointHash(checkpoints: OrchestrationCheckpoints) {
   return sha256Hex(checkpoints);
+}
+
+function objectiveStatusForRun(state: OrchestrationState): ObjectiveStatus {
+  switch (state) {
+    case "accepted":
+      return "queued";
+    case "context-ready":
+    case "planning":
+    case "planned":
+    case "validated":
+    case "policy-evaluated":
+      return "planning";
+    case "awaiting-decision":
+      return "needs_owner_input";
+    case "authorized":
+    case "tasks-created":
+    case "jobs-enqueued":
+    case "executing":
+    case "verifying":
+      return "executing";
+    case "completed":
+      return "completed";
+    case "blocked":
+      return "blocked";
+    case "failed":
+      return "failed";
+    case "cancelled":
+      return "cancelled";
+  }
+}
+
+const POST_AUTHORIZATION_STATES = new Set<OrchestrationState>([
+  "authorized",
+  "tasks-created",
+  "jobs-enqueued",
+  "executing",
+  "verifying",
+  "completed"
+]);
+
+function objectiveProgressForRun(
+  run: OrchestrationRunRecord
+): readonly ObjectiveProgressItem[] {
+  const items: ObjectiveProgressItem[] = [{
+    label: "Objective accepted",
+    status: "done",
+    occurredAt: run.createdAt
+  }];
+
+  const planningStates = new Set<OrchestrationState>([
+    "context-ready",
+    "planning",
+    "planned",
+    "validated",
+    "policy-evaluated"
+  ]);
+  if (planningStates.has(run.state)) {
+    items.push({
+      label: "Planning, validation, and policy checks",
+      status: "running",
+      occurredAt: run.updatedAt
+    });
+  } else if (
+    run.state !== "accepted"
+    && !["blocked", "failed", "cancelled"].includes(run.state)
+  ) {
+    items.push({
+      label: "Planning, validation, and policy checks",
+      status: "done",
+      occurredAt: run.updatedAt
+    });
+  }
+
+  if (run.checkpoints.decisionIds.length > 0) {
+    items.push({
+      label: "Owner decision",
+      status: run.state === "awaiting-decision" ? "waiting" : "done",
+      occurredAt: run.updatedAt
+    });
+  }
+
+  if (
+    ["authorized", "tasks-created", "jobs-enqueued", "executing"].includes(run.state)
+  ) {
+    items.push({
+      label: "Executing authorized work",
+      status: "running",
+      occurredAt: run.updatedAt
+    });
+  } else if (run.state === "verifying" || run.state === "completed") {
+    items.push({
+      label: "Executing authorized work",
+      status: "done",
+      occurredAt: run.updatedAt
+    });
+  }
+
+  if (run.state === "verifying") {
+    items.push({
+      label: "Verifying real-world outcome",
+      status: "running",
+      occurredAt: run.updatedAt
+    });
+  } else if (run.state === "completed") {
+    items.push({
+      label: "Verified objective outcome",
+      status: "done",
+      verified: true,
+      occurredAt: run.updatedAt
+    });
+  } else if (run.state === "blocked" || run.state === "failed" || run.state === "cancelled") {
+    items.push({
+      label: run.state === "blocked"
+        ? "Objective blocked"
+        : run.state === "failed"
+          ? "Objective failed"
+          : "Objective cancelled",
+      status: "failed",
+      occurredAt: run.updatedAt
+    });
+  } else if (POST_AUTHORIZATION_STATES.has(run.state)) {
+    // Kept explicit so future post-authorization states cannot silently omit
+    // owner-facing execution progress.
+  }
+
+  return Object.freeze(items);
+}
+
+async function projectObjectiveRun(
+  client: SqlQueryable,
+  run: OrchestrationRunRecord
+) {
+  if (run.source.type !== "objective") return;
+
+  const selected = await client.query<{ payload: ObjectiveRecord }>(
+    `SELECT payload
+       FROM control_plane_entities
+      WHERE entity_type='objective' AND id=$1
+      FOR UPDATE`,
+    [run.source.id]
+  );
+  const objective = selected.rows[0]?.payload;
+  if (!objective) {
+    throw new ControlPlaneError(
+      "NOT_FOUND",
+      "Objective orchestration projection references a missing Objective",
+      { correlationId: run.correlationId }
+    );
+  }
+  if (
+    objective.portfolioId !== run.scope.portfolioId
+    || objective.companyId !== run.scope.companyId
+    || objective.environment !== run.scope.environment
+    || objective.createdByUserId !== run.scope.userId
+  ) {
+    throw new ControlPlaneError(
+      "FORBIDDEN",
+      "Objective orchestration projection crossed authoritative scope",
+      { correlationId: run.correlationId }
+    );
+  }
+
+  const status = objectiveStatusForRun(run.state);
+  const next: ObjectiveRecord = Object.freeze({
+    ...objective,
+    status,
+    progress: objectiveProgressForRun(run),
+    completedAt: status === "completed"
+      ? (objective.completedAt ?? run.updatedAt)
+      : undefined,
+    updatedAt: run.updatedAt,
+    version: objective.version + 1
+  });
+
+  const updated = await client.query(
+    `UPDATE control_plane_entities
+        SET version=$3, updated_at=$4, payload=$5::jsonb
+      WHERE entity_type='objective' AND id=$1 AND version=$2`,
+    [
+      objective.id,
+      objective.version,
+      next.version,
+      next.updatedAt,
+      JSON.stringify(next)
+    ]
+  );
+  if (updated.rowCount !== 1) {
+    throw new ControlPlaneError(
+      "CONFLICT",
+      "Objective changed before orchestration projection commit",
+      { correlationId: run.correlationId }
+    );
+  }
 }
 
 function transitionId(runId: string, version: number) {
@@ -503,6 +701,7 @@ export class PostgresOrchestrationRunStore implements OrchestrationRunStore {
       }
 
       await this.insertCheckpoint(client, next);
+      await projectObjectiveRun(client, next);
 
       await client.query(
         `INSERT INTO orchestration_transition_receipts
