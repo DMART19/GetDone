@@ -57,6 +57,11 @@ export interface ScopedReadStore<T extends { id: string; portfolioId: string; co
 }
 
 export interface OwnerIntentStore {
+  /**
+   * Production persistence MUST not acknowledge an accepted OwnerIntent until
+   * the intent and its initial durable orchestration admission have committed
+   * together. In-memory/test implementations may remain non-durable.
+   */
   create(record: OwnerIntentRecord, idempotencyKey: string): Promise<OwnerIntentRecord>;
 }
 
