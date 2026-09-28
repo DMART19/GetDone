@@ -150,6 +150,7 @@ export class PostgresJobVerificationEvidenceStore
       [jobId]
     );
     return Object.freeze(result.rows.map((row) => row.payload));
+  }
 }
 
 export function workerErrorHash(error: unknown) {
