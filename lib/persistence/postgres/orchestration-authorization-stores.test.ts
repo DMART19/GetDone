@@ -94,6 +94,24 @@ describe("PostgreSQL orchestration authorization stores", () => {
       .toEqual({ status: "idempotent-replay", decision: value });
   });
 
+  it("replays an owner-resolved Decision when immutable authorization lineage is unchanged", async () => {
+    const value = decision();
+    const approved = {
+      ...value,
+      status: "approved" as const,
+      version: 2,
+      updatedAt: "2026-09-28T13:01:00.000Z",
+      resolvedBy: "owner-a"
+    };
+    const db = new ScriptedDb([
+      { rowCount: 0 },
+      { rows: [{ payload: approved }] }
+    ]);
+
+    expect(await new PostgresOrchestrationDecisionStore(db).create(value))
+      .toEqual({ status: "idempotent-replay", decision: approved });
+  });
+
   it("rejects deterministic Decision ID reuse with different content", async () => {
     const value = decision();
     const conflicting = {
@@ -107,7 +125,7 @@ describe("PostgreSQL orchestration authorization stores", () => {
 
     await expect(
       new PostgresOrchestrationDecisionStore(db).create(value)
-    ).rejects.toThrow(/different authoritative content/i);
+    ).rejects.toThrow(/different immutable authorization lineage/i);
   });
 
   it("persists and idempotently replays Decision resume requests", async () => {
