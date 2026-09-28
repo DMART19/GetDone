@@ -18,7 +18,10 @@ import {
   type OrchestrationPlanProposalStore,
   type PersistedPlanProposal
 } from "@/lib/orchestration/planning-flow";
-import type { OrchestrationStageOutcome } from "@/lib/orchestration/worker-contracts";
+import type {
+  OrchestrationStageHandler,
+  OrchestrationStageOutcome
+} from "@/lib/orchestration/worker-contracts";
 import {
   assertDurablePolicyEvaluationArtifact,
   assertDurableValidationArtifact,
@@ -1028,4 +1031,86 @@ export async function advanceTasksCreatedToJobsEnqueued(input: {
       }
     })
   };
+}
+
+
+export interface ObjectiveExecutionStatusResolver {
+  getStatus(input: {
+    portfolioId: string;
+    companyId: string;
+    objectiveId: string;
+  }): Promise<"active" | "paused" | "completed">;
+}
+
+/**
+ * Tranche-A stage handler for the existing DurableOrchestrationWorker.
+ *
+ * It deliberately stops at authoritative Job materialization. It never calls
+ * a provider, never creates an execution spec, and never enqueues the durable
+ * provider Job Engine. Later binding/execution remains owned by the existing
+ * governed Job runtime.
+ */
+export class TaskJobMaterializationStageHandler
+  implements OrchestrationStageHandler {
+  constructor(
+    private readonly deps: {
+      plans: OrchestrationPlanProposalStore;
+      validations: OrchestrationValidationArtifactStore;
+      policies: OrchestrationPolicyEvaluationStore;
+      grants: AuthorizationGrantStore;
+      materialization: OrchestrationTaskJobMaterializationStore;
+      objectiveStatus?: ObjectiveExecutionStatusResolver;
+      now?: () => Date;
+    }
+  ) {}
+
+  async execute(context: Parameters<OrchestrationStageHandler["execute"]>[0]) {
+    await context.heartbeat();
+
+    if (context.run.state === "authorized") {
+      let objectiveStatus: "active" | "paused" | "completed" | undefined;
+      if (context.run.source.type === "objective") {
+        if (!this.deps.objectiveStatus) {
+          return {
+            kind: "retry" as const,
+            code: "UNAVAILABLE",
+            reason: "Objective status resolver is required before autonomous Task materialization"
+          };
+        }
+        objectiveStatus = await this.deps.objectiveStatus.getStatus({
+          portfolioId: context.run.scope.portfolioId,
+          companyId: context.run.scope.companyId,
+          objectiveId: context.run.source.id
+        });
+      }
+
+      return advanceAuthorizedToTasksCreated({
+        run: context.run,
+        plans: this.deps.plans,
+        validations: this.deps.validations,
+        policies: this.deps.policies,
+        grants: this.deps.grants,
+        materialization: this.deps.materialization,
+        objectiveStatus,
+        now: this.deps.now
+      });
+    }
+
+    if (context.run.state === "tasks-created") {
+      return advanceTasksCreatedToJobsEnqueued({
+        run: context.run,
+        plans: this.deps.plans,
+        validations: this.deps.validations,
+        policies: this.deps.policies,
+        grants: this.deps.grants,
+        materialization: this.deps.materialization,
+        now: this.deps.now
+      });
+    }
+
+    throw new ControlPlaneError(
+      "CONFLICT",
+      `Task/Job materialization handler cannot execute orchestration state: ${context.run.state}`
+    );
+  }
 }
