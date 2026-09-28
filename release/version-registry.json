@@ -1,6 +1,6 @@
 {
-  "registrySchemaVersion": "1.8.0",
-  "registryVersion": "2026-09-27.2",
+  "registrySchemaVersion": "1.9.0",
+  "registryVersion": "2026-09-27.3",
   "appVersion": "0.1.0",
   "schemaVersions": {
     "controlApi": {
@@ -60,7 +60,7 @@
       "sourcePath": "lib/resources/policy-simulator.ts"
     },
     "releaseManifest": {
-      "version": "1.8.0",
+      "version": "1.9.0",
       "sourcePath": "scripts/generate-release-artifacts.mjs"
     },
     "voiceIntent": {
@@ -299,6 +299,14 @@
       "contractTracked": true,
       "contractSourcePaths": [
         "lib/orchestration/planning-artifacts.ts"
+      ]
+    },
+    "orchestrationExecutionArtifacts": {
+      "version": "1.0.0",
+      "sourcePath": "lib/orchestration/execution-artifacts.ts",
+      "contractTracked": true,
+      "contractSourcePaths": [
+        "lib/orchestration/execution-artifacts.ts"
       ]
     }
   },
@@ -658,7 +666,16 @@
     "lib/persistence/postgres/orchestration-context-source.test.ts",
     "lib/orchestration/orchestration-planning-postgres.integration.test.ts",
     "migrations/2026-09-27.2_orchestration_planning.sql",
-    "docs/SOL_GOVERNED_PLANNING_TRANCHE.md"
+    "docs/SOL_GOVERNED_PLANNING_TRANCHE.md",
+    "lib/orchestration/decision-approval-materializer.test.ts",
+    "lib/orchestration/governed-authorization-issuer.test.ts",
+    "lib/orchestration/governed-task-materializer.test.ts",
+    "lib/orchestration/governed-job-materializer.test.ts",
+    "lib/orchestration/governed-execution-stage-handler.test.ts",
+    "lib/persistence/postgres/orchestration-execution-artifact-store.test.ts",
+    "lib/persistence/postgres/orchestration-task-dedupe-store.test.ts",
+    "lib/orchestration/orchestration-execution-postgres.integration.test.ts",
+    "migrations/2026-09-27.3_orchestration_authorization_materialization.sql"
   ],
   "manualSourcePaths": [
     "docs/ARCHITECTURE.md",
@@ -691,9 +708,9 @@
     "status": "implemented-unconnected",
     "engine": "postgresql",
     "minimumEngineVersion": "16",
-    "migrationVersion": "2026-09-27.2",
-    "schemaVersion": "2.4.0",
-    "sourcePath": "migrations/2026-09-27.2_orchestration_planning.sql",
+    "migrationVersion": "2026-09-27.3",
+    "schemaVersion": "2.5.0",
+    "sourcePath": "migrations/2026-09-27.3_orchestration_authorization_materialization.sql",
     "adapterSourcePath": "lib/persistence/postgres/client.ts"
   },
   "voice": {
@@ -944,7 +961,18 @@
       "lib/orchestration/governed-planning-stage-handler.ts",
       "lib/persistence/postgres/orchestration-store.ts",
       "lib/persistence/postgres/orchestration-context-source.ts",
-      "lib/persistence/postgres/orchestration-planning-artifact-store.ts"
+      "lib/persistence/postgres/orchestration-planning-artifact-store.ts",
+      "lib/orchestration/execution-artifacts.ts",
+      "lib/orchestration/execution-artifact-store.ts",
+      "lib/orchestration/decision-approval-materializer.ts",
+      "lib/orchestration/governed-authorization-issuer.ts",
+      "lib/orchestration/governed-task-materializer.ts",
+      "lib/orchestration/governed-job-materializer.ts",
+      "lib/orchestration/governed-execution-stage-handler.ts",
+      "lib/orchestration/governed-orchestration-stage-handler.ts",
+      "lib/orchestration/postgres-governed-execution.server.ts",
+      "lib/persistence/postgres/orchestration-execution-artifact-store.ts",
+      "lib/persistence/postgres/orchestration-task-dedupe-store.ts"
     ],
     "ownerIntentTriggerStatus": "implemented",
     "contextSnapshotStatus": "implemented-owner-intent",
@@ -953,6 +981,15 @@
     "planValidationStatus": "implemented",
     "policyEvaluationStatus": "implemented",
     "policyClearedRequiresAuthorizationGrant": true,
-    "decisionContinuationStatus": "not-connected"
+    "decisionContinuationStatus": "implemented-poll-recovery",
+    "executionArtifactContractVersion": "1.0.0",
+    "exactHashApprovalStatus": "implemented",
+    "authorizationGrantStatus": "implemented",
+    "taskDagMaterializationStatus": "implemented",
+    "jobMaterializationStatus": "implemented",
+    "durableRootJobEnqueueStatus": "implemented-unconfigured",
+    "downstreamDependencyEnqueueStatus": "deferred-until-predecessor-success",
+    "providerExecutionStatus": "not-connected",
+    "providerExecutionSpecsCreated": false
   }
 }
