@@ -158,7 +158,7 @@ async function authoritativeGrant(
     );
   }
   exactScope(artifact, row.payload.scope);
-  assertAuthorizationGrantEnvelope(row.payload, row.payload.scope, now);
+  assertAuthorizationGrantEnvelope(row.payload, artifact.generatedTask.scope, now);
   return row.payload;
 }
 
