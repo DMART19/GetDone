@@ -26,7 +26,7 @@ test.describe("existing owner surface", () => {
     await expect(nav.getByRole("link", { name: "Resources" })).toBeVisible();
 
     await nav.getByRole("link", { name: "Decisions" }).click();
-    await expect(page.getByRole("heading", { name: /Decisions/ })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Decision Center/ })).toBeVisible();
     await expect(page.getByText("Approve resource addition")).toBeVisible();
 
     await page.getByRole("navigation", { name: "Primary navigation" })
