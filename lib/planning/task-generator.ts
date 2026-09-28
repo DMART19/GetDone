@@ -116,10 +116,15 @@ function stableJson(value: unknown): string {
 function logicalKey(plan: PlanProposal, step: PlanStep) {
   const fingerprint = createHash("sha256")
     .update(stableJson({
+      planStepId: step.id,
       reason: step.reason,
+      dependsOn: step.dependsOn,
+      conflictsWith: step.conflictsWith,
       capabilities: step.capabilityRequests,
       preconditions: step.preconditions,
       effects: step.effects,
+      expectedOutcome: step.expectedOutcome,
+      risk: step.risk,
       resourceRequirements: step.resourceRequirements,
       verificationRequirements: step.verificationRequirements,
       rollback: step.rollback
@@ -131,6 +136,8 @@ function logicalKey(plan: PlanProposal, step: PlanStep) {
     plan.scope.companyId,
     plan.source.type,
     sourceReference(plan),
+    plan.id,
+    `v${plan.proposalVersion}`,
     fingerprint
   ].join(":");
 }

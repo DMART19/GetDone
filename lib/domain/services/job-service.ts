@@ -1,8 +1,7 @@
 import { ControlPlaneError } from "@/lib/control-plane/errors";
 import { commandFingerprint, type AuthoritativeCommandEnvelope } from "@/lib/control-plane/command-envelope";
 import {
-  assertAuthorizationConsumption,
-  assertAuthorizationGrantEnvelope,
+  assertInheritedTaskAuthorization,
   type AuthorizationConsumptionRecord,
   type AuthorizationGrant,
   type AuthorizationGrantStore
@@ -188,15 +187,17 @@ export class JobService {
     taskConsumption: AuthorizationConsumptionRecord,
     admittedAt = new Date().toISOString()
   ) {
-    assertAuthorizationGrantEnvelope(grant, command.scope, Date.parse(admittedAt));
-    assertAuthorizationConsumption(taskConsumption, grant);
-
-    if (taskConsumption.consumerType !== "task") {
+    if (!Number.isFinite(Date.parse(admittedAt))) {
       throw new ControlPlaneError(
-        "FORBIDDEN",
-        "Jobs must inherit authorization from an already-authorized Task"
+        "VALIDATION_FAILED",
+        "Job admission time must be a valid timestamp"
       );
     }
+    assertInheritedTaskAuthorization({
+      grant,
+      consumption: taskConsumption,
+      scope: command.scope
+    });
 
     return executeTransitionCommand({
       manager: this.transactions,
@@ -230,11 +231,11 @@ export class JobService {
             "Authorization grant is missing or differs from authoritative storage"
           );
         }
-        assertAuthorizationGrantEnvelope(
-          persistedGrant,
-          command.scope,
-          Date.parse(admittedAt)
-        );
+        assertInheritedTaskAuthorization({
+          grant: persistedGrant,
+          consumption: taskConsumption,
+          scope: command.scope
+        });
 
         const persistedConsumptions = await grantStore.listConsumptions(grant.id);
         const persistedTaskConsumption = persistedConsumptions.find(
@@ -259,7 +260,8 @@ export class JobService {
       metadata: () => ({
         authorizationGrantId: grant.id,
         inheritedTaskConsumptionHash: taskConsumption.consumptionHash
-      })
+      }),
+      now: () => new Date(admittedAt)
     });
   }
 

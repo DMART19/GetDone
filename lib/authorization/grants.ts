@@ -401,3 +401,54 @@ export function assertAuthorizationConsumption(
 
   return record;
 }
+
+/**
+ * A durable Task consumes a grant while that grant is valid. Child Jobs inherit
+ * that already-delegated Task authority; ordinary grant expiry must not erase
+ * authority that was validly consumed, otherwise long-running DAGs can stall
+ * between dependent Jobs. Revocation remains fail-closed for Jobs that have not
+ * yet been admitted.
+ */
+export function assertInheritedTaskAuthorization(input: {
+  grant: AuthorizationGrant;
+  consumption: AuthorizationConsumptionRecord;
+  scope: TrustedExecutionScope;
+}) {
+  assertAuthorizationConsumption(input.consumption, input.grant);
+
+  if (input.consumption.consumerType !== "task") {
+    throw new ControlPlaneError(
+      "FORBIDDEN",
+      "Inherited Job authorization must originate from a Task consumption"
+    );
+  }
+
+  assertTrustedExecutionScopeEqual(input.scope, input.grant.scope, {
+    requireSameResource: Boolean(input.scope.resourceId || input.grant.scope.resourceId)
+  });
+
+  const consumedAt = Date.parse(input.consumption.consumedAt);
+  const issuedAt = Date.parse(input.grant.issuedAt);
+  const expiresAt = Date.parse(input.grant.expiresAt);
+  if (
+    !Number.isFinite(consumedAt)
+    || !Number.isFinite(issuedAt)
+    || !Number.isFinite(expiresAt)
+    || consumedAt < issuedAt
+    || consumedAt >= expiresAt
+  ) {
+    throw new ControlPlaneError(
+      "FORBIDDEN",
+      "Task authorization consumption was not valid when authority was delegated"
+    );
+  }
+
+  if (input.grant.status === "revoked") {
+    throw new ControlPlaneError(
+      "FORBIDDEN",
+      "Revoked Task authority cannot admit additional Jobs"
+    );
+  }
+
+  return input.consumption;
+}
