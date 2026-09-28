@@ -4,7 +4,7 @@ import {
   readPostgresConfigFromEnv
 } from "@/lib/persistence/postgres/client";
 
-export const REQUIRED_POSTGRES_MIGRATION = "2026-09-28.8";
+export const REQUIRED_POSTGRES_MIGRATION = "2026-09-28.9";
 
 export const REQUIRED_POSTGRES_RELATIONS = Object.freeze([
   "getdone_schema_migrations",
@@ -74,7 +74,10 @@ export const REQUIRED_POSTGRES_RELATIONS = Object.freeze([
   "orchestration_job_graphs",
   "orchestration_job_nodes",
   "orchestration_objective_evaluations",
-  "orchestration_outcomes"
+  "orchestration_outcomes",
+  "preference_decision_observations",
+  "learned_rule_suggestions",
+  "confirmed_preference_rules"
 ] as const);
 
 export const REQUIRED_POSTGRES_INDEXES = Object.freeze([
@@ -134,7 +137,10 @@ export const REQUIRED_POSTGRES_INDEXES = Object.freeze([
   "orchestration_job_nodes_ready_idx",
   "orchestration_job_nodes_scope_idx",
   "orchestration_objective_evaluations_scope_idx",
-  "orchestration_outcomes_scope_idx"
+  "orchestration_outcomes_scope_idx",
+  "preference_observations_pattern_idx",
+  "learned_rule_suggestions_pending_idx",
+  "confirmed_preference_rules_active_idx"
 ] as const);
 
 export const REQUIRED_POSTGRES_RLS_RELATIONS = Object.freeze([
@@ -174,7 +180,10 @@ export const REQUIRED_POSTGRES_RLS_RELATIONS = Object.freeze([
   "orchestration_job_graphs",
   "orchestration_job_nodes",
   "orchestration_objective_evaluations",
-  "orchestration_outcomes"
+  "orchestration_outcomes",
+  "preference_decision_observations",
+  "learned_rule_suggestions",
+  "confirmed_preference_rules"
 ] as const);
 
 export interface PostgresRuntimeHealth {
