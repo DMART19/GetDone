@@ -7,7 +7,7 @@ function required(name) {
   return value;
 }
 
-const requiredMigration = "2026-09-25.3";
+const requiredMigration = "2026-09-28.1";
 const maxBackupAgeHours = Number(process.env.GETDONE_BACKUP_MAX_AGE_HOURS || "24");
 if (!Number.isFinite(maxBackupAgeHours) || maxBackupAgeHours <= 0) {
   throw new Error("GETDONE_BACKUP_MAX_AGE_HOURS must be positive");
@@ -104,7 +104,10 @@ try {
     "audit_chain_heads",
     "analytics_ingestion_checkpoints",
     "analytics_ingestion_evidence",
-    "analytics_ingestion_runs"
+    "analytics_ingestion_runs",
+    "orchestration_runs",
+    "orchestration_transition_receipts",
+    "orchestration_checkpoints"
   ];
   const rls = await client.query(
     `SELECT required.name, relation.relrowsecurity, relation.relforcerowsecurity
@@ -280,6 +283,70 @@ try {
     throw new Error("Analytics ingestion index verification failed");
   }
 
+  const orchestrationSchema = await client.query(
+    `SELECT COUNT(*)::int AS count
+     FROM unnest(ARRAY[
+       'orchestration_runs',
+       'orchestration_transition_receipts',
+       'orchestration_checkpoints'
+     ]::text[]) AS required(name)
+     WHERE to_regclass(required.name) IS NOT NULL`
+  );
+  if (orchestrationSchema.rows[0]?.count !== 3) {
+    throw new Error("UFO orchestration persistence schema verification failed");
+  }
+
+  const orchestrationIndexes = await client.query(
+    `SELECT COUNT(*)::int AS count
+     FROM pg_indexes
+     WHERE schemaname=current_schema()
+       AND indexname IN (
+         'orchestration_runs_scope_idx',
+         'orchestration_runs_source_idx',
+         'orchestration_runs_resumable_idx',
+         'orchestration_transition_receipts_scope_idx',
+         'orchestration_checkpoints_scope_idx'
+       )`
+  );
+  if (orchestrationIndexes.rows[0]?.count !== 5) {
+    throw new Error("UFO orchestration persistence index verification failed");
+  }
+
+  const orchestrationConstraints = await client.query(
+    `SELECT
+       COUNT(*) FILTER (
+         WHERE conname='orchestration_runs_portfolio_id_company_id_correlation_id_key'
+       )::int AS correlation_unique,
+       COUNT(*) FILTER (
+         WHERE conname='orchestration_runs_portfolio_id_company_id_start_idempotency_key_key'
+       )::int AS start_idempotency_unique,
+       COUNT(*) FILTER (
+         WHERE conname='orchestration_transition_receipts_run_id_idempotency_key_key'
+       )::int AS transition_idempotency_unique,
+       COUNT(*) FILTER (
+         WHERE conname='orchestration_transition_receipts_run_id_next_version_key'
+       )::int AS transition_version_unique,
+       COUNT(*) FILTER (
+         WHERE conname='orchestration_checkpoints_run_id_run_version_key'
+       )::int AS checkpoint_version_unique
+     FROM pg_constraint
+     WHERE conrelid IN (
+       'orchestration_runs'::regclass,
+       'orchestration_transition_receipts'::regclass,
+       'orchestration_checkpoints'::regclass
+     )`
+  );
+  const orchestrationConstraintRow = orchestrationConstraints.rows[0];
+  if (
+    orchestrationConstraintRow?.correlation_unique !== 1
+    || orchestrationConstraintRow?.start_idempotency_unique !== 1
+    || orchestrationConstraintRow?.transition_idempotency_unique !== 1
+    || orchestrationConstraintRow?.transition_version_unique !== 1
+    || orchestrationConstraintRow?.checkpoint_version_unique !== 1
+  ) {
+    throw new Error("UFO orchestration uniqueness/CAS constraints are incomplete");
+  }
+
   const backup = await client.query(
     `SELECT completed_at,verification_hash
      FROM database_backup_evidence
@@ -345,6 +412,8 @@ try {
     disasterRecoverySchema: "verified",
     releaseGateSchema: "verified",
     analyticsSchema: "verified",
+    orchestrationSchema: "verified",
+    orchestrationCasConstraints: "verified",
     backupFresh: true
   }, null, 2));
 } finally {
