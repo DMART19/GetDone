@@ -1,9 +1,18 @@
 import { sha256Hex } from "@/lib/control-plane/canonical-hash";
 import { ControlPlaneError } from "@/lib/control-plane/errors";
 import { assertTrustedExecutionScopeEqual } from "@/lib/control-plane/trusted-execution-scope";
+import {
+  assertAuthorizationConsumption,
+  assertAuthorizationGrantEnvelope,
+  type AuthorizationGrant,
+  type AuthorizationGrantStore
+} from "@/lib/authorization/grants";
+import { validateCapabilityInput } from "@/lib/domain/capabilities";
 import type { JobRecord } from "@/lib/domain/services/job-service";
+import type { TaskRecord } from "@/lib/domain/services/task-service";
 import type { AuthorizedBusinessActionRequest } from "@/lib/execution/adapters/business-action";
 import type { BusinessActionExecutionOrchestrator } from "@/lib/execution/business-action-orchestrator";
+import type { CurrentExecutionAdmissionGate } from "@/lib/execution/current-execution-admission";
 import type {
   DurableJobExecutionContext,
   DurableJobExecutionHandler,
@@ -67,6 +76,14 @@ export interface AuthoritativeJobReadStore {
   get(jobId: string): Promise<JobRecord | null>;
 }
 
+export interface AuthoritativeTaskReadStore {
+  get(taskId: string): Promise<TaskRecord | null>;
+}
+
+export interface AuthoritativeGrantReadStore {
+  get(grantId: string): Promise<AuthorizationGrant | null>;
+}
+
 export function createPersistedJobExecutionSpec(
   spec: JobExecutionSpec,
   createdAt = new Date().toISOString()
@@ -100,8 +117,12 @@ export class RoutedJobExecutionHandler implements DurableJobExecutionHandler {
     private readonly software?: SoftwareWorkerRuntime,
     private readonly authority?: {
       jobs: AuthoritativeJobReadStore;
+      tasks: AuthoritativeTaskReadStore;
+      grants: Pick<AuthorizationGrantStore, "get">;
+      admission: CurrentExecutionAdmissionGate;
       verificationEvidence: JobVerificationEvidenceStore;
-    }
+    },
+    private readonly now: () => Date = () => new Date()
   ) {}
 
   private async validateBusinessAuthority(
@@ -181,6 +202,97 @@ export class RoutedJobExecutionHandler implements DurableJobExecutionHandler {
         !== context.envelope.authorizationConsumptionHash
     ) {
       return { kind: "dead-letter", reason: "Business action Job/authorization lineage mismatch" };
+    }
+
+    let task: TaskRecord | null;
+    let grant: AuthorizationGrant | null;
+    try {
+      [task, grant] = await Promise.all([
+        this.authority.tasks.get(authoritative.taskId),
+        this.authority.grants.get(authoritative.authorizationGrantId)
+      ]);
+    } catch (error) {
+      return {
+        kind: "retry",
+        reason: error instanceof Error
+          ? `Current execution authority re-read failed: ${error.message}`
+          : "Current execution authority re-read failed"
+      };
+    }
+
+    if (!task) {
+      return { kind: "dead-letter", reason: "Authoritative parent Task was not found before execution" };
+    }
+    if (!grant || grant.grantHash !== authoritative.authorizationGrantHash) {
+      return { kind: "dead-letter", reason: "Current authorization grant is missing or changed" };
+    }
+    if (!["queued", "running"].includes(task.state)) {
+      return {
+        kind: "dead-letter",
+        reason: `Parent Task is not executable from state ${task.state}`
+      };
+    }
+
+    const taskConsumption = task.authorizationConsumption;
+    if (
+      task.id !== authoritative.taskId
+      || task.portfolioId !== authoritative.portfolioId
+      || task.companyId !== authoritative.companyId
+      || task.authorizationGrantId !== grant.id
+      || task.authorizationGrantHash !== grant.grantHash
+      || !taskConsumption
+      || taskConsumption.consumerType !== "task"
+      || taskConsumption.consumerId !== task.id
+      || taskConsumption.consumptionHash
+        !== authoritative.authorizationConsumption.consumptionHash
+    ) {
+      return { kind: "dead-letter", reason: "Parent Task authority lineage does not match the Job" };
+    }
+
+    try {
+      assertTrustedExecutionScopeEqual(grant.scope, context.envelope.scope, {
+        requireSameResource: Boolean(
+          grant.scope.resourceId || context.envelope.scope.resourceId
+        )
+      });
+      assertAuthorizationGrantEnvelope(
+        grant,
+        context.envelope.scope,
+        this.now().getTime()
+      );
+      assertAuthorizationConsumption(taskConsumption, grant);
+      assertAuthorizationConsumption(authoritative.authorizationConsumption, grant);
+
+      const requiredCapabilities = [...new Set(task.capabilityRequirements)].sort();
+      const grantedCapabilities = [...new Set(grant.capabilityNames)].sort();
+      if (
+        requiredCapabilities.length !== grantedCapabilities.length
+        || requiredCapabilities.some(
+          (capability, index) => capability !== grantedCapabilities[index]
+        )
+        || !grantedCapabilities.includes(spec.request.capability)
+      ) {
+        throw new ControlPlaneError(
+          "FORBIDDEN",
+          "Current Task/capability authorization no longer matches the requested operation"
+        );
+      }
+
+      validateCapabilityInput(spec.request.capability, spec.request.input);
+      await this.authority.admission.assertAllowed({
+        scope: context.envelope.scope,
+        grant,
+        capability: spec.request.capability,
+        timeoutMs: spec.request.timeoutMs,
+        attempt: context.lease.attempt
+      });
+    } catch (error) {
+      return {
+        kind: "dead-letter",
+        reason: error instanceof Error
+          ? `Current execution authority is invalid: ${error.message}`
+          : "Current execution authority is invalid"
+      };
     }
 
     return null;
