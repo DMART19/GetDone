@@ -359,7 +359,8 @@ export function matchesConfirmedPreferenceRule(
     && pattern.publicVisibility === Boolean(input.publicVisibility)
     && (
       pattern.maxMonetaryAmountCents === undefined
-      || (amount !== undefined && amount <= pattern.maxMonetaryAmountCents)
+        ? amount === undefined
+        : amount !== undefined && amount <= pattern.maxMonetaryAmountCents
     )
   );
 }
