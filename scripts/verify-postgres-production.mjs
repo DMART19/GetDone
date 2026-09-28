@@ -113,6 +113,7 @@ try {
     "orchestration_planner_inputs",
     "orchestration_plan_proposals",
     "orchestration_validation_artifacts",
+    "orchestration_policy_step_snapshots",
     "orchestration_policy_evaluations"
   ];
   const rls = await client.query(
@@ -538,6 +539,7 @@ try {
   const validationPolicySchema = await client.query(
     `SELECT
        COUNT(*) FILTER (WHERE table_name='orchestration_validation_artifacts')::int AS validation_columns,
+       COUNT(*) FILTER (WHERE table_name='orchestration_policy_step_snapshots')::int AS policy_step_columns,
        COUNT(*) FILTER (WHERE table_name='orchestration_policy_evaluations')::int AS policy_columns
      FROM information_schema.columns
      WHERE (
@@ -547,6 +549,15 @@ try {
          'plan_artifact_id','plan_artifact_hash','plan_hash',
          'validation_policy_hash','receipt_hash','validation_status',
          'artifact_hash','idempotency_key','payload','created_at'
+       )
+     ) OR (
+       table_name='orchestration_policy_step_snapshots'
+       AND column_name IN (
+         'id','run_id','portfolio_id','company_id','validated_run_version',
+         'plan_artifact_id','plan_artifact_hash',
+         'validation_receipt_id','validation_receipt_hash',
+         'step_id','step_hash','snapshot_hash','artifact_hash',
+         'idempotency_key','payload','created_at'
        )
      ) OR (
        table_name='orchestration_policy_evaluations'
@@ -561,6 +572,7 @@ try {
   );
   if (
     validationPolicySchema.rows[0]?.validation_columns !== 15
+    || validationPolicySchema.rows[0]?.policy_step_columns !== 16
     || validationPolicySchema.rows[0]?.policy_columns !== 17
   ) {
     throw new Error("UFO durable validation/policy schema verification failed");
@@ -573,12 +585,14 @@ try {
        AND indexname IN (
          'orchestration_validation_artifacts_scope_idx',
          'orchestration_validation_artifacts_plan_idx',
+         'orchestration_policy_step_snapshots_scope_idx',
+         'orchestration_policy_step_snapshots_run_idx',
          'orchestration_policy_evaluations_scope_idx',
          'orchestration_policy_evaluations_plan_idx',
          'orchestration_policy_evaluations_validation_idx'
        )`
   );
-  if (validationPolicyIndexes.rows[0]?.count !== 5) {
+  if (validationPolicyIndexes.rows[0]?.count !== 7) {
     throw new Error("UFO durable validation/policy index verification failed");
   }
 
@@ -595,6 +609,16 @@ try {
            AND pg_get_constraintdef(oid)='UNIQUE (portfolio_id, company_id, idempotency_key)'
        )::int AS validation_idempotency_unique,
        COUNT(*) FILTER (
+         WHERE conrelid='orchestration_policy_step_snapshots'::regclass
+           AND contype='u'
+           AND pg_get_constraintdef(oid)='UNIQUE (run_id, validated_run_version, step_id)'
+       )::int AS policy_step_run_unique,
+       COUNT(*) FILTER (
+         WHERE conrelid='orchestration_policy_step_snapshots'::regclass
+           AND contype='u'
+           AND pg_get_constraintdef(oid)='UNIQUE (portfolio_id, company_id, idempotency_key)'
+       )::int AS policy_step_idempotency_unique,
+       COUNT(*) FILTER (
          WHERE conrelid='orchestration_policy_evaluations'::regclass
            AND contype='u'
            AND pg_get_constraintdef(oid)='UNIQUE (run_id, validated_run_version)'
@@ -607,6 +631,7 @@ try {
      FROM pg_constraint
      WHERE conrelid IN (
        'orchestration_validation_artifacts'::regclass,
+       'orchestration_policy_step_snapshots'::regclass,
        'orchestration_policy_evaluations'::regclass
      )`
   );
@@ -614,6 +639,8 @@ try {
   if (
     validationPolicyConstraintRow?.validation_run_unique !== 1
     || validationPolicyConstraintRow?.validation_idempotency_unique !== 1
+    || validationPolicyConstraintRow?.policy_step_run_unique !== 1
+    || validationPolicyConstraintRow?.policy_step_idempotency_unique !== 1
     || validationPolicyConstraintRow?.policy_run_unique !== 1
     || validationPolicyConstraintRow?.policy_idempotency_unique !== 1
   ) {
