@@ -162,7 +162,7 @@ async function loadMaterializationLineage(input: {
       stepId: grant.stepId,
       receipt: validationArtifact.receipt,
       scope: input.run.scope,
-      now: input.now.getTime()
+      now: Date.parse(input.run.updatedAt)
     });
     grantsByStep.set(grant.stepId, grant);
   }
@@ -278,6 +278,27 @@ export async function advanceAuthorizedToTasksCreated(input: {
     objectiveStatus = status;
   }
 
+  // Task identity and authorization-consumption time must be stable across
+  // process crashes before the orchestration CAS. The authorized run's
+  // updatedAt is immutable for this stage, unlike wall-clock retry time.
+  const materializationInstant = new Date(input.run.updatedAt);
+
+  // Expired grants may only be replayed when this exact deterministic Task was
+  // already durably claimed while authorization was valid. A late first-time
+  // materialization after expiry remains fail-closed.
+  for (const step of lineage.planArtifact.proposal.steps) {
+    const grant = lineage.grantsByStep.get(step.id)!;
+    if (Date.parse(grant.expiresAt) <= instant.getTime()) {
+      const existing = await input.generatedTasks.get(taskId(input.run.id, step.id));
+      if (!existing) {
+        throw new ControlPlaneError(
+          "FORBIDDEN",
+          `Authorization grant expired before Task materialization: ${step.id}`
+        );
+      }
+    }
+  }
+
   let idIndex = 0;
   const generator = new TaskGenerator(
     input.generatedTasks,
@@ -291,7 +312,7 @@ export async function advanceAuthorizedToTasksCreated(input: {
       }
       return taskId(input.run.id, step.id);
     },
-    () => instant
+    () => materializationInstant
   );
 
   const grants = Object.fromEntries(
