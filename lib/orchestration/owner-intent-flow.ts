@@ -18,6 +18,15 @@ import {
 
 export const OWNER_INTENT_ORCHESTRATION_FLOW_VERSION = "1.1.0";
 
+function deepFreeze<T>(value: T): T {
+  if (!value || typeof value !== "object" || Object.isFrozen(value)) return value;
+  Object.freeze(value);
+  for (const child of Object.values(value as Record<string, unknown>)) {
+    deepFreeze(child);
+  }
+  return value;
+}
+
 export interface OwnerIntentReadStore {
   get(id: string): Promise<OwnerIntentRecord | null>;
 }
@@ -184,7 +193,7 @@ export function createOwnerIntentContextSnapshot(input: {
     createdAt: new Date(input.createdAt).toISOString()
   };
 
-  return Object.freeze({
+  return deepFreeze({
     ...base,
     snapshotHash: sha256Hex(base)
   });
