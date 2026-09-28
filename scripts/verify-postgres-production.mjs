@@ -7,7 +7,7 @@ function required(name) {
   return value;
 }
 
-const requiredMigration = "2026-09-28.5";
+const requiredMigration = "2026-09-28.6";
 const maxBackupAgeHours = Number(process.env.GETDONE_BACKUP_MAX_AGE_HOURS || "24");
 if (!Number.isFinite(maxBackupAgeHours) || maxBackupAgeHours <= 0) {
   throw new Error("GETDONE_BACKUP_MAX_AGE_HOURS must be positive");
@@ -114,7 +114,8 @@ try {
     "orchestration_plan_proposals",
     "orchestration_validation_artifacts",
     "orchestration_policy_step_snapshots",
-    "orchestration_policy_evaluations"
+    "orchestration_policy_evaluations",
+    "orchestration_decision_resume_requests"
   ];
   const rls = await client.query(
     `SELECT required.name, relation.relrowsecurity, relation.relforcerowsecurity
@@ -647,6 +648,44 @@ try {
     throw new Error("UFO durable validation/policy uniqueness constraints are incomplete");
   }
 
+  const authorizationResumeSchema = await client.query(
+    `SELECT COUNT(*)::int AS count
+     FROM information_schema.columns
+     WHERE table_name='orchestration_decision_resume_requests'
+       AND column_name IN (
+         'id','run_id','decision_id','decision_version','portfolio_id',
+         'company_id','resolution','request_hash','status','created_at',
+         'processed_at','payload'
+       )`
+  );
+  if (authorizationResumeSchema.rows[0]?.count !== 12) {
+    throw new Error("UFO durable authorization resume schema verification failed");
+  }
+
+  const authorizationResumeIndexes = await client.query(
+    `SELECT COUNT(*)::int AS count
+     FROM pg_indexes
+     WHERE schemaname=current_schema()
+       AND indexname IN (
+         'orchestration_decision_resume_scope_idx',
+         'orchestration_decision_resume_pending_idx'
+       )`
+  );
+  if (authorizationResumeIndexes.rows[0]?.count !== 2) {
+    throw new Error("UFO durable authorization resume index verification failed");
+  }
+
+  const authorizationResumeConstraint = await client.query(
+    `SELECT COUNT(*)::int AS count
+     FROM pg_constraint
+     WHERE conrelid='orchestration_decision_resume_requests'::regclass
+       AND contype='u'
+       AND pg_get_constraintdef(oid)='UNIQUE (decision_id, decision_version)'`
+  );
+  if (authorizationResumeConstraint.rows[0]?.count !== 1) {
+    throw new Error("UFO durable authorization resume uniqueness constraint is missing");
+  }
+
   const backup = await client.query(
     `SELECT completed_at,verification_hash
      FROM database_backup_evidence
@@ -721,6 +760,8 @@ try {
     durablePlanningConstraints: "verified",
     durableValidationPolicySchema: "verified",
     durableValidationPolicyConstraints: "verified",
+    durableAuthorizationResumeSchema: "verified",
+    durableAuthorizationResumeConstraints: "verified",
     backupFresh: true
   }, null, 2));
 } finally {
