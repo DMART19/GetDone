@@ -358,6 +358,71 @@ describe("durable planned -> validated -> policy-evaluated flow", () => {
       .toBe(true);
   });
 
+  it("reuses per-step policy snapshots after crash before aggregate policy artifact commit", async () => {
+    const { artifact, planned } = buildPlanned();
+    const validations = new MemoryValidationStore();
+    const validatedOutcome = await advancePlannedToValidated({
+      run: planned,
+      plans: new MemoryPlanStore(artifact),
+      validations,
+      resolver: validationResolver(artifact),
+      now: () => new Date("2026-09-28T13:00:06.000Z")
+    });
+    if (validatedOutcome.kind !== "advance" || validatedOutcome.next.state !== "validated") {
+      throw new Error("validated run expected");
+    }
+
+    const policyStepSnapshots = new MemoryPolicyStepSnapshotStore();
+    let policyReads = 0;
+    const failingPolicies: OrchestrationPolicyEvaluationStore = {
+      create: async () => {
+        throw new Error("simulated crash before aggregate policy artifact commit");
+      },
+      get: async () => null,
+      getByRunVersion: async () => null
+    };
+
+    await expect(advanceValidatedToPolicyEvaluated({
+      run: validatedOutcome.next,
+      plans: new MemoryPlanStore(artifact),
+      validations,
+      policyStepSnapshots,
+      policies: failingPolicies,
+      resolver: {
+        resolveStep: async ({ idempotencyKey }) => {
+          policyReads += 1;
+          expect(idempotencyKey).toContain(":policy:");
+          return policyResolver(artifact).resolveStep();
+        }
+      },
+      now: () => new Date("2026-09-28T13:00:07.000Z")
+    })).rejects.toThrow(/simulated crash/i);
+
+    expect(policyReads).toBe(artifact.proposal.steps.length);
+    expect(policyStepSnapshots.creates).toBe(artifact.proposal.steps.length);
+
+    const recoveredPolicies = new MemoryPolicyStore();
+    const recovered = await advanceValidatedToPolicyEvaluated({
+      run: validatedOutcome.next,
+      plans: new MemoryPlanStore(artifact),
+      validations,
+      policyStepSnapshots,
+      policies: recoveredPolicies,
+      resolver: {
+        resolveStep: async () => {
+          throw new Error("policy resolver must not rerun after step snapshots commit");
+        }
+      },
+      now: () => new Date("2026-09-28T13:05:00.000Z")
+    });
+
+    expect(recovered.kind).toBe("advance");
+    if (recovered.kind !== "advance") throw new Error("advance expected");
+    expect(recovered.next.state).toBe("policy-evaluated");
+    expect(policyReads).toBe(artifact.proposal.steps.length);
+    expect(policyStepSnapshots.creates).toBe(artifact.proposal.steps.length);
+  });
+
   it("reuses persisted policy evaluation after crash without resolving live policy inputs again", async () => {
     const { artifact, planned } = buildPlanned();
     const validations = new MemoryValidationStore();
