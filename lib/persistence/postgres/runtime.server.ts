@@ -4,7 +4,7 @@ import {
   readPostgresConfigFromEnv
 } from "@/lib/persistence/postgres/client";
 
-export const REQUIRED_POSTGRES_MIGRATION = "2026-09-27.2";
+export const REQUIRED_POSTGRES_MIGRATION = "2026-09-27.3";
 
 export const REQUIRED_POSTGRES_RELATIONS = Object.freeze([
   "getdone_schema_migrations",
@@ -58,7 +58,9 @@ export const REQUIRED_POSTGRES_RELATIONS = Object.freeze([
   "analytics_ingestion_runs",
   "orchestration_runs",
   "orchestration_outbox",
-  "orchestration_planning_artifacts"
+  "orchestration_planning_artifacts",
+  "orchestration_execution_artifacts",
+  "orchestration_task_generation_claims"
 ] as const);
 
 export const REQUIRED_POSTGRES_INDEXES = Object.freeze([
@@ -89,7 +91,12 @@ export const REQUIRED_POSTGRES_INDEXES = Object.freeze([
   "orchestration_outbox_ready_idx",
   "orchestration_planning_artifacts_run_kind_idx",
   "orchestration_planning_artifacts_scope_idx",
-  "orchestration_planning_artifacts_correlation_idx"
+  "orchestration_planning_artifacts_correlation_idx",
+  "orchestration_execution_artifacts_run_kind_idx",
+  "orchestration_execution_artifacts_scope_idx",
+  "orchestration_execution_artifacts_correlation_idx",
+  "orchestration_task_generation_claims_grant_idx",
+  "orchestration_task_generation_claims_created_idx"
 ] as const);
 
 export const REQUIRED_POSTGRES_RLS_RELATIONS = Object.freeze([
@@ -114,7 +121,9 @@ export const REQUIRED_POSTGRES_RLS_RELATIONS = Object.freeze([
   "analytics_ingestion_evidence",
   "analytics_ingestion_runs",
   "orchestration_runs",
-  "orchestration_planning_artifacts"
+  "orchestration_planning_artifacts",
+  "orchestration_execution_artifacts",
+  "orchestration_task_generation_claims"
 ] as const);
 
 export interface PostgresRuntimeHealth {
