@@ -10,7 +10,13 @@ import {
   type ApprovalProof,
   type StepUpProof
 } from "@/lib/authorization/proofs";
-import type { StepPolicyEvaluation } from "@/lib/planning/policy-engine";
+import {
+  POLICY_ENGINE_VERSION,
+  POLICY_RULES_HASH,
+  type StepPolicyEvaluation
+} from "@/lib/planning/policy-engine";
+import { requireEnabledCapability } from "@/lib/domain/capabilities";
+import { CURRENT_POLICY_VERSION } from "@/lib/domain/policy-registry";
 import type { PolicySnapshot } from "@/lib/planning/policy-snapshot";
 import { assertPolicySnapshotIntegrity } from "@/lib/planning/policy-snapshot";
 import { hashPlan, hashPlanStep } from "@/lib/planning/plan-hash";
@@ -279,6 +285,21 @@ export function assertAuthorizationGrantEnvelope(
       "FORBIDDEN",
       "Authorization grant is not currently valid"
     );
+  }
+
+  if (
+    grant.policyVersion !== CURRENT_POLICY_VERSION
+    || grant.policyEngineVersion !== POLICY_ENGINE_VERSION
+    || grant.policyRulesHash !== POLICY_RULES_HASH
+  ) {
+    throw new ControlPlaneError(
+      "POLICY_BLOCKED",
+      "Authorization grant references stale or materially changed policy"
+    );
+  }
+
+  for (const capabilityName of grant.capabilityNames) {
+    requireEnabledCapability(capabilityName);
   }
 
   return grant;
