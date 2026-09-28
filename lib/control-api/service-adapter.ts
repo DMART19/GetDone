@@ -20,6 +20,7 @@ import type { VerificationRequestRecord } from "@/lib/domain/services/verificati
 import type { Resource } from "@/lib/domain/resources";
 import {
   normalizeObjectiveIntake,
+  type ObjectiveIntakeInput,
   type ObjectiveIntakeStore,
   type ObjectiveRecord
 } from "@/lib/domain/objective-inbox";
@@ -31,7 +32,6 @@ import type {
   DecisionMutationInput,
   JobResultView,
   OwnerIntentInput,
-  ObjectiveIntakeInput,
   OwnerIntentRecord,
   ResourceDiscoveryInput,
   ResourceEnrollmentActionInput,
