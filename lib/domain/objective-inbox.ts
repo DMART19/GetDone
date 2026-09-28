@@ -43,6 +43,7 @@ export interface ObjectiveRecord {
   portfolioId: string;
   companyId: string;
   environment: TrustedExecutionScope["environment"];
+  createdByUserId: string;
   source: ObjectiveSource;
   rawText: string;
   normalizedGoal: string;
@@ -389,6 +390,7 @@ export function normalizeObjectiveIntake(
       portfolioId: context.scope.portfolioId,
       companyId: context.scope.companyId,
       environment: context.scope.environment,
+      createdByUserId: context.scope.userId,
       source,
       rawText: draft.rawText,
       normalizedGoal: draft.normalizedGoal,
