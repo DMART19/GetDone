@@ -460,6 +460,11 @@
       "source": "lib/domain/objective-inbox.ts",
       "test": "lib/domain/objective-inbox.test.ts",
       "critical": true
+    },
+    {
+      "source": "lib/explainability/job-owner-explanation.ts",
+      "test": "lib/explainability/job-owner-explanation.test.ts",
+      "critical": true
     }
   ]
 }
