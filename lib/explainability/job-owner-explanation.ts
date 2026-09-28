@@ -117,7 +117,7 @@ function policyReasons(job: JobRecord): string[] {
 export function buildOwnerFailurePresentation(
   job: JobRecord
 ): OwnerFailurePresentation | undefined {
-  if (job.state !== "failed" && job.state !== "uncertain") return undefined;
+  if (job.state !== "failed" && job.state !== "blocked" && job.state !== "uncertain") return undefined;
 
   const raw = (job.failureReason ?? "").toLowerCase();
   const hasVerifiedCompletion = Boolean(job.verifiedCompletionFactId);
