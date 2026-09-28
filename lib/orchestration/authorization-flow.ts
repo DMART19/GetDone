@@ -730,6 +730,7 @@ export async function advanceAwaitingDecisionToAuthorized(input: {
   policies: OrchestrationPolicyEvaluationStore;
   decisions: OrchestrationDecisionStore;
   grants: OrchestrationAuthorizationGrantStore;
+  preferenceLearning?: PreferenceLearningService;
   now?: () => Date;
   grantTtlMs?: number;
 }): Promise<OrchestrationStageOutcome> {
