@@ -394,10 +394,48 @@ export class JobService {
         verifiedRunningPlacementId: undefined,
         verifiedRunningPlacementHash: undefined,
         verifiedCompletionFactId: undefined,
-        verifiedCompletionFactHash: undefined
+        verifiedCompletionFactHash: undefined,
+        providerResultId: undefined,
+        providerResultHash: undefined,
+        providerCompletedAt: undefined
       }),
       metadata: () => ({ timedOutAt }),
       now: () => new Date(timedOutAt)
+    });
+  }
+
+  startProviderExecution(
+    id: string,
+    command: AuthoritativeCommandEnvelope,
+    workerId: string
+  ) {
+    if (!workerId) {
+      throw new ControlPlaneError("VALIDATION_FAILED", "Worker identity is required");
+    }
+    return executeTransitionCommand({
+      manager: this.transactions,
+      selectStore: (stores) => stores.jobs,
+      entityType: "job",
+      entityId: id,
+      to: "executing",
+      command,
+      triggeringEvent: "job-provider-execution-started",
+      beforeTransition: (current) => {
+        if (current.workerId !== workerId) {
+          throw new ControlPlaneError(
+            "CONFLICT",
+            "Provider execution worker does not hold the authoritative Job claim"
+          );
+        }
+        if (!current.authorizationConsumption) {
+          throw new ControlPlaneError(
+            "FORBIDDEN",
+            "Provider execution requires inherited authoritative Task authorization"
+          );
+        }
+      },
+      metadata: () => ({ workerId }),
+      now: this.now
     });
   }
 
