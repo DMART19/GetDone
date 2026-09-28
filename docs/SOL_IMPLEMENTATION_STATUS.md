@@ -104,33 +104,57 @@ This file tracks code actually implemented from `SOL_UPGRADE_EXECUTION_PLAN.md`.
 - CI now runs install -> secret scan -> typecheck -> lint -> unit tests -> production build.
 - Multiple consecutive CI runs have passed after the Vitest/CI bootstrap fixes.
 
-## Verification state
+## Current verification state — September 26, 2026
 
-Verified in GitHub Actions after the CI repair:
+This section supersedes older Phase 2/Phase 3 blocker language below. Historical phase notes remain useful for provenance, but they must not be read as the current repository state.
 
-- dependency installation
-- secret-pattern scan
-- TypeScript typecheck
-- ESLint
-- Vitest unit tests
-- Next.js production build
+Verified on the current `main` head `3abfd4df3dc80333722087cbdcac86a71cabb230`:
 
-The visual screenshot checklist remains a human/visual review item; automated CI passing is not treated as proof of pixel-level visual fidelity.
+- full CI completed successfully
+- PostgreSQL Integration completed successfully
+- PostgreSQL 16 migration/concurrency acceptance
+- production startup/readiness validation
+- tenant RLS/adversarial isolation acceptance
+- deterministic production bootstrap acceptance
+- PostgreSQL-backed Control API acceptance
+- durable worker failure handling
+- queue saturation/backpressure acceptance
+- dead-letter operator acceptance
+- worker crash/restart acceptance
+- production auth/session/WebAuthn PostgreSQL acceptance
+- correlation-lineage reconstruction acceptance
 
-## Owner action still required
+The repository therefore no longer has the old blocker of "choose a database/auth implementation." The production-oriented PostgreSQL/auth/worker implementation exists and is exercised by integration acceptance.
 
-Canonical Phase 2 cannot PASS until a production authentication/session implementation is chosen, provisioned, connected, and tested.
+### Core launch gates still open
 
-Canonical Phase 3 cannot PASS until an authoritative database/persistence target is chosen and real migrations/RLS/tenant-isolation tests run against it.
+Core launch readiness is blocked by production hardening/release acceptance, not by optional external APIs. Merge and verify the resulting candidate SHA for:
 
-No production secret should be committed to this repository or pasted into frontend configuration.
+- PR #57 — authoritative browser staging + WebAuthn E2E
+- PR #58 — session rotation/revocation + CSRF/origin hardening
+- PR #59 — security headers + durable rate limiting
+- PR #60 — audit-ledger integrity + verified backup/restore
+- PR #61 — disaster-recovery acceptance + reproducible deployment topology
+- PR #62 — zero-downtime migration policy + production release gate
+- PR #68 — real staging deployment + rollback + production acceptance report
 
-## Astra handoff still deferred
+A production candidate is not canonical PASS until these gates are represented on the candidate branch/default branch and the exact candidate SHA has green acceptance evidence.
 
-No production AI gateway, autonomous planning runtime, durable distributed job engine, real resource enrollment agent, credential broker, scheduler, reservations/capacity ledger, provider failover, or production Resource Fabric behavior has been claimed as implemented.
+### Optional/provider capability policy
 
-Astra should inherit the deterministic foundation rather than recreate it.
+External/provider capabilities are **feature-gated**, not universal launch prerequisites. OpenRouter, Gmail, Slack, CRM, voice, push, Resource Fabric providers, Git software-worker execution, configured HTTP/webhooks, and similar adapters may be connected after core launch.
 
+Rules:
+
+- disconnected optional capabilities stay disabled and fail closed
+- an unavailable adapter must never weaken auth/policy/approval/verification boundaries
+- enabling a capability makes that capability's own live acceptance mandatory
+- PR #65 is required before configured HTTP/webhook execution is enabled
+- PR #66 is required before real autonomous Git/PR execution is enabled
+- PR #67 is required before consequential provider mutations rely on cancellation/reconciliation semantics
+- PR #38 is required before live OpenRouter-backed proposals are enabled
+
+The machine-readable environment manifest remains the authority for actual deployed connectivity. Do not mark a connection true merely because code or tests exist.
 
 ## September 20 authority + Phase 22/23/26/27 tranche
 

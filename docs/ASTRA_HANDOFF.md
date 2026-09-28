@@ -2,6 +2,19 @@
 
 This repository has already been advanced beyond a visual scaffold. Astra should inspect the current code and completion reports before editing and should **not** rebuild deterministic work that already exists.
 
+## Current launch handoff — September 26, 2026
+
+Do **not** treat GetDone as waiting for a database, auth system, or durable worker implementation. Current `main` has successful CI and PostgreSQL Integration evidence at `3abfd4df3dc80333722087cbdcac86a71cabb230`, including PostgreSQL migrations/RLS, production bootstrap, persisted auth/session/WebAuthn integration, Control API persistence, durable worker failure/restart, backpressure, dead-letter handling, and correlation reconstruction.
+
+The next core-launch work is the production-hardening/release stack, especially PRs **#57–#62 and #68**. Merge/reconcile that work onto one candidate, then require green acceptance for the exact candidate SHA before production promotion.
+
+Provider/API integrations are modular. OpenRouter, Gmail, Slack, CRM, voice, push, Resource Fabric providers, Git software-worker actions, and configured HTTP/webhooks may remain disconnected when the corresponding feature is disabled. Do not turn an optional adapter into a universal launch dependency.
+
+Before enabling an optional capability, land its capability-specific hardening/acceptance. In particular: #65 for configured HTTP/webhook hostile-response + SSRF boundaries, #66 for real Git worker execution/outcome reconciliation, #67 for cancellation + timeout reconciliation, and #38 for live OpenRouter.
+
+The committed environment manifest remains connection truth; implementation presence is not permission to claim live connectivity.
+
+
 ## What is already present
 
 ### Owner surface

@@ -15,9 +15,9 @@ The frontend, AI providers, workers, resource agents, callbacks, and infrastruct
 Current code includes:
 
 - iPhone-first Chat / Decisions / Resources owner surface
-- Control API 1.0 HTTP/application-adapter surface for owner intents, Decisions, Resources/discovery, governed Resource Enrollment, Jobs/results, Verification, and health; default runtime fails closed until authoritative auth/persistence adapters are installed
-- trusted execution scope and tenant tampering guards
-- authentication/session/step-up contracts
+- Control API 1.0 HTTP/application-adapter surface for owner intents, Decisions, Resources/discovery, governed Resource Enrollment, Jobs/results, Verification, and health, with PostgreSQL-backed authoritative persistence implemented and exercised by integration acceptance
+- trusted execution scope, PostgreSQL tenant/RLS enforcement, and tenant-tampering guards
+- persisted authentication/session/step-up/WebAuthn implementation with production bootstrap and PostgreSQL integration acceptance
 - capability registry with runtime input/output schemas
 - Phase 4 deterministic Company Integration Registry with explicit read/write scopes, environment binding, credential-reference-only records, lifecycle transitions, tenant enforcement, and DEVELOPMENT-only mock adapters
 - Phase 13 deterministic AI Gateway with provider-neutral role/requirement/profile contracts, hard eligibility filtering, configuration-driven routing/fallback, budgets/concurrency, atomic budget-reservation contracts, kill switches, response-schema validation, typed terminal failure taxonomy, audit records, DEVELOPMENT-only mock adapter, and an implemented-but-unconfigured OpenRouter adapter with timeout/retry/identity/canary handling
@@ -54,27 +54,49 @@ Current code includes:
 - Phase 42 deterministic voice intent/secure-handoff contracts with typed canonical intents, transcript-hash-only evidence, current-policy/Control-API binding, no approval/step-up/execution authority, credential rejection, scoped audit records, and Phase-41 release-registry integration
 - Phase 44 deterministic offline adversarial harness covering voice approval bypass, staging→production credential misuse, forged resource capability, reservation replay, scheduler bypass, provider-success spoofing, credential escalation, cross-company contamination, release-registry tampering, and model/provider authority attempts
 
-## Not yet production-complete
+## Launch-readiness snapshot — September 26, 2026
 
-The repository does **not** claim production autonomy yet. Canonical acceptance still requires real infrastructure for:
+GetDone's **core launch readiness is evaluated separately from optional provider/API connectivity**. OpenRouter, Gmail, Slack, CRM, voice, push, Resource Fabric providers, and similar integrations may be connected after launch. A disconnected optional adapter must remain disabled/fail-closed and must never create approval, authorization, execution, or verification truth.
 
-- production authentication/session persistence
-- authoritative database transactions, migrations, and RLS
-- a real OpenRouter credential plus active AI Gateway routing configuration and a passing live canary
-- durable distributed queue, worker leases, schedules, and crash recovery
-- real provider-specific business adapters and a production software deployment executor; business-action orchestration, durable execution routing, and the resumable software-worker runtime are implemented
-- real Resource Fabric agent/hardware enrollment
-- production secret backend/token exchange and secure credential delivery transport
-- live authenticated hardware profiling/telemetry and Resource Fabric signal emission
-- durable transactional persistence for Phase 33 reservation/CAS commits plus live resource-adapter dispatch, production start/completion probes, authoritative production Job-execution-bridge persistence/recovery, scheduler persistence/recovery, failover, and measured economic execution
-- real Home NAS/storage runtime, live failure-domain orchestration, a real second resource provider, and partner/data-center pool execution
-- production historical placement/cost/AI-route analytics stores and simulation evidence persistence
-- production push subscription/delivery provider and notification persistence
-- cryptographic WebAuthn/passkey verification through a real auth provider
-- live speech/voice transport or native iPhone voice adapter plus production persistence for Phase 42
-- end-to-end production acceptance evidence
+### Verified on `main`
 
-Deterministic contracts and unit tests are intentionally built ahead of those integrations so later agents consume the existing authority model rather than replacing it.
+The current default branch includes and tests the production-oriented core runtime:
+
+- PostgreSQL 16 migrations and authoritative persistence
+- tenant isolation/RLS adversarial acceptance
+- production bootstrap and persisted auth/session/WebAuthn acceptance
+- PostgreSQL-backed Control API acceptance
+- durable worker failure/restart, lease recovery, queue backpressure, and dead-letter handling
+- production runtime startup validation
+- end-to-end correlation lineage reconstruction
+- full CI gates for dependency/runtime/secret/architecture/contract checks, typecheck, lint, coverage, worker build, production build, Playwright E2E, and release evidence
+
+At commit `3abfd4df3dc80333722087cbdcac86a71cabb230`, both the **CI** workflow and **PostgreSQL Integration** workflow completed successfully.
+
+### Remaining core launch gates
+
+The repository should not be promoted as launch-ready until the production-hardening stack is merged onto `main` and its acceptance is green on the resulting candidate SHA:
+
+- **#57** — authoritative browser staging + real WebAuthn E2E
+- **#58** — session rotation/revocation + CSRF/origin hardening
+- **#59** — production security headers + durable API rate limiting
+- **#60** — tamper-evident audit ledger + verified backup/restore
+- **#61** — disaster-recovery acceptance + reproducible production topology
+- **#62** — zero-downtime migration policy + production release gate
+- **#68** — real staging deployment, rollback acceptance, and production-acceptance reporting
+
+These are core operational/security/release gates, not external SaaS API requirements.
+
+### Feature-gated work that may land after core launch
+
+The following does **not** need to block a core launch when the associated capability is disabled:
+
+- **#65** hostile-provider response fuzzing / SSRF hardening — required before enabling configured HTTP/webhook execution
+- **#66** real Git software-worker adapter + outcome reconciliation — required before enabling autonomous Git/PR execution
+- **#67** cancellation semantics + verification-timeout reconciliation — required before enabling consequential provider mutations at scale
+- **#38** live OpenRouter connectivity — optional until AI-backed proposals are enabled
+
+The machine-readable environment manifest remains the authority for what is actually connected in a deployed environment. Documentation must not flip a connection to `true` merely because implementation code exists.
 
 ## Run locally
 

@@ -9,7 +9,7 @@ This directory contains the committed, machine-readable release anatomy for GetD
 
 These files contain declarations and references only. They must never contain raw credentials.
 
-The machine-readable formats are versioned explicitly: version registry schema `1.4.0`, environment manifest schema `1.4.0`, and generated release manifest schema `1.4.0`.
+The machine-readable formats are versioned explicitly. The currently committed version registry and environment manifest use schema `1.6.0`; generated release artifacts must use the schema version declared by the current release tooling and must stay consistent with those committed inputs.
 
 ## Generated per checkout/release
 
@@ -31,7 +31,11 @@ The generated manifest is intentionally not committed because a commit cannot co
 
 ## Production-readiness rule
 
-A generated artifact may accurately describe a non-production-ready release. Phase 41 does not promote deterministic foundations to production readiness. The environment manifest must remain fail-closed until real infrastructure acceptance exists. Because Phase 42 is included in release scope, production readiness also requires a real connected voice adapter; the current registry deliberately records that adapter/provider as unimplemented/unconfigured.
+A generated artifact may accurately describe a non-production-ready release. Phase 41 does not promote deterministic foundations to production readiness. The environment manifest must remain fail-closed until real infrastructure acceptance exists.
+
+Production readiness is evaluated against the **enabled launch surface**, not against every optional adapter represented in the architecture. Voice, OpenRouter, business integrations, push delivery, Resource Fabric providers, and other optional capabilities may remain disconnected when they are disabled and fail closed. If an optional capability is enabled for production use, its required live acceptance evidence becomes mandatory before that capability can be treated as production-ready.
+
+Core production promotion still requires authoritative auth/persistence, durable execution, migration/rollback/backup/DR safety, security controls, and release-gate evidence for the exact candidate SHA.
 
 
 ## Contract and quality evidence
