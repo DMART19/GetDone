@@ -648,6 +648,12 @@ describe("Core Tranche A: AuthorizationGrant -> Task DAG -> Jobs", () => {
       [b]: "cancelled",
       [join]: "cancelled"
     });
+    expect(propagateTaskDagStatus(dag, { [root]: "blocked" })).toMatchObject({
+      [root]: "blocked",
+      [a]: "blocked",
+      [b]: "blocked",
+      [join]: "blocked"
+    });
     expect(propagateTaskDagStatus(dag, {
       [root]: "succeeded",
       [a]: "succeeded",
