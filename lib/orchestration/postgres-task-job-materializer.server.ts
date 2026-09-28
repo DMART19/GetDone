@@ -12,8 +12,6 @@ import {
   type TaskRecord,
   type TaskStores
 } from "@/lib/domain/services/task-service";
-import type { AuthorizedBusinessActionRequest } from "@/lib/execution/adapters/business-action";
-import type { MvpJobRuntime } from "@/lib/execution/mvp-job-runtime.server";
 import {
   orchestrationJobId,
   type OrchestrationJobAuthorityMaterializer,
@@ -37,12 +35,21 @@ import {
   runWithPostgresTenantScope
 } from "@/lib/persistence/postgres/tenant-context.server";
 
-export interface OrchestrationCredentialLeaseResolver {
-  resolve(input: {
+export interface OrchestrationExecutionAdmission {
+  readonly descriptor: Readonly<{
+    rereadsAuthoritativeJob: true;
+    persistsExecutionSpec: true;
+    durableQueue: true;
+    providerExecutionSeparated: true;
+  }>;
+
+  admit(input: {
     run: OrchestrationRunRecord;
     task: GeneratedTask;
+    grant: AuthorizationGrant;
     operationIndex: number;
-  }): Promise<string | undefined>;
+    job: JobRecord;
+  }): Promise<void>;
 }
 
 function orchestrationCommand(
@@ -98,8 +105,7 @@ export class PostgresOrchestrationTaskJobAuthority
     OrchestrationJobAuthorityMaterializer {
   constructor(
     private readonly database: PostgresTransactionalDatabase,
-    private readonly jobRuntime: MvpJobRuntime,
-    private readonly credentialLeases?: OrchestrationCredentialLeaseResolver,
+    private readonly executionAdmission: OrchestrationExecutionAdmission,
     private readonly now: () => Date = () => new Date()
   ) {}
 
@@ -232,15 +238,25 @@ export class PostgresOrchestrationTaskJobAuthority
       );
     }
 
-    const credentialLeaseId = await this.credentialLeases?.resolve({
-      run: input.run,
-      task: input.task,
-      operationIndex: input.operationIndex
-    });
-    if (input.run.scope.environment === "production" && !credentialLeaseId) {
+    if (
+      this.executionAdmission.descriptor.rereadsAuthoritativeJob !== true
+      || this.executionAdmission.descriptor.persistsExecutionSpec !== true
+      || this.executionAdmission.descriptor.durableQueue !== true
+      || this.executionAdmission.descriptor.providerExecutionSeparated !== true
+    ) {
       throw new ControlPlaneError(
-        "UNAVAILABLE",
-        "Production Job admission requires a governed credential lease; no synthetic credential authority is allowed"
+        "FORBIDDEN",
+        "Execution admission does not satisfy the governed durable Job boundary"
+      );
+    }
+
+    if (
+      !input.task.capabilityRequirements.includes(operation.capability)
+      || !input.grant.capabilityNames.includes(operation.capability)
+    ) {
+      throw new ControlPlaneError(
+        "FORBIDDEN",
+        "Execution admission capability is outside exact Task authorization"
       );
     }
 
@@ -256,31 +272,16 @@ export class PostgresOrchestrationTaskJobAuthority
       this.now().toISOString()
     );
 
-    const expectedSeconds =
-      input.task.resourceRequirements.execution.expectedDurationSeconds ?? 60;
-    const request: AuthorizedBusinessActionRequest = Object.freeze({
-      id: `business-action:${queued.id}`,
-      correlationId: input.run.correlationId,
-      jobId: queued.id,
-      scope: input.task.authorizationConsumption.scope,
-      capability: operation.capability,
-      input: operation.input,
-      inputHash: sha256Hex(operation.input),
-      authorizationConsumptionHash:
-        input.task.authorizationConsumption.consumptionHash,
-      credentialLeaseId,
-      idempotencyKey: `orchestration:${input.run.id}:job:${queued.id}:execute`,
-      timeoutMs: Math.min(
-        900_000,
-        Math.max(1_000, expectedSeconds * 1_000)
-      ),
-      attempt: 1
+    // Admission MUST persist the capability-family-specific execution spec and
+    // durable queue envelope, and MUST NOT execute the provider inline.
+    await this.executionAdmission.admit({
+      run: input.run,
+      task: input.task,
+      grant: input.grant,
+      operationIndex: input.operationIndex,
+      job: queued
     });
 
-    // This is durable queue admission only. MvpJobRuntime re-reads the exact
-    // authoritative queued Job and persists an execution spec before enqueue.
-    // Provider execution remains the responsibility of the separate Job worker.
-    await this.jobRuntime.enqueueAuthorizedBusinessAction(queued, request);
     return queued;
     });
   }
