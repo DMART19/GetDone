@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
@@ -79,7 +80,7 @@ export default async function JobResultPage({
             <p>{result.failure.safetyMessage}</p>
             {result.failure.action ? (
               <p>
-                <a href={result.failure.action.href}>{result.failure.action.label}</a>
+                <Link href={result.failure.action.href}>{result.failure.action.label}</Link>
               </p>
             ) : null}
           </article>
