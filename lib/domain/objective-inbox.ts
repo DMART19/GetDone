@@ -223,7 +223,9 @@ function inferSource(rawText: string, requested?: ObjectiveSource): ObjectiveSou
   ) {
     return "multiline_list";
   }
-  if (lines.length > 4 || trimmed.length > 800) return "pasted_document";
+  if (trimmed.includes("\n\n") || lines.length > 4 || trimmed.length > 800) {
+    return "pasted_document";
+  }
   return "free_text";
 }
 
