@@ -187,6 +187,11 @@
       "critical": true
     },
     {
+      "source": "lib/domain/objective-inbox.ts",
+      "test": "lib/domain/objective-inbox.test.ts",
+      "critical": true
+    },
+    {
       "source": "lib/control-api/contracts.ts",
       "test": "lib/control-api/http.test.ts",
       "critical": true
