@@ -109,7 +109,15 @@ class DecisionStore implements OrchestrationDecisionStore {
     this.creates += 1;
     const existing = this.values.get(decision.id);
     if (existing) {
-      if (JSON.stringify(existing) !== JSON.stringify(decision)) {
+      if (
+        existing.portfolioId !== decision.portfolioId
+        || existing.companyId !== decision.companyId
+        || existing.correlationId !== decision.correlationId
+        || existing.requiresStepUp !== decision.requiresStepUp
+        || JSON.stringify(existing.approvalBinding)
+          !== JSON.stringify(decision.approvalBinding)
+        || existing.version < decision.version
+      ) {
         throw new Error("decision replay conflict");
       }
       return { status: "idempotent-replay" as const, decision: existing };
@@ -594,6 +602,63 @@ describe("durable policy-evaluated -> authorized flow", () => {
     expect(replay.next.checkpoints.authorizationGrants)
       .toEqual(first.next.checkpoints.authorizationGrants);
     expect([...grants.values.values()][0]!.grantHash).toBe(firstHash);
+    expect(grants.values.size).toBe(1);
+  });
+
+  it("recovers when the owner resolved a Decision after create but before the orchestration CAS", async () => {
+    const built = buildPolicyEvaluated("email.send");
+    const decisions = new DecisionStore();
+    const grants = new GrantStore();
+
+    const first = await advancePolicyEvaluatedToAuthority({
+      run: built.policyEvaluated,
+      ...built.stores,
+      decisions,
+      grants,
+      now: () => new Date("2026-09-28T13:00:10.000Z")
+    });
+    if (first.kind !== "advance" || first.next.state !== "awaiting-decision") {
+      throw new Error("awaiting-decision expected");
+    }
+
+    // Simulate the process dying before the orchestration CAS, while the owner
+    // resolves the already-visible authoritative Decision.
+    const id = first.next.checkpoints.decisionIds[0]!;
+    const pending = decisions.values.get(id)!;
+    const binding = pending.approvalBinding!;
+    const proof = createApprovalProof({
+      id: `approval-proof:${id}:v2`,
+      decisionId: id,
+      approvalId: `approval:${id}`,
+      actorId: "owner-a",
+      scope: built.policyEvaluated.scope,
+      level: "approval",
+      planHash: binding.planHash,
+      stepHash: binding.stepHash,
+      grantedAt: "2026-09-28T13:00:11.000Z",
+      expiresAt: "2026-09-28T13:10:00.000Z"
+    });
+    decisions.values.set(id, Object.freeze({
+      ...pending,
+      status: "approved",
+      version: 2,
+      updatedAt: "2026-09-28T13:00:11.000Z",
+      approvalProof: proof
+    }));
+
+    const recovered = await advancePolicyEvaluatedToAuthority({
+      run: built.policyEvaluated,
+      ...built.stores,
+      decisions,
+      grants,
+      now: () => new Date("2026-09-28T13:00:12.000Z")
+    });
+
+    expect(recovered.kind).toBe("advance");
+    if (recovered.kind !== "advance") throw new Error("advance expected");
+    expect(recovered.next.state).toBe("authorized");
+    expect(recovered.next.checkpoints.decisionIds).toEqual([id]);
+    expect(recovered.next.checkpoints.authorizationGrants).toHaveLength(1);
     expect(grants.values.size).toBe(1);
   });
 
