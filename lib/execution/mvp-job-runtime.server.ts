@@ -157,7 +157,10 @@ export class MvpJobRuntime {
 
   async ownerView(jobId: string, taskId: string) {
     const status = await this.engine.status(jobId);
-    const terminal = status.outcomes.at(-1);
+    const latest = status.outcomes.at(-1);
+    const terminal = latest && ["verified", "dead-lettered", "cancelled", "succeeded"].includes(latest.kind)
+      ? latest
+      : undefined;
     return Object.freeze({
       correlationId: status.runtime?.envelope?.correlationId,
       status,
