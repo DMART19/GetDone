@@ -58,7 +58,7 @@ export interface OrchestrationTaskArtifact {
   correlationId: string;
   portfolioId: string;
   companyId: string;
-  objectiveId?: string;
+  objectiveId: string | null;
   orchestrationRunId: string;
   planId: string;
   planHash: string;
@@ -191,7 +191,8 @@ function deepFreeze<T>(value: T, seen = new WeakSet<object>()): T {
 }
 
 function objectiveId(plan: PlanProposal) {
-  return plan.source.type === "objective" ? plan.source.objectiveId : undefined;
+  if (plan.source.type === "objective") return plan.source.objectiveId;
+  return plan.objective?.id ?? null;
 }
 
 export function taskGenerationIdempotencyKey(run: OrchestrationRunRecord) {
