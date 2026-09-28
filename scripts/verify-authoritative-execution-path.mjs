@@ -201,6 +201,29 @@ for (const invariant of [
   }
 }
 
+const postAuthorizationRuntime = read("lib/orchestration/post-authorization-runtime.server.ts");
+for (const invariant of [
+  'terminal.kind !== "provider-completed"',
+  "this.jobLifecycle.beginVerification(",
+  "this.jobLifecycle.verify(",
+  "this.jobLifecycle.failVerification(",
+  'prior.state === "verified"'
+]) {
+  if (!postAuthorizationRuntime.includes(invariant)) {
+    fail(`Provider-completion verification handoff invariant missing: ${invariant}`);
+  }
+}
+if (
+  /state:\s*state\s*===\s*["']verified["']\s*\?\s*["']succeeded["']/.test(
+    postAuthorizationRuntime
+  )
+) {
+  fail("Authoritative orchestration must not emit legacy Job state succeeded after verification");
+}
+if (!postAuthorization.includes('"provider-completed"')) {
+  fail("Orchestration Job graph contract must use provider-completed vocabulary");
+}
+
 const contract = read("docs/AUTHORITATIVE_EXECUTION_PATH.md");
 for (const invariant of [
   "OwnerIntent / Objective",
