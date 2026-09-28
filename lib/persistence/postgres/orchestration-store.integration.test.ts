@@ -250,7 +250,12 @@ integrationDescribe("PostgreSQL UFO orchestration persistence", () => {
     const transitions = [
       {
         to: "planning" as const,
-        patch: undefined
+        patch: {
+          plannerInput: {
+            id: `planner-input-waiting-${suffix}`,
+            hash: "e".repeat(64)
+          }
+        }
       },
       {
         to: "planned" as const,
