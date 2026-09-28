@@ -11,11 +11,16 @@ import {
 } from "@/lib/authorization/proofs";
 import type { DecisionTransactionManager } from "@/lib/domain/decision-transaction";
 import { authoritativeTransitionService } from "@/lib/domain/services/transition-service";
+import {
+  assertTrustedExecutionScopeEqual,
+  type TrustedExecutionScope
+} from "@/lib/control-plane/trusted-execution-scope";
 
 export type AuthoritativeDecisionStatus = "pending" | "approved" | "modified" | "rejected";
 
 export interface OrchestrationApprovalBinding {
   orchestrationRunId: string;
+  trustedScope: TrustedExecutionScope;
   policyEvaluationArtifactId: string;
   policyEvaluationArtifactHash: string;
   planArtifactId: string;
@@ -161,6 +166,17 @@ export async function resolveDecision(input: ResolveDecisionInput): Promise<Auth
     }),
     beforeTransition: (current) => {
       if (current.approvalBinding) {
+        assertTrustedExecutionScopeEqual(
+          current.approvalBinding.trustedScope,
+          input.command.scope,
+          {
+            requireSameResource: Boolean(
+              current.approvalBinding.trustedScope.resourceId
+              || input.command.scope.resourceId
+            )
+          }
+        );
+
         const expectedStepUp =
           current.approvalBinding.requirement === "strong-approval";
         if (current.requiresStepUp !== expectedStepUp) {
