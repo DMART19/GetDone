@@ -61,6 +61,7 @@ export interface VerifiedOutcomeRef {
 
 export interface OrchestrationCheckpoints {
   contextSnapshot?: IntegrityRef;
+  plannerInput?: IntegrityRef;
   plan?: IntegrityRef;
   validationReceipt?: IntegrityRef;
   policySnapshot?: IntegrityRef;
@@ -216,6 +217,9 @@ function freezeCheckpoints(
     contextSnapshot: checkpoints.contextSnapshot
       ? Object.freeze({ ...checkpoints.contextSnapshot })
       : undefined,
+    plannerInput: checkpoints.plannerInput
+      ? Object.freeze({ ...checkpoints.plannerInput })
+      : undefined,
     plan: checkpoints.plan ? Object.freeze({ ...checkpoints.plan }) : undefined,
     validationReceipt: checkpoints.validationReceipt
       ? Object.freeze({ ...checkpoints.validationReceipt })
@@ -281,6 +285,30 @@ function assertCheckpointRequirements(
       );
     }
     assertIntegrityRef(checkpoints.contextSnapshot, "contextSnapshot");
+  }
+
+  if (
+    [
+      "planning",
+      "planned",
+      "validated",
+      "policy-evaluated",
+      "awaiting-decision",
+      "authorized",
+      "tasks-created",
+      "jobs-enqueued",
+      "executing",
+      "verifying",
+      "completed"
+    ].includes(state)
+  ) {
+    if (!checkpoints.plannerInput) {
+      throw new ControlPlaneError(
+        "CONFLICT",
+        `Orchestration state ${state} requires a frozen planner input`
+      );
+    }
+    assertIntegrityRef(checkpoints.plannerInput, "plannerInput");
   }
 
   if (
@@ -583,6 +611,7 @@ export function transitionOrchestrationRun(
   const checkpointPatch = input.checkpointPatch ?? {};
   const checkpoints = freezeCheckpoints({
     contextSnapshot: checkpointPatch.contextSnapshot ?? current.checkpoints.contextSnapshot,
+    plannerInput: checkpointPatch.plannerInput ?? current.checkpoints.plannerInput,
     plan: checkpointPatch.plan ?? current.checkpoints.plan,
     validationReceipt:
       checkpointPatch.validationReceipt ?? current.checkpoints.validationReceipt,
