@@ -254,6 +254,24 @@ describe("authorization grants", () => {
     )).toThrow(/not active/i);
   });
 
+  it("rejects a cryptographically valid grant after material policy changes", () => {
+    const plan = validPlan();
+    const grant = autoGrantFor(plan);
+    const { grantHash, ...base } = grant;
+    void grantHash;
+    const staleBase = { ...base, policyVersion: "superseded-policy-version" };
+    const stale = Object.freeze({
+      ...staleBase,
+      grantHash: sha256Hex(staleBase)
+    });
+
+    expect(() => assertAuthorizationGrantEnvelope(
+      stale,
+      fixtureScope(plan),
+      fixtureNow.getTime()
+    )).toThrow(/stale|materially changed policy/i);
+  });
+
   it("rejects tampered authorization consumption lineage", () => {
     const plan = validPlan();
     const grant = autoGrantFor(plan);
