@@ -69,6 +69,13 @@ export interface ObjectiveIntakeInput {
   fileName?: string;
 }
 
+export interface ObjectiveIntakeStore {
+  createBatch(
+    records: readonly ObjectiveRecord[],
+    idempotencyKey: string
+  ): Promise<readonly ObjectiveRecord[]>;
+}
+
 export interface ObjectiveIntakeContext {
   scope: TrustedExecutionScope;
   correlationId: string;
