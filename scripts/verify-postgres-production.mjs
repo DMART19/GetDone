@@ -7,7 +7,7 @@ function required(name) {
   return value;
 }
 
-const requiredMigration = "2026-09-28.6";
+const requiredMigration = "2026-09-28.7";
 const maxBackupAgeHours = Number(process.env.GETDONE_BACKUP_MAX_AGE_HOURS || "24");
 if (!Number.isFinite(maxBackupAgeHours) || maxBackupAgeHours <= 0) {
   throw new Error("GETDONE_BACKUP_MAX_AGE_HOURS must be positive");
@@ -108,7 +108,7 @@ try {
     "orchestration_runs",
     "orchestration_transition_receipts",
     "orchestration_checkpoints",
-    "orchestration_worker_state",
+    "orchestration_worker_dead_letters",
     "orchestration_context_snapshots",
     "orchestration_planner_inputs",
     "orchestration_plan_proposals",
@@ -366,19 +366,42 @@ try {
   }
 
   const orchestrationWorkerSchema = await client.query(
-    `SELECT COUNT(*)::int AS count
+    `SELECT
+       COUNT(*) FILTER (WHERE table_name='orchestration_worker_state')::int AS queue_columns,
+       COUNT(*) FILTER (WHERE table_name='orchestration_worker_instances')::int AS instance_columns,
+       COUNT(*) FILTER (WHERE table_name='orchestration_worker_dead_letters')::int AS dead_letter_columns
      FROM information_schema.columns
-     WHERE table_name='orchestration_worker_state'
+     WHERE (
+       table_name='orchestration_worker_state'
        AND column_name IN (
-         'run_id','portfolio_id','company_id','stage_run_version','stage_attempt',
+         'run_id','portfolio_id','company_id','run_state','stage_run_version','stage_attempt',
          'consecutive_failures','ready_at','lease_id','lease_worker_id',
          'lease_issued_at','lease_heartbeat_at','lease_expires_at','lease_version',
          'claimed_run_version','claimed_record_hash','last_error_code',
          'last_error_message','updated_at'
-       )`
+       )
+     ) OR (
+       table_name='orchestration_worker_instances'
+       AND column_name IN (
+         'worker_id','status','process_version','started_at','heartbeat_at',
+         'ready_at','stopped_at','metadata','updated_at'
+       )
+     ) OR (
+       table_name='orchestration_worker_dead_letters'
+       AND column_name IN (
+         'id','run_id','portfolio_id','company_id','lease_id','worker_id',
+         'claimed_run_version','claimed_record_hash','terminal_run_version',
+         'terminal_record_hash','attempt','failure_code','failure_message_hash',
+         'dead_lettered_at','recovery_kind','evidence_hash'
+       )
+     )`
   );
-  if (orchestrationWorkerSchema.rows[0]?.count !== 18) {
-    throw new Error("UFO orchestration worker persistence schema verification failed");
+  if (
+    orchestrationWorkerSchema.rows[0]?.queue_columns !== 19
+    || orchestrationWorkerSchema.rows[0]?.instance_columns !== 9
+    || orchestrationWorkerSchema.rows[0]?.dead_letter_columns !== 16
+  ) {
+    throw new Error("UFO orchestration worker durability schema verification failed");
   }
 
   const orchestrationWorkerIndexes = await client.query(
@@ -388,11 +411,29 @@ try {
        AND indexname IN (
          'orchestration_worker_ready_idx',
          'orchestration_worker_lease_expiry_idx',
-         'orchestration_worker_scope_idx'
+         'orchestration_worker_scope_idx',
+         'orchestration_worker_dispatch_ready_idx',
+         'orchestration_worker_instances_status_idx',
+         'orchestration_worker_dead_letters_scope_idx',
+         'orchestration_worker_dead_letters_run_idx'
        )`
   );
-  if (orchestrationWorkerIndexes.rows[0]?.count !== 3) {
-    throw new Error("UFO orchestration worker index verification failed");
+  if (orchestrationWorkerIndexes.rows[0]?.count !== 7) {
+    throw new Error("UFO orchestration worker durability index verification failed");
+  }
+
+  const orchestrationQueueRls = await client.query(
+    `SELECT relrowsecurity,relforcerowsecurity
+     FROM pg_class
+     WHERE oid='orchestration_worker_state'::regclass`
+  );
+  if (
+    orchestrationQueueRls.rows[0]?.relrowsecurity !== false
+    || orchestrationQueueRls.rows[0]?.relforcerowsecurity !== false
+  ) {
+    throw new Error(
+      "Orchestration dispatch queue must remain non-authoritative global routing metadata"
+    );
   }
 
   const orchestrationContextSchema = await client.query(
