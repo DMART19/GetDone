@@ -7,8 +7,9 @@ import type { JobRecord } from "@/lib/domain/services/job-service";
 import type { VerificationRequestRecord } from "@/lib/domain/services/verification-service";
 import type { Resource } from "@/lib/domain/resources";
 import type { ResourceEnrollmentRecord } from "@/lib/resources/enrollment";
+import type { ObjectiveIntakeInput, ObjectiveRecord } from "@/lib/domain/objective-inbox";
 
-export const CONTROL_API_SURFACE_VERSION = "1.4.0";
+export const CONTROL_API_SURFACE_VERSION = "1.5.0";
 
 export type ControlApiRole = "owner" | "admin" | "operator" | "viewer";
 
@@ -161,6 +162,15 @@ export interface ControlApiApplicationAdapter {
     idempotencyKey: string,
     correlationId?: string
   ): Promise<OwnerIntentRecord>;
+
+  submitObjectives(
+    principal: ControlApiPrincipal,
+    input: ObjectiveIntakeInput,
+    idempotencyKey: string,
+    correlationId?: string
+  ): Promise<readonly ObjectiveRecord[]>;
+  listObjectives(principal: ControlApiPrincipal): Promise<readonly ObjectiveRecord[]>;
+  getObjective(principal: ControlApiPrincipal, objectiveId: string): Promise<ObjectiveRecord | null>;
 
   listDecisions(principal: ControlApiPrincipal): Promise<readonly AuthoritativeDecision[]>;
   getDecision(principal: ControlApiPrincipal, decisionId: string): Promise<AuthoritativeDecision | null>;

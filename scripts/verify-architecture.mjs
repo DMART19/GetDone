@@ -35,8 +35,8 @@ function startsWithAny(value, prefixes) {
 
 const bottomNav = read("components/bottom-nav.tsx");
 const labels = [...bottomNav.matchAll(/label:\s*"([^"]+)"/g)].map((match) => match[1]);
-if (JSON.stringify(labels) !== JSON.stringify(["Chat", "Decisions", "Resources"])) {
-  fail(`Permanent owner navigation drifted: expected Chat, Decisions, Resources; got ${labels.join(", ")}`);
+if (JSON.stringify(labels) !== JSON.stringify(["Home", "Decisions", "Resources"])) {
+  fail(`Permanent owner navigation drifted: expected Home, Decisions, Resources; got ${labels.join(", ")}`);
 }
 
 const readme = read("README.md");
@@ -200,7 +200,7 @@ const controlApiRuntime = read("lib/control-api/runtime.server.ts");
 const controlApiHttp = read("lib/control-api/http.ts");
 const controlApiServices = read("lib/control-api/service-adapter.ts");
 for (const required of [
-  'CONTROL_API_SURFACE_VERSION = "1.4.0"',
+  'CONTROL_API_SURFACE_VERSION = "1.5.0"',
   "submitOwnerIntent",
   "mutateDecision",
   "discoverResource",
@@ -1088,12 +1088,12 @@ if (
   fail("Phase 28.4 release state drifted or overclaims live Node capability/binding connectivity");
 }
 if (
-  releaseRegistry.controlApi?.surfaceVersion !== "1.4.0"
+  releaseRegistry.controlApi?.surfaceVersion !== "1.5.0"
   || releaseRegistry.controlApi?.status !== "implemented-unconnected"
   || releaseRegistry.controlApi?.applicationAdapterStatus !== "not-connected"
   || releaseRegistry.controlApi?.authStatus !== "implemented-unconnected"
   || releaseRegistry.controlApi?.persistenceStatus !== "not-connected"
-  || releaseRegistry.schemaVersions?.controlApiSurface?.version !== "1.4.0"
+  || releaseRegistry.schemaVersions?.controlApiSurface?.version !== "1.5.0"
 ) {
   fail("Control API release state must expose the implemented surface while preserving unconnected authority adapters");
 }

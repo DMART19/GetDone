@@ -9,6 +9,7 @@ import { ServiceBackedControlApiAdapter } from "@/lib/control-api/service-adapte
 import { ResourceRegistryService } from "@/lib/domain/services/resource-registry-service";
 import { ResourceEnrollmentService, type ResourceEnrollmentRecord } from "@/lib/resources/enrollment";
 import type { Resource } from "@/lib/domain/resources";
+import type { ObjectiveRecord } from "@/lib/domain/objective-inbox";
 
 const session: AuthSession = {
   sessionId: "session-a",
@@ -24,6 +25,31 @@ const scope = {
   portfolioId: "portfolio-a",
   companyId: "company-a",
   environment: "development" as const
+};
+
+const objective: ObjectiveRecord = {
+  id: "objective-1",
+  objectiveId: "objective-1",
+  correlationId: "corr-objective",
+  portfolioId: "portfolio-a",
+  companyId: "company-a",
+  environment: "development",
+  createdByUserId: "user-a",
+  source: "free_text",
+  rawText: "Fix onboarding",
+  normalizedGoal: "Fix onboarding",
+  desiredOutcome: "Fix onboarding",
+  constraints: [],
+  priority: "normal",
+  successCriteria: [],
+  riskLevel: "low",
+  status: "queued",
+  relationship: "independent",
+  dependsOnObjectiveIds: [],
+  progress: [],
+  createdAt: "2026-09-21T04:00:00Z",
+  updatedAt: "2026-09-21T04:00:00Z",
+  version: 1
 };
 
 function auth(): AuthAdapter {
@@ -172,6 +198,13 @@ function adapter(overrides: Partial<ConstructorParameters<typeof ServiceBackedCo
       })
     },
     intents: { create: async (record) => record },
+    objectives: {
+      listByScope: async () => [objective],
+      get: async (id) => id === objective.id ? objective : null
+    },
+    objectiveIntake: {
+      createBatch: async (records) => records
+    },
     decisions: {
       listByScope: async () => [decisionTransactions.decision],
       get: async (id) => id === "decision-1" ? decisionTransactions.decision : null
@@ -263,6 +296,34 @@ describe("ServiceBackedControlApiAdapter", () => {
       message: "Investigate churn",
       receivedAt: "2026-09-21T04:00:00.000Z"
     });
+  });
+
+  it("normalizes owner language into authoritative objectives without exposing task/job input", async () => {
+    const { instance } = adapter();
+    const principal = await instance.authenticate(new Request("http://localhost"));
+    const objectives = await instance.submitObjectives(
+      principal,
+      {
+        rawText: "Fix onboarding. Make safe fixes yourself. Deploy staging automatically. Ask me before production."
+      },
+      "objective-key-1",
+      "corr-objective"
+    );
+    expect(objectives).toHaveLength(1);
+    expect(objectives[0]).toMatchObject({
+      portfolioId: "portfolio-a",
+      companyId: "company-a",
+      createdByUserId: "user-a",
+      normalizedGoal: "Fix onboarding",
+      constraints: [
+        "Make safe fixes yourself",
+        "Deploy staging automatically",
+        "Ask me before production"
+      ],
+      riskLevel: "high"
+    });
+    expect(await instance.listObjectives(principal)).toEqual([objective]);
+    expect(await instance.getObjective(principal, "objective-1")).toEqual(objective);
   });
 
   it("passes authoritative server-resolved step-up proof into Decision mutation", async () => {

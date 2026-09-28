@@ -3,6 +3,7 @@ import { ControlPlaneError } from "@/lib/control-plane/errors";
 import { createAuditEvent } from "@/lib/domain/audit";
 import { claimIdempotency } from "@/lib/domain/idempotency";
 import type { OwnerIntentRecord } from "@/lib/control-api/contracts";
+import type { ObjectiveIntakeStore, ObjectiveRecord } from "@/lib/domain/objective-inbox";
 import {
   createOwnerIntentOrchestrationRun,
   ownerIntentOrchestrationStartIdempotencyKey
@@ -181,6 +182,92 @@ export class PostgresOwnerIntentStore implements OwnerIntentStore {
       [id]
     );
     return result.rows[0]?.payload ?? null;
+  }
+}
+
+
+export class PostgresObjectiveIntakeStore implements ObjectiveIntakeStore {
+  constructor(private readonly db: PostgresTransactionalDatabase) {}
+
+  async createBatch(records: readonly ObjectiveRecord[], idempotencyKey: string) {
+    if (records.length === 0) {
+      throw new ControlPlaneError("VALIDATION_FAILED", "Objective batch cannot be empty");
+    }
+
+    const fingerprint = sha256Hex(JSON.stringify(records.map((record) => ({
+      portfolioId: record.portfolioId,
+      companyId: record.companyId,
+      environment: record.environment,
+      createdByUserId: record.createdByUserId,
+      source: record.source,
+      rawText: record.rawText,
+      normalizedGoal: record.normalizedGoal,
+      desiredOutcome: record.desiredOutcome,
+      constraints: record.constraints,
+      priority: record.priority,
+      deadline: record.deadline ?? null,
+      successCriteria: record.successCriteria,
+      riskLevel: record.riskLevel,
+      relationship: record.relationship,
+      parentIndex: record.parentObjectiveId ? records.findIndex((item) => item.id === record.parentObjectiveId) : null,
+      dependencyIndexes: record.dependsOnObjectiveIds.map((id) => records.findIndex((item) => item.id === id))
+    }))));
+
+    return this.db.transaction(async (client) => {
+      const idempotency = new PostgresIdempotencyStore(client);
+      const claim = await claimIdempotency<readonly ObjectiveRecord[]>(
+        idempotency,
+        idempotencyKey,
+        fingerprint,
+        new Date(records[0].createdAt)
+      );
+
+      if (claim.state === "COMPLETED" && claim.record.result) {
+        return claim.record.result;
+      }
+      if (claim.state === "IN_PROGRESS" || claim.state === "FAILED") {
+        throw new ControlPlaneError(
+          "CONFLICT",
+          "Objective intake request is already in progress or previously failed"
+        );
+      }
+
+      const objectives = new PostgresEntityStore<ObjectiveRecord>(client, "objective");
+      const audit = new PostgresAuditLedger(client);
+      for (const record of records) {
+        await objectives.insert(record);
+        await audit.append(createAuditEvent({
+          correlationId: record.correlationId ?? `objective:${record.id}`,
+          eventType: "objective.created",
+          actor: { type: "user", id: record.createdByUserId },
+          scope: {
+            userId: record.createdByUserId,
+            portfolioId: record.portfolioId,
+            companyId: record.companyId
+          },
+          environment: record.environment,
+          entityType: "objective",
+          entityId: record.id,
+          newState: record.status,
+          provenance: "control-api:objective-intake",
+          metadata: {
+            idempotencyKey,
+            source: record.source,
+            relationship: record.relationship,
+            parentObjectiveId: record.parentObjectiveId ?? null,
+            dependencyCount: record.dependsOnObjectiveIds.length
+          }
+        }));
+      }
+
+      await idempotency.complete(
+        idempotencyKey,
+        fingerprint,
+        records,
+        records[0].createdAt
+      );
+      return records;
+    });
   }
 }
 

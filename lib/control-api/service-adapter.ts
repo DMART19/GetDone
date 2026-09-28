@@ -18,6 +18,12 @@ import {
 } from "@/lib/resources/enrollment";
 import type { VerificationRequestRecord } from "@/lib/domain/services/verification-service";
 import type { Resource } from "@/lib/domain/resources";
+import {
+  normalizeObjectiveIntake,
+  type ObjectiveIntakeInput,
+  type ObjectiveIntakeStore,
+  type ObjectiveRecord
+} from "@/lib/domain/objective-inbox";
 import type {
   ControlApiApplicationAdapter,
   ControlApiHealth,
@@ -70,6 +76,8 @@ export interface ServiceBackedControlApiDependencies {
   scopes: ControlApiScopeResolver;
   authorizationEvidence?: ControlApiAuthorizationEvidenceResolver;
   intents: OwnerIntentStore;
+  objectives: ScopedReadStore<ObjectiveRecord>;
+  objectiveIntake: ObjectiveIntakeStore;
   decisions: ScopedReadStore<AuthoritativeDecision>;
   decisionTransactions: DecisionTransactionManager;
   /**
@@ -247,6 +255,36 @@ export class ServiceBackedControlApiAdapter implements ControlApiApplicationAdap
       });
       return this.deps.intents.create(record, idempotencyKey);
     });
+  }
+
+  async submitObjectives(
+    principal: ControlApiPrincipal,
+    input: ObjectiveIntakeInput,
+    idempotencyKey: string,
+    correlationId?: string
+  ) {
+    return this.scoped(principal, async () => {
+      requireRole(principal, ["owner"], "Objective submission");
+      const records = normalizeObjectiveIntake(input, {
+        scope: principal.scope,
+        correlationId: correlationId ?? createCorrelationId(),
+        now: this.now().toISOString()
+      });
+      return this.deps.objectiveIntake.createBatch(records, idempotencyKey);
+    });
+  }
+
+  listObjectives(principal: ControlApiPrincipal) {
+    return this.scoped(principal, () => this.deps.objectives.listByScope(
+      principal.scope.portfolioId,
+      principal.scope.companyId
+    ));
+  }
+
+  async getObjective(principal: ControlApiPrincipal, objectiveId: string) {
+    return this.scoped(principal, async () =>
+      assertScopedEntity(principal, await this.deps.objectives.get(objectiveId))
+    );
   }
 
   listDecisions(principal: ControlApiPrincipal) {
