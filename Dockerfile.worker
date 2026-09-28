@@ -18,7 +18,9 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV GETDONE_PROCESS_ROLE=job-worker
 ENV GETDONE_JOB_WORKER_HEALTH_HOST=0.0.0.0
-ENV GETDONE_JOB_WORKER_HEALTH_PORT=3001\nENV GETDONE_ORCHESTRATION_WORKER_HEALTH_HOST=0.0.0.0\nENV GETDONE_ORCHESTRATION_WORKER_HEALTH_PORT=3002
+ENV GETDONE_JOB_WORKER_HEALTH_PORT=3001
+ENV GETDONE_ORCHESTRATION_WORKER_HEALTH_HOST=0.0.0.0
+ENV GETDONE_ORCHESTRATION_WORKER_HEALTH_PORT=3002
 
 COPY --from=build /app/package.json /app/package-lock.json ./
 COPY --from=build /app/node_modules ./node_modules
@@ -30,6 +32,6 @@ COPY release ./release
 EXPOSE 3001 3002
 
 HEALTHCHECK --interval=10s --timeout=3s --start-period=20s --retries=3 \
-  CMD ["node","-e","fetch('http://127.0.0.1:3001/readyz').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+  CMD ["node","-e","const p=process.env.GETDONE_PROCESS_ROLE==='orchestration-worker'?(process.env.GETDONE_ORCHESTRATION_WORKER_HEALTH_PORT||3002):(process.env.GETDONE_JOB_WORKER_HEALTH_PORT||3001);fetch('http://127.0.0.1:'+p+'/readyz').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
 
 CMD ["npm","run","start:worker"]
