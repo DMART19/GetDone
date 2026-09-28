@@ -15,6 +15,13 @@ CREATE TABLE IF NOT EXISTS orchestration_worker_instances (
 CREATE INDEX IF NOT EXISTS orchestration_worker_instances_status_idx
   ON orchestration_worker_instances (status, heartbeat_at, worker_id);
 
+-- orchestration_worker_state is the cross-tenant dispatch queue, not authoritative
+-- business state. Keep only bounded routing/lease metadata globally discoverable.
+-- Authoritative orchestration/artifact reads still require exact tenant scope.
+ALTER TABLE orchestration_worker_state NO FORCE ROW LEVEL SECURITY;
+ALTER TABLE orchestration_worker_state DISABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS getdone_tenant_isolation ON orchestration_worker_state;
+
 CREATE TABLE IF NOT EXISTS orchestration_worker_dead_letters (
   id text PRIMARY KEY,
   run_id text NOT NULL REFERENCES orchestration_runs(id),
