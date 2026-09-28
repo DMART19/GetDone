@@ -155,7 +155,11 @@ export class DurableOrchestrationWorker {
         const index = nextIndex;
         nextIndex += 1;
         if (index >= candidates.length) return;
-        const result = await this.runCandidate(candidates[index], handler);
+        const candidate = candidates[index];
+        const execute = () => this.runCandidate(candidate, handler);
+        const result = this.workerStore.withCandidateScope
+          ? await this.workerStore.withCandidateScope(candidate, execute)
+          : await execute();
         if (result) results[index] = result;
       }
     };
