@@ -7,7 +7,7 @@ import type {
   DecisionResumeRequest
 } from "@/lib/domain/decision-service";
 import { resolveDecision } from "@/lib/domain/decision-service";
-import type { DecisionTransaction, DecisionTransactionManager } from "@/lib/domain/decision-transaction";
+import type { DecisionStores, DecisionTransaction, DecisionTransactionManager } from "@/lib/domain/decision-transaction";
 import type { IdempotencyClaim, IdempotencyRecord, IdempotencyStore } from "@/lib/domain/idempotency";
 import { createStepUpProof, type StepUpProof } from "@/lib/authorization/proofs";
 
@@ -17,6 +17,7 @@ class MemoryDecisionTransactionManager implements DecisionTransactionManager {
   private idempotencyRecords = new Map<string, IdempotencyRecord>();
   private resumeRequests = new Map<string, DecisionResumeRequest>();
   failAudit = false;
+  includeResumeRequests = true;
 
   constructor(initialDecision: AuthoritativeDecision) {
     this.decisionValue = { ...initialDecision };
@@ -79,19 +80,21 @@ class MemoryDecisionTransactionManager implements DecisionTransactionManager {
       }
     };
 
-    const result = await operation({
-      stores: {
-        decisions,
-        resumeRequests: {
-          create: async (request: DecisionResumeRequest) => {
-            const existing = stagedResumeRequests.get(request.id);
-            if (existing && existing.requestHash !== request.requestHash) {
-              throw new Error("resume request conflict");
-            }
-            stagedResumeRequests.set(request.id, request);
+    const stores: DecisionStores = { decisions };
+    if (this.includeResumeRequests) {
+      stores.resumeRequests = {
+        create: async (request: DecisionResumeRequest) => {
+          const existing = stagedResumeRequests.get(request.id);
+          if (existing && existing.requestHash !== request.requestHash) {
+            throw new Error("resume request conflict");
           }
+          stagedResumeRequests.set(request.id, request);
         }
-      },
+      };
+    }
+
+    const result = await operation({
+      stores,
       audit,
       idempotency
     });
@@ -262,6 +265,39 @@ describe("decision authority service", () => {
       resolution: "approved"
     });
     expect(resume?.requestHash).toHaveLength(64);
+  });
+
+  it("fails closed and rolls back when an orchestrated Decision has no durable resume store", async () => {
+    const transactionManager = new MemoryDecisionTransactionManager(decision({
+      correlationId: "orchestration-correlation",
+      approvalBinding: {
+        trustedScope: command().scope,
+        orchestrationRunId: "orchestration-run-no-resume-store",
+        policyEvaluationArtifactId: "policy-evaluation-no-resume-store",
+        policyEvaluationArtifactHash: "a".repeat(64),
+        planArtifactId: "plan-artifact-no-resume-store",
+        planArtifactHash: "b".repeat(64),
+        planHash: "c".repeat(64),
+        stepId: "step-no-resume-store",
+        stepHash: "d".repeat(64),
+        policySnapshotId: "policy-snapshot-no-resume-store",
+        policySnapshotHash: "e".repeat(64),
+        validationReceiptId: "validation-receipt-no-resume-store",
+        validationReceiptHash: "f".repeat(64),
+        requirement: "approval",
+        proofExpiresAt: "2099-01-01T00:00:00Z"
+      }
+    }));
+    transactionManager.includeResumeRequests = false;
+
+    await expect(resolveDecision(input(transactionManager, {
+      now: () => new Date("2026-09-28T13:00:00Z")
+    }))).rejects.toThrow(/durable resume request store/i);
+
+    expect(transactionManager.decision().status).toBe("pending");
+    expect(transactionManager.events()).toHaveLength(0);
+    expect(transactionManager.idempotency("decision-action-company-a-approve")).toBeUndefined();
+    expect(transactionManager.resumeRequest("decision-resume:decision-1:v2")).toBeUndefined();
   });
 
   it("binds strong orchestration approval to fresh step-up proof and emits one resume request", async () => {
