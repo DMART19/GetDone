@@ -107,6 +107,31 @@ describe("fresh execution admission", () => {
       .rejects.toThrow(/requires a current integration binding/i);
   });
 
+  it("blocks an integration whose adapter binding no longer matches the capability", async () => {
+    const plan = validPlan();
+    const scope = fixtureScope(plan);
+    const base = autoGrantFor(plan);
+    const mismatched = createCompanyIntegration({
+      id: "integration-wrong-adapter",
+      scope,
+      kind: "gmail",
+      displayName: "Wrong adapter",
+      adapterId: "business.slack",
+      adapterVersion: "1.0.0",
+      writeScopes: ["email.send"],
+      createdAt: fixtureNow.toISOString()
+    });
+    const grant = {
+      ...base,
+      capabilityNames: ["email.send"],
+      integrationId: mismatched.id
+    };
+    const admission = gate([[{ payload: mismatched } as QueryResultRow]]);
+
+    await expect(admission.assertAllowed(input(grant)))
+      .rejects.toThrow(/adapter does not match/i);
+  });
+
   it("blocks a disabled integration immediately", async () => {
     const plan = validPlan();
     const scope = fixtureScope(plan);
