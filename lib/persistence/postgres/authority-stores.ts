@@ -345,6 +345,7 @@ export class PostgresAuthorizationGrantStore implements AuthorizationGrantStore 
     const current = await this.get(id);
     if (!current) throw new ControlPlaneError("NOT_FOUND", "Authorization grant was not found");
     const { grantHash: _currentGrantHash, ...currentBase } = current;
+    void _currentGrantHash;
     const nextBase = { ...currentBase, status: "revoked" as const };
     const next: AuthorizationGrant = {
       ...nextBase,
