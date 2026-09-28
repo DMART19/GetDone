@@ -52,7 +52,6 @@ function orchestrationCommand(
 ) {
   const identity = sha256Hex({
     runId: run.id,
-    runVersion: run.version,
     suffix,
     mutationType
   });
@@ -70,18 +69,26 @@ function orchestrationCommand(
 
 export class PostgresOrchestrationObjectiveStatusStore
   implements OrchestrationObjectiveStatusStore {
-  constructor(private readonly db: SqlQueryable) {}
+  constructor(
+    private readonly db: SqlQueryable,
+    private readonly scope: { portfolioId: string; companyId: string }
+  ) {}
 
   async getStatus(objectiveId: string) {
-    const result = await this.db.query<{
-      payload: { status?: "active" | "paused" | "completed" };
-    }>(
-      `SELECT payload
-       FROM control_plane_entities
-       WHERE entity_type='objective' AND id=$1`,
-      [objectiveId]
-    );
-    return result.rows[0]?.payload.status ?? null;
+    return runWithPostgresTenantScope(this.scope, async () => {
+      const result = await this.db.query<{
+        payload: { status?: "active" | "paused" | "completed" };
+      }>(
+        `SELECT payload
+         FROM control_plane_entities
+         WHERE entity_type='objective'
+           AND id=$1
+           AND portfolio_id=$2
+           AND company_id=$3`,
+        [objectiveId, this.scope.portfolioId, this.scope.companyId]
+      );
+      return result.rows[0]?.payload.status ?? null;
+    });
   }
 }
 
