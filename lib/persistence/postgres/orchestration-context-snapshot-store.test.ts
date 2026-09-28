@@ -130,14 +130,16 @@ describe("PostgresOrchestrationContextSnapshotStore", () => {
     ).rejects.toThrow(/ContextSnapshot conflicts/i);
   });
 
-  it("reads snapshot by run/version and returns null when missing", async () => {
+  it("reads snapshot by id and run/version and returns null when missing", async () => {
     const current = snapshot();
     const db = new ScriptedDb([
+      { rows: [{ payload: current }] },
       { rows: [{ payload: current }] },
       { rows: [] }
     ]);
     const store = new PostgresOrchestrationContextSnapshotStore(db);
 
+    expect(await store.get(current.id)).toEqual(current);
     expect(await store.getByRunVersion(current.runId, current.runVersion))
       .toEqual(current);
     expect(await store.getByRunVersion("missing", 1)).toBeNull();
