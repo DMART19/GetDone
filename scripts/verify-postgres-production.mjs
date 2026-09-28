@@ -7,7 +7,7 @@ function required(name) {
   return value;
 }
 
-const requiredMigration = "2026-09-28.2";
+const requiredMigration = "2026-09-28.3";
 const maxBackupAgeHours = Number(process.env.GETDONE_BACKUP_MAX_AGE_HOURS || "24");
 if (!Number.isFinite(maxBackupAgeHours) || maxBackupAgeHours <= 0) {
   throw new Error("GETDONE_BACKUP_MAX_AGE_HOURS must be positive");
@@ -108,7 +108,8 @@ try {
     "orchestration_runs",
     "orchestration_transition_receipts",
     "orchestration_checkpoints",
-    "orchestration_worker_state"
+    "orchestration_worker_state",
+    "orchestration_context_snapshots"
   ];
   const rls = await client.query(
     `SELECT required.name, relation.relrowsecurity, relation.relforcerowsecurity
@@ -388,6 +389,32 @@ try {
     throw new Error("UFO orchestration worker index verification failed");
   }
 
+  const orchestrationContextSchema = await client.query(
+    `SELECT COUNT(*)::int AS count
+     FROM information_schema.columns
+     WHERE table_name='orchestration_context_snapshots'
+       AND column_name IN (
+         'id','run_id','portfolio_id','company_id','source_type','source_id',
+         'source_hash','run_version','snapshot_hash','idempotency_key','payload','created_at'
+       )`
+  );
+  if (orchestrationContextSchema.rows[0]?.count !== 12) {
+    throw new Error("OwnerIntent ContextSnapshot schema verification failed");
+  }
+
+  const orchestrationContextIndexes = await client.query(
+    `SELECT COUNT(*)::int AS count
+     FROM pg_indexes
+     WHERE schemaname=current_schema()
+       AND indexname IN (
+         'orchestration_context_snapshots_scope_idx',
+         'orchestration_context_snapshots_source_idx'
+       )`
+  );
+  if (orchestrationContextIndexes.rows[0]?.count !== 2) {
+    throw new Error("OwnerIntent ContextSnapshot index verification failed");
+  }
+
   const backup = await client.query(
     `SELECT completed_at,verification_hash
      FROM database_backup_evidence
@@ -456,6 +483,7 @@ try {
     orchestrationSchema: "verified",
     orchestrationCasConstraints: "verified",
     orchestrationWorkerSchema: "verified",
+    orchestrationContextSchema: "verified",
     backupFresh: true
   }, null, 2));
 } finally {
