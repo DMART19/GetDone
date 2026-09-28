@@ -53,8 +53,20 @@ export class PostgresOrchestrationDecisionStore
       existing
       && existing.portfolioId === decision.portfolioId
       && existing.companyId === decision.companyId
-      && sha256Hex(existing) === sha256Hex(decision)
+      && existing.correlationId === decision.correlationId
+      && existing.requiresStepUp === decision.requiresStepUp
+      && Boolean(existing.approvalBinding) === Boolean(decision.approvalBinding)
+      && (
+        !decision.approvalBinding
+        || sha256Hex(existing.approvalBinding)
+          === sha256Hex(decision.approvalBinding)
+      )
+      && existing.version >= decision.version
     ) {
+      // The Decision may have legitimately advanced from pending after the
+      // original create committed but before the orchestration CAS. Reuse that
+      // evolved authoritative state when its immutable approval binding is
+      // identical instead of treating owner resolution as an idempotency clash.
       return {
         status: "idempotent-replay" as const,
         decision: existing
@@ -63,7 +75,7 @@ export class PostgresOrchestrationDecisionStore
 
     throw new ControlPlaneError(
       "IDEMPOTENCY_CONFLICT",
-      "Orchestration Decision ID already exists with different authoritative content",
+      "Orchestration Decision ID already exists with different immutable authorization lineage",
       { correlationId: decision.correlationId }
     );
   }
