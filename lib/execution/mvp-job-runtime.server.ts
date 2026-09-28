@@ -23,6 +23,7 @@ import {
   RoutedJobExecutionHandler
 } from "@/lib/execution/job-execution-router";
 import { createJobQueueEnvelope } from "@/lib/execution/job-runtime-contracts";
+import { jobSideEffectIdempotencyKey } from "@/lib/orchestration/execution-idempotency";
 import { planOwnerNotification } from "@/lib/mobile/notifications";
 import { PostgresBusinessActionExecutionStore } from "@/lib/persistence/postgres/execution-stores";
 import { PostgresAnalyticsIngestionStore } from "@/lib/persistence/postgres/analytics-ingestion-store";
@@ -121,7 +122,11 @@ export class MvpJobRuntime {
         "Production governed Job execution requires persisted correlation lineage"
       );
     }
-    const correlatedRequest = Object.freeze({ ...request, correlationId });
+    const correlatedRequest = Object.freeze({
+      ...request,
+      correlationId,
+      idempotencyKey: jobSideEffectIdempotencyKey(authoritative.id, request.id)
+    });
     const createdAt = this.now().toISOString();
     const spec = createPersistedJobExecutionSpec({
       kind: "business-action",
