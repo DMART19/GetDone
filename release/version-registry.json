@@ -168,7 +168,7 @@
       ]
     },
     "controlApiSurface": {
-      "version": "1.4.0",
+      "version": "1.5.0",
       "sourcePath": "lib/control-api/contracts.ts",
       "contractTracked": true,
       "contractSourcePaths": [
@@ -760,7 +760,7 @@
     "mvpBusinessWorkflowSourcePath": "lib/composition/mvp-business-workflow.ts"
   },
   "controlApi": {
-    "surfaceVersion": "1.4.0",
+    "surfaceVersion": "1.5.0",
     "status": "implemented-unconnected",
     "applicationAdapterStatus": "not-connected",
     "authStatus": "implemented-unconnected",
