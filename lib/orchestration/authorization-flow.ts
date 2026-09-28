@@ -49,7 +49,11 @@ export interface OrchestrationDecisionStore {
 }
 
 export interface OrchestrationAuthorizationGrantStore {
-  insert(grant: AuthorizationGrant): Promise<void>;
+  /**
+   * Persist the complete Plan-step grant set atomically. A failed batch must
+   * not leave a subset of active execution authority behind.
+   */
+  insertMany(grants: readonly AuthorizationGrant[]): Promise<void>;
   get(id: string): Promise<AuthorizationGrant | null>;
 }
 
@@ -380,7 +384,7 @@ async function issueOrReplayGrants(input: {
   now: Date;
   grantTtlMs: number;
 }) {
-  const refs: AuthorizationGrantRef[] = [];
+  const candidates: AuthorizationGrant[] = [];
 
   for (const stepPolicy of input.lineage.policyArtifact.stepPolicies) {
     if (stepPolicy.evaluation.disposition === "BLOCKED") {
@@ -476,8 +480,16 @@ async function issueOrReplayGrants(input: {
       expiresAt
     });
 
-    await input.grants.insert(candidate);
-    const persisted = await input.grants.get(grantId);
+    candidates.push(candidate);
+  }
+
+  // The full Plan-step authority set commits atomically. This prevents a
+  // later-step persistence conflict from stranding a subset of active grants.
+  await input.grants.insertMany(candidates);
+
+  const refs: AuthorizationGrantRef[] = [];
+  for (const candidate of candidates) {
+    const persisted = await input.grants.get(candidate.id);
     if (!persisted || persisted.grantHash !== candidate.grantHash) {
       throw new ControlPlaneError(
         "IDEMPOTENCY_CONFLICT",
