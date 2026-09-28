@@ -16,7 +16,7 @@ import {
   type ContextScope
 } from "@/lib/intelligence/context";
 
-export const OWNER_INTENT_ORCHESTRATION_FLOW_VERSION = "1.0.0";
+export const OWNER_INTENT_ORCHESTRATION_FLOW_VERSION = "1.1.0";
 
 export interface OwnerIntentReadStore {
   get(id: string): Promise<OwnerIntentRecord | null>;
