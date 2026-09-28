@@ -295,7 +295,10 @@ function structuredDrafts(rawText: string): ObjectiveDraft[] {
       riskLevel: asRisk(row.risk_level ?? row.riskLevel, raw),
       status: asStatus(row.status),
       relationship,
-      parentIndex: Number.isInteger(parentIndexValue) ? Number(parentIndexValue) : undefined,
+      parentIndex:
+        typeof parentIndexValue === "number" && Number.isInteger(parentIndexValue)
+          ? parentIndexValue
+          : undefined,
       dependsOnIndexes: Array.isArray(dependsValue)
         ? dependsValue.filter((item): item is number => Number.isInteger(item))
         : []
