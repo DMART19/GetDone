@@ -286,7 +286,7 @@
       ]
     },
     "orchestrationContract": {
-      "version": "1.1.0",
+      "version": "1.2.0",
       "sourcePath": "lib/orchestration/contracts.ts",
       "contractTracked": true,
       "contractSourcePaths": [
@@ -299,6 +299,14 @@
       "contractTracked": true,
       "contractSourcePaths": [
         "lib/orchestration/worker-contracts.ts"
+      ]
+    },
+    "orchestrationTaskJobMaterialization": {
+      "version": "1.0.0",
+      "sourcePath": "lib/orchestration/task-job-materialization.ts",
+      "contractTracked": true,
+      "contractSourcePaths": [
+        "lib/orchestration/task-job-materialization.ts"
       ]
     }
   },
@@ -659,7 +667,9 @@
     "lib/persistence/postgres/owner-intent-orchestration.integration.test.ts",
     "lib/persistence/postgres/orchestration-planning.integration.test.ts",
     "lib/persistence/postgres/orchestration-validation-policy.integration.test.ts",
-    "lib/persistence/postgres/orchestration-authorization.integration.test.ts"
+    "lib/persistence/postgres/orchestration-authorization.integration.test.ts",
+    "lib/orchestration/task-job-materialization.test.ts",
+    "lib/persistence/postgres/orchestration-task-job-store.test.ts"
   ],
   "manualSourcePaths": [
     "docs/ARCHITECTURE.md",

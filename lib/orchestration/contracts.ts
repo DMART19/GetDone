@@ -2,7 +2,7 @@ import { sha256Hex } from "@/lib/control-plane/canonical-hash";
 import { ControlPlaneError } from "@/lib/control-plane/errors";
 import type { TrustedExecutionScope } from "@/lib/control-plane/trusted-execution-scope";
 
-export const ORCHESTRATION_CONTRACT_VERSION = "1.1.0";
+export const ORCHESTRATION_CONTRACT_VERSION = "1.2.0";
 
 export type OrchestrationSourceType =
   | "owner-intent"
@@ -65,6 +65,7 @@ export interface OrchestrationCheckpoints {
   plan?: IntegrityRef;
   validationReceipt?: IntegrityRef;
   policySnapshot?: IntegrityRef;
+  taskDag?: IntegrityRef;
   decisionIds: readonly string[];
   authorizationGrants: readonly AuthorizationGrantRef[];
   tasks: readonly TaskRef[];
@@ -226,6 +227,9 @@ function freezeCheckpoints(
       : undefined,
     policySnapshot: checkpoints.policySnapshot
       ? Object.freeze({ ...checkpoints.policySnapshot })
+      : undefined,
+    taskDag: checkpoints.taskDag
+      ? Object.freeze({ ...checkpoints.taskDag })
       : undefined,
     decisionIds: Object.freeze([...checkpoints.decisionIds]),
     authorizationGrants: Object.freeze(
@@ -415,6 +419,18 @@ function assertCheckpointRequirements(
   for (const task of checkpoints.tasks) {
     assertIntegrityRef(task, "task");
     requireNonEmpty(task.authorizationConsumptionHash, "task.authorizationConsumptionHash");
+  }
+
+  if (
+    ["tasks-created", "jobs-enqueued", "executing", "verifying", "completed"].includes(state)
+  ) {
+    if (!checkpoints.taskDag) {
+      throw new ControlPlaneError(
+        "CONFLICT",
+        `Orchestration state ${state} requires a Task DAG checkpoint`
+      );
+    }
+    assertIntegrityRef(checkpoints.taskDag, "taskDag");
   }
 
   if (
@@ -616,6 +632,7 @@ export function transitionOrchestrationRun(
     validationReceipt:
       checkpointPatch.validationReceipt ?? current.checkpoints.validationReceipt,
     policySnapshot: checkpointPatch.policySnapshot ?? current.checkpoints.policySnapshot,
+    taskDag: checkpointPatch.taskDag ?? current.checkpoints.taskDag,
     decisionIds: checkpointPatch.decisionIds ?? current.checkpoints.decisionIds,
     authorizationGrants:
       checkpointPatch.authorizationGrants ?? current.checkpoints.authorizationGrants,
