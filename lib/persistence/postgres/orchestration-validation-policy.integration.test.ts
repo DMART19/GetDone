@@ -1,13 +1,13 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { OwnerIntentRecord } from "@/lib/control-api/contracts";
-import { CURRENT_POLICY_VERSION } from "@/lib/domain/policy-registry";
 import {
   advanceOwnerIntentAcceptedToContextReady
 } from "@/lib/orchestration/owner-intent-flow";
 import {
   advanceContextReadyToPlanning,
   advancePlanningToPlanned,
-  type DurablePlanner
+  type DurablePlanner,
+  type PersistedPlanProposal
 } from "@/lib/orchestration/planning-flow";
 import {
   advancePlannedToValidated,
@@ -210,10 +210,7 @@ integrationDescribe("PostgreSQL durable planned -> validated -> policy-evaluated
     return { planned, planArtifact, runStore, plans };
   }
 
-  function validationResolver(planArtifact: Awaited<ReturnType<
-    PostgresOrchestrationPlanProposalStore["get"]
-  >> & {}) {
-    if (!planArtifact) throw new Error("plan artifact required");
+  function validationResolver(planArtifact: PersistedPlanProposal) {
     return {
       resolve: async () => ({
         validationPolicy: validationPolicyFor(planArtifact.proposal),
@@ -231,9 +228,7 @@ integrationDescribe("PostgreSQL durable planned -> validated -> policy-evaluated
     };
   }
 
-  function policyResolver(planArtifact: NonNullable<Awaited<ReturnType<
-    PostgresOrchestrationPlanProposalStore["get"]
-  >>>) {
+  function policyResolver(planArtifact: PersistedPlanProposal) {
     return {
       resolveStep: async () => ({
         region: "us-west",
