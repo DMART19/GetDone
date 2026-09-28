@@ -253,25 +253,7 @@ describe("RoutedJobExecutionHandler", () => {
 
   it("routes completed business actions to verification handoff and persists evidence", async () => {
     const specs = new MemorySpecStore();
-    const payload = { message: "hello" };
-    specs.value = createPersistedJobExecutionSpec({
-      kind: "business-action",
-      jobId: "job-1",
-      authoritativeJobVersion: authoritativeJob.version,
-      authoritativeJobHash: sha256Hex(authoritativeJob),
-      request: {
-        id: "action-1",
-        jobId: "job-1",
-        scope: envelope.scope,
-        capability: "email.send",
-        input: payload,
-        inputHash: sha256Hex(payload),
-        authorizationConsumptionHash: "auth",
-        idempotencyKey: "action-1",
-        timeoutMs: 1000,
-        attempt: 1
-      }
-    }, "2026-09-21T04:00:00Z");
+    setBusinessSpec(specs);
 
     const evidence = createVerificationEvidence({
       id: "evidence-1",
@@ -305,7 +287,8 @@ describe("RoutedJobExecutionHandler", () => {
       specs,
       business as never,
       undefined,
-      auth.value as never
+      auth.value as never,
+      () => now
     );
     expect(await handler.execute(context)).toEqual({ kind: "provider-completed" });
     expect(auth.persisted).toEqual([evidence]);
@@ -314,24 +297,7 @@ describe("RoutedJobExecutionHandler", () => {
 
   it("rejects stale or cancelled authoritative Job snapshots before side effects", async () => {
     const specs = new MemorySpecStore();
-    specs.value = createPersistedJobExecutionSpec({
-      kind: "business-action",
-      jobId: "job-1",
-      authoritativeJobVersion: authoritativeJob.version,
-      authoritativeJobHash: sha256Hex(authoritativeJob),
-      request: {
-        id: "action-1",
-        jobId: "job-1",
-        scope: envelope.scope,
-        capability: "email.send",
-        input: { message: "hello" },
-        inputHash: sha256Hex({ message: "hello" }),
-        authorizationConsumptionHash: "auth",
-        idempotencyKey: "action-1",
-        timeoutMs: 1000,
-        attempt: 1
-      }
-    }, "2026-09-21T04:00:00Z");
+    setBusinessSpec(specs);
 
     let executions = 0;
     const business = { execute: async () => {
@@ -341,7 +307,7 @@ describe("RoutedJobExecutionHandler", () => {
 
     const stale = authority({ ...authoritativeJob, version: 3 });
     const staleHandler = new RoutedJobExecutionHandler(
-      specs, business as never, undefined, stale.value as never
+      specs, business as never, undefined, stale.value as never, () => now
     );
     await expect(staleHandler.execute(context)).resolves.toEqual({
       kind: "dead-letter",
@@ -350,7 +316,7 @@ describe("RoutedJobExecutionHandler", () => {
 
     const cancelled = authority({ ...authoritativeJob, state: "cancelled" });
     const cancelledHandler = new RoutedJobExecutionHandler(
-      specs, business as never, undefined, cancelled.value as never
+      specs, business as never, undefined, cancelled.value as never, () => now
     );
     await expect(cancelledHandler.execute(context)).resolves.toEqual({
       kind: "cancelled",
@@ -360,13 +326,72 @@ describe("RoutedJobExecutionHandler", () => {
     expect(executions).toBe(0);
   });
 
+  it("re-reads Task and AuthorizationGrant immediately before provider execution", async () => {
+    const specs = new MemorySpecStore();
+    setBusinessSpec(specs);
+    let executions = 0;
+    const revokedGrant: AuthorizationGrant = {
+      ...currentGrant,
+      status: "revoked",
+      revokedAt: now.toISOString(),
+      grantHash: sha256Hex({
+        ...grantBase,
+        status: "revoked",
+        revokedAt: now.toISOString()
+      })
+    };
+    const auth = authority(authoritativeJob, authoritativeTask, revokedGrant);
+    const handler = new RoutedJobExecutionHandler(
+      specs,
+      {
+        execute: async () => {
+          executions += 1;
+          return { record: { state: "completed", retryable: false } };
+        }
+      } as never,
+      undefined,
+      auth.value as never,
+      () => now
+    );
+
+    const result = await handler.execute(context);
+    expect(result.kind).toBe("dead-letter");
+    expect(result.kind === "dead-letter" ? result.reason : "").toMatch(/authorization grant|authority is invalid/i);
+    expect(executions).toBe(0);
+    expect(auth.lifecycle).toEqual([]);
+  });
+
+  it("fails closed if the parent Task is no longer executable", async () => {
+    const specs = new MemorySpecStore();
+    setBusinessSpec(specs);
+    let executions = 0;
+    const auth = authority(authoritativeJob, { ...authoritativeTask, state: "cancelled" });
+    const handler = new RoutedJobExecutionHandler(
+      specs,
+      {
+        execute: async () => {
+          executions += 1;
+          return { record: { state: "completed", retryable: false } };
+        }
+      } as never,
+      undefined,
+      auth.value as never,
+      () => now
+    );
+
+    const result = await handler.execute(context);
+    expect(result).toMatchObject({ kind: "dead-letter" });
+    expect(executions).toBe(0);
+    expect(auth.lifecycle).toEqual([]);
+  });
+
   it("rejects tampered persisted execution specs", async () => {
     const specs = new MemorySpecStore();
     const valid = createPersistedJobExecutionSpec({
       kind: "software-prepare",
       jobId: "job-1",
       plan: {} as never
-    }, "2026-09-21T04:00:00Z");
+    }, now.toISOString());
     specs.value = { ...valid, specHash: "tampered" };
     const handler = new RoutedJobExecutionHandler(specs, {} as never, {} as never);
     await expect(handler.execute(context)).rejects.toThrow(/tampered/i);
