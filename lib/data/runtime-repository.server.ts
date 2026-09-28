@@ -74,6 +74,16 @@ function decisionCategory(value: unknown): Decision["category"] {
     : "growth";
 }
 
+function objectiveIdFromDecision(
+  value: AuthoritativeDecision,
+  presentation: DecisionPresentation
+) {
+  if (presentation.objectiveId) return presentation.objectiveId;
+  const runId = value.approvalBinding?.orchestrationRunId;
+  const prefix = "orchestration:objective:";
+  return runId?.startsWith(prefix) ? runId.slice(prefix.length) : undefined;
+}
+
 function toDecision(value: AuthoritativeDecision): Decision {
   const presentation = value as AuthoritativeDecision & DecisionPresentation;
   return {
@@ -91,7 +101,7 @@ function toDecision(value: AuthoritativeDecision): Decision {
     impact: presentation.impact?.length
       ? [...presentation.impact]
       : ["Mutation is scope-bound, idempotent, audited, and persisted."],
-    objectiveId: presentation.objectiveId,
+    objectiveId: objectiveIdFromDecision(value, presentation),
     actionLabel: presentation.actionLabel,
     evidence: presentation.evidence?.length ? [...presentation.evidence] : undefined,
     blastRadius: presentation.blastRadius
