@@ -6,23 +6,32 @@ import { resolveDecision } from "@/lib/domain/decision-service";
 import type { DecisionTransaction, DecisionTransactionManager } from "@/lib/domain/decision-transaction";
 import type { IdempotencyClaim, IdempotencyRecord, IdempotencyStore } from "@/lib/domain/idempotency";
 import { createStepUpProof, type StepUpProof } from "@/lib/authorization/proofs";
+import type { ApprovalRecord } from "@/lib/domain/services/approval-service";
+import type { EntityStore } from "@/lib/domain/services/common";
 
 class MemoryDecisionTransactionManager implements DecisionTransactionManager {
   private decisionValue: AuthoritativeDecision;
+  private approvalValue?: ApprovalRecord;
   private auditEvents: AuditEvent[] = [];
   private idempotencyRecords = new Map<string, IdempotencyRecord>();
   failAudit = false;
 
-  constructor(initialDecision: AuthoritativeDecision) {
+  constructor(
+    initialDecision: AuthoritativeDecision,
+    initialApproval?: ApprovalRecord
+  ) {
     this.decisionValue = { ...initialDecision };
+    this.approvalValue = initialApproval ? { ...initialApproval } : undefined;
   }
 
   decision() { return { ...this.decisionValue }; }
+  approval() { return this.approvalValue ? { ...this.approvalValue } : undefined; }
   events() { return [...this.auditEvents]; }
   idempotency(key: string) { return this.idempotencyRecords.get(key); }
 
   async run<T>(operation: (transaction: DecisionTransaction) => Promise<T>): Promise<T> {
     let stagedDecision = { ...this.decisionValue };
+    let stagedApproval = this.approvalValue ? { ...this.approvalValue } : undefined;
     const stagedEvents = [...this.auditEvents];
     const stagedIdempotency = new Map(this.idempotencyRecords);
 
@@ -31,6 +40,17 @@ class MemoryDecisionTransactionManager implements DecisionTransactionManager {
       save: async (next, expectedVersion) => {
         if (stagedDecision.version !== expectedVersion) throw new Error("optimistic concurrency conflict");
         stagedDecision = { ...next };
+      }
+    };
+
+    const approvals: EntityStore<ApprovalRecord> = {
+      get: async (id) =>
+        stagedApproval?.id === id ? { ...stagedApproval } : null,
+      save: async (next, expectedVersion) => {
+        if (!stagedApproval || stagedApproval.version !== expectedVersion) {
+          throw new Error("approval optimistic concurrency conflict");
+        }
+        stagedApproval = { ...next };
       }
     };
 
@@ -72,8 +92,13 @@ class MemoryDecisionTransactionManager implements DecisionTransactionManager {
       }
     };
 
-    const result = await operation({ stores: { decisions }, audit, idempotency });
+    const result = await operation({
+      stores: { decisions, approvals },
+      audit,
+      idempotency
+    });
     this.decisionValue = stagedDecision;
+    this.approvalValue = stagedApproval;
     this.auditEvents = stagedEvents;
     this.idempotencyRecords = stagedIdempotency;
     return result;
@@ -192,6 +217,122 @@ describe("decision authority service", () => {
       }),
       stepUpProof: stepUp()
     }))).status).toBe("approved");
+  });
+
+  it("atomically grants an exact-hash paired Approval with an orchestration Decision", async () => {
+    const initial = decision({
+      correlationId: "orchestration-corr",
+      orchestrationRunId: "run-1",
+      planId: "plan-1",
+      planHash: "a".repeat(64),
+      stepId: "step-1",
+      stepHash: "b".repeat(64),
+      policySnapshotId: "policy-1",
+      policySnapshotHash: "c".repeat(64),
+      approvalId: "approval-1",
+      approvalRequirement: "approval"
+    });
+    const approval: ApprovalRecord = {
+      id: "approval-1",
+      correlationId: "orchestration-corr",
+      portfolioId: "portfolio-a",
+      companyId: "company-a",
+      state: "pending",
+      decisionId: "decision-1",
+      requirement: "approval",
+      version: 1,
+      updatedAt: "2026-09-20T16:00:00Z"
+    };
+    const transactionManager = new MemoryDecisionTransactionManager(initial, approval);
+    const resolvedAt = new Date("2026-09-20T18:00:00Z");
+
+    const result = await resolveDecision(input(transactionManager, {
+      now: () => resolvedAt
+    }));
+
+    expect(result.status).toBe("approved");
+    expect(result.approvalProofId).toMatch(/^approval-proof:/);
+    expect(result.approvalProofHash).toHaveLength(64);
+    expect(transactionManager.approval()).toMatchObject({
+      state: "granted",
+      grantedBy: "user-a",
+      decisionId: "decision-1"
+    });
+    expect(transactionManager.approval()?.approvalProof).toMatchObject({
+      planHash: "a".repeat(64),
+      stepHash: "b".repeat(64),
+      level: "approval"
+    });
+    expect(transactionManager.approval()?.approvalProof?.proofHash)
+      .toBe(result.approvalProofHash);
+    expect(transactionManager.events().map((event) => event.eventType))
+      .toEqual(["approval.granted", "decision.approved"]);
+  });
+
+  it("denies the paired Approval in the same transaction when the Decision is rejected", async () => {
+    const initial = decision({
+      orchestrationRunId: "run-1",
+      planId: "plan-1",
+      planHash: "a".repeat(64),
+      stepId: "step-1",
+      stepHash: "b".repeat(64),
+      policySnapshotId: "policy-1",
+      policySnapshotHash: "c".repeat(64),
+      approvalId: "approval-1",
+      approvalRequirement: "approval"
+    });
+    const transactionManager = new MemoryDecisionTransactionManager(initial, {
+      id: "approval-1",
+      portfolioId: "portfolio-a",
+      companyId: "company-a",
+      state: "pending",
+      decisionId: "decision-1",
+      requirement: "approval",
+      version: 1,
+      updatedAt: "2026-09-20T16:00:00Z"
+    });
+
+    const result = await resolveDecision(input(transactionManager, {
+      command: command("company-a", "reject"),
+      action: "reject"
+    }));
+
+    expect(result.status).toBe("rejected");
+    expect(transactionManager.approval()?.state).toBe("denied");
+  });
+
+  it("persists the exact step-up proof that supports strong Approval authority", async () => {
+    const initial = decision({
+      requiresStepUp: true,
+      orchestrationRunId: "run-1",
+      planId: "plan-1",
+      planHash: "a".repeat(64),
+      stepId: "step-1",
+      stepHash: "b".repeat(64),
+      policySnapshotId: "policy-1",
+      policySnapshotHash: "c".repeat(64),
+      approvalId: "approval-1",
+      approvalRequirement: "strong-approval"
+    });
+    const transactionManager = new MemoryDecisionTransactionManager(initial, {
+      id: "approval-1",
+      portfolioId: "portfolio-a",
+      companyId: "company-a",
+      state: "pending",
+      decisionId: "decision-1",
+      requirement: "strong-approval",
+      version: 1,
+      updatedAt: "2026-09-20T16:00:00Z"
+    });
+
+    await resolveDecision(input(transactionManager, {
+      stepUpProof: stepUp(),
+      now: () => new Date("2026-09-20T18:00:00Z")
+    }));
+
+    expect(transactionManager.approval()?.stepUpProof?.id).toBe("decision-stepup-1");
+    expect(transactionManager.approval()?.approvalProof?.stepUpProofId)
+      .toBe("decision-stepup-1");
   });
 
   it("rejects a command whose embedded mutation does not match the requested action", async () => {
