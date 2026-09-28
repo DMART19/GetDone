@@ -36,6 +36,19 @@ const ownerIntentSchema = z.object({
   channel: z.enum(["chat", "api"]).optional()
 });
 
+const objectiveIntakeSchema = z.object({
+  rawText: z.string().trim().min(1).max(100_000),
+  source: z.enum([
+    "free_text",
+    "multiline_list",
+    "checklist",
+    "pasted_document",
+    "uploaded_text",
+    "structured_json"
+  ]).optional(),
+  fileName: z.string().trim().min(1).max(255).optional()
+});
+
 const decisionMutationSchema = z.object({
   action: z.enum(["approve", "modify", "reject"]),
   note: z.string().max(2_000).optional()
@@ -260,6 +273,44 @@ export function handleOwnerIntent(request: Request) {
       correlationId
     );
   }, { status: 202 });
+}
+
+export function handleSubmitObjectives(request: Request) {
+  return execute(async (adapter, correlationId) => {
+    const actor = await adapter.authenticate(request);
+    await enforceRateLimit(
+      RATE_LIMIT_POLICIES.ownerIntent,
+      tenantRateLimitKey({
+        portfolioId: actor.scope.portfolioId,
+        companyId: actor.scope.companyId,
+        userId: actor.scope.userId,
+      }, "objective-intake")
+    );
+    const input = await parseJson(request, objectiveIntakeSchema, "objective intake");
+    return adapter.submitObjectives(
+      actor,
+      input,
+      requireIdempotencyKey(request),
+      correlationId
+    );
+  }, { status: 201 });
+}
+
+export function handleListObjectives(request: Request) {
+  return execute(async (adapter) =>
+    adapter.listObjectives(await adapter.authenticate(request))
+  );
+}
+
+export function handleGetObjective(request: Request, objectiveId: string) {
+  return execute(async (adapter) => {
+    const value = await adapter.getObjective(
+      await adapter.authenticate(request),
+      safeId(objectiveId, "objectiveId")
+    );
+    if (!value) throw new ControlPlaneError("NOT_FOUND", "Objective was not found");
+    return value;
+  });
 }
 
 export function handleListDecisions(request: Request) {
