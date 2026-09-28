@@ -37,7 +37,7 @@ function plannerDataClass(input: PlannerInputEnvelope): ResourceDataClass {
   const value = input.context.items.reduce<keyof typeof rank>(
     (current, item) =>
       rank[item.sensitivity] > rank[current] ? item.sensitivity : current,
-    "public"
+    "internal"
   );
 
   if (value === "sensitive") return "SENSITIVE";
