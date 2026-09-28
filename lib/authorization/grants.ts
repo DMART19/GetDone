@@ -66,11 +66,11 @@ export interface AuthorizationGrant {
   policySnapshotId: string;
   policySnapshotHash: string;
   policyVersion: string;
-  policyRegistryHash: string;
+  policyRegistryHash?: string;
   policyEngineVersion: string;
   policyRulesHash: string;
-  capabilityRegistryVersion: string;
-  capabilityRegistryHash: string;
+  capabilityRegistryVersion?: string;
+  capabilityRegistryHash?: string;
   decisionId?: string;
   approvalProofId?: string;
   approvalProofHash?: string;
