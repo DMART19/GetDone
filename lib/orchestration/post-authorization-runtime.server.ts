@@ -1,6 +1,11 @@
 import { sha256Hex } from "@/lib/control-plane/canonical-hash";
+import { createCommandEnvelope } from "@/lib/control-plane/command-envelope";
 import { ControlPlaneError } from "@/lib/control-plane/errors";
-import type { JobRecord } from "@/lib/domain/services/job-service";
+import {
+  JobService,
+  type JobRecord,
+  type JobStores
+} from "@/lib/domain/services/job-service";
 import { createAuditEvent } from "@/lib/domain/audit";
 import type { AuthorizedBusinessActionRequest } from "@/lib/execution/adapters/business-action";
 import { getDurableJobEngineFromEnv } from "@/lib/execution/durable-job-engine.server";
@@ -17,8 +22,12 @@ import {
 import type { OrchestrationRunRecord } from "@/lib/orchestration/contracts";
 import {
   PostgresAuditLedger,
+  PostgresEntityStore,
   PostgresVerificationReceiptStore
 } from "@/lib/persistence/postgres/authority-stores";
+import {
+  PostgresControlPlaneTransactionManager
+} from "@/lib/persistence/postgres/transaction-manager";
 import type {
   PostgresTransactionalDatabase
 } from "@/lib/persistence/postgres/client";
@@ -144,6 +153,7 @@ export class PostgresGovernedJobRuntime implements GovernedJobRuntimePort {
   private readonly graphs: PostgresOrchestrationJobGraphStore;
   private readonly evidence: PostgresJobVerificationEvidenceStore;
   private readonly receipts: PostgresVerificationReceiptStore;
+  private readonly jobLifecycle: JobService;
 
   constructor(
     private readonly db: PostgresTransactionalDatabase,
@@ -154,6 +164,16 @@ export class PostgresGovernedJobRuntime implements GovernedJobRuntimePort {
     this.graphs = new PostgresOrchestrationJobGraphStore(db);
     this.evidence = new PostgresJobVerificationEvidenceStore(db);
     this.receipts = new PostgresVerificationReceiptStore(db);
+    this.jobLifecycle = new JobService(
+      new PostgresControlPlaneTransactionManager<JobStores>(
+        db,
+        (client) => ({
+          jobs: new PostgresEntityStore<JobRecord>(client, "job"),
+          verificationReceipts: new PostgresVerificationReceiptStore(client)
+        })
+      ),
+      now
+    );
   }
 
   async materializeAndEnqueue(input: {
@@ -261,7 +281,10 @@ export class PostgresGovernedJobRuntime implements GovernedJobRuntimePort {
         && prior.authorizationConsumption?.consumptionHash
           === node.authorizationConsumptionHash
       ) return prior;
-      if (prior.state === "succeeded" && prior.taskId === node.taskId) return prior;
+      if (
+        (prior.state === "verified" || prior.state === "succeeded")
+        && prior.taskId === node.taskId
+      ) return prior;
       throw new ControlPlaneError(
         "IDEMPOTENCY_CONFLICT",
         "Persisted Job identity already exists with different orchestration lineage"
@@ -334,7 +357,7 @@ export class PostgresGovernedJobRuntime implements GovernedJobRuntimePort {
     node: OrchestrationJobNode
   ) {
     const record = await this.ensureQueuedJobEntity(run, taskDag, node);
-    if (record.state === "succeeded") {
+    if (record.state === "verified" || record.state === "succeeded") {
       await this.graphs.updateNode({
         expectedState: node.state,
         job: {
@@ -439,7 +462,11 @@ export class PostgresGovernedJobRuntime implements GovernedJobRuntimePort {
           reason: terminal.reason ?? `Durable Job ended as ${terminal.kind}`
         };
       }
-      if (terminal.kind !== "succeeded") continue;
+      if (
+        terminal.kind !== "provider-completed"
+        && terminal.kind !== "verified"
+        && terminal.kind !== "succeeded"
+      ) continue;
 
       const observed = await this.evidence.listByJobId(node.id);
       allEvidence.push(...observed);
@@ -496,7 +523,6 @@ export class PostgresGovernedJobRuntime implements GovernedJobRuntimePort {
         continue;
       }
 
-      await this.receipts.insert(receipt);
       await this.markVerifiedProjection(input.run, node, observed, receipt, "verified");
     }
 
@@ -525,6 +551,30 @@ export class PostgresGovernedJobRuntime implements GovernedJobRuntimePort {
     };
   }
 
+  private verificationLifecycleCommand(
+    run: OrchestrationRunRecord,
+    node: OrchestrationJobNode,
+    operation: "begin-verification" | "verify" | "fail-verification",
+    receiptId: string
+  ) {
+    const key = `orchestration:${run.id}:${node.id}:${operation}:${receiptId}`;
+    return createCommandEnvelope({
+      commandId: key,
+      actor: { type: "system", id: "getdone-verifier" },
+      scope: run.scope,
+      correlationId: run.correlationId,
+      environment: run.scope.environment,
+      idempotencyKey: key,
+      provenance: "orchestration:provider-result-verification",
+      requestedMutation: {
+        operation,
+        runId: run.id,
+        jobId: node.id,
+        verificationReceiptId: receiptId
+      }
+    });
+  }
+
   private async markVerifiedProjection(
     run: OrchestrationRunRecord,
     node: OrchestrationJobNode,
@@ -532,57 +582,73 @@ export class PostgresGovernedJobRuntime implements GovernedJobRuntimePort {
     receipt: ReturnType<typeof resolveVerificationRequest>,
     state: "verified" | "failed"
   ) {
-    const updatedAt = this.now().toISOString();
-    await this.db.transaction(async (client) => {
-      const result = await client.query<{ payload: JobRecord }>(
-        `SELECT payload FROM control_plane_entities
-         WHERE entity_type='job' AND id=$1 FOR UPDATE`,
-        [node.id]
+    await this.receipts.insert(receipt);
+
+    const jobs = new PostgresEntityStore<JobRecord>(this.db, "job");
+    let current = await jobs.get(node.id);
+    if (!current) {
+      throw new ControlPlaneError(
+        "NOT_FOUND",
+        "Authoritative Job projection was not found"
       );
-      const current = result.rows[0]?.payload;
-      if (!current) throw new ControlPlaneError("NOT_FOUND", "Authoritative Job projection was not found");
-      if (current.state !== "succeeded" && current.state !== "failed") {
-        const next: JobRecord = Object.freeze({
-          ...current,
-          state: state === "verified" ? "succeeded" : "failed",
-          verificationEvidenceIds: Object.freeze(evidence.map((item) => item.id)),
-          verificationReceiptId: receipt.id,
-          verificationReceiptHash: receipt.receiptHash,
-          failureReason: state === "failed" ? "verification-failed" : undefined,
-          version: current.version + 1,
-          updatedAt
-        });
-        await client.query(
-          `UPDATE control_plane_entities
-           SET version=$2,updated_at=$3,payload=$4::jsonb
-           WHERE entity_type='job' AND id=$1 AND version=$5`,
-          [node.id, next.version, updatedAt, JSON.stringify(next), current.version]
+    }
+
+    const targetAlreadyReached = state === "verified"
+      ? current.state === "verified" || current.state === "succeeded"
+      : current.state === "failed";
+
+    if (!targetAlreadyReached) {
+      if (current.state === "provider_completed") {
+        current = await this.jobLifecycle.beginVerification(
+          node.id,
+          this.verificationLifecycleCommand(
+            run,
+            node,
+            "begin-verification",
+            receipt.id
+          )
         );
-        await new PostgresAuditLedger(client).append(createAuditEvent({
-          correlationId: run.correlationId,
-          eventType: state === "verified"
-            ? "job.verified-succeeded"
-            : "job.verification-failed",
-          actor: { type: "system", id: "getdone-verifier" },
-          scope: {
-            userId: run.scope.userId,
-            portfolioId: run.scope.portfolioId,
-            companyId: run.scope.companyId
-          },
-          environment: run.scope.environment,
-          entityType: "job",
-          entityId: node.id,
-          previousState: current.state,
-          newState: next.state,
-          provenance: "orchestration:provider-result-verification",
-          metadata: {
-            runId: run.id,
-            verificationReceiptId: receipt.id,
-            verificationReceiptHash: receipt.receiptHash
-          }
-        }));
       }
-    });
+
+      if (current.state !== "verifying") {
+        throw new ControlPlaneError(
+          "CONFLICT",
+          `Verification handoff expected provider_completed or verifying Job state, received ${current.state}`
+        );
+      }
+
+      if (state === "verified") {
+        current = await this.jobLifecycle.verify(
+          node.id,
+          this.verificationLifecycleCommand(run, node, "verify", receipt.id),
+          receipt.id
+        );
+      } else {
+        current = await this.jobLifecycle.failVerification(
+          node.id,
+          this.verificationLifecycleCommand(
+            run,
+            node,
+            "fail-verification",
+            receipt.id
+          ),
+          receipt.id,
+          "Authoritative verification evidence did not establish the requested Job outcome"
+        );
+      }
+    }
+
+    if (
+      (state === "verified"
+        && current.state !== "verified"
+        && current.state !== "succeeded")
+      || (state === "failed" && current.state !== "failed")
+    ) {
+      throw new ControlPlaneError(
+        "FORBIDDEN",
+        "Authoritative Job lifecycle did not reach the verification terminal state"
+      );
+    }
 
     await this.graphs.updateNode({
       expectedState: node.state,
@@ -592,7 +658,7 @@ export class PostgresGovernedJobRuntime implements GovernedJobRuntimePort {
         verificationRequestId: receipt.requestId,
         verificationReceiptId: receipt.id,
         verificationReceiptHash: receipt.receiptHash,
-        updatedAt
+        updatedAt: this.now().toISOString()
       }
     });
   }
