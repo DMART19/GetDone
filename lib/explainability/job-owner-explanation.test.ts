@@ -10,7 +10,7 @@ function job(overrides: Partial<JobRecord> = {}): JobRecord {
     id: "job-1",
     portfolioId: "portfolio-a",
     companyId: "company-a",
-    state: "succeeded",
+    state: "verified",
     taskId: "task-1",
     attempt: 1,
     verificationEvidenceIds: ["evidence-1", "evidence-2"],
@@ -22,7 +22,7 @@ function job(overrides: Partial<JobRecord> = {}): JobRecord {
     policySnapshotId: "policy-snapshot-1",
     policySnapshotHash: "snapshot-hash",
     policyVersion: "policy-v7",
-    policyEngineVersion: "2026-09-20.2",
+    policyEngineVersion: "2026-09-28.1",
     policyRulesHash: "rules-hash",
     version: 3,
     updatedAt: "2026-09-28T19:00:00Z",
@@ -40,7 +40,7 @@ describe("owner-safe Job explainability", () => {
         disposition: "AUTO",
         capabilityNames: ["deployment.staging.publish"],
         policyVersion: "policy-v7",
-        policyEngineVersion: "2026-09-20.2",
+        policyEngineVersion: "2026-09-28.1",
         policyRulesHash: "rules-hash",
         policySnapshotId: "policy-snapshot-1",
         policySnapshotHash: "snapshot-hash",
@@ -81,6 +81,34 @@ describe("owner-safe Job explainability", () => {
     });
     expect(JSON.stringify(failure)).not.toContain("sk_live_secret_value");
     expect(JSON.stringify(failure)).not.toContain("/v1/refunds");
+  });
+
+
+  it("shows provider completion as pending verification rather than success", () => {
+    const pending = job({
+      state: "provider_completed",
+      verificationReceiptId: undefined
+    });
+
+    expect(buildJobOwnerExplanation(pending)).toMatchObject({
+      title: "Provider work completed",
+      verification: {
+        status: "pending"
+      }
+    });
+  });
+
+  it("interprets policy-blocked work without claiming a provider failure", () => {
+    const blocked = job({
+      state: "blocked",
+      verificationEvidenceIds: [],
+      verificationReceiptId: undefined,
+      failureReason: "blocked by active policy guardrail"
+    });
+
+    expect(buildOwnerFailurePresentation(blocked)).toMatchObject({
+      title: "Policy stopped this action"
+    });
   });
 
   it("does not claim success when verification is uncertain", () => {
