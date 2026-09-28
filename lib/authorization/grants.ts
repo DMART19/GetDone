@@ -310,6 +310,30 @@ export function assertAuthorizationGrantEnvelope(
     );
   }
 
+  if (
+    grant.disposition !== "AUTO"
+    && (
+      !grant.decisionId
+      || !grant.approvalProofId
+      || !grant.approvalProofHash
+    )
+  ) {
+    throw new ControlPlaneError(
+      "FORBIDDEN",
+      "Approval-backed authorization grant is missing immutable Decision proof lineage"
+    );
+  }
+
+  if (
+    grant.disposition === "STRONG_APPROVAL"
+    && (!grant.stepUpProofId || !grant.stepUpProofHash)
+  ) {
+    throw new ControlPlaneError(
+      "FORBIDDEN",
+      "Strong approval authorization grant is missing step-up proof lineage"
+    );
+  }
+
   assertTrustedExecutionScopeEqual(scope, grant.scope, {
     requireSameResource: Boolean(scope.resourceId || grant.scope.resourceId)
   });
