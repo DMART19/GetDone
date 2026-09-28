@@ -7,7 +7,7 @@ function required(name) {
   return value;
 }
 
-const requiredMigration = "2026-09-28.1";
+const requiredMigration = "2026-09-28.2";
 const maxBackupAgeHours = Number(process.env.GETDONE_BACKUP_MAX_AGE_HOURS || "24");
 if (!Number.isFinite(maxBackupAgeHours) || maxBackupAgeHours <= 0) {
   throw new Error("GETDONE_BACKUP_MAX_AGE_HOURS must be positive");
@@ -107,7 +107,8 @@ try {
     "analytics_ingestion_runs",
     "orchestration_runs",
     "orchestration_transition_receipts",
-    "orchestration_checkpoints"
+    "orchestration_checkpoints",
+    "orchestration_worker_state"
   ];
   const rls = await client.query(
     `SELECT required.name, relation.relrowsecurity, relation.relforcerowsecurity
@@ -357,6 +358,36 @@ try {
     throw new Error("UFO orchestration uniqueness/CAS constraints are incomplete");
   }
 
+  const orchestrationWorkerSchema = await client.query(
+    `SELECT COUNT(*)::int AS count
+     FROM information_schema.columns
+     WHERE table_name='orchestration_worker_state'
+       AND column_name IN (
+         'run_id','portfolio_id','company_id','stage_run_version','stage_attempt',
+         'consecutive_failures','ready_at','lease_id','lease_worker_id',
+         'lease_issued_at','lease_heartbeat_at','lease_expires_at','lease_version',
+         'claimed_run_version','claimed_record_hash','last_error_code',
+         'last_error_message','updated_at'
+       )`
+  );
+  if (orchestrationWorkerSchema.rows[0]?.count !== 18) {
+    throw new Error("UFO orchestration worker persistence schema verification failed");
+  }
+
+  const orchestrationWorkerIndexes = await client.query(
+    `SELECT COUNT(*)::int AS count
+     FROM pg_indexes
+     WHERE schemaname=current_schema()
+       AND indexname IN (
+         'orchestration_worker_ready_idx',
+         'orchestration_worker_lease_expiry_idx',
+         'orchestration_worker_scope_idx'
+       )`
+  );
+  if (orchestrationWorkerIndexes.rows[0]?.count !== 3) {
+    throw new Error("UFO orchestration worker index verification failed");
+  }
+
   const backup = await client.query(
     `SELECT completed_at,verification_hash
      FROM database_backup_evidence
@@ -424,6 +455,7 @@ try {
     analyticsSchema: "verified",
     orchestrationSchema: "verified",
     orchestrationCasConstraints: "verified",
+    orchestrationWorkerSchema: "verified",
     backupFresh: true
   }, null, 2));
 } finally {
