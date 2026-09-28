@@ -63,14 +63,29 @@ OwnerIntent
   -> per-step PolicySnapshot + evaluateStepPolicy
        -> BLOCKED -> blocked
        -> APPROVAL_REQUIRED / STRONG_APPROVAL -> awaiting-approval
+            -> deterministic Decision + paired Approval
+            -> owner approve/reject
+            -> exact planHash + stepHash ApprovalProof
        -> AUTO -> policy-cleared
+  -> fresh policy/validation recheck
+  -> exact-hash AuthorizationGrant per plan step
+  -> atomic logical Task claim + grant consumption
+  -> authoritative Task records
+  -> compiled Task DAG
+  -> authoritative Job graph
+  -> queue dependency-free root Tasks/Jobs
+  -> durable JobQueueEnvelope for roots
+  -> queued
+       X provider execution is outside this orchestration tranche
 ```
 
-`policy-cleared` is not authorization. The transition graph deliberately forbids `policy-evaluation -> authorized`. A later continuation must persist the exact approval/AuthorizationGrant lineage before `policy-cleared` or `awaiting-approval` may become `authorized`.
+`policy-cleared` is not authorization. The transition graph deliberately forbids `policy-evaluation -> authorized`. Authorization occurs only after a fresh validation/policy check and a persisted exact-hash AuthorizationGrant. Approval-required work additionally requires the paired ApprovalProof (and StepUpProof for strong approval).
 
-Planning evidence is append-only, tenant-RLS protected PostgreSQL state. The tenant runtime may insert/read planning artifacts but may not update or delete them. Context, plan, validation, and policy artifacts are hash-bound and share the OrchestrationRun correlation lineage.
+Planning and execution evidence are append-only, tenant-RLS protected PostgreSQL state. Context, plan, validation, policy, validation-receipt, authorization-bundle, Task-DAG, and Job-batch artifacts share the OrchestrationRun correlation lineage.
 
-The current connected context source is authoritative OwnerIntent storage. SignalBus/investigation/objective context ingress, live model routing/budget evidence, Decision continuation, AuthorizationGrant issuance, Task/Job materialization, and execution remain intentionally unconnected.
+The complete Job graph may be materialized, but existing TaskService/JobService dependency invariants are preserved: only dependency-free roots enter the durable queue in this tranche. Downstream Tasks/Jobs remain inert until predecessors authoritatively succeed.
+
+No orchestration JobExecutionSpec is created. Reaching `queued` does not imply provider execution, placement, provider acceptance, or success. The current connected context source remains authoritative OwnerIntent storage. SignalBus/investigation/objective ingress, live model routing/budget evidence, live orchestration deployment, provider execution, and verification/outcome reconciliation remain intentionally unconnected.
 
 ### Quality and contract-integrity gates
 
