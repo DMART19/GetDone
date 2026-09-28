@@ -20,12 +20,12 @@ import {
   advanceValidatedToPolicyEvaluated
 } from "@/lib/orchestration/validation-policy-flow";
 import {
-  PostgresAuthorizationGrantStore,
   PostgresEntityStore
 } from "@/lib/persistence/postgres/authority-stores";
 import { PostgresOwnerIntentStore } from "@/lib/persistence/postgres/control-api-stores";
 import {
   PostgresDecisionResumeRequestStore,
+  PostgresOrchestrationAuthorizationGrantStore,
   PostgresOrchestrationDecisionStore
 } from "@/lib/persistence/postgres/orchestration-authorization-stores";
 import { PostgresOrchestrationContextSnapshotStore } from "@/lib/persistence/postgres/orchestration-context-snapshot-store";
@@ -358,7 +358,7 @@ integrationDescribe("PostgreSQL durable policy-evaluated -> authorized", () => {
     const record = intent("approve");
     const built = await advanceToPolicyEvaluated(record);
     const decisions = new PostgresOrchestrationDecisionStore(db());
-    const grants = new PostgresAuthorizationGrantStore(db());
+    const grants = new PostgresOrchestrationAuthorizationGrantStore(db());
 
     const authorityOutcome = await inScope(() =>
       advancePolicyEvaluatedToAuthority({
@@ -487,7 +487,7 @@ integrationDescribe("PostgreSQL durable policy-evaluated -> authorized", () => {
     const record = intent("rls");
     const built = await advanceToPolicyEvaluated(record);
     const decisions = new PostgresOrchestrationDecisionStore(db());
-    const grants = new PostgresAuthorizationGrantStore(db());
+    const grants = new PostgresOrchestrationAuthorizationGrantStore(db());
 
     const authorityOutcome = await inScope(() =>
       advancePolicyEvaluatedToAuthority({
