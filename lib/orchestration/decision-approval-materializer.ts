@@ -129,6 +129,9 @@ export class DecisionApprovalMaterializer {
           ? "strong-approval" as const
           : "approval" as const;
 
+        const capabilityNames = planStep.capabilityRequests
+          .map((request) => request.capability)
+          .sort();
         const decision: AuthoritativeDecision = Object.freeze({
           id: decisionId,
           correlationId: run.correlationId,
@@ -148,6 +151,19 @@ export class DecisionApprovalMaterializer {
           policySnapshotHash: stepPolicy.snapshot.snapshotHash,
           approvalId,
           approvalRequirement: requirement,
+          title: requirement === "strong-approval"
+            ? `Strong approval: ${capabilityNames.join(", ")}`
+            : `Approve: ${capabilityNames.join(", ")}`,
+          subtitle: `Plan ${plan.plan.id} · Step ${planStep.id}`,
+          priority: requirement === "strong-approval" ? "high" : "normal",
+          category: capabilityNames.some((name) =>
+            name.startsWith("email.") || name.startsWith("crm.")
+          ) ? "outreach" : "growth",
+          rationale: planStep.reason,
+          impact: Object.freeze([
+            `Capabilities: ${capabilityNames.join(", ")}`,
+            `Approval is bound to plan ${plan.planHash.slice(0, 12)}… and step ${stepPolicy.stepHash.slice(0, 12)}…`
+          ]),
           updatedAt: timestamp
         });
 
