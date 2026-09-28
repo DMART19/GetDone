@@ -65,6 +65,9 @@ const grantBase = {
   policyRulesHash: POLICY_RULES_HASH,
   capabilityRegistryVersion: CAPABILITY_REGISTRY_VERSION,
   capabilityRegistryHash: CAPABILITY_REGISTRY_HASH,
+  decisionId: "decision-1",
+  approvalProofId: "approval-proof-1",
+  approvalProofHash: "approval-proof-hash",
   actor: { type: "user" as const, id: "owner" },
   issuedAt: "2026-09-21T03:58:00Z",
   expiresAt: "2026-09-21T04:10:00Z"
