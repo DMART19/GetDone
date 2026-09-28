@@ -19,6 +19,10 @@ import {
   CURRENT_POLICY_VERSION,
   assertCurrentPolicyVersion
 } from "@/lib/domain/policy-registry";
+import {
+  assertLearnedRuleIntegrity,
+  type LearnedRuleRecord
+} from "@/lib/domain/learned-rules";
 
 export type PolicyBudgetSnapshot = PolicyMonetaryBudgetInput;
 export type PolicyUsageBudgetSnapshot = PolicyUsageBudgetInput;
@@ -59,6 +63,7 @@ export interface PolicySnapshotInput {
   budgetReservations?: readonly BudgetReservation[];
   usageBudgets?: readonly PolicyUsageBudgetSnapshot[];
   riskContext?: PolicyRiskContext;
+  learnedRule?: LearnedRuleRecord;
   guardrails?: PolicyGuardrailSnapshot;
   killSwitches: readonly KillSwitch[];
 
@@ -113,6 +118,7 @@ export function hashKillSwitchSnapshot(killSwitches: readonly KillSwitch[]) {
 
 export function createPolicySnapshot(input: PolicySnapshotInput): PolicySnapshot {
   assertCurrentPolicyVersion(input.policyVersion);
+  if (input.learnedRule) assertLearnedRuleIntegrity(input.learnedRule);
 
   const capacityEvidenceRequired =
     input.capacityEvidenceRequired
@@ -162,6 +168,7 @@ export function createPolicySnapshot(input: PolicySnapshotInput): PolicySnapshot
     budgetReservationHashes,
     usageBudgets,
     riskContext: input.riskContext,
+    learnedRuleHash: input.learnedRule?.recordHash,
     guardrails: input.guardrails,
     killSwitchSnapshotHash,
     credentialRequirementIds: [...new Set(input.credentialRequirementIds)].sort(),
@@ -187,6 +194,7 @@ export function createPolicySnapshot(input: PolicySnapshotInput): PolicySnapshot
     budgetReservations,
     usageBudgets,
     riskContext: input.riskContext ? { ...input.riskContext } : undefined,
+    learnedRule: input.learnedRule ? { ...input.learnedRule, conditions: { ...input.learnedRule.conditions } } : undefined,
     killSwitches,
     credentialRequirementIds: [...new Set(input.credentialRequirementIds)].sort(),
     capacityEvidenceRequired,
@@ -214,6 +222,7 @@ export function assertPolicySnapshotIntegrity(snapshot: PolicySnapshot) {
   if (sha256Hex(base) !== snapshotHash) {
     throw new Error("Policy snapshot integrity check failed");
   }
+  if (snapshot.learnedRule) assertLearnedRuleIntegrity(snapshot.learnedRule);
   if (
     snapshot.policyVersion !== CURRENT_POLICY_VERSION
     || snapshot.policyRegistryHash !== CURRENT_POLICY_REGISTRY_HASH
