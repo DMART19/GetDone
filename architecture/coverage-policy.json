@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "1.8.0",
+  "schemaVersion": "1.9.0",
   "thresholds": {
     "coveredModulePercent": 100,
     "minimumTotalTestCases": 80,
@@ -434,6 +434,56 @@
     {
       "source": "lib/persistence/postgres/orchestration-context-source.ts",
       "test": "lib/persistence/postgres/orchestration-context-source.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/orchestration/execution-artifacts.ts",
+      "test": "lib/orchestration/governed-job-materializer.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/orchestration/decision-approval-materializer.ts",
+      "test": "lib/orchestration/decision-approval-materializer.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/orchestration/governed-authorization-issuer.ts",
+      "test": "lib/orchestration/governed-authorization-issuer.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/orchestration/governed-task-materializer.ts",
+      "test": "lib/orchestration/governed-task-materializer.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/orchestration/governed-job-materializer.ts",
+      "test": "lib/orchestration/governed-job-materializer.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/orchestration/governed-execution-stage-handler.ts",
+      "test": "lib/orchestration/governed-execution-stage-handler.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/orchestration/governed-orchestration-stage-handler.ts",
+      "test": "lib/orchestration/governed-execution-stage-handler.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/persistence/postgres/orchestration-execution-artifact-store.ts",
+      "test": "lib/persistence/postgres/orchestration-execution-artifact-store.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/persistence/postgres/orchestration-task-dedupe-store.ts",
+      "test": "lib/persistence/postgres/orchestration-task-dedupe-store.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/orchestration/postgres-governed-execution.server.ts",
+      "test": "lib/orchestration/governed-execution-stage-handler.test.ts",
       "critical": true
     }
   ]
