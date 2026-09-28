@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "2.1.0",
+  "schemaVersion": "2.2.0",
   "thresholds": {
     "coveredModulePercent": 100,
     "minimumTotalTestCases": 80,
@@ -434,6 +434,16 @@
     {
       "source": "lib/orchestration/ai-gateway-planner.ts",
       "test": "lib/orchestration/ai-gateway-planner.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/orchestration/validation-policy-flow.ts",
+      "test": "lib/orchestration/validation-policy-flow.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/persistence/postgres/orchestration-validation-policy-stores.ts",
+      "test": "lib/persistence/postgres/orchestration-validation-policy-stores.test.ts",
       "critical": true
     }
   ]
