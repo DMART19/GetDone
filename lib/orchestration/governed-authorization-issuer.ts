@@ -1,6 +1,7 @@
 import { ControlPlaneError } from "@/lib/control-plane/errors";
 import { sha256Hex } from "@/lib/control-plane/canonical-hash";
 import {
+  assertAuthorizationGrantEnvelope,
   issueAuthorizationGrant,
   type AuthorizationGrant
 } from "@/lib/authorization/grants";
@@ -146,6 +147,38 @@ export class GovernedAuthorizationIssuer {
     assertGovernedPlanArtifactIntegrity(planArtifact);
     assertPlanValidationArtifactIntegrity(validationArtifact);
     assertPolicyBundleArtifactIntegrity(policyBundle);
+
+    const existingAuthorization = await this.execution.latestAuthorizationBundle(run);
+    if (existingAuthorization) {
+      if (existingAuthorization.planHash !== planArtifact.planHash) {
+        throw new ControlPlaneError(
+          "FORBIDDEN",
+          "Persisted Authorization bundle belongs to a different governed plan"
+        );
+      }
+      for (const grant of existingAuthorization.grants) {
+        try {
+          assertAuthorizationGrantEnvelope(grant, grant.scope, this.now().getTime());
+        } catch {
+          return Object.freeze({
+            kind: "replan-required" as const,
+            reason: "persisted-authorization-grant-expired-or-invalid"
+          });
+        }
+        await this.grants.insert(grant);
+        const persisted = await this.grants.get(grant.id);
+        if (!persisted || persisted.grantHash !== grant.grantHash) {
+          throw new ControlPlaneError(
+            "FORBIDDEN",
+            "Persisted Authorization bundle could not rehydrate exact grants"
+          );
+        }
+      }
+      return Object.freeze({
+        kind: "authorized" as const,
+        grants: Object.freeze([...existingAuthorization.grants])
+      });
+    }
 
     if (
       validationArtifact.validationStatus !== "valid"
@@ -413,11 +446,16 @@ export class GovernedAuthorizationIssuer {
       }));
     }
 
-    const validationEvidence = await this.validationEvidence.load({
-      run,
-      planHash: planArtifact.planHash
-    });
-    if (validationEvidence.kind === "unavailable") {
+    const persistedValidationArtifact =
+      await this.execution.latestValidationReceipt(run);
+
+    const validationEvidence = persistedValidationArtifact
+      ? null
+      : await this.validationEvidence.load({
+          run,
+          planHash: planArtifact.planHash
+        });
+    if (validationEvidence?.kind === "unavailable") {
       return Object.freeze({
         kind: "defer" as const,
         reason: validationEvidence.reason,
@@ -426,72 +464,93 @@ export class GovernedAuthorizationIssuer {
     }
 
     const nowIso = this.now().toISOString();
-    const capacityReference = aggregateReference(
-      `validation-capacity:${run.id}`,
-      capacityReferences
-    );
-    const credentialReference = aggregateReference(
-      `validation-credentials:${run.id}`,
-      credentialReferences
-    );
-    const validationExpiry = minimumTimestamp([
-      validationEvidence.expiresAt,
-      validationEvidence.healthReference?.expiresAt,
-      capacityReference?.expiresAt,
-      credentialReference?.expiresAt,
-      new Date(this.now().getTime() + (this.config.validationReceiptTtlMs ?? 5 * 60_000)).toISOString()
-    ])!;
+    let receipt;
+    if (persistedValidationArtifact) {
+      if (persistedValidationArtifact.planHash !== planArtifact.planHash) {
+        throw new ControlPlaneError(
+          "FORBIDDEN",
+          "Persisted validation receipt belongs to a different governed plan"
+        );
+      }
+      receipt = persistedValidationArtifact.receipt;
+    } else {
+      if (!validationEvidence || validationEvidence.kind !== "ready") {
+        throw new ControlPlaneError(
+          "UNAVAILABLE",
+          "Fresh validation evidence was unavailable during authorization"
+        );
+      }
 
-    if (validationExpiry <= Date.parse(nowIso)) {
-      return Object.freeze({
-        kind: "defer" as const,
-        reason: "validation-evidence-expired-before-authorization",
-        retryAt: new Date(this.now().getTime() + 30_000).toISOString()
+      const capacityReference = aggregateReference(
+        `validation-capacity:${run.id}`,
+        capacityReferences
+      );
+      const credentialReference = aggregateReference(
+        `validation-credentials:${run.id}`,
+        credentialReferences
+      );
+      const validationExpiry = minimumTimestamp([
+        validationEvidence.expiresAt,
+        validationEvidence.healthReference?.expiresAt,
+        capacityReference?.expiresAt,
+        credentialReference?.expiresAt,
+        new Date(
+          this.now().getTime()
+          + (this.config.validationReceiptTtlMs ?? 5 * 60_000)
+        ).toISOString()
+      ])!;
+
+      if (validationExpiry <= Date.parse(nowIso)) {
+        return Object.freeze({
+          kind: "defer" as const,
+          reason: "validation-evidence-expired-before-authorization",
+          retryAt: new Date(this.now().getTime() + 30_000).toISOString()
+        });
+      }
+
+      const validationSnapshot = createValidationSnapshot({
+        id: `validation-snapshot:authorization:${run.id}:${planArtifact.planHash.slice(0, 16)}`,
+        policyVersion: policyBundle.stepPolicies[0]!.snapshot.policyVersion,
+        environment: run.environment,
+        configurationVersion: validationEvidence.configurationVersion,
+        evidenceRequirements: {
+          health: validationEvidence.healthReference ? "required" : "not-applicable",
+          capacity: capacityReference ? "required" : "not-applicable",
+          credentials: credentialReference ? "required" : "not-applicable"
+        },
+        healthReference: validationEvidence.healthReference,
+        capacityReference,
+        credentialReference,
+        createdAt: nowIso,
+        expiresAt: new Date(validationExpiry).toISOString()
+      });
+
+      receipt = createValidationReceipt({
+        id: `validation-receipt:authorization:${run.id}:${planArtifact.planHash.slice(0, 16)}`,
+        plan: planArtifact.plan,
+        attestation: validationArtifact.attestation,
+        snapshot: validationSnapshot,
+        validatedAt: nowIso,
+        expiresAt: new Date(validationExpiry).toISOString()
+      });
+
+      const receiptArtifact = createValidationReceiptExecutionArtifact({
+        id: executionArtifactId({
+          kind: "validation-receipt",
+          run,
+          predecessorHash: validationArtifact.attestation.attestationHash
+        }),
+        runId: run.id,
+        correlationId: run.correlationId,
+        planHash: planArtifact.planHash,
+        receipt,
+        createdAt: nowIso
+      });
+      await this.execution.append(run, {
+        kind: "validation-receipt",
+        value: receiptArtifact
       });
     }
-
-    const validationSnapshot = createValidationSnapshot({
-      id: `validation-snapshot:authorization:${run.id}:${planArtifact.planHash.slice(0, 16)}`,
-      policyVersion: policyBundle.stepPolicies[0]!.snapshot.policyVersion,
-      environment: run.environment,
-      configurationVersion: validationEvidence.configurationVersion,
-      evidenceRequirements: {
-        health: validationEvidence.healthReference ? "required" : "not-applicable",
-        capacity: capacityReference ? "required" : "not-applicable",
-        credentials: credentialReference ? "required" : "not-applicable"
-      },
-      healthReference: validationEvidence.healthReference,
-      capacityReference,
-      credentialReference,
-      createdAt: nowIso,
-      expiresAt: new Date(validationExpiry).toISOString()
-    });
-
-    const receipt = createValidationReceipt({
-      id: `validation-receipt:authorization:${run.id}:${planArtifact.planHash.slice(0, 16)}`,
-      plan: planArtifact.plan,
-      attestation: validationArtifact.attestation,
-      snapshot: validationSnapshot,
-      validatedAt: nowIso,
-      expiresAt: new Date(validationExpiry).toISOString()
-    });
-
-    const receiptArtifact = createValidationReceiptExecutionArtifact({
-      id: executionArtifactId({
-        kind: "validation-receipt",
-        run,
-        predecessorHash: validationArtifact.attestation.attestationHash
-      }),
-      runId: run.id,
-      correlationId: run.correlationId,
-      planHash: planArtifact.planHash,
-      receipt,
-      createdAt: nowIso
-    });
-    await this.execution.append(run, {
-      kind: "validation-receipt",
-      value: receiptArtifact
-    });
 
     const issued: AuthorizationGrant[] = [];
     for (const evidence of stepEvidence) {
@@ -535,17 +594,12 @@ export class GovernedAuthorizationIssuer {
         expiresAt: new Date(expiresAt).toISOString()
       });
 
-      await this.grants.insert(grant);
-      const persisted = await this.grants.get(grant.id);
-      if (!persisted || persisted.grantHash !== grant.grantHash) {
-        throw new ControlPlaneError(
-          "FORBIDDEN",
-          "Authorization grant could not be reconstructed from authoritative storage"
-        );
-      }
-      issued.push(persisted);
+      issued.push(grant);
     }
 
+    // The immutable bundle is the crash-recovery checkpoint. If the process dies
+    // after this append, a retry rehydrates these exact grants instead of minting
+    // new time-bound authority.
     const bundle = createAuthorizationBundleExecutionArtifact({
       id: executionArtifactId({
         kind: "authorization-bundle",
@@ -565,9 +619,22 @@ export class GovernedAuthorizationIssuer {
       value: bundle
     });
 
+    const persistedGrants: AuthorizationGrant[] = [];
+    for (const grant of issued) {
+      await this.grants.insert(grant);
+      const persisted = await this.grants.get(grant.id);
+      if (!persisted || persisted.grantHash !== grant.grantHash) {
+        throw new ControlPlaneError(
+          "FORBIDDEN",
+          "Authorization grant could not be reconstructed from authoritative storage"
+        );
+      }
+      persistedGrants.push(persisted);
+    }
+
     return Object.freeze({
       kind: "authorized" as const,
-      grants: Object.freeze(issued)
+      grants: Object.freeze(persistedGrants)
     });
   }
 }
