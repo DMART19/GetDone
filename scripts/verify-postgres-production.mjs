@@ -7,7 +7,7 @@ function required(name) {
   return value;
 }
 
-const requiredMigration = "2026-09-28.8";
+const requiredMigration = "2026-09-28.9";
 const maxBackupAgeHours = Number(process.env.GETDONE_BACKUP_MAX_AGE_HOURS || "24");
 if (!Number.isFinite(maxBackupAgeHours) || maxBackupAgeHours <= 0) {
   throw new Error("GETDONE_BACKUP_MAX_AGE_HOURS must be positive");
@@ -115,7 +115,16 @@ try {
     "orchestration_validation_artifacts",
     "orchestration_policy_step_snapshots",
     "orchestration_policy_evaluations",
-    "orchestration_decision_resume_requests"
+    "orchestration_decision_resume_requests",
+    "orchestration_task_materializations",
+    "orchestration_task_dags",
+    "orchestration_job_graphs",
+    "orchestration_job_nodes",
+    "orchestration_objective_evaluations",
+    "orchestration_outcomes",
+    "preference_decision_observations",
+    "learned_rule_suggestions",
+    "confirmed_preference_rules"
   ];
   const rls = await client.query(
     `SELECT required.name, relation.relrowsecurity, relation.relforcerowsecurity
@@ -811,6 +820,34 @@ try {
     throw new Error("Authoritative execution path uniqueness constraints are incomplete");
   }
 
+  const preferenceLearningTables = await client.query(
+    `SELECT COUNT(*)::int AS count
+       FROM information_schema.tables
+      WHERE table_schema=current_schema()
+        AND table_name IN (
+          'preference_decision_observations',
+          'learned_rule_suggestions',
+          'confirmed_preference_rules'
+        )`
+  );
+  if (preferenceLearningTables.rows[0]?.count !== 3) {
+    throw new Error("Confirmed preference learning persistence tables are incomplete");
+  }
+
+  const preferenceLearningIndexes = await client.query(
+    `SELECT COUNT(*)::int AS count
+       FROM pg_indexes
+      WHERE schemaname=current_schema()
+        AND indexname IN (
+          'preference_observations_pattern_idx',
+          'learned_rule_suggestions_pending_idx',
+          'confirmed_preference_rules_active_idx'
+        )`
+  );
+  if (preferenceLearningIndexes.rows[0]?.count !== 3) {
+    throw new Error("Confirmed preference learning indexes are incomplete");
+  }
+
   const backup = await client.query(
     `SELECT completed_at,verification_hash
      FROM database_backup_evidence
@@ -889,6 +926,8 @@ try {
     durableAuthorizationResumeConstraints: "verified",
     authoritativeExecutionPathSchema: "verified",
     authoritativeExecutionPathConstraints: "verified",
+    confirmedPreferenceLearningSchema: "verified",
+    confirmedPreferenceLearningRls: "verified",
     backupFresh: true
   }, null, 2));
 } finally {
