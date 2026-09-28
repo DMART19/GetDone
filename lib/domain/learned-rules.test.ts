@@ -5,7 +5,8 @@ import {
   revokeLearnedRule,
   suggestLearnedRule,
   type LearnedRuleConditions,
-  type LearnedRuleDecisionObservation
+  type LearnedRuleDecisionObservation,
+  type LearnedRuleMatchContext
 } from "@/lib/domain/learned-rules";
 
 const conditions: LearnedRuleConditions = {
@@ -46,7 +47,7 @@ const scope = {
   environment: "production" as const
 };
 
-function match(overrides: Record<string, unknown> = {}) {
+function match(overrides: Partial<LearnedRuleMatchContext> = {}): LearnedRuleMatchContext {
   return {
     scope,
     capability: "production.deploy",
