@@ -1,6 +1,6 @@
 {
   "registrySchemaVersion": "1.6.0",
-  "registryVersion": "2026-09-28.5",
+  "registryVersion": "2026-09-28.6",
   "appVersion": "0.1.0",
   "schemaVersions": {
     "controlApi": {
@@ -168,7 +168,7 @@
       ]
     },
     "controlApiSurface": {
-      "version": "1.5.0",
+      "version": "1.6.0",
       "sourcePath": "lib/control-api/contracts.ts",
       "contractTracked": true,
       "contractSourcePaths": [
@@ -340,6 +340,25 @@
       "contractTracked": true,
       "contractSourcePaths": [
         "lib/explainability/job-owner-explanation.ts"
+      ]
+    },
+    "confirmedPreferenceLearning": {
+      "version": "1.0.0",
+      "sourcePath": "lib/domain/preference-learning.ts",
+      "contractTracked": true,
+      "contractSourcePaths": [
+        "lib/domain/preference-learning.ts",
+        "lib/planning/policy-engine.ts",
+        "lib/planning/policy-snapshot.ts"
+      ]
+    },
+    "deterministicPolicyEngine": {
+      "version": "2026-09-28.2",
+      "sourcePath": "lib/planning/policy-engine.ts",
+      "contractTracked": true,
+      "contractSourcePaths": [
+        "lib/planning/policy-engine.ts",
+        "lib/domain/policy-registry.ts"
       ]
     }
   },
@@ -838,7 +857,7 @@
     "mvpBusinessWorkflowSourcePath": "lib/composition/mvp-business-workflow.ts"
   },
   "controlApi": {
-    "surfaceVersion": "1.5.0",
+    "surfaceVersion": "1.6.0",
     "status": "implemented-unconnected",
     "applicationAdapterStatus": "not-connected",
     "authStatus": "implemented-unconnected",
@@ -976,5 +995,14 @@
     "stagingWorkflow": ".github/workflows/browser-staging-acceptance.yml",
     "authoritativePostgres": true,
     "virtualWebAuthn": true
+  },
+  "preferenceLearning": {
+    "version": "1.0.0",
+    "status": "implemented-unconfigured",
+    "persistenceBackend": "postgresql",
+    "minimumApprovalObservations": 3,
+    "ownerConfirmationRequired": true,
+    "policyAuthorityMode": "explicit-confirmation-only",
+    "sourcePath": "lib/domain/preference-learning.ts"
   }
 }
