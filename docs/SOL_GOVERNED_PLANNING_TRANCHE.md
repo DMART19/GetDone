@@ -188,16 +188,18 @@ PostgreSQL acceptance exercises:
 - idempotent replay
 - tenant RLS isolation
 
-## Still intentionally unconnected
+## Follow-on governed execution status
+
+The Decision/Approval -> exact-hash AuthorizationGrant -> Task DAG -> Job materialization/root enqueue continuation is now implemented in `docs/SOL_GOVERNED_EXECUTION_TRANCHE.md`.
+
+Still intentionally unconnected:
 
 - live AI model routing / API credentials
-- authoritative AI budget provider implementation for orchestration
+- authoritative live AI budget provider configuration
 - dynamic production policy-evidence provider wiring
 - SignalBus / sensing / investigation ingress
-- Decision creation and exact-hash approval continuation
-- AuthorizationGrant issuance
-- Task DAG materialization
-- Job creation/enqueue
+- downstream Job enqueue before predecessor success
+- provider JobExecutionSpec creation/execution
 - verification/outcome reconciliation
 - live orchestration worker deployment/heartbeat
 
