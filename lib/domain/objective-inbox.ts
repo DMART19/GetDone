@@ -215,6 +215,14 @@ function inferSource(rawText: string, requested?: ObjectiveSource): ObjectiveSou
   if (lines.length > 1 && lines.filter((line) => LIST_MARKER.test(line)).length >= 2) {
     return "multiline_list";
   }
+  if (
+    lines.length >= 2
+    && lines.length <= 50
+    && lines.every((line) => line.trim().length <= 240)
+    && !trimmed.includes("\n\n")
+  ) {
+    return "multiline_list";
+  }
   if (lines.length > 4 || trimmed.length > 800) return "pasted_document";
   return "free_text";
 }
@@ -301,17 +309,25 @@ function textDrafts(rawText: string, source: ObjectiveSource): ObjectiveDraft[] 
     .map((line, index) => ({ line, index, trimmed: line.trim() }))
     .filter((entry) => entry.trimmed);
 
-  if (source === "free_text" || source === "uploaded_text" || source === "pasted_document") {
-    const explicitObjectives = nonEmpty.filter((entry) => /^objective\s*:/i.test(entry.trimmed));
-    if (explicitObjectives.length > 1) {
-      return explicitObjectives.map((entry) => draftFromText(entry.trimmed));
-    }
+  const markedEntries = nonEmpty.filter((entry) =>
+    CHECKBOX_MARKER.test(entry.line) || LIST_MARKER.test(entry.line)
+  );
+  const explicitObjectives = nonEmpty.filter((entry) => /^objective\s*:/i.test(entry.trimmed));
+
+  if (explicitObjectives.length > 1) {
+    return explicitObjectives.map((entry) => draftFromText(entry.trimmed));
+  }
+
+  if (source === "free_text" || source === "pasted_document") {
     return [draftFromText(rawText)];
   }
 
-  const listEntries = nonEmpty.filter((entry) =>
-    CHECKBOX_MARKER.test(entry.line) || LIST_MARKER.test(entry.line)
-  );
+  const listEntries = markedEntries.length >= 2
+    ? markedEntries
+    : source === "multiline_list"
+      ? nonEmpty
+      : markedEntries;
+
   if (listEntries.length < 2) return [draftFromText(rawText)];
 
   const first = nonEmpty[0];
