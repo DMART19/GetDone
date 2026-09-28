@@ -152,7 +152,7 @@
       ]
     },
     "goldenPathHarness": {
-      "version": "1.1.0",
+      "version": "1.2.0",
       "sourcePath": "lib/composition/golden-path-harness.ts",
       "contractTracked": true,
       "contractSourcePaths": [
@@ -751,7 +751,7 @@
     "sourcePath": "lib/security/phase44-adversarial-harness.ts"
   },
   "composition": {
-    "goldenPathHarnessVersion": "1.1.0",
+    "goldenPathHarnessVersion": "1.2.0",
     "status": "deterministic-simulation-only",
     "productionExecutionClaimed": false,
     "sourcePath": "lib/composition/golden-path-harness.ts",
