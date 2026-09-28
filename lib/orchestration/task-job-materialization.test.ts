@@ -529,6 +529,32 @@ describe("Core Tranche A: AuthorizationGrant -> Task DAG -> Jobs", () => {
       .toThrow(/dependency cycle/i);
   });
 
+  it("rejects missing and duplicate dependencies before executable work can materialize", () => {
+    const missing = fanPlan();
+    const missingPlan: PlanProposal = {
+      ...missing,
+      steps: missing.steps.map((step) =>
+        step.id === "step-a"
+          ? { ...step, dependsOn: ["step-does-not-exist"] }
+          : step
+      )
+    };
+    expect(() => deterministicPlanDagOrder(missingPlan))
+      .toThrow(/missing dependency/i);
+
+    const duplicate = fanPlan();
+    const duplicatePlan: PlanProposal = {
+      ...duplicate,
+      steps: duplicate.steps.map((step) =>
+        step.id === "step-a"
+          ? { ...step, dependsOn: ["step-root", "step-root"] }
+          : step
+      )
+    };
+    expect(() => deterministicPlanDagOrder(duplicatePlan))
+      .toThrow(/duplicate dependencies/i);
+  });
+
   it("deterministically materializes fan-out/fan-in Tasks and Jobs with no replay duplicates", async () => {
     const built = buildAuthorized();
     const materialization = new MemoryMaterializationStore(built.grantStore);
