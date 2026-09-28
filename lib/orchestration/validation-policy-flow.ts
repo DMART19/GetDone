@@ -67,6 +67,7 @@ export interface DurableValidationInputResolver {
   resolve(input: {
     run: OrchestrationRunRecord;
     planArtifact: PersistedPlanProposal;
+    idempotencyKey: string;
   }): Promise<DurableValidationInputs>;
 }
 
@@ -124,7 +125,41 @@ export interface DurablePolicyInputResolver {
     planArtifact: PersistedPlanProposal;
     validationArtifact: DurableValidationArtifact;
     step: PlanStep;
+    idempotencyKey: string;
   }): Promise<DurablePolicyStepInputs>;
+}
+
+export interface DurablePolicyStepSnapshotArtifact {
+  id: string;
+  runId: string;
+  validatedRunVersion: number;
+  correlationId: string;
+  portfolioId: string;
+  companyId: string;
+  planArtifactId: string;
+  planArtifactHash: string;
+  validationReceiptId: string;
+  validationReceiptHash: string;
+  stepId: string;
+  stepHash: string;
+  snapshot: PolicySnapshot;
+  createdAt: string;
+  artifactHash: string;
+}
+
+export interface OrchestrationPolicyStepSnapshotStore {
+  create(
+    artifact: DurablePolicyStepSnapshotArtifact,
+    idempotencyKey: string
+  ): Promise<{
+    status: "created" | "idempotent-replay";
+    artifact: DurablePolicyStepSnapshotArtifact;
+  }>;
+  getByRunVersionStep(
+    runId: string,
+    validatedRunVersion: number,
+    stepId: string
+  ): Promise<DurablePolicyStepSnapshotArtifact | null>;
 }
 
 export interface DurableStepPolicyRecord {
@@ -467,9 +502,14 @@ export async function advancePlannedToValidated(input: {
     return transitionFromValidationArtifact(input.run, existing, now());
   }
 
+  const validationIdempotencyKey = validationArtifactIdempotencyKey(
+    input.run.id,
+    input.run.version
+  );
   const resolved = await input.resolver.resolve({
     run: input.run,
-    planArtifact
+    planArtifact,
+    idempotencyKey: validationIdempotencyKey
   });
 
   if (
@@ -517,7 +557,7 @@ export async function advancePlannedToValidated(input: {
 
   const persisted = await input.validations.create(
     artifact,
-    validationArtifactIdempotencyKey(input.run.id, input.run.version)
+    validationIdempotencyKey
   );
   assertDurableValidationArtifact(persisted.artifact, planArtifact);
 
@@ -573,6 +613,115 @@ function evaluateFrozenPolicySnapshot(
     guardrails: snapshot.guardrails,
     now
   });
+}
+
+export function createDurablePolicyStepSnapshotArtifact(input: {
+  run: OrchestrationRunRecord;
+  planArtifact: PersistedPlanProposal;
+  validationArtifact: DurableValidationArtifact;
+  step: PlanStep;
+  snapshot: PolicySnapshot;
+  createdAt: string;
+}): DurablePolicyStepSnapshotArtifact {
+  if (input.run.state !== "validated") {
+    throw new ControlPlaneError(
+      "CONFLICT",
+      "Policy step snapshot may only be created from validated state",
+      { correlationId: input.run.correlationId }
+    );
+  }
+  assertPlanArtifactForRun(input.run, input.planArtifact);
+  assertDurableValidationArtifact(input.validationArtifact, input.planArtifact);
+  assertPolicySnapshotIntegrity(input.snapshot);
+
+  const expectedStepHash = hashPlanStep(input.step);
+  if (
+    input.snapshot.planHash !== input.planArtifact.planHash
+    || input.snapshot.stepHash !== expectedStepHash
+    || input.snapshot.scope.portfolioId !== input.run.scope.portfolioId
+    || input.snapshot.scope.companyId !== input.run.scope.companyId
+    || input.snapshot.scope.environment !== input.run.scope.environment
+  ) {
+    throw new ControlPlaneError(
+      "FORBIDDEN",
+      "Policy step snapshot does not match validated orchestration lineage",
+      { correlationId: input.run.correlationId }
+    );
+  }
+
+  const base = {
+    id: input.snapshot.id,
+    runId: input.run.id,
+    validatedRunVersion: input.run.version,
+    correlationId: input.run.correlationId,
+    portfolioId: input.run.scope.portfolioId,
+    companyId: input.run.scope.companyId,
+    planArtifactId: input.planArtifact.id,
+    planArtifactHash: input.planArtifact.artifactHash,
+    validationReceiptId: input.validationArtifact.receipt.id,
+    validationReceiptHash: input.validationArtifact.receipt.receiptHash,
+    stepId: input.step.id,
+    stepHash: expectedStepHash,
+    snapshot: input.snapshot,
+    createdAt: new Date(input.createdAt).toISOString()
+  };
+
+  return deepFreeze({
+    ...base,
+    artifactHash: sha256Hex(base)
+  });
+}
+
+export function assertDurablePolicyStepSnapshotArtifact(
+  artifact: DurablePolicyStepSnapshotArtifact,
+  input?: {
+    run: OrchestrationRunRecord;
+    planArtifact: PersistedPlanProposal;
+    validationArtifact: DurableValidationArtifact;
+    step: PlanStep;
+  }
+) {
+  const { artifactHash, ...base } = artifact;
+  if (
+    sha256Hex(base) !== artifactHash
+    || artifact.id !== artifact.snapshot.id
+    || artifact.stepHash !== artifact.snapshot.stepHash
+  ) {
+    throw new ControlPlaneError(
+      "FORBIDDEN",
+      "Durable policy step snapshot artifact integrity check failed",
+      { correlationId: artifact.correlationId }
+    );
+  }
+  assertPolicySnapshotIntegrity(artifact.snapshot);
+
+  if (input) {
+    const expectedStepHash = hashPlanStep(input.step);
+    if (
+      artifact.runId !== input.run.id
+      || artifact.validatedRunVersion !== input.run.version
+      || artifact.portfolioId !== input.run.scope.portfolioId
+      || artifact.companyId !== input.run.scope.companyId
+      || artifact.planArtifactId !== input.planArtifact.id
+      || artifact.planArtifactHash !== input.planArtifact.artifactHash
+      || artifact.validationReceiptId !== input.validationArtifact.receipt.id
+      || artifact.validationReceiptHash !== input.validationArtifact.receipt.receiptHash
+      || artifact.stepId !== input.step.id
+      || artifact.stepHash !== expectedStepHash
+      || artifact.snapshot.planHash !== input.planArtifact.planHash
+      || artifact.snapshot.scope.portfolioId !== input.run.scope.portfolioId
+      || artifact.snapshot.scope.companyId !== input.run.scope.companyId
+      || artifact.snapshot.scope.environment !== input.run.scope.environment
+    ) {
+      throw new ControlPlaneError(
+        "FORBIDDEN",
+        "Persisted policy step snapshot does not match orchestration lineage",
+        { correlationId: input.run.correlationId }
+      );
+    }
+  }
+
+  return artifact;
 }
 
 export function createDurablePolicyEvaluationArtifact(input: {
@@ -766,6 +915,7 @@ export async function advanceValidatedToPolicyEvaluated(input: {
   run: OrchestrationRunRecord;
   plans: OrchestrationPlanProposalStore;
   validations: OrchestrationValidationArtifactStore;
+  policyStepSnapshots: OrchestrationPolicyStepSnapshotStore;
   policies: OrchestrationPolicyEvaluationStore;
   resolver: DurablePolicyInputResolver;
   now?: () => Date;
@@ -871,40 +1021,78 @@ export async function advanceValidatedToPolicyEvaluated(input: {
   const stepPolicies: DurableStepPolicyRecord[] = [];
 
   for (const step of orderedSteps) {
-    const resolved = await input.resolver.resolveStep({
-      run: input.run,
-      planArtifact,
-      validationArtifact,
-      step
-    });
     const stepHash = hashPlanStep(step);
-    const snapshot = createPolicySnapshot({
-      ...resolved,
-      id: policySnapshotId(input.run.id, input.run.version, step.id),
-      policyVersion: CURRENT_POLICY_VERSION,
-      scope: input.run.scope,
-      planHash: planArtifact.planHash,
-      stepHash,
-      capabilityNames: step.capabilityRequests.map(
-        (request) => request.capability
-      ),
-      dataClass: planArtifact.proposal.scope.dataClass,
-      idempotencyKey: policyStepIdempotencyKey(
-        input.run.id,
-        input.run.version,
-        step.id
-      ),
-      resourceRequirements: step.resourceRequirements,
-      createdAt
-    });
+    const stepIdempotencyKey = policyStepIdempotencyKey(
+      input.run.id,
+      input.run.version,
+      step.id
+    );
+
+    let stepArtifact = await input.policyStepSnapshots.getByRunVersionStep(
+      input.run.id,
+      input.run.version,
+      step.id
+    );
+
+    if (stepArtifact) {
+      assertDurablePolicyStepSnapshotArtifact(stepArtifact, {
+        run: input.run,
+        planArtifact,
+        validationArtifact,
+        step
+      });
+    } else {
+      const resolved = await input.resolver.resolveStep({
+        run: input.run,
+        planArtifact,
+        validationArtifact,
+        step,
+        idempotencyKey: stepIdempotencyKey
+      });
+      const snapshot = createPolicySnapshot({
+        ...resolved,
+        id: policySnapshotId(input.run.id, input.run.version, step.id),
+        policyVersion: CURRENT_POLICY_VERSION,
+        scope: input.run.scope,
+        planHash: planArtifact.planHash,
+        stepHash,
+        capabilityNames: step.capabilityRequests.map(
+          (request) => request.capability
+        ),
+        dataClass: planArtifact.proposal.scope.dataClass,
+        idempotencyKey: stepIdempotencyKey,
+        resourceRequirements: step.resourceRequirements,
+        createdAt
+      });
+      const candidate = createDurablePolicyStepSnapshotArtifact({
+        run: input.run,
+        planArtifact,
+        validationArtifact,
+        step,
+        snapshot,
+        createdAt
+      });
+      const persistedStep = await input.policyStepSnapshots.create(
+        candidate,
+        stepIdempotencyKey
+      );
+      stepArtifact = persistedStep.artifact;
+      assertDurablePolicyStepSnapshotArtifact(stepArtifact, {
+        run: input.run,
+        planArtifact,
+        validationArtifact,
+        step
+      });
+    }
+
     const evaluation = evaluateFrozenPolicySnapshot(
-      snapshot,
-      Date.parse(createdAt)
+      stepArtifact.snapshot,
+      Date.parse(stepArtifact.createdAt)
     );
     stepPolicies.push(deepFreeze({
       stepId: step.id,
       stepHash,
-      snapshot,
+      snapshot: stepArtifact.snapshot,
       evaluation
     }));
   }
