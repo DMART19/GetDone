@@ -8,6 +8,7 @@ import { ControlPlaneError } from "@/lib/control-plane/errors";
 import { assertTrustedExecutionScopeEqual } from "@/lib/control-plane/trusted-execution-scope";
 import { validateCapabilityInput } from "@/lib/domain/capabilities";
 import type { JobRecord } from "@/lib/domain/services/job-service";
+import type { TaskRecord } from "@/lib/domain/services/task-service";
 import type { AuthorizedBusinessActionRequest } from "@/lib/execution/adapters/business-action";
 import { StaticBusinessActionAdapterRegistry } from "@/lib/execution/adapters/business-action-registry";
 import { createOrdinaryBusinessActionBindingsFromEnv } from "@/lib/execution/adapters/ordinary-integration-registry";
@@ -27,7 +28,10 @@ import { PostgresBusinessActionExecutionStore } from "@/lib/persistence/postgres
 import { PostgresAnalyticsIngestionStore } from "@/lib/persistence/postgres/analytics-ingestion-store";
 import { PostgresCredentialBrokerStore } from "@/lib/persistence/postgres/credential-broker-store";
 import { PostgresJobExecutionSpecStore } from "@/lib/persistence/postgres/job-execution-spec-store";
-import { PostgresEntityStore } from "@/lib/persistence/postgres/authority-stores";
+import {
+  PostgresAuthorizationGrantStore,
+  PostgresEntityStore
+} from "@/lib/persistence/postgres/authority-stores";
 import { PostgresJobVerificationEvidenceStore } from "@/lib/persistence/postgres/worker-runtime-stores";
 import { getPostgresRuntimeFromEnv } from "@/lib/persistence/postgres/runtime.server";
 import { runWithPostgresTenantScope } from "@/lib/persistence/postgres/tenant-context.server";
@@ -204,6 +208,8 @@ export function getMvpJobRuntimeFromEnv(
   );
   const specs = new PostgresJobExecutionSpecStore(database);
   const jobs = new PostgresEntityStore<JobRecord>(database, "job");
+  const tasks = new PostgresEntityStore<TaskRecord>(database, "task");
+  const grants = new PostgresAuthorizationGrantStore(database);
   installed = new MvpJobRuntime(
     getDurableJobEngineFromEnv(env),
     specs,
@@ -213,6 +219,8 @@ export function getMvpJobRuntimeFromEnv(
       undefined,
       {
         jobs,
+        tasks,
+        grants,
         verificationEvidence: new PostgresJobVerificationEvidenceStore(database)
       }
     ),
