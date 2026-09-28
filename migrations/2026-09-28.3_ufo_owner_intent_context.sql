@@ -5,7 +5,9 @@ CREATE TABLE IF NOT EXISTS orchestration_context_snapshots (
   run_id text NOT NULL REFERENCES orchestration_runs(id),
   portfolio_id text NOT NULL,
   company_id text NOT NULL,
-  source_type text NOT NULL CHECK (source_type='owner-intent'),
+  source_type text NOT NULL CHECK (
+    source_type IN ('owner-intent','signal','investigation','objective')
+  ),
   source_id text NOT NULL,
   source_hash text NOT NULL CHECK (source_hash ~ '^[a-f0-9]{64}$'),
   run_version integer NOT NULL CHECK (run_version >= 1),
