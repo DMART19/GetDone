@@ -71,7 +71,10 @@ export class DedicatedOrchestrationWorkerProcess {
   private shutdownPromise: Promise<void> | null = null;
 
   constructor(
-    private readonly worker: Pick<\n      PersistentOrchestrationWorkerService,\n      "start" | "stop" | "requestStop" | "snapshot" | "isReady"\n    >,
+    private readonly worker: Pick<
+      PersistentOrchestrationWorkerService,
+      "start" | "stop" | "requestStop" | "snapshot" | "isReady"
+    >,
     private readonly closeDatabase: () => Promise<void>,
     private readonly config: DedicatedOrchestrationWorkerProcessConfig
   ) {}
