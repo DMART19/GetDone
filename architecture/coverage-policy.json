@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "1.7.0",
+  "schemaVersion": "1.8.0",
   "thresholds": {
     "coveredModulePercent": 100,
     "minimumTotalTestCases": 80,
@@ -394,6 +394,21 @@
     {
       "source": "lib/persistence/postgres/orchestration-store.ts",
       "test": "lib/persistence/postgres/orchestration-store.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/orchestration/worker-contracts.ts",
+      "test": "lib/orchestration/worker-contracts.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/orchestration/worker-runtime.ts",
+      "test": "lib/orchestration/worker-runtime.test.ts",
+      "critical": true
+    },
+    {
+      "source": "lib/persistence/postgres/orchestration-worker-store.ts",
+      "test": "lib/persistence/postgres/orchestration-worker-store.integration.test.ts",
       "critical": true
     }
   ]
