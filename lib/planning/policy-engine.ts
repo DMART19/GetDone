@@ -116,6 +116,8 @@ export interface PolicyEvaluationInput {
   providerId?: string;
   failureDomainId?: string;
   workloadClass?: string;
+  objectiveId?: string;
+  jobId?: string;
 
   credentialRequirementIds: readonly string[];
   credentialSnapshot?: CredentialAvailabilitySnapshot;
@@ -266,6 +268,40 @@ function proofSatisfied(
   }
 
   return true;
+}
+
+function resolvedBudgetScopeId(
+  scopeType: BudgetPolicy["scopeType"] | UsageBudgetPolicy["scopeType"],
+  input: PolicyEvaluationInput
+) {
+  if (!scopeType) return undefined;
+
+  switch (scopeType) {
+    case "portfolio":
+      return input.trustedScope.portfolioId;
+    case "company":
+      return input.trustedScope.companyId;
+    case "integration":
+      return input.integrationId;
+    case "capability":
+      return input.capability;
+    case "objective":
+      return input.objectiveId;
+    case "job":
+      return input.jobId;
+  }
+}
+
+function applicableBudgetScopeId(
+  policy: Pick<BudgetPolicy | UsageBudgetPolicy, "scopeType" | "scopeId">,
+  input: PolicyEvaluationInput
+) {
+  if (!policy.scopeType) return policy.scopeId;
+  const resolved = resolvedBudgetScopeId(policy.scopeType, input);
+  if (!resolved) {
+    throw new Error(`Budget scope context is missing for ${policy.scopeType}`);
+  }
+  return resolved === policy.scopeId ? resolved : null;
 }
 
 function uniqueMonetaryBudgets(input: PolicyEvaluationInput) {
@@ -569,8 +605,11 @@ export function evaluatePolicy(input: PolicyEvaluationInput): PolicyEvaluation {
   const reservations = budgetReservations(input);
   for (const budgetInput of uniqueMonetaryBudgets(input)) {
     try {
+      const scopeId = applicableBudgetScopeId(budgetInput.policy, input);
+      if (scopeId === null) continue;
+
       const budget = evaluateBudget(budgetInput.policy, {
-        scopeId: budgetInput.policy.scopeId,
+        scopeId,
         currentSpendCents: budgetInput.currentSpendCents,
         reservedCents: budgetInput.reservedCents,
         requestedCostCents: budgetInput.requestedCostCents
@@ -629,8 +668,11 @@ export function evaluatePolicy(input: PolicyEvaluationInput): PolicyEvaluation {
     (left, right) => left.policy.id.localeCompare(right.policy.id)
   )) {
     try {
+      const scopeId = applicableBudgetScopeId(usageInput.policy, input);
+      if (scopeId === null) continue;
+
       const usage = evaluateUsageBudget(usageInput.policy, {
-        scopeId: usageInput.policy.scopeId,
+        scopeId,
         currentUsage: usageInput.currentUsage,
         reservedUsage: usageInput.reservedUsage,
         requestedUsage: usageInput.requestedUsage
