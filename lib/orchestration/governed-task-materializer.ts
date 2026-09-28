@@ -82,16 +82,14 @@ export class GovernedTaskMaterializer {
   ) {}
 
   async materialize(run: OrchestrationRun): Promise<TaskDagExecutionArtifact> {
-    const [planArtifact, validationArtifact, authorization] = await Promise.all([
+    const [planArtifact, authorization] = await Promise.all([
       this.planning.latestPlan(run),
-      this.planning.latestValidation(run),
       this.execution.latestAuthorizationBundle(run)
     ]);
     const validationReceiptArtifact = await this.execution.latestValidationReceipt(run);
 
     if (
       !planArtifact
-      || !validationArtifact
       || !authorization
       || !validationReceiptArtifact
     ) {
