@@ -518,7 +518,7 @@ describe("authorized -> Task DAG -> Job DAG", () => {
       grants: built.grants,
       generatedTasks,
       taskAuthority,
-      now: () => fixtureNow
+      now: () => new Date(fixtureNow.getTime() + 60_000)
     });
 
     expect(first.kind).toBe("advance");
@@ -528,6 +528,20 @@ describe("authorized -> Task DAG -> Job DAG", () => {
     }
     expect(replay.next.checkpoints.tasks).toEqual(first.next.checkpoints.tasks);
     expect(generatedTasks.values.size).toBe(2);
+  });
+
+  it("fails closed on a first-time Task materialization after grant expiry", async () => {
+    const built = buildAuthorized();
+
+    await expect(advanceAuthorizedToTasksCreated({
+      run: built.authorized,
+      plans: built.plans,
+      validations: built.validations,
+      grants: built.grants,
+      generatedTasks: new GeneratedStore(),
+      taskAuthority: new TaskAuthority(),
+      now: () => new Date(fixtureNow.getTime() + 60_000)
+    })).rejects.toThrow(/expired before Task materialization/i);
   });
 
   it("fails closed when a generated Task checkpoint is tampered", async () => {
