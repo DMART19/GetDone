@@ -9,10 +9,7 @@ import {
   type KillSwitch
 } from "@/lib/domain/kill-switch";
 import type { CompanyIntegration } from "@/lib/integrations/contracts";
-import {
-  assertCompanyIntegrationScope,
-  assertIntegrationUsable
-} from "@/lib/integrations/registry";
+import { assertCompanyIntegrationScope } from "@/lib/integrations/registry";
 import type { SqlQueryable } from "@/lib/persistence/postgres/client";
 
 export interface CurrentExecutionAdmissionInput {
@@ -209,12 +206,27 @@ export class PostgresCurrentExecutionAdmissionGate
           "Current integration adapter does not match the authorized capability binding"
         );
       }
-      assertIntegrationUsable({
-        record: current,
-        scope: input.scope,
-        access: capability.access,
-        requiredScope: input.capability
-      });
+      if (current.state !== "connected") {
+        throw new ControlPlaneError(
+          "POLICY_BLOCKED",
+          `Integration is ${current.state}; new execution is blocked`
+        );
+      }
+      if (current.mock && input.scope.environment !== "development") {
+        throw new ControlPlaneError(
+          "FORBIDDEN",
+          "Mock integration cannot authorize non-development execution"
+        );
+      }
+      const accessScopes = capability.access === "read"
+        ? current.readScopes
+        : current.writeScopes;
+      if (accessScopes.length === 0) {
+        throw new ControlPlaneError(
+          "FORBIDDEN",
+          `Current integration grants no ${capability.access} access`
+        );
+      }
     }
 
     const killSwitchResult = await this.db.query<{ payload: KillSwitch }>(
