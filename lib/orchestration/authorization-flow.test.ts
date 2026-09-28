@@ -208,13 +208,17 @@ class GrantStore implements OrchestrationAuthorizationGrantStore {
   values = new Map<string, AuthorizationGrant>();
   inserts = 0;
 
-  async insert(grant: AuthorizationGrant) {
+  async insertMany(grants: readonly AuthorizationGrant[]) {
     this.inserts += 1;
-    const existing = this.values.get(grant.id);
-    if (existing && existing.grantHash !== grant.grantHash) {
-      throw new Error("grant replay conflict");
+    const staged = new Map(this.values);
+    for (const grant of grants) {
+      const existing = staged.get(grant.id);
+      if (existing && existing.grantHash !== grant.grantHash) {
+        throw new Error("grant replay conflict");
+      }
+      staged.set(grant.id, existing ?? grant);
     }
-    this.values.set(grant.id, existing ?? grant);
+    this.values = staged;
   }
 
   async get(id: string) {
