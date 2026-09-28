@@ -33,6 +33,7 @@ import {
 import {
   createValidationReceipt,
   createValidationSnapshot,
+  type PlanValidationReceipt,
   type ValidationEvidenceReference
 } from "@/lib/planning/validation-receipt";
 
@@ -464,7 +465,7 @@ export class GovernedAuthorizationIssuer {
     }
 
     const nowIso = this.now().toISOString();
-    let receipt;
+    let receipt: PlanValidationReceipt;
     if (persistedValidationArtifact) {
       if (persistedValidationArtifact.planHash !== planArtifact.planHash) {
         throw new ControlPlaneError(
