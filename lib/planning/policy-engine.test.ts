@@ -9,6 +9,11 @@ import type { TrustedExecutionScope } from "@/lib/control-plane/trusted-executio
 import { createBudgetReservation } from "@/lib/domain/budget-reservation";
 import { createProtectedCapacitySnapshot } from "@/lib/domain/protected-capacity";
 import {
+  confirmLearnedRule,
+  suggestLearnedRule,
+  type LearnedRuleConditions
+} from "@/lib/domain/learned-rules";
+import {
   evaluatePolicy,
   evaluateStepPolicy,
   POLICY_ENGINE_VERSION,
@@ -60,6 +65,44 @@ function stepUpProof(): StepUpProof {
   });
 }
 
+function confirmedDeployRule() {
+  const conditions: LearnedRuleConditions = {
+    environment: "production",
+    integrationId: "github-primary",
+    dataClass: "internal",
+    repositoryId: "DMART19/GetDone",
+    customerImpact: "internal",
+    publicVisibility: false,
+    monetaryAmountCeilingCents: 0,
+    executionFrequencyCeiling: 5,
+    blastRadius: "company",
+    reversible: true,
+    productionEffect: true,
+    verificationRequirementsHash: "verify:onboarding+health",
+    rollbackAvailable: true
+  };
+  const observations = [1, 2, 3].map((index) => ({
+    decisionId: `decision-learned-${index}`,
+    portfolioId: "portfolio-a",
+    companyId: "company-a",
+    ownerId: "user-a",
+    capability: "production.deploy",
+    triggerPattern: "getdone-prod-deploy",
+    conditions,
+    approved: true,
+    observedAt: `2026-09-1${index}T18:00:00Z`
+  }));
+  return confirmLearnedRule(
+    suggestLearnedRule({
+      id: "learned-rule-prod-deploy",
+      observations,
+      createdAt: "2026-09-20T18:20:00Z"
+    }),
+    "user-a",
+    "2026-09-20T18:21:00Z"
+  );
+}
+
 function input(overrides: Partial<PolicyEvaluationInput> = {}): PolicyEvaluationInput {
   return {
     authenticated: true,
@@ -91,6 +134,61 @@ describe("deterministic policy engine", () => {
     expect(result.readyForTaskGeneration).toBe(true);
     expect(result.policyEngineVersion).toBe(POLICY_ENGINE_VERSION);
     expect(result.policyRulesHash).toBe(POLICY_RULES_HASH);
+  });
+
+  it("allows an exact owner-confirmed learned pattern to replace repeat approval with AUTO", () => {
+    const result = evaluatePolicy(input({
+      trustedScope: productionScope,
+      capability: "production.deploy",
+      environment: "production",
+      dataClass: "internal",
+      allowedEnvironments: ["production"],
+      allowedDataClasses: ["internal"],
+      integrationId: "github-primary",
+      learnedRule: confirmedDeployRule(),
+      riskContext: {
+        customerImpact: "internal",
+        publicVisibility: false,
+        monetaryAmountCents: 0,
+        executionFrequency: 2,
+        learnedRuleTriggerPattern: "getdone-prod-deploy",
+        repositoryId: "DMART19/GetDone",
+        verificationRequirementsHash: "verify:onboarding+health",
+        rollbackAvailable: true
+      }
+    }));
+
+    expect(result.disposition).toBe("AUTO");
+    expect(result.readyForTaskGeneration).toBe(true);
+    expect(result.reasons).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "CONFIRMED_LEARNED_RULE" })
+    ]));
+  });
+
+  it("does not match a learned rule after material conditions change", () => {
+    const result = evaluatePolicy(input({
+      trustedScope: productionScope,
+      capability: "production.deploy",
+      environment: "production",
+      dataClass: "internal",
+      allowedEnvironments: ["production"],
+      allowedDataClasses: ["internal"],
+      integrationId: "github-primary",
+      learnedRule: confirmedDeployRule(),
+      riskContext: {
+        customerImpact: "internal",
+        publicVisibility: false,
+        monetaryAmountCents: 0,
+        executionFrequency: 2,
+        learnedRuleTriggerPattern: "getdone-prod-deploy",
+        repositoryId: "DMART19/Other",
+        verificationRequirementsHash: "verify:onboarding+health",
+        rollbackAvailable: true
+      }
+    }));
+
+    expect(result.disposition).toBe("APPROVAL_REQUIRED");
+    expect(result.readyForTaskGeneration).toBe(false);
   });
 
   it("requires a matching hash-bound approval proof for approval capabilities", () => {
