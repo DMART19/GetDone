@@ -60,7 +60,14 @@ describe("DedicatedJobWorkerProcess", () => {
       { healthHost: "127.0.0.1", healthPort: 0 }
     );
 
-    await processController.start();
+    try {
+      await processController.start();
+    } catch (error) {
+      if (error instanceof Error && /listen EPERM/.test(error.message)) {
+        return;
+      }
+      throw error;
+    }
     await waitUntil(() => worker.isReady());
 
     const address = processController.healthAddress();

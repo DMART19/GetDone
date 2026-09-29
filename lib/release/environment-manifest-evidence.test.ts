@@ -1,11 +1,12 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { execFileSync, spawnSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import { afterEach, describe, expect, it } from "vitest";
 
 const root=process.cwd();
 const created:string[]=[];
+const candidateSha="a".repeat(40);
 
 function run(script:string,env:Record<string,string>){
   const result=spawnSync(process.execPath,[script],{
@@ -22,7 +23,7 @@ function tempDir(){
   return directory;
 }
 function gitSha(){
-  return execFileSync("git",["rev-parse","HEAD"],{cwd:root,encoding:"utf8"}).trim();
+  return candidateSha;
 }
 
 afterEach(()=>{
@@ -38,6 +39,7 @@ describe("evidence-derived environment manifest",()=>{
     run("scripts/generate-environment-manifest.mjs",{
       GETDONE_ENVIRONMENT_EVIDENCE_DIR:path.join(directory,"empty"),
       GETDONE_ENVIRONMENT_MANIFEST_OUTPUT:output,
+      GETDONE_ENVIRONMENT_EVIDENCE_SHA:candidateSha,
       OPENROUTER_API_KEY:"present-but-not-evidence",
       DATABASE_URL:"postgresql://configured-but-not-evidence.invalid/db",
       GETDONE_CRM_ACTIONS_JSON:'[{"configured":true}]'

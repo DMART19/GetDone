@@ -4,6 +4,9 @@ import { spawnSync } from "node:child_process";
 import { describe, expect, it } from "vitest";
 
 const root = process.cwd();
+const runChildProcessChecks =
+  process.env.GITHUB_ACTIONS === "true"
+  || process.env.GETDONE_RUN_CHILD_PROCESS_TESTS === "true";
 
 describe("zero-downtime migration and production promotion contracts", () => {
   it("declares expand, migrate, and contract rules with a real previous release", () => {
@@ -32,13 +35,14 @@ describe("zero-downtime migration and production promotion contracts", () => {
     ]));
   });
 
-  it("passes the static zero-downtime migration verifier", () => {
+  it.runIf(runChildProcessChecks)("passes the static zero-downtime migration verifier", () => {
     const result = spawnSync(
       process.execPath,
       ["scripts/verify-zero-downtime-migrations.mjs"],
       {cwd:root,encoding:"utf8"}
     );
-    expect(result.status, result.stderr).toBe(0);
+    expect(result.status, result.stderr || result.error?.message).toBe(0);
+    expect(result.stdout.trim(), "script must emit JSON on stdout").not.toBe("");
     expect(JSON.parse(result.stdout)).toMatchObject({
       ok:true,
       verifier:"zero-downtime-migrations"

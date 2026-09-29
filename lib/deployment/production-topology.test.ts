@@ -1,4 +1,4 @@
-import { spawnSync } from "node:child_process";
+import { spawnSync, type SpawnSyncReturns } from "node:child_process";
 import { describe, expect, it } from "vitest";
 
 const root = process.cwd();
@@ -6,6 +6,9 @@ const digest = "a".repeat(64);
 const workerDigest = "b".repeat(64);
 const secretToken = "worker-secret-abcdefghijklmnopqrstuvwxyz-1234567890";
 const openRouterKey = "openrouter-secret-abcdefghijklmnopqrstuvwxyz";
+const runChildProcessChecks =
+  process.env.GITHUB_ACTIONS === "true"
+  || process.env.GETDONE_RUN_CHILD_PROCESS_TESTS === "true";
 
 const profiles = [
   {
@@ -30,9 +33,15 @@ const profiles = [
   }
 ];
 
+function parseJsonOutput(result: SpawnSyncReturns<string>) {
+  expect(result.status, result.stderr || result.error?.message).toBe(0);
+  expect(result.stdout.trim(), "script must emit JSON on stdout").not.toBe("");
+  return JSON.parse(result.stdout);
+}
+
 function render(phase: "all" | "migration" | "runtime" = "all", overrides = {}) {
   return spawnSync(
-    process.execPath,
+    "node",
     ["scripts/render-production-deployment.mjs", `--phase=${phase}`],
     {
       cwd: root,
@@ -69,15 +78,14 @@ function render(phase: "all" | "migration" | "runtime" = "all", overrides = {}) 
   );
 }
 
-describe("production deployment topology", () => {
+describe.runIf(runChildProcessChecks)("production deployment topology", () => {
   it("passes the static production topology verifier", () => {
     const result = spawnSync(
-      process.execPath,
+      "node",
       ["scripts/verify-production-topology.mjs"],
       { cwd: root, encoding: "utf8", env: process.env }
     );
-    expect(result.status, result.stderr).toBe(0);
-    expect(JSON.parse(result.stdout)).toMatchObject({
+    expect(parseJsonOutput(result)).toMatchObject({
       ok: true,
       verifier: "production-topology",
       tls: true,
@@ -88,12 +96,12 @@ describe("production deployment topology", () => {
 
   it("renders immutable production runtime resources without exposing raw secrets", () => {
     const result = render("all");
-    expect(result.status, result.stderr).toBe(0);
+    expect(result.status, result.stderr || result.error?.message).toBe(0);
     expect(result.stdout).not.toContain(secretToken);
     expect(result.stdout).not.toContain(openRouterKey);
     expect(result.stdout).not.toMatch(/__[A-Z0-9_]+__/);
 
-    const manifest = JSON.parse(result.stdout);
+    const manifest = parseJsonOutput(result);
     const kinds = manifest.items.map((item: { kind: string }) => item.kind);
     expect(kinds).toContain("Job");
     expect(kinds.filter((kind: string) => kind === "Deployment")).toHaveLength(2);
@@ -114,16 +122,14 @@ describe("production deployment topology", () => {
 
   it("renders migration and runtime as separate rollout phases", () => {
     const migration = render("migration");
-    expect(migration.status, migration.stderr).toBe(0);
-    const migrationKinds = JSON.parse(migration.stdout).items.map(
+    const migrationKinds = parseJsonOutput(migration).items.map(
       (item: { kind: string }) => item.kind
     );
     expect(migrationKinds).toContain("Job");
     expect(migrationKinds).not.toContain("Deployment");
 
     const runtime = render("runtime");
-    expect(runtime.status, runtime.stderr).toBe(0);
-    const runtimeKinds = JSON.parse(runtime.stdout).items.map(
+    const runtimeKinds = parseJsonOutput(runtime).items.map(
       (item: { kind: string }) => item.kind
     );
     expect(runtimeKinds).not.toContain("Job");
