@@ -168,7 +168,7 @@
       ]
     },
     "controlApiSurface": {
-      "version": "1.6.0",
+      "version": "1.5.0",
       "sourcePath": "lib/control-api/contracts.ts",
       "contractTracked": true,
       "contractSourcePaths": [
@@ -759,7 +759,7 @@
     "engine": "postgresql",
     "minimumEngineVersion": "16",
     "migrationVersion": "2026-09-28.7",
-    "schemaVersion": "2.3.0",
+    "schemaVersion": "2.2.0",
     "sourcePath": "migrations/2026-09-28.6_ufo_authorization.sql",
     "adapterSourcePath": "lib/persistence/postgres/client.ts"
   },
@@ -819,7 +819,7 @@
     "softwareWorkerRuntimeStatus": "implemented",
     "softwareWorkerRuntimeVersion": "1.0.0",
     "jobExecutionRouterStatus": "implemented",
-    "jobExecutionRouterVersion": "1.2.0",
+    "jobExecutionRouterVersion": "1.1.0",
     "jobExecutionBridgeStoreImplementationStatus": "implemented-unconnected",
     "persistenceBackend": "postgresql",
     "persistentWorkerServiceStatus": "implemented-unconnected",
@@ -848,7 +848,7 @@
     "sourcePath": "lib/security/phase44-adversarial-harness.ts"
   },
   "composition": {
-    "goldenPathHarnessVersion": "1.2.0",
+    "goldenPathHarnessVersion": "1.1.0",
     "status": "deterministic-simulation-only",
     "productionExecutionClaimed": false,
     "sourcePath": "lib/composition/golden-path-harness.ts",
@@ -857,7 +857,7 @@
     "mvpBusinessWorkflowSourcePath": "lib/composition/mvp-business-workflow.ts"
   },
   "controlApi": {
-    "surfaceVersion": "1.6.0",
+    "surfaceVersion": "1.5.0",
     "status": "implemented-unconnected",
     "applicationAdapterStatus": "not-connected",
     "authStatus": "implemented-unconnected",
