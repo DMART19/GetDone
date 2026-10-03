@@ -401,7 +401,7 @@ for (const required of [
 }
 for (const required of [
   "verifiedStartFactId: string",
-  "verifiedCompletionFactId: string",
+  "verifiedCompletionFactId?: string",
   "transaction.stores.executionBridge",
   "assertJobVerifiedStartFact",
   "assertJobVerifiedCompletionFact",
