@@ -200,7 +200,7 @@ const controlApiRuntime = read("lib/control-api/runtime.server.ts");
 const controlApiHttp = read("lib/control-api/http.ts");
 const controlApiServices = read("lib/control-api/service-adapter.ts");
 for (const required of [
-  'CONTROL_API_SURFACE_VERSION = "1.5.0"',
+  'CONTROL_API_SURFACE_VERSION = "1.6.0"',
   "submitOwnerIntent",
   "mutateDecision",
   "discoverResource",
