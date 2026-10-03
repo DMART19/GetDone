@@ -80,7 +80,7 @@
       ]
     },
     "integrationRegistry": {
-      "version": "1.0.0",
+      "version": "1.1.0",
       "sourcePath": "lib/integrations/contracts.ts",
       "contractTracked": true,
       "contractSourcePaths": [
@@ -248,7 +248,7 @@
       ]
     },
     "zeroDowntimeMigrationPolicy": {
-      "version": "1.0.0",
+      "version": "1.1.0",
       "sourcePath": "config/zero-downtime-migration-policy.json",
       "contractTracked": true,
       "contractSourcePaths": [
@@ -353,7 +353,7 @@
       ]
     },
     "deterministicPolicyEngine": {
-      "version": "2026-09-28.2",
+      "version": "1.0.0",
       "sourcePath": "lib/planning/policy-engine.ts",
       "contractTracked": true,
       "contractSourcePaths": [
@@ -424,7 +424,7 @@
     },
     "integration": {
       "status": "contract-only",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "sourcePath": "lib/integrations/contracts.ts",
       "contractTracked": true,
       "contractSourcePaths": [
