@@ -1,13 +1,13 @@
 import { sha256Hex } from "@/lib/control-plane/canonical-hash";
 import { createCommandEnvelope } from "@/lib/control-plane/command-envelope";
 import { ControlPlaneError } from "@/lib/control-plane/errors";
-import { assertTrustedExecutionScopeEqual } from "@/lib/control-plane/trusted-execution-scope";
 import {
   assertAuthorizationConsumption,
   assertAuthorizationGrantEnvelope,
   type AuthorizationGrant,
   type AuthorizationGrantStore
 } from "@/lib/authorization/grants";
+import { assertTrustedExecutionScopeEqual } from "@/lib/control-plane/trusted-execution-scope";
 import { validateCapabilityInput } from "@/lib/domain/capabilities";
 import type { JobRecord, JobService } from "@/lib/domain/services/job-service";
 import type { TaskRecord } from "@/lib/domain/services/task-service";
@@ -79,6 +79,10 @@ export interface AuthoritativeJobReadStore {
 
 export interface AuthoritativeTaskReadStore {
   get(taskId: string): Promise<TaskRecord | null>;
+}
+
+export interface AuthoritativeGrantReadStore {
+  get(grantId: string): Promise<AuthorizationGrant | null>;
 }
 
 export function createPersistedJobExecutionSpec(
@@ -200,7 +204,7 @@ export class RoutedJobExecutionHandler implements DurableJobExecutionHandler {
         authoritative = await this.authority.lifecycle.recoverTimeout(
           authoritative.id,
           this.lifecycleCommand(context, "recover-timeout"),
-          this.now().toISOString()
+          new Date().toISOString()
         );
       } catch {
         try {
@@ -304,7 +308,10 @@ export class RoutedJobExecutionHandler implements DurableJobExecutionHandler {
       return { kind: "dead-letter", reason: "Current authorization grant is missing or changed" };
     }
     if (!["queued", "running"].includes(task.state)) {
-      return { kind: "dead-letter", reason: `Parent Task is not executable from state ${task.state}` };
+      return {
+        kind: "dead-letter",
+        reason: `Parent Task is not executable from state ${task.state}`
+      };
     }
 
     const taskConsumption = task.authorizationConsumption;
@@ -325,9 +332,15 @@ export class RoutedJobExecutionHandler implements DurableJobExecutionHandler {
 
     try {
       assertTrustedExecutionScopeEqual(grant.scope, context.envelope.scope, {
-        requireSameResource: Boolean(grant.scope.resourceId || context.envelope.scope.resourceId)
+        requireSameResource: Boolean(
+          grant.scope.resourceId || context.envelope.scope.resourceId
+        )
       });
-      assertAuthorizationGrantEnvelope(grant, context.envelope.scope, this.now().getTime());
+      assertAuthorizationGrantEnvelope(
+        grant,
+        context.envelope.scope,
+        this.now().getTime()
+      );
       assertAuthorizationConsumption(taskConsumption, grant);
       assertAuthorizationConsumption(authoritative.authorizationConsumption, grant);
 
@@ -335,7 +348,9 @@ export class RoutedJobExecutionHandler implements DurableJobExecutionHandler {
       const grantedCapabilities = [...new Set(grant.capabilityNames)].sort();
       if (
         requiredCapabilities.length !== grantedCapabilities.length
-        || requiredCapabilities.some((capability, index) => capability !== grantedCapabilities[index])
+        || requiredCapabilities.some(
+          (capability, index) => capability !== grantedCapabilities[index]
+        )
         || !grantedCapabilities.includes(spec.request.capability)
       ) {
         throw new ControlPlaneError(

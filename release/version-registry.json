@@ -1,6 +1,6 @@
 {
   "registrySchemaVersion": "1.6.0",
-  "registryVersion": "2026-09-28.2",
+  "registryVersion": "2026-09-28.6",
   "appVersion": "0.1.0",
   "schemaVersions": {
     "controlApi": {
@@ -80,7 +80,7 @@
       ]
     },
     "integrationRegistry": {
-      "version": "1.1.0",
+      "version": "1.0.0",
       "sourcePath": "lib/integrations/contracts.ts",
       "contractTracked": true,
       "contractSourcePaths": [
@@ -168,7 +168,7 @@
       ]
     },
     "controlApiSurface": {
-      "version": "1.5.0",
+      "version": "1.6.0",
       "sourcePath": "lib/control-api/contracts.ts",
       "contractTracked": true,
       "contractSourcePaths": [
@@ -316,6 +316,16 @@
         "lib/orchestration/task-job-materialization.ts"
       ]
     },
+    "authoritativeExecutionPath": {
+      "version": "1.0.0",
+      "sourcePath": "lib/orchestration/post-authorization-flow.ts",
+      "contractTracked": true,
+      "contractSourcePaths": [
+        "lib/orchestration/authoritative-execution-coordinator.ts",
+        "lib/orchestration/objective-flow.ts",
+        "lib/orchestration/post-authorization-flow.ts"
+      ]
+    },
     "coreTrancheCCoordinator": {
       "version": "1.0.0",
       "sourcePath": "lib/domain/services/core-tranche-c-coordinator.ts",
@@ -324,21 +334,38 @@
         "lib/domain/services/core-tranche-c-coordinator.ts"
       ]
     },
-    "learnedRule": {
+    "ownerExplainability": {
       "version": "1.0.0",
-      "sourcePath": "lib/domain/learned-rules.ts",
+      "sourcePath": "lib/explainability/job-owner-explanation.ts",
       "contractTracked": true,
       "contractSourcePaths": [
-        "lib/domain/learned-rules.ts",
+        "lib/explainability/job-owner-explanation.ts"
+      ]
+    },
+    "confirmedPreferenceLearning": {
+      "version": "1.0.0",
+      "sourcePath": "lib/domain/preference-learning.ts",
+      "contractTracked": true,
+      "contractSourcePaths": [
+        "lib/domain/preference-learning.ts",
         "lib/planning/policy-engine.ts",
         "lib/planning/policy-snapshot.ts"
+      ]
+    },
+    "deterministicPolicyEngine": {
+      "version": "2026-09-28.2",
+      "sourcePath": "lib/planning/policy-engine.ts",
+      "contractTracked": true,
+      "contractSourcePaths": [
+        "lib/planning/policy-engine.ts",
+        "lib/domain/policy-registry.ts"
       ]
     }
   },
   "policy": {
     "registryVersion": "2026-09-21.1",
     "registrySourcePath": "lib/domain/policy-registry.ts",
-    "engineVersion": "2026-09-28.2",
+    "engineVersion": "2026-09-28.1",
     "engineSourcePath": "lib/planning/policy-engine.ts"
   },
   "aiGateway": {
@@ -443,7 +470,7 @@
     },
     "durableJobStore": {
       "status": "implemented-unconnected",
-      "version": "1.1.0",
+      "version": "1.0.0",
       "sourcePath": "lib/persistence/postgres/job-store.ts"
     },
     "businessActionOrchestrator": {
@@ -458,7 +485,7 @@
     },
     "jobExecutionRouter": {
       "status": "implemented",
-      "version": "1.1.0",
+      "version": "1.0.0",
       "sourcePath": "lib/execution/job-execution-router.ts"
     },
     "configuredWebhookAction": {
@@ -830,7 +857,7 @@
     "mvpBusinessWorkflowSourcePath": "lib/composition/mvp-business-workflow.ts"
   },
   "controlApi": {
-    "surfaceVersion": "1.5.0",
+    "surfaceVersion": "1.6.0",
     "status": "implemented-unconnected",
     "applicationAdapterStatus": "not-connected",
     "authStatus": "implemented-unconnected",
@@ -968,5 +995,14 @@
     "stagingWorkflow": ".github/workflows/browser-staging-acceptance.yml",
     "authoritativePostgres": true,
     "virtualWebAuthn": true
+  },
+  "preferenceLearning": {
+    "version": "1.0.0",
+    "status": "implemented-unconfigured",
+    "persistenceBackend": "postgresql",
+    "minimumApprovalObservations": 3,
+    "ownerConfirmationRequired": true,
+    "policyAuthorityMode": "explicit-confirmation-only",
+    "sourcePath": "lib/domain/preference-learning.ts"
   }
 }
