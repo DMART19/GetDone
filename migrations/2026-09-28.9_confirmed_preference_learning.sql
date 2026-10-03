@@ -75,4 +75,8 @@ CREATE POLICY getdone_tenant_isolation ON confirmed_preference_rules
   USING (getdone_tenant_scope_matches(portfolio_id,company_id))
   WITH CHECK (getdone_tenant_scope_matches(portfolio_id,company_id));
 
+INSERT INTO getdone_schema_migrations(version)
+VALUES ('2026-09-28.9')
+ON CONFLICT (version) DO NOTHING;
+
 COMMIT;
