@@ -758,7 +758,7 @@
     "status": "implemented-unconnected",
     "engine": "postgresql",
     "minimumEngineVersion": "16",
-    "migrationVersion": "2026-09-28.7",
+    "migrationVersion": "2026-09-25.3",
     "schemaVersion": "2.2.0",
     "sourcePath": "migrations/2026-09-28.6_ufo_authorization.sql",
     "adapterSourcePath": "lib/persistence/postgres/client.ts"
@@ -782,7 +782,7 @@
     "adapterImplementationStatus": "implemented-unconfigured"
   },
   "execution": {
-    "jobRuntimeContractVersion": "1.3.0",
+    "jobRuntimeContractVersion": "1.2.0",
     "durableJobStoreStatus": "implemented-unconnected",
     "businessActionContractVersion": "1.6.0",
     "businessAdaptersStatus": "implemented-unconfigured",
@@ -813,7 +813,7 @@
     "jobExecutionBridgeContractVersion": "1.0.0",
     "jobExecutionBridgeStatus": "deterministic-contract",
     "liveJobExecutionBridgeStoreStatus": "not-connected",
-    "durableJobStoreVersion": "1.1.0",
+    "durableJobStoreVersion": "1.0.0",
     "businessActionOrchestratorStatus": "implemented",
     "businessActionOrchestratorVersion": "1.0.0",
     "softwareWorkerRuntimeStatus": "implemented",
