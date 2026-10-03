@@ -42,6 +42,10 @@ import {
   type PolicySnapshotInput
 } from "@/lib/planning/policy-snapshot";
 import type { PlanStep } from "@/lib/planning/plan-schema";
+import {
+  matchesConfirmedPreferenceRule,
+  type PreferenceLearningService
+} from "@/lib/domain/preference-learning";
 
 export const ORCHESTRATION_VALIDATION_POLICY_FLOW_VERSION = "1.0.0";
 
@@ -616,7 +620,7 @@ function evaluateFrozenPolicySnapshot(
     budgetReservations: snapshot.budgetReservations,
     usageBudgets: snapshot.usageBudgets,
     riskContext: snapshot.riskContext,
-    learnedRule: snapshot.learnedRule,
+    confirmedPreferenceRule: snapshot.confirmedPreferenceRule,
     guardrails: snapshot.guardrails,
     now
   });
@@ -940,6 +944,7 @@ export async function advanceValidatedToPolicyEvaluated(input: {
   policyStepSnapshots: OrchestrationPolicyStepSnapshotStore;
   policies: OrchestrationPolicyEvaluationStore;
   resolver: DurablePolicyInputResolver;
+  preferenceLearning?: PreferenceLearningService;
   now?: () => Date;
 }): Promise<OrchestrationStageOutcome> {
   const now = input.now ?? (() => new Date());
@@ -1064,13 +1069,45 @@ export async function advanceValidatedToPolicyEvaluated(input: {
         step
       });
     } else {
-      const resolved = await input.resolver.resolveStep({
+      let resolved = await input.resolver.resolveStep({
         run: input.run,
         planArtifact,
         validationArtifact,
         step,
         idempotencyKey: stepIdempotencyKey
       });
+
+      const capabilityNames = [...new Set(
+        step.capabilityRequests.map((request) => request.capability)
+      )].sort();
+      if (
+        !resolved.confirmedPreferenceRule
+        && input.preferenceLearning
+        && capabilityNames.length === 1
+      ) {
+        const capability = capabilityNames[0]!;
+        const rules = await input.preferenceLearning.listActiveRules(
+          input.run.scope,
+          capability
+        );
+        const matched = rules.find((rule) =>
+          matchesConfirmedPreferenceRule(rule, {
+            scope: input.run.scope,
+            capability,
+            dataClass: planArtifact.proposal.scope.dataClass,
+            integrationId: resolved.integrationId,
+            resourceId: resolved.resourceId,
+            workloadClass: resolved.workloadClass,
+            customerImpact: resolved.riskContext?.customerImpact,
+            publicVisibility: resolved.riskContext?.publicVisibility,
+            monetaryAmountCents: resolved.riskContext?.monetaryAmountCents
+          })
+        );
+        if (matched) {
+          resolved = { ...resolved, confirmedPreferenceRule: matched };
+        }
+      }
+
       const snapshot = createPolicySnapshot({
         ...resolved,
         id: policySnapshotId(input.run.id, input.run.version, step.id),
