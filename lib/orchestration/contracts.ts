@@ -683,7 +683,9 @@ export function isOrchestrationTerminal(state: OrchestrationState) {
 
 export function isOrchestrationWorkerResumable(record: OrchestrationRunRecord) {
   assertOrchestrationRunIntegrity(record);
-  return !isOrchestrationTerminal(record.state) && record.state !== "awaiting-decision";
+  // awaiting-decision is safe to recover: the worker can only advance after
+  // re-reading the authoritative Decision and exact approval proof.
+  return !isOrchestrationTerminal(record.state);
 }
 
 export function assertProductionOrchestrationRunStoreDescriptor(
