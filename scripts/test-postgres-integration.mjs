@@ -335,7 +335,7 @@ try {
     await assertMigrationState(
       pool,
       "2026-09-22.3",
-      allMigrationVersions.slice(0, -15)
+      allMigrationVersions.slice(0, allMigrationVersions.indexOf("2026-09-22.3") + 1)
     );
   });
   runMigrations(upgradeUrl);
