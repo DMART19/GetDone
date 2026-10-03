@@ -352,7 +352,7 @@ for (const required of [
   if (!softwareWorkerRuntime.includes(required)) fail(`Software worker runtime invariant missing: ${required}`);
 }
 for (const required of [
-  'JOB_EXECUTION_ROUTER_VERSION = "1.1.0"',
+  'JOB_EXECUTION_ROUTER_VERSION = "1.2.0"',
   "createPersistedJobExecutionSpec",
   "business-action",
   "software-prepare",
@@ -415,7 +415,7 @@ for (const required of [
 
 const goldenPath = read("lib/composition/golden-path-harness.ts");
 for (const required of [
-  'GOLDEN_PATH_HARNESS_VERSION = "1.1.0"',
+  'GOLDEN_PATH_HARNESS_VERSION = "1.2.0"',
   "simulationOnly: true",
   "productionExecutionClaimed: false",
   "createJobVerifiedStartFact",
