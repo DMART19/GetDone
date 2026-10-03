@@ -56,14 +56,6 @@ export interface JobRecord extends StatefulEntity {
   retryReason?: string;
   authorizationGrantId?: string;
   authorizationGrantHash?: string;
-  authorizationDisposition?: AuthorizationGrant["disposition"];
-  capabilityNames?: readonly string[];
-  policySnapshotId?: string;
-  policySnapshotHash?: string;
-  policyVersion?: string;
-  policyEngineVersion?: string;
-  policyRulesHash?: string;
-  decisionId?: string;
   authorizationConsumption?: AuthorizationConsumptionRecord;
   verificationEvidenceIds: readonly string[];
   verificationReceiptId?: string;
@@ -267,16 +259,8 @@ export class JobService {
         }
 
         return {
-          authorizationGrantId: persistedGrant.id,
-          authorizationGrantHash: persistedGrant.grantHash,
-          authorizationDisposition: persistedGrant.disposition,
-          capabilityNames: [...persistedGrant.capabilityNames],
-          policySnapshotId: persistedGrant.policySnapshotId,
-          policySnapshotHash: persistedGrant.policySnapshotHash,
-          policyVersion: persistedGrant.policyVersion,
-          policyEngineVersion: persistedGrant.policyEngineVersion,
-          policyRulesHash: persistedGrant.policyRulesHash,
-          decisionId: persistedGrant.decisionId,
+          authorizationGrantId: grant.id,
+          authorizationGrantHash: grant.grantHash,
           authorizationConsumption: persistedTaskConsumption
         };
       },
@@ -469,7 +453,7 @@ export class JobService {
       entityId: id,
       to: "executing",
       command,
-      triggeringEvent: "job-executing-from-verified-resource-start",
+      triggeringEvent: "job-started-from-verified-resource-start",
       beforeTransition: async (current, transaction) => {
         if (!current.workerId) {
           throw new ControlPlaneError(
@@ -616,7 +600,7 @@ export class JobService {
       entityId: id,
       to: "verifying",
       command,
-      triggeringEvent: "job-verification-started",
+      triggeringEvent: "job-verification-started-from-verified-resource-completion",
       beforeTransition: (current) => {
         if (!current.providerResultId || !current.providerResultHash || !current.providerCompletedAt) {
           throw new ControlPlaneError(
