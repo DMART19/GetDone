@@ -1,4 +1,8 @@
 import type { GetDoneEnvironment } from "@/lib/control-plane/request-context";
+import {
+  matchesConfirmedPreferenceRule,
+  type ConfirmedPreferenceRule
+} from "@/lib/domain/preference-learning";
 import type { TrustedExecutionScope } from "@/lib/control-plane/trusted-execution-scope";
 import { sha256Hex } from "@/lib/control-plane/canonical-hash";
 import { getCapability, type CapabilityDefinition } from "@/lib/domain/capabilities";
@@ -28,10 +32,6 @@ import {
   type ApprovalProof,
   type StepUpProof
 } from "@/lib/authorization/proofs";
-import {
-  matchesConfirmedLearnedRule,
-  type LearnedRuleRecord
-} from "@/lib/domain/learned-rules";
 
 export type PolicyDisposition =
   | "AUTO"
@@ -63,9 +63,9 @@ export const POLICY_RULES_HASH = sha256Hex({
     "usage-budgets",
     "budget-reservation",
     "guardrails",
-    "confirmed-learned-rule",
     "approval-proof",
-    "strong-step-up-proof"
+    "strong-step-up-proof",
+    "confirmed-preference-rule"
   ]
 });
 
@@ -99,10 +99,6 @@ export interface PolicyRiskContext {
     | "require-approval"
     | "require-strong-approval"
     | "block";
-  learnedRuleTriggerPattern?: string;
-  repositoryId?: string;
-  verificationRequirementsHash?: string;
-  rollbackAvailable?: boolean;
 }
 
 export interface PolicyEvaluationInput {
@@ -147,8 +143,7 @@ export interface PolicyEvaluationInput {
   budgetReservations?: readonly BudgetReservation[];
   usageBudgets?: readonly PolicyUsageBudgetInput[];
   riskContext?: PolicyRiskContext;
-  /** Only an integrity-checked, explicitly owner-confirmed exact-match rule may lower approval. */
-  learnedRule?: LearnedRuleRecord;
+  confirmedPreferenceRule?: ConfirmedPreferenceRule;
 
   guardrails?: {
     scopeId?: string;
@@ -191,11 +186,11 @@ export interface PolicyReason {
     | "BUDGET_RESERVATION_INVALID"
     | "GUARDRAIL_BLOCKED"
     | "GUARDRAIL_APPROVAL"
-    | "CONFIRMED_LEARNED_RULE"
     | "CAPABILITY_APPROVAL"
     | "CAPABILITY_STRONG_APPROVAL"
     | "APPROVAL_PROOF_INVALID"
-    | "STEP_UP_PROOF_INVALID";
+    | "STEP_UP_PROOF_INVALID"
+    | "CONFIRMED_PREFERENCE_AUTO";
   message: string;
 }
 
@@ -725,48 +720,56 @@ export function evaluatePolicy(input: PolicyEvaluationInput): PolicyEvaluation {
     }
   }
 
-  if (
-    capability
-    && input.learnedRule
-    && disposition === "APPROVAL_REQUIRED"
-    && capability.reversible
-    && input.riskContext?.learnedRuleTriggerPattern
-  ) {
-    const hardApprovalReason = reasons.some((reason) =>
-      ["BUDGET_APPROVAL", "USAGE_BUDGET_APPROVAL", "GUARDRAIL_APPROVAL"].includes(reason.code)
-    );
-    const exactMatch = !hardApprovalReason && matchesConfirmedLearnedRule(
-      input.learnedRule,
-      {
+  if (input.confirmedPreferenceRule) {
+    try {
+      const matches = matchesConfirmedPreferenceRule(input.confirmedPreferenceRule, {
         scope: input.trustedScope,
         capability: input.capability,
-        triggerPattern: input.riskContext.learnedRuleTriggerPattern,
-        integrationId: input.integrationId,
         dataClass: input.dataClass,
-        repositoryId: input.riskContext.repositoryId,
-        customerImpact: input.riskContext.customerImpact,
-        publicVisibility: input.riskContext.publicVisibility,
-        monetaryAmountCents: input.riskContext.monetaryAmountCents,
-        executionFrequency: input.riskContext.executionFrequency,
-        blastRadius: capability.blastRadius,
-        reversible: capability.reversible,
-        productionEffect: capability.productionEffect,
-        verificationRequirementsHash: input.riskContext.verificationRequirementsHash,
-        rollbackAvailable: input.riskContext.rollbackAvailable
-      }
-    );
-
-    if (exactMatch) {
-      disposition = "AUTO";
-      for (let index = reasons.length - 1; index >= 0; index -= 1) {
-        if (reasons[index]?.code === "CAPABILITY_APPROVAL" || reasons[index]?.code === "RISK_APPROVAL") {
-          reasons.splice(index, 1);
-        }
-      }
-      reasons.push({
-        code: "CONFIRMED_LEARNED_RULE",
-        message: `Explicit owner-confirmed learned rule permits AUTO under this exact pattern: ${input.learnedRule.id}`
+        integrationId: input.integrationId,
+        resourceId: input.resourceId ?? input.trustedScope.resourceId,
+        workloadClass: input.workloadClass,
+        customerImpact: input.riskContext?.customerImpact,
+        publicVisibility: input.riskContext?.publicVisibility,
+        monetaryAmountCents: input.riskContext?.monetaryAmountCents
       });
+
+      const explicitOwnerRestriction =
+        input.riskContext?.ownerInstruction === "block"
+        || input.riskContext?.ownerInstruction === "require-approval"
+        || input.riskContext?.ownerInstruction === "require-strong-approval";
+      const nonOverridableApproval = reasons.some((reason) =>
+        [
+          "BUDGET_APPROVAL",
+          "USAGE_BUDGET_APPROVAL",
+          "GUARDRAIL_APPROVAL",
+          "CAPABILITY_STRONG_APPROVAL",
+          "RISK_STRONG_APPROVAL"
+        ].includes(reason.code)
+      );
+      const safeForLearnedAuto =
+        disposition === "APPROVAL_REQUIRED"
+        && capability?.approval === "approval"
+        && capability.reversible
+        && input.riskContext?.publicVisibility !== true
+        && !["customer", "broad-customer"].includes(
+          input.riskContext?.customerImpact ?? "none"
+        )
+        && !explicitOwnerRestriction
+        && !nonOverridableApproval;
+
+      if (matches && safeForLearnedAuto) {
+        disposition = "AUTO";
+        reasons.push({
+          code: "CONFIRMED_PREFERENCE_AUTO",
+          message: "Confirmed owner preference rule permits AUTO only for this exact previously approved pattern"
+        });
+      }
+    } catch {
+      block(
+        "OWNER_POLICY_BLOCKED",
+        "Confirmed preference rule is invalid, tampered, or revoked"
+      );
     }
   }
 
