@@ -1,4 +1,6 @@
 import { z } from "zod";
+
+export const CONTROL_API_SURFACE_VERSION = "1.5.0";
 import {
   serializeClearedSessionCookie,
   serializeSessionCookie
