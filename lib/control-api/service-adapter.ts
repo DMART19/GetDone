@@ -18,6 +18,10 @@ import {
 } from "@/lib/resources/enrollment";
 import type { VerificationRequestRecord } from "@/lib/domain/services/verification-service";
 import type { Resource } from "@/lib/domain/resources";
+import type {
+  PreferenceLearningService,
+  PreferenceSuggestionResolution
+} from "@/lib/domain/preference-learning";
 import {
   buildJobOwnerExplanation,
   buildOwnerFailurePresentation
@@ -82,6 +86,7 @@ export interface ServiceBackedControlApiDependencies {
   intents: OwnerIntentStore;
   objectives: ScopedReadStore<ObjectiveRecord>;
   objectiveIntake: ObjectiveIntakeStore;
+  preferenceLearning?: PreferenceLearningService;
   decisions: ScopedReadStore<AuthoritativeDecision>;
   decisionTransactions: DecisionTransactionManager;
   /**
@@ -294,6 +299,49 @@ export class ServiceBackedControlApiAdapter implements ControlApiApplicationAdap
     );
   }
 
+  listPreferenceSuggestions(principal: ControlApiPrincipal) {
+    requireRole(principal, ["owner", "admin"], "Preference suggestions");
+    if (!this.deps.preferenceLearning) {
+      throw new ControlPlaneError("UNAVAILABLE", "Preference learning is not connected");
+    }
+    return this.scoped(principal, () =>
+      this.deps.preferenceLearning!.listSuggestions(principal.scope)
+    );
+  }
+
+  resolvePreferenceSuggestion(
+    principal: ControlApiPrincipal,
+    suggestionId: string,
+    action: PreferenceSuggestionResolution
+  ) {
+    requireRole(principal, ["owner"], "Preference rule confirmation");
+    if (!this.deps.preferenceLearning) {
+      throw new ControlPlaneError("UNAVAILABLE", "Preference learning is not connected");
+    }
+    return this.scoped(principal, () =>
+      this.deps.preferenceLearning!.resolveSuggestion({
+        suggestionId,
+        scope: principal.scope,
+        actorId: principal.actor.id,
+        action,
+        resolvedAt: this.now().toISOString()
+      })
+    );
+  }
+
+  listConfirmedPreferenceRules(
+    principal: ControlApiPrincipal,
+    capability: string
+  ) {
+    requireRole(principal, ["owner", "admin"], "Confirmed preference rules");
+    if (!this.deps.preferenceLearning) {
+      throw new ControlPlaneError("UNAVAILABLE", "Preference learning is not connected");
+    }
+    return this.scoped(principal, () =>
+      this.deps.preferenceLearning!.listActiveRules(principal.scope, capability)
+    );
+  }
+
   listDecisions(principal: ControlApiPrincipal) {
     return this.scoped(principal, () => this.deps.decisions.listByScope(
       principal.scope.portfolioId,
@@ -346,10 +394,13 @@ export class ServiceBackedControlApiAdapter implements ControlApiApplicationAdap
         now: this.now
       });
 
+      // Orchestrated Decisions already wrote a durable resume request in the
+      // same authoritative transaction. This call is only a low-latency wakeup;
+      // if it fails, the durable queue remains pending for later recovery.
       try {
         await this.deps.decisionResumeDispatcher?.processDecision(resolved);
       } catch {
-        // The durable resume request committed with the Decision; wakeup failure is recoverable.
+        // Do not return an HTTP failure after the owner Decision has committed.
       }
 
       return resolved;
