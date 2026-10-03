@@ -1114,7 +1114,7 @@ if (
   || releaseRegistry.schemaVersions?.postgresPersistence?.version !== "1.1.0"
   || releaseRegistry.schemaVersions?.disasterRecovery?.version !== "1.0.0"
   || releaseRegistry.schemaVersions?.disasterRecovery?.contractTracked !== true
-  || releaseRegistry.schemaVersions?.zeroDowntimeMigrationPolicy?.version !== "1.0.0"
+  || releaseRegistry.schemaVersions?.zeroDowntimeMigrationPolicy?.version !== "1.1.0"
   || releaseRegistry.schemaVersions?.zeroDowntimeMigrationPolicy?.contractTracked !== true
   || releaseRegistry.schemaVersions?.productionReleaseGate?.version !== "1.0.0"
   || releaseRegistry.schemaVersions?.productionReleaseGate?.contractTracked !== true
