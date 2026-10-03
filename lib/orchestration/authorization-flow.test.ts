@@ -1028,7 +1028,7 @@ describe("durable policy-evaluated -> authorized flow", () => {
         expiresAt: "2026-09-28T13:10:00.000Z"
       }),
       updatedAt: "2026-09-28T13:00:11.000Z"
-    };
+    });
 
     await expect(advanceAwaitingDecisionToAuthorized({
       run: waiting.next,
