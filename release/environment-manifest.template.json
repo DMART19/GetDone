@@ -56,8 +56,9 @@
       "database": {
         "engine": "postgresql",
         "minimumEngineVersion": "16",
-        "migrationVersion": "2026-09-28.9",
-        "schemaVersion": "2.5.0"
+        "migrationVersion": "2026-09-25.3",
+        "schemaVersion": "2.2.0",
+        "adapterStatus": "implemented-unconnected"
       },
       "nodeAgent": {
         "status": "implemented-development-only",
@@ -142,8 +143,9 @@
       "database": {
         "engine": "postgresql",
         "minimumEngineVersion": "16",
-        "migrationVersion": "2026-09-28.9",
-        "schemaVersion": "2.5.0"
+        "migrationVersion": "2026-09-25.3",
+        "schemaVersion": "2.2.0",
+        "adapterStatus": "implemented-unconnected"
       },
       "nodeAgent": {
         "status": "implemented-development-only",
@@ -228,8 +230,9 @@
       "database": {
         "engine": "postgresql",
         "minimumEngineVersion": "16",
-        "migrationVersion": "2026-09-28.9",
-        "schemaVersion": "2.5.0"
+        "migrationVersion": "2026-09-25.3",
+        "schemaVersion": "2.2.0",
+        "adapterStatus": "implemented-unconnected"
       },
       "nodeAgent": {
         "status": "implemented-development-only",
