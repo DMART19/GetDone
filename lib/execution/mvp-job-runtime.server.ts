@@ -170,19 +170,58 @@ export class MvpJobRuntime {
 
   async ownerView(jobId: string, taskId: string) {
     const status = await this.engine.status(jobId);
+    const runtimeScope = status.runtime?.envelope?.scope;
+    const authoritative = runtimeScope
+      ? await runWithPostgresTenantScope(
+          runtimeScope,
+          () => this.jobs.get(jobId)
+        )
+      : null;
+
+    if (authoritative && authoritative.taskId !== taskId) {
+      throw new ControlPlaneError(
+        "FORBIDDEN",
+        "Owner Job view task does not match the authoritative Job lineage"
+      );
+    }
+
     const latest = status.outcomes.at(-1);
-    const terminal = latest && ["verified", "dead-lettered", "cancelled", "succeeded"].includes(latest.kind)
+    const durableTerminal = latest
+      && ["verified", "dead-lettered", "cancelled", "succeeded"].includes(latest.kind)
       ? latest
       : undefined;
+    const authoritativeTerminal = authoritative
+      && ["verified", "succeeded", "failed", "cancelled"].includes(authoritative.state)
+      ? authoritative
+      : undefined;
+
+    const notification = authoritativeTerminal
+      ? planOwnerNotification({
+          id: `job-authoritative:${sha256Hex({
+            id: authoritativeTerminal.id,
+            state: authoritativeTerminal.state,
+            version: authoritativeTerminal.version,
+            verificationReceiptHash: authoritativeTerminal.verificationReceiptHash
+          })}`,
+          attention: authoritativeTerminal.state === "failed" ? "high" : "fyi",
+          target: { kind: "task-result", taskId: authoritativeTerminal.taskId },
+          sensitive: true
+        })
+      : durableTerminal
+        ? planOwnerNotification({
+            id: `job-outcome:${durableTerminal.recordHash}`,
+            attention: durableTerminal.kind === "dead-lettered" ? "high" : "fyi",
+            target: { kind: "task-result", taskId },
+            sensitive: true
+          })
+        : null;
+
     return Object.freeze({
-      correlationId: status.runtime?.envelope?.correlationId,
+      correlationId:
+        authoritative?.correlationId
+        ?? status.runtime?.envelope?.correlationId,
       status,
-      notification: terminal ? planOwnerNotification({
-        id: `job-outcome:${terminal.recordHash}`,
-        attention: terminal.kind === "dead-lettered" ? "high" : "fyi",
-        target: { kind: "task-result", taskId },
-        sensitive: true
-      }) : null
+      notification
     });
   }
 }
