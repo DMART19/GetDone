@@ -34,6 +34,7 @@ import {
   type StepPolicyEvaluation
 } from "@/lib/planning/policy-engine";
 import type { PolicySnapshot } from "@/lib/planning/policy-snapshot";
+import type { PreferenceLearningService } from "@/lib/domain/preference-learning";
 
 export const ORCHESTRATION_AUTHORIZATION_FLOW_VERSION = "1.0.0";
 export const DEFAULT_AUTHORIZATION_GRANT_TTL_MS = 5 * 60_000;
@@ -364,6 +365,7 @@ function evaluateSnapshotWithProof(input: {
     budgetReservations: snapshot.budgetReservations,
     usageBudgets: snapshot.usageBudgets,
     riskContext: snapshot.riskContext,
+    confirmedPreferenceRule: snapshot.confirmedPreferenceRule,
     guardrails: snapshot.guardrails,
     approvalProof: input.approvalProof,
     stepUpProof: input.stepUpProof,
@@ -547,6 +549,7 @@ export async function advancePolicyEvaluatedToAuthority(input: {
   policies: OrchestrationPolicyEvaluationStore;
   decisions: OrchestrationDecisionStore;
   grants: OrchestrationAuthorizationGrantStore;
+  preferenceLearning?: PreferenceLearningService;
   now?: () => Date;
   grantTtlMs?: number;
 }): Promise<OrchestrationStageOutcome> {
@@ -728,6 +731,7 @@ export async function advanceAwaitingDecisionToAuthorized(input: {
   policies: OrchestrationPolicyEvaluationStore;
   decisions: OrchestrationDecisionStore;
   grants: OrchestrationAuthorizationGrantStore;
+  preferenceLearning?: PreferenceLearningService;
   now?: () => Date;
   grantTtlMs?: number;
 }): Promise<OrchestrationStageOutcome> {
@@ -808,6 +812,32 @@ export async function advanceAwaitingDecisionToAuthorized(input: {
     resolved.set(id, decision);
   }
 
+  // Preference learning is advisory until explicit owner confirmation.
+  // Recording/suggestion failures never block an already-approved execution path.
+  if (input.preferenceLearning) {
+    for (const stepPolicy of approvalSteps) {
+      const decisionId = orchestrationDecisionId(
+        input.run.id,
+        lineage.policyArtifact,
+        stepPolicy.stepId
+      );
+      const decision = resolved.get(decisionId);
+      if (!decision) continue;
+      try {
+        await input.preferenceLearning.recordDecision({
+          scope: input.run.scope,
+          decisionId: decision.id,
+          resolution: decision.status,
+          snapshot: stepPolicy.snapshot,
+          observedAt: decision.updatedAt
+        });
+      } catch {
+        // FAIL GRACEFULLY FOR INTELLIGENCE: execution authority is already
+        // established by the immutable Decision/policy lineage, not learning.
+      }
+    }
+  }
+
   try {
     const grantRefs = await issueOrReplayGrants({
       run: input.run,
@@ -862,6 +892,7 @@ export class DecisionResumeDispatcher {
       policies: OrchestrationPolicyEvaluationStore;
       decisions: OrchestrationDecisionStore;
       grants: OrchestrationAuthorizationGrantStore;
+      preferenceLearning?: PreferenceLearningService;
       grantTtlMs?: number;
     },
     private readonly now: () => Date = () => new Date()
@@ -968,6 +999,7 @@ export class DecisionResumeDispatcher {
       policies: this.deps.policies,
       decisions: this.deps.decisions,
       grants: this.deps.grants,
+      preferenceLearning: this.deps.preferenceLearning,
       now: this.now,
       grantTtlMs: this.deps.grantTtlMs
     });
