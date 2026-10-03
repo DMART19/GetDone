@@ -56,6 +56,14 @@ export interface JobRecord extends StatefulEntity {
   retryReason?: string;
   authorizationGrantId?: string;
   authorizationGrantHash?: string;
+  authorizationDisposition?: AuthorizationGrant["disposition"];
+  capabilityNames?: readonly string[];
+  policySnapshotId?: string;
+  policySnapshotHash?: string;
+  policyVersion?: string;
+  policyEngineVersion?: string;
+  policyRulesHash?: string;
+  decisionId?: string;
   authorizationConsumption?: AuthorizationConsumptionRecord;
   verificationEvidenceIds: readonly string[];
   verificationReceiptId?: string;
