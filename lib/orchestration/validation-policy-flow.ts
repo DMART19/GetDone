@@ -812,12 +812,9 @@ export function createDurablePolicyEvaluationArtifact(input: {
     createdAt: new Date(input.createdAt).toISOString()
   };
 
-  // Policy artifacts are persisted as JSONB. Hash the exact JSON-compatible
-  // representation so undefined optional fields cannot change integrity on readback.
-  const persistedBase = JSON.parse(JSON.stringify(base)) as typeof base;
   return deepFreeze({
-    ...persistedBase,
-    artifactHash: sha256Hex(persistedBase)
+    ...base,
+    artifactHash: sha256Hex(base)
   });
 }
 
