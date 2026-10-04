@@ -336,7 +336,6 @@ integrationDescribe("worker crash/restart real PostgreSQL acceptance", () => {
   async function seed(scenario: CrashScenario) {
     const at = new Date().toISOString();
     const value = ids(scenario);
-    const job = authoritativeJob(scenario, at);
     const request = actionRequest(scenario);
     const gates = initialGates(scenario);
 
