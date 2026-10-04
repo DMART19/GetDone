@@ -2,6 +2,15 @@ import { spawn, spawnSync } from "node:child_process";
 import { Pool } from "pg";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { sha256Hex } from "@/lib/control-plane/canonical-hash";
+import { createCommandEnvelope } from "@/lib/control-plane/command-envelope";
+import { CAPABILITY_REGISTRY_HASH, CAPABILITY_REGISTRY_VERSION } from "@/lib/domain/capabilities";
+import { CURRENT_POLICY_REGISTRY_HASH, CURRENT_POLICY_VERSION } from "@/lib/domain/policy-registry";
+import { POLICY_ENGINE_VERSION, POLICY_RULES_HASH } from "@/lib/planning/policy-engine";
+import { JobService, type JobStores } from "@/lib/domain/services/job-service";
+import { TaskService, type TaskRecord, type TaskStores } from "@/lib/domain/services/task-service";
+import type { AuthorizationGrant } from "@/lib/authorization/grants";
+import { PostgresAuthorizationGrantStore, PostgresVerificationReceiptStore } from "@/lib/persistence/postgres/authority-stores";
+import { PostgresControlPlaneTransactionManager } from "@/lib/persistence/postgres/transaction-manager";
 import type { JobRecord } from "@/lib/domain/services/job-service";
 import type { AuthorizedBusinessActionRequest } from "@/lib/execution/adapters/business-action";
 import {
@@ -86,37 +95,29 @@ function ids(scenario: CrashScenario) {
   };
 }
 
-function authoritativeJob(
-  scenario: CrashScenario,
-  at: string
-): JobRecord {
-  const value = ids(scenario);
-  return Object.freeze({
-    id: value.jobId,
-    portfolioId: scope.portfolioId,
-    companyId: scope.companyId,
-    state: "queued",
-    taskId: value.taskId,
-    attempt: 0,
-    maxAttempts: 5,
-    authorizationGrantId: `grant_${value.jobId}`,
-    authorizationGrantHash: `grant_hash_${value.jobId}`,
-    authorizationConsumption: {
-      id: `authorization_${value.jobId}`,
-      grantId: `grant_${value.jobId}`,
-      grantHash: `grant_hash_${value.jobId}`,
-      consumerType: "task" as const,
-      consumerId: value.taskId,
-      scope,
-      planHash: `plan_${value.jobId}`,
-      stepHash: `step_${value.jobId}`,
-      consumedAt: at,
-      consumptionHash: value.consumptionHash
-    },
-    verificationEvidenceIds: Object.freeze([]),
-    version: 2,
-    updatedAt: at
+function crashCommand(type: string, key: string) {
+  return createCommandEnvelope({
+    commandId: `cmd_${key}`, actor: { type: "user", id: scope.userId }, scope,
+    correlationId: `correlation_${key}`, environment: "staging", idempotencyKey: key,
+    provenance: "worker-crash-acceptance", requestedMutation: { type }
   });
+}
+
+function crashGrant(scenario: CrashScenario, at: string): AuthorizationGrant {
+  const value = ids(scenario); const issuedAt = new Date(at);
+  const base = {
+    id: `grant_${value.jobId}`, status: "active" as const, disposition: "AUTO" as const, scope,
+    planId: `plan_${value.jobId}`, planVersion: 1, planHash: `plan_${value.jobId}`,
+    stepId: `step_${value.jobId}`, stepHash: `step_${value.jobId}`, capabilityNames: Object.freeze(["http.request"]),
+    executionLimits: Object.freeze({ environment: "staging" as const, deadline: new Date(issuedAt.getTime()+30*60_000).toISOString(), expectedDurationSeconds: 30, retryable: true, maxJobCostCents: 0 }),
+    validationReceiptId: `validation_${value.jobId}`, validationReceiptHash: sha256Hex({ scenario, type:"validation" }),
+    policySnapshotId: `policy_${value.jobId}`, policySnapshotHash: sha256Hex({ scenario, type:"policy" }),
+    policyVersion: CURRENT_POLICY_VERSION, policyRegistryHash: CURRENT_POLICY_REGISTRY_HASH,
+    policyEngineVersion: POLICY_ENGINE_VERSION, policyRulesHash: POLICY_RULES_HASH,
+    capabilityRegistryVersion: CAPABILITY_REGISTRY_VERSION, capabilityRegistryHash: CAPABILITY_REGISTRY_HASH,
+    actor: { type:"user" as const, id:scope.userId }, issuedAt: issuedAt.toISOString(), expiresAt: new Date(issuedAt.getTime()+30*60_000).toISOString()
+  };
+  return Object.freeze({ ...base, grantHash: sha256Hex(base) });
 }
 
 function actionRequest(
@@ -347,7 +348,17 @@ integrationDescribe("worker crash/restart real PostgreSQL acceptance", () => {
       ssl: process.env.GETDONE_DB_SSL !== "false"
     });
     try {
-      await new PostgresEntityStore<JobRecord>(database, "job").create(job);
+      const grant = crashGrant(scenario, at);
+      const grants = new PostgresAuthorizationGrantStore(database);
+      await grants.insert(grant);
+      const taskService = new TaskService(new PostgresControlPlaneTransactionManager<TaskStores>(database, (client) => ({ tasks: new PostgresEntityStore<TaskRecord>(client, "task"), authorizationGrants: new PostgresAuthorizationGrantStore(client), verificationReceipts: new PostgresVerificationReceiptStore(client) })));
+      await taskService.create({ id: value.taskId, reason: "Crash/restart acceptance", capabilityRequirements: ["http.request"] }, crashCommand("task.create", `create_${scenario}`));
+      const task = await taskService.authorize(value.taskId, crashCommand("task.authorize", `authorize_${scenario}`), grant);
+      await taskService.queue(value.taskId, crashCommand("task.queue", `queue_task_${scenario}`));
+      if (!task.authorizationConsumption) throw new Error("Crash fixture authorization consumption missing");
+      const jobService = new JobService(new PostgresControlPlaneTransactionManager<JobStores>(database, (client) => ({ jobs: new PostgresEntityStore<JobRecord>(client, "job"), authorizationGrants: new PostgresAuthorizationGrantStore(client), verificationReceipts: new PostgresVerificationReceiptStore(client) })));
+      await jobService.create({ id:value.jobId, taskId:value.taskId, maxAttempts:5 }, crashCommand("job.create", `create_job_${scenario}`));
+      const job = await jobService.queue(value.jobId, crashCommand("job.queue", `queue_job_${scenario}`), grant, task.authorizationConsumption);
       await new PostgresJobExecutionSpecStore(database).put(
         createPersistedJobExecutionSpec({
           kind: "business-action",
@@ -365,7 +376,7 @@ integrationDescribe("worker crash/restart real PostgreSQL acceptance", () => {
         jobId: job.id,
         taskId: job.taskId,
         scope,
-        authorizationConsumptionHash: value.consumptionHash,
+        authorizationConsumptionHash: task.authorizationConsumption.consumptionHash,
         idempotencyKey: `queue_${request.idempotencyKey}`,
         scheduledAt: at,
         createdAt: at
