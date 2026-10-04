@@ -31,6 +31,7 @@ import { StaticBusinessActionAdapterRegistry } from "../../lib/execution/adapter
 import { BusinessActionExecutionOrchestrator } from "../../lib/execution/business-action-orchestrator";
 import { DurableJobEngine } from "../../lib/execution/durable-job-engine";
 import { RoutedJobExecutionHandler } from "../../lib/execution/job-execution-router";
+import { PostgresCurrentExecutionAdmissionGate } from "../../lib/execution/current-execution-admission";
 import { DurableJobWorker } from "../../lib/execution/job-worker-runtime";
 import { MvpJobRuntime } from "../../lib/execution/mvp-job-runtime.server";
 import { PostgresDatabase } from "../../lib/persistence/postgres/client";
@@ -575,6 +576,9 @@ export async function createTaskJobAndExecute(
         undefined,
         {
           jobs,
+          tasks: new PostgresEntityStore<TaskRecord>(database, "task"),
+          grants: new PostgresAuthorizationGrantStore(database),
+          admission: new PostgresCurrentExecutionAdmissionGate(database),
           verificationEvidence: new PostgresJobVerificationEvidenceStore(database),
           lifecycle: jobService
         }
