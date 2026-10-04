@@ -332,7 +332,9 @@ async function main() {
     }
 }
 
-void main().catch((error) => {
+void main().then(() => {
+  process.stderr.write("WORKER_CRASH_CHILD_COMPLETED\n");
+}).catch((error) => {
   console.error("Worker crash acceptance child failed", error);
   process.exitCode = 1;
 });
