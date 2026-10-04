@@ -1,5 +1,6 @@
 import { Pool } from "pg";
-import type { JobRecord } from "@/lib/domain/services/job-service";
+import { JobService, type JobRecord, type JobStores } from "@/lib/domain/services/job-service";
+import type { TaskRecord } from "@/lib/domain/services/task-service";
 import {
   createBusinessActionAdapterResult,
   createBusinessActionStatus,
@@ -10,6 +11,7 @@ import { StaticBusinessActionAdapterRegistry } from "@/lib/execution/adapters/bu
 import { BusinessActionExecutionOrchestrator } from "@/lib/execution/business-action-orchestrator";
 import { DurableJobWorker } from "@/lib/execution/job-worker-runtime";
 import { RoutedJobExecutionHandler } from "@/lib/execution/job-execution-router";
+import { PostgresCurrentExecutionAdmissionGate } from "@/lib/execution/current-execution-admission";
 import { PersistentJobWorkerService } from "@/lib/execution/persistent-job-worker.server";
 import { PostgresBusinessActionExecutionStore } from "@/lib/persistence/postgres/execution-stores";
 import { PostgresJobExecutionSpecStore } from "@/lib/persistence/postgres/job-execution-spec-store";
@@ -18,7 +20,8 @@ import {
   type DurableJobWorkStore
 } from "@/lib/persistence/postgres/job-store";
 import { PostgresDatabase } from "@/lib/persistence/postgres/client";
-import { PostgresEntityStore } from "@/lib/persistence/postgres/authority-stores";
+import { PostgresAuthorizationGrantStore, PostgresEntityStore, PostgresVerificationReceiptStore } from "@/lib/persistence/postgres/authority-stores";
+import { PostgresControlPlaneTransactionManager } from "@/lib/persistence/postgres/transaction-manager";
 import {
   PostgresJobVerificationEvidenceStore,
   PostgresJobWorkerInstanceStore
@@ -278,13 +281,25 @@ async function main() {
         new PostgresBusinessActionExecutionStore(database),
         { maxStatusPolls: 2, pollIntervalMs: 0 }
       );
+      const jobService = new JobService(new PostgresControlPlaneTransactionManager<JobStores>(
+        database,
+        (client) => ({
+          jobs: new PostgresEntityStore<JobRecord>(client, "job"),
+          authorizationGrants: new PostgresAuthorizationGrantStore(client),
+          verificationReceipts: new PostgresVerificationReceiptStore(client)
+        })
+      ));
       const handler = new RoutedJobExecutionHandler(
         new PostgresJobExecutionSpecStore(database),
         orchestrator,
         undefined,
         {
           jobs: new PostgresEntityStore<JobRecord>(database, "job"),
-          verificationEvidence: new PostgresJobVerificationEvidenceStore(database)
+          tasks: new PostgresEntityStore<TaskRecord>(database, "task"),
+          grants: new PostgresAuthorizationGrantStore(database),
+          admission: new PostgresCurrentExecutionAdmissionGate(database),
+          verificationEvidence: new PostgresJobVerificationEvidenceStore(database),
+          lifecycle: jobService
         }
       );
 
