@@ -143,9 +143,6 @@ describe("deterministic policy engine", () => {
         publicVisibility: false,
         monetaryAmountCents: 0,
         executionFrequency: 2,
-        repositoryId: "DMART19/GetDone",
-        verificationRequirementsHash: "verify:onboarding+health",
-        rollbackAvailable: true
       }
     }));
 
@@ -165,15 +162,12 @@ describe("deterministic policy engine", () => {
       allowedEnvironments: ["production"],
       allowedDataClasses: ["internal"],
       integrationId: "github-primary",
-      learnedRule: confirmedDeployRule(),
+      confirmedPreferenceRule: confirmedDeployRule(),
       riskContext: {
         customerImpact: "internal",
         publicVisibility: false,
         monetaryAmountCents: 0,
         executionFrequency: 2,
-        repositoryId: "DMART19/Other",
-        verificationRequirementsHash: "verify:onboarding+health",
-        rollbackAvailable: true
       }
     }));
 
