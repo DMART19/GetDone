@@ -511,6 +511,11 @@ integrationDescribe("worker crash/restart real PostgreSQL acceptance", () => {
 
     if (scenario !== "during-retry-scheduling") {
       await waitForLeaseExpiry(value.jobId);
+    } else {
+      await admin.query(
+        "UPDATE job_runtime_state SET scheduled_at=now() WHERE job_id=$1 AND runtime_state='retry-wait'",
+        [value.jobId]
+      );
     }
 
     const second = spawnWorker(
