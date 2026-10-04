@@ -18,8 +18,7 @@ import {
   type OrchestrationWorkerStore
 } from "@/lib/orchestration/worker-contracts";
 import type {
-  PostgresTransactionalDatabase,
-  SqlQueryable
+  PostgresTransactionalDatabase
 } from "@/lib/persistence/postgres/client";
 import { PostgresIdempotencyStore } from "@/lib/persistence/postgres/authority-stores";
 import { runWithPostgresTenantScope } from "@/lib/persistence/postgres/tenant-context.server";
