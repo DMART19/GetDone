@@ -776,7 +776,7 @@
   },
   "environmentManifestSchemaVersion": "1.7.0",
   "integrations": {
-    "registryContractVersion": "1.0.0",
+    "registryContractVersion": "1.1.0",
     "liveAdaptersStatus": "not-connected",
     "sourcePath": "lib/integrations/contracts.ts",
     "adapterImplementationStatus": "implemented-unconfigured"
