@@ -346,9 +346,13 @@ export function createDurableValidationArtifact(input: {
     createdAt: new Date(input.createdAt).toISOString()
   };
 
+  // This artifact is persisted as JSONB. Hash the exact JSON-compatible shape
+  // so values normalized by JSON serialization cannot invalidate the durable
+  // artifact when it is read back from PostgreSQL.
+  const persistedBase = JSON.parse(JSON.stringify(base)) as typeof base;
   return deepFreeze({
-    ...base,
-    artifactHash: sha256Hex(base)
+    ...persistedBase,
+    artifactHash: sha256Hex(persistedBase)
   });
 }
 
