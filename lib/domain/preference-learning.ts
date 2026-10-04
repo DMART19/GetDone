@@ -449,7 +449,7 @@ export class PreferenceLearningService {
         resolvedAt: input.resolvedAt,
         confirmedRule: rule
       });
-      return Object.freeze({ action: "confirm" as const, rule });
+      return Object.freeze({ action: "allow" as const, rule });
     }
     const disposition = dismissLearnedRuleSuggestion({
       suggestion,
