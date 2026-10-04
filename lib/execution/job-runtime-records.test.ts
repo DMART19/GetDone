@@ -25,6 +25,18 @@ describe("durable Job outcome and event records", () => {
     });
   });
 
+  it("rejects emitting the legacy succeeded outcome", () => {
+    expect(() => createDurableJobExecutionOutcome({
+      id: "legacy-success",
+      jobId: "job-legacy",
+      kind: "succeeded",
+      runtimeState: "released",
+      attempt: 1,
+      occurredAt: "2026-09-21T23:00:00Z",
+      transactionHash: "legacy-tx"
+    })).toThrow(/read-compatible only/i);
+  });
+
   it("binds runtime events to exact outcome and transaction lineage", () => {
     const outcome = createDurableJobExecutionOutcome({
       id: "outcome-2",
