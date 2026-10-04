@@ -492,6 +492,12 @@ integrationDescribe("worker crash/restart real PostgreSQL acceptance", () => {
       `worker_first_${scenario.replaceAll("-", "_")}`
     );
 
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    if (first.child.exitCode !== null || first.child.signalCode !== null) {
+      const result = await first.done;
+      throw new Error(`Worker exited immediately for ${scenario}: code=${result.code} signal=${result.signal}\n${first.output()}`);
+    }
+
     await waitFor(
       `${scenario} crash boundary`,
       async () => marker({ ids: value, row: await control(scenario) }),
