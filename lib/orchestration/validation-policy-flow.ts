@@ -688,9 +688,10 @@ export function createDurablePolicyStepSnapshotArtifact(input: {
     createdAt: new Date(input.createdAt).toISOString()
   };
 
+  const persistedBase = JSON.parse(JSON.stringify(base)) as typeof base;
   return deepFreeze({
-    ...base,
-    artifactHash: sha256Hex(base)
+    ...persistedBase,
+    artifactHash: sha256Hex(persistedBase)
   });
 }
 
@@ -812,9 +813,10 @@ export function createDurablePolicyEvaluationArtifact(input: {
     createdAt: new Date(input.createdAt).toISOString()
   };
 
+  const persistedBase = JSON.parse(JSON.stringify(base)) as typeof base;
   return deepFreeze({
-    ...base,
-    artifactHash: sha256Hex(base)
+    ...persistedBase,
+    artifactHash: sha256Hex(persistedBase)
   });
 }
 
