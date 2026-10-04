@@ -760,7 +760,7 @@
     "minimumEngineVersion": "16",
     "migrationVersion": "2026-09-28.9zz",
     "schemaVersion": "2.2.0",
-    "sourcePath": "migrations/2026-09-28.10_orchestration_runtime_grants.sql",
+    "sourcePath": "migrations/2026-09-28.9zz_orchestration_runtime_grants.sql",
     "adapterSourcePath": "lib/persistence/postgres/client.ts"
   },
   "voice": {
