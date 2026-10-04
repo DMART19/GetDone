@@ -5,6 +5,9 @@ import { sha256Hex } from "../../lib/control-plane/canonical-hash";
 import { createCommandEnvelope } from "../../lib/control-plane/command-envelope";
 import type { TrustedExecutionScope } from "../../lib/control-plane/trusted-execution-scope";
 import type { AuthoritativeDecision } from "../../lib/domain/decision-service";
+import { CAPABILITY_REGISTRY_HASH, CAPABILITY_REGISTRY_VERSION } from "../../lib/domain/capabilities";
+import { CURRENT_POLICY_REGISTRY_HASH, CURRENT_POLICY_VERSION } from "../../lib/domain/policy-registry";
+import { POLICY_ENGINE_VERSION, POLICY_RULES_HASH } from "../../lib/planning/policy-engine";
 import {
   JobService,
   type JobRecord,
@@ -403,9 +406,12 @@ function stagingGrant(correlationId: string): AuthorizationGrant {
     validationReceiptHash: sha256Hex({ correlationId, type: "validation" }),
     policySnapshotId: "policy-browser-e2e",
     policySnapshotHash: sha256Hex({ correlationId, type: "policy-snapshot" }),
-    policyVersion: "browser-e2e-1",
-    policyEngineVersion: "browser-e2e-1",
-    policyRulesHash: sha256Hex({ correlationId, type: "policy-rules" }),
+    policyVersion: CURRENT_POLICY_VERSION,
+    policyRegistryHash: CURRENT_POLICY_REGISTRY_HASH,
+    policyEngineVersion: POLICY_ENGINE_VERSION,
+    policyRulesHash: POLICY_RULES_HASH,
+    capabilityRegistryVersion: CAPABILITY_REGISTRY_VERSION,
+    capabilityRegistryHash: CAPABILITY_REGISTRY_HASH,
     actor: { type: "user" as const, id: STAGING_USER_ID },
     issuedAt: issuedAt.toISOString(),
     expiresAt: new Date(issuedAt.getTime() + 30 * 60_000).toISOString()
