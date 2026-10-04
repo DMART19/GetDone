@@ -109,7 +109,7 @@ async function assertJobDependenciesReady(store: EntityStore<JobRecord>, current
       !dependency
       || dependency.portfolioId !== current.portfolioId
       || dependency.companyId !== current.companyId
-      || !["verified", "succeeded"].includes(dependency.state)
+      || dependency.state !== "verified"
     ) {
       throw new ControlPlaneError(
         "CONFLICT",
