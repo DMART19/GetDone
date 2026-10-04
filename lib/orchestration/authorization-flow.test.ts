@@ -316,7 +316,7 @@ function productionDeployPlan(): PlanProposal {
       blastRadius: "company"
     },
     rollback: {
-      strategy: "Rollback to the previous verified release",
+      strategy: "restore",
       cancellationAllowed: true
     },
     steps: [{
@@ -340,7 +340,7 @@ function productionDeployPlan(): PlanProposal {
         blastRadius: "company"
       },
       rollback: {
-        strategy: "Rollback to the previous verified release",
+        strategy: "restore",
         cancellationAllowed: true
       },
       resourceRequirements: {
