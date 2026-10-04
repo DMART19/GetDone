@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import fs from "node:fs";
 import pg from "pg";
 
 function required(name) {
@@ -7,7 +8,11 @@ function required(name) {
   return value;
 }
 
-const requiredMigration = "2026-09-28.9";
+const versionRegistry = JSON.parse(
+  fs.readFileSync(new URL("../release/version-registry.json", import.meta.url), "utf8")
+);
+const requiredMigration = versionRegistry.database?.migrationVersion;
+if (!requiredMigration) throw new Error("Release registry is missing database migration truth");
 const maxBackupAgeHours = Number(process.env.GETDONE_BACKUP_MAX_AGE_HOURS || "24");
 if (!Number.isFinite(maxBackupAgeHours) || maxBackupAgeHours <= 0) {
   throw new Error("GETDONE_BACKUP_MAX_AGE_HOURS must be positive");
