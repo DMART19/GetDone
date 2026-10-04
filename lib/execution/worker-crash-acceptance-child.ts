@@ -321,7 +321,7 @@ async function main() {
       const beforeReady = await store.listReady({ now: new Date().toISOString(), limit: 10 });
       process.stderr.write(`WORKER_CRASH_BEFORE_READY=${beforeReady.length}\n`);
       const cycle = await service.runCycle();
-      process.stderr.write(`WORKER_CRASH_RESULTS=${cycle.results.length}\n`);
+      process.stderr.write(`WORKER_CRASH_RESULTS=${JSON.stringify(cycle.results)}\n`);
       if (cycle.results.length === 0) {
         const ready = await store.listReady({ now: new Date().toISOString(), limit: 10 });
         throw new Error(`Crash acceptance worker completed without processing a Job; ready=${ready.length}`);
