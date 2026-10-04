@@ -237,6 +237,7 @@ export class PostgresGovernedJobRuntime implements GovernedJobRuntimePort {
     taskDag: DurableTaskDagArtifact,
     graph: DurableJobGraphArtifact
   ) {
+    void graph;
     const nodes = await this.graphs.listNodes(run.id);
     const verified = new Set(
       nodes.filter((node) => node.state === "verified").map((node) => node.id)
