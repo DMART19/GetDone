@@ -164,7 +164,7 @@ describe("deterministic policy engine", () => {
       integrationId: "github-primary",
       confirmedPreferenceRule: confirmedDeployRule(),
       riskContext: {
-        customerImpact: "external",
+        customerImpact: "customer",
         publicVisibility: false,
         monetaryAmountCents: 0,
         executionFrequency: 2,
