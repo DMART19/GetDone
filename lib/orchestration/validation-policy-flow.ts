@@ -1155,12 +1155,14 @@ export async function advanceValidatedToPolicyEvaluated(input: {
       stepArtifact.snapshot,
       Date.parse(stepArtifact.createdAt)
     );
-    stepPolicies.push(deepFreeze({
+    // The policy evaluation artifact is durable JSON. Canonicalize the complete
+    // step record before hashing so optional undefined fields do not drift on JSONB readback.
+    stepPolicies.push(deepFreeze(JSON.parse(JSON.stringify({
       stepId: step.id,
       stepHash,
       snapshot: stepArtifact.snapshot,
       evaluation
-    }));
+    })) as DurableStepPolicyRecord));
   }
 
   const artifact = createDurablePolicyEvaluationArtifact({
