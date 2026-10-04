@@ -318,7 +318,11 @@ async function main() {
         }
       );
 
-      await service.runCycle();
+      const cycle = await service.runCycle();
+      if (cycle.results.length === 0) {
+        const ready = await store.listReady({ now: new Date().toISOString(), limit: 10 });
+        throw new Error(`Crash acceptance worker completed without processing a Job; ready=${ready.length}`);
+      }
       if (service.snapshot().cycles !== 1) {
         throw new Error("Crash acceptance worker did not complete exactly one cycle");
       }
