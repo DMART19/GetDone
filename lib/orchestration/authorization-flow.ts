@@ -827,7 +827,7 @@ export async function advanceAwaitingDecisionToAuthorized(input: {
         await input.preferenceLearning.recordDecision({
           scope: input.run.scope,
           decisionId: decision.id,
-          resolution: decision.status,
+          resolution: decision.status as Exclude<typeof decision.status, "pending">,
           snapshot: stepPolicy.snapshot,
           observedAt: decision.updatedAt
         });
