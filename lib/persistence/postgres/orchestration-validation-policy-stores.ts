@@ -1,4 +1,5 @@
 import { ControlPlaneError } from "@/lib/control-plane/errors";
+import { sha256Hex } from "@/lib/control-plane/canonical-hash";
 import {
   assertDurablePolicyEvaluationArtifact,
   assertDurablePolicyStepSnapshotArtifact,
@@ -369,7 +370,13 @@ export class PostgresOrchestrationPolicyEvaluationStore
       [id]
     );
     const artifact = result.rows[0]?.payload ?? null;
-    if (artifact) assertDurablePolicyEvaluationArtifact(artifact);
+    if (artifact) {
+      try { assertDurablePolicyEvaluationArtifact(artifact); }
+      catch (error) {
+        const { artifactHash, ...base } = artifact;
+        throw new Error(`policy artifact debug stored=${artifactHash} recomputed=${sha256Hex(base)} engine=${artifact.policyEngineVersion} rules=${artifact.policyRulesHash}`, { cause: error });
+      }
+    }
     return artifact;
   }
 
