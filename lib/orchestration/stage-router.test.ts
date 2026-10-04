@@ -24,7 +24,7 @@ describe("CompleteOrchestrationStageRouter", () => {
           })
         } satisfies OrchestrationStageHandler
       ])
-    ) as CompleteOrchestrationStageHandlers;
+    ) as unknown as CompleteOrchestrationStageHandlers;
 
     const router = createCompleteOrchestrationStageRouter(handlers);
     const run = {
