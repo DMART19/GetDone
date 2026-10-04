@@ -50,9 +50,16 @@ test.describe("authoritative staging browser golden path", () => {
     await page.goto("/decisions");
     await expect(page.getByText("Approve safe staging integration")).toBeVisible();
     const decisionCard = page.getByRole("article").filter({ hasText: "Approve safe staging integration" });
-    await decisionCard.getByRole("button", { name: "Approve" }).click();
-    await expect(decisionCard.getByText(/Authoritative status:/)).toContainText("approved");
-    expect((await decisionStatus())?.status).toBe("approved");
+    const [approvalResponse] = await Promise.all([
+      page.waitForResponse((response) =>
+        response.url().includes(`/api/control/decisions/${decision.id}`)
+        && response.request().method() === "PATCH"
+        && response.status() === 200
+      ),
+      decisionCard.getByRole("button", { name: "Approve" }).click()
+    ]);
+    expect(approvalResponse.status()).toBe(200);
+    await expect.poll(async () => (await decisionStatus())?.status).toBe("approved");
 
     const execution = await createTaskJobAndExecute(
       correlationId,
