@@ -134,7 +134,9 @@ class GrantStore implements AuthorizationGrantStore {
     return value ? [value] : [];
   }
 
-  async revoke(id: string, reason: string, revokedAt: string) {\n    void reason;\n    void revokedAt;
+  async revoke(id: string, reason: string, revokedAt: string) {
+    void reason;
+    void revokedAt;
     const current = this.grants.get(id);
     if (!current) return;
     this.grants.set(id, { ...current, status: "revoked" });
