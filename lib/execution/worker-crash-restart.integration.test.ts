@@ -512,10 +512,19 @@ integrationDescribe("worker crash/restart real PostgreSQL acceptance", () => {
     if (scenario !== "during-retry-scheduling") {
       await waitForLeaseExpiry(value.jobId);
     } else {
-      await admin.query(
-        "UPDATE job_runtime_state SET scheduled_at=now() WHERE job_id=$1 AND runtime_state='retry-wait'",
-        [value.jobId]
-      );
+      const row = await control(scenario);
+      return {
+        ids: value,
+        row,
+        runtimeState: await runtimeState(value.jobId),
+        businessState: await businessState(value.requestId),
+        evidenceCount: await evidenceCount(value.jobId),
+        transactions: await transactionCounts(value.jobId),
+        retryRows: Number((await admin.query<{ count: string }>(
+          "SELECT count(*)::text AS count FROM job_retry_schedule WHERE job_id=$1",
+          [value.jobId]
+        )).rows[0].count)
+      };
     }
 
     const second = spawnWorker(
