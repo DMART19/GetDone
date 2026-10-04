@@ -2,6 +2,7 @@ import { ControlPlaneError } from "@/lib/control-plane/errors";
 import {
   createDeadLetterRecord,
   createJobRetryScheduleRecord,
+  type DurableJobCompletionKind,
   type DurableJobLease,
   type JobQueueEnvelope,
   type JobStoreTransactionReceipt
