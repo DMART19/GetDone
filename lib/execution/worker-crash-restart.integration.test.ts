@@ -136,7 +136,7 @@ function actionRequest(
     capability: "http.request",
     input,
     inputHash: sha256Hex(input),
-    authorizationConsumptionHash: value.consumptionHash,
+    authorizationConsumptionHash: "",
     idempotencyKey: `idempotency_${value.requestId}`,
     timeoutMs: 30_000,
     attempt: 1
@@ -359,6 +359,7 @@ integrationDescribe("worker crash/restart real PostgreSQL acceptance", () => {
       const jobService = new JobService(new PostgresControlPlaneTransactionManager<JobStores>(database, (client) => ({ jobs: new PostgresEntityStore<JobRecord>(client, "job"), authorizationGrants: new PostgresAuthorizationGrantStore(client), verificationReceipts: new PostgresVerificationReceiptStore(client) })));
       await jobService.create({ id:value.jobId, taskId:value.taskId, maxAttempts:5 }, crashCommand("job.create", `create_job_${scenario}`));
       const job = await jobService.queue(value.jobId, crashCommand("job.queue", `queue_job_${scenario}`), grant, task.authorizationConsumption);
+      request.authorizationConsumptionHash = task.authorizationConsumption.consumptionHash;
       await new PostgresJobExecutionSpecStore(database).put(
         createPersistedJobExecutionSpec({
           kind: "business-action",
