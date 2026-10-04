@@ -88,7 +88,7 @@ export interface ResolveDecisionInput {
   now?: () => Date;
 }
 
-function targetState(action: DecisionAction): AuthoritativeDecisionStatus {
+function targetState(action: DecisionAction): Exclude<AuthoritativeDecisionStatus, "pending"> {
   if (action === "approve") return "approved";
   if (action === "modify") return "modified";
   return "rejected";
