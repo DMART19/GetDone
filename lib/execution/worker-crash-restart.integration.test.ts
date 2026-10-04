@@ -121,7 +121,8 @@ function crashGrant(scenario: CrashScenario, at: string): AuthorizationGrant {
 }
 
 function actionRequest(
-  scenario: CrashScenario
+  scenario: CrashScenario,
+  authorizationConsumptionHash: string
 ): AuthorizedBusinessActionRequest {
   const value = ids(scenario);
   const input = {
@@ -136,7 +137,7 @@ function actionRequest(
     capability: "http.request",
     input,
     inputHash: sha256Hex(input),
-    authorizationConsumptionHash: "",
+    authorizationConsumptionHash,
     idempotencyKey: `idempotency_${value.requestId}`,
     timeoutMs: 30_000,
     attempt: 1
@@ -337,7 +338,6 @@ integrationDescribe("worker crash/restart real PostgreSQL acceptance", () => {
   async function seed(scenario: CrashScenario) {
     const at = new Date().toISOString();
     const value = ids(scenario);
-    const request = actionRequest(scenario);
     const gates = initialGates(scenario);
 
     const database = new PostgresDatabase({
@@ -359,7 +359,7 @@ integrationDescribe("worker crash/restart real PostgreSQL acceptance", () => {
       const jobService = new JobService(new PostgresControlPlaneTransactionManager<JobStores>(database, (client) => ({ jobs: new PostgresEntityStore<JobRecord>(client, "job"), authorizationGrants: new PostgresAuthorizationGrantStore(client), verificationReceipts: new PostgresVerificationReceiptStore(client) })));
       await jobService.create({ id:value.jobId, taskId:value.taskId, maxAttempts:5 }, crashCommand("job.create", `create_job_${scenario}`));
       const job = await jobService.queue(value.jobId, crashCommand("job.queue", `queue_job_${scenario}`), grant, task.authorizationConsumption);
-      request.authorizationConsumptionHash = task.authorizationConsumption.consumptionHash;
+      const request = actionRequest(scenario, task.authorizationConsumption.consumptionHash);
       await new PostgresJobExecutionSpecStore(database).put(
         createPersistedJobExecutionSpec({
           kind: "business-action",
