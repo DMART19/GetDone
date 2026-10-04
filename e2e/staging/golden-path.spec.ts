@@ -49,11 +49,9 @@ test.describe("authoritative staging browser golden path", () => {
 
     await page.goto("/decisions");
     await expect(page.getByText("Approve safe staging integration")).toBeVisible();
-    await page.getByText("Approve safe staging integration").click();
-    await expect(page).toHaveURL(`/decisions/${decision.id}`);
-
-    await page.getByRole("button", { name: "Approve" }).click();
-    await expect(page.getByText(/Authoritative status:/)).toContainText("approved");
+    const decisionCard = page.getByRole("article").filter({ hasText: "Approve safe staging integration" });
+    await decisionCard.getByRole("button", { name: "Approve" }).click();
+    await expect(decisionCard.getByText(/Authoritative status:/)).toContainText("approved");
     expect((await decisionStatus())?.status).toBe("approved");
 
     const execution = await createTaskJobAndExecute(
