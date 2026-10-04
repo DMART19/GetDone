@@ -4,7 +4,6 @@ import {
   createTaskJobAndExecute,
   decisionStatus,
   installVirtualAuthenticator,
-  latestIntent,
   materializeDecisionFromIntent,
   resetAuthoritativeStaging,
   seedPasskeyOwner
@@ -21,29 +20,32 @@ test.describe("authoritative staging browser golden path", () => {
     await page.getByLabel("GetDone user").fill(STAGING_USER_ID);
     await page.getByRole("button", { name: "Sign in with passkey" }).click();
     await expect(page).toHaveURL("/");
-    await expect(page.getByRole("heading", { name: /How can I/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "What do you want done?" })).toBeVisible();
 
-    // The redirect can expose server-rendered HTML before the client component is
-    // hydrated. Wait for the navigation to settle so this click exercises the
-    // React Chat composer rather than a native form submit/reload.
+    // Wait for the authoritative Home Objective Inbox to hydrate before submitting.
     await page.waitForLoadState("networkidle");
 
-    await page.getByLabel("Message GetDone").fill(
+    await page.getByLabel("Objective input").fill(
       "Run the controlled safe staging integration and show me the verified result"
     );
     const [intentResponse] = await Promise.all([
       page.waitForResponse((response) =>
-        response.url().includes("/api/control/chat")
+        response.url().includes("/api/control/objectives")
         && response.request().method() === "POST"
       ),
-      page.getByRole("button", { name: "Send message" }).click()
+      page.getByRole("button", { name: "Add Objective" }).click()
     ]);
     expect(intentResponse.status()).toBe(202);
-    await expect(page.getByRole("status")).toContainText("Accepted by GetDone");
-
-    const intent = await latestIntent();
-    expect(intent.correlationId).toBeTruthy();
-    const decision = await materializeDecisionFromIntent(intent.correlationId);
+    await expect(page.getByRole("status")).toContainText("Objective added. GetDone is taking it from here.");
+    const objectiveResponse = await intentResponse.json() as {
+      ok: boolean;
+      data: Array<{ correlationId: string }>;
+    };
+    expect(objectiveResponse.ok).toBe(true);
+    const correlationId = objectiveResponse.data[0]?.correlationId;
+    expect(correlationId).toBeTruthy();
+    if (!correlationId) throw new Error("Objective response did not include correlationId");
+    const decision = await materializeDecisionFromIntent(correlationId);
 
     await page.goto("/decisions");
     await expect(page.getByText("Approve safe staging integration")).toBeVisible();
@@ -55,7 +57,7 @@ test.describe("authoritative staging browser golden path", () => {
     expect((await decisionStatus())?.status).toBe("approved");
 
     const execution = await createTaskJobAndExecute(
-      intent.correlationId,
+      correlationId,
       baseURL ?? "http://localhost:3200"
     );
 
@@ -63,7 +65,7 @@ test.describe("authoritative staging browser golden path", () => {
     await expect(page.getByRole("heading", { name: "Authoritative completion" })).toBeVisible();
     await expect(page.getByRole("status")).toHaveText("verified");
     await expect(page.getByText(/Verified · 1 evidence item/)).toBeVisible();
-    await expect(page.getByTestId("job-correlation-id")).toHaveText(intent.correlationId);
+    await expect(page.getByTestId("job-correlation-id")).toHaveText(correlationId);
 
     const jobResponse = await page.evaluate(async (jobId) => {
       const response = await fetch(`/api/control/jobs/${encodeURIComponent(jobId)}/result`, {
@@ -80,7 +82,7 @@ test.describe("authoritative staging browser golden path", () => {
       data: {
         jobId: execution.jobId,
         state: "verified",
-        correlationId: intent.correlationId,
+        correlationId: correlationId,
         verificationReceiptId: execution.receiptId
       }
     });
