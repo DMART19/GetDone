@@ -20,10 +20,6 @@ import {
   assertCurrentPolicyVersion
 } from "@/lib/domain/policy-registry";
 import {
-  assertLearnedRuleIntegrity,
-  type LearnedRuleRecord
-} from "@/lib/domain/learned-rules";
-import {
   assertConfirmedPreferenceRule,
   type ConfirmedPreferenceRule
 } from "@/lib/domain/preference-learning";
@@ -67,8 +63,6 @@ export interface PolicySnapshotInput {
   budgetReservations?: readonly BudgetReservation[];
   usageBudgets?: readonly PolicyUsageBudgetSnapshot[];
   riskContext?: PolicyRiskContext;
-  /** @deprecated Legacy read-compatible rule. New policy decisions use confirmedPreferenceRule. */
-  learnedRule?: LearnedRuleRecord;
   confirmedPreferenceRule?: ConfirmedPreferenceRule;
   guardrails?: PolicyGuardrailSnapshot;
   killSwitches: readonly KillSwitch[];
@@ -87,6 +81,8 @@ export interface PolicySnapshotInput {
 }
 
 export interface PolicySnapshot extends PolicySnapshotInput {
+  /** @deprecated Persisted compatibility only. New snapshots never emit learnedRule. */
+  learnedRule?: import("@/lib/domain/learned-rules").LearnedRuleRecord;
   policyRegistryHash: string;
   policyEngineVersion: string;
   policyRulesHash: string;
@@ -124,7 +120,6 @@ export function hashKillSwitchSnapshot(killSwitches: readonly KillSwitch[]) {
 
 export function createPolicySnapshot(input: PolicySnapshotInput): PolicySnapshot {
   assertCurrentPolicyVersion(input.policyVersion);
-  if (input.learnedRule) assertLearnedRuleIntegrity(input.learnedRule);
   if (input.confirmedPreferenceRule) assertConfirmedPreferenceRule(input.confirmedPreferenceRule);
 
   const capacityEvidenceRequired =
@@ -175,7 +170,6 @@ export function createPolicySnapshot(input: PolicySnapshotInput): PolicySnapshot
     budgetReservationHashes,
     usageBudgets,
     riskContext: input.riskContext,
-    learnedRuleHash: input.learnedRule?.recordHash,
     confirmedPreferenceRuleHash: input.confirmedPreferenceRule?.ruleHash,
     guardrails: input.guardrails,
     killSwitchSnapshotHash,
@@ -202,7 +196,6 @@ export function createPolicySnapshot(input: PolicySnapshotInput): PolicySnapshot
     budgetReservations,
     usageBudgets,
     riskContext: input.riskContext ? { ...input.riskContext } : undefined,
-    learnedRule: input.learnedRule ? { ...input.learnedRule, conditions: { ...input.learnedRule.conditions } } : undefined,
     confirmedPreferenceRule: input.confirmedPreferenceRule ? {
       ...input.confirmedPreferenceRule,
       pattern: { ...input.confirmedPreferenceRule.pattern },
@@ -235,7 +228,10 @@ export function assertPolicySnapshotIntegrity(snapshot: PolicySnapshot) {
   if (sha256Hex(base) !== snapshotHash) {
     throw new Error("Policy snapshot integrity check failed");
   }
-  if (snapshot.learnedRule) assertLearnedRuleIntegrity(snapshot.learnedRule);
+  if (snapshot.learnedRule) {
+    const { assertLearnedRuleIntegrity } = require("@/lib/domain/learned-rules") as typeof import("@/lib/domain/learned-rules");
+    assertLearnedRuleIntegrity(snapshot.learnedRule);
+  }
   if (snapshot.confirmedPreferenceRule) assertConfirmedPreferenceRule(snapshot.confirmedPreferenceRule);
   if (
     snapshot.policyVersion !== CURRENT_POLICY_VERSION
