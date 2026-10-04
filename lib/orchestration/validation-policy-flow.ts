@@ -924,7 +924,8 @@ export function assertDurablePolicyEvaluationArtifact(
       item.snapshot,
       Date.parse(artifact.createdAt)
     );
-    if (sha256Hex(reevaluated) !== sha256Hex(item.evaluation)) {
+    const persistedReevaluation = JSON.parse(JSON.stringify(reevaluated)) as StepPolicyEvaluation;
+    if (sha256Hex(persistedReevaluation) !== sha256Hex(item.evaluation)) {
       throw new ControlPlaneError(
         "FORBIDDEN",
         "Persisted policy evaluation does not match frozen policy inputs"
