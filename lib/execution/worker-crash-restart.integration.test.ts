@@ -207,9 +207,6 @@ function spawnWorker(
   };
 }
 
-async function runtimeDebugForWorker(_worker: SpawnedWorker) {
-  return { note: "inspect durable outcome in parent assertion" };
-}
 
 async function expectCleanExit(worker: SpawnedWorker) {
   const result = await worker.done;
@@ -242,7 +239,7 @@ async function waitFor(
     ) {
       const result = await worker.done;
       throw new Error(
-        `Worker exited before ${label}: code=${result.code} signal=${result.signal} runtime=${JSON.stringify(await runtimeDebugForWorker(worker))}\n${worker.output()}`
+        `Worker exited before ${label}: code=${result.code} signal=${result.signal} \n${worker.output()}`
       );
     }
     await new Promise((resolve) => setTimeout(resolve, 25));
