@@ -168,7 +168,7 @@
       ]
     },
     "controlApiSurface": {
-      "version": "1.5.0",
+      "version": "1.6.0",
       "sourcePath": "lib/control-api/contracts.ts",
       "contractTracked": true,
       "contractSourcePaths": [
@@ -365,7 +365,7 @@
   "policy": {
     "registryVersion": "2026-09-21.1",
     "registrySourcePath": "lib/domain/policy-registry.ts",
-    "engineVersion": "2026-09-28.1",
+    "engineVersion": "2026-09-28.2",
     "engineSourcePath": "lib/planning/policy-engine.ts"
   },
   "aiGateway": {
@@ -857,7 +857,7 @@
     "mvpBusinessWorkflowSourcePath": "lib/composition/mvp-business-workflow.ts"
   },
   "controlApi": {
-    "surfaceVersion": "1.5.0",
+    "surfaceVersion": "1.6.0",
     "status": "implemented-unconnected",
     "applicationAdapterStatus": "not-connected",
     "authStatus": "implemented-unconnected",
