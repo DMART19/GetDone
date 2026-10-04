@@ -7,6 +7,7 @@ import type { ResourceRequirementEnvelope } from "@/lib/planning/plan-schema";
 import type { CredentialAvailabilitySnapshot } from "@/lib/domain/credential-binding";
 import type { BudgetReservation } from "@/lib/domain/budget-reservation";
 import type { ProtectedCapacitySnapshot } from "@/lib/domain/protected-capacity";
+import { assertLearnedRuleIntegrity, type LearnedRuleRecord } from "@/lib/domain/learned-rules";
 import {
   POLICY_ENGINE_VERSION,
   POLICY_RULES_HASH,
@@ -82,7 +83,7 @@ export interface PolicySnapshotInput {
 
 export interface PolicySnapshot extends PolicySnapshotInput {
   /** @deprecated Persisted compatibility only. New snapshots never emit learnedRule. */
-  learnedRule?: import("@/lib/domain/learned-rules").LearnedRuleRecord;
+  learnedRule?: LearnedRuleRecord;
   policyRegistryHash: string;
   policyEngineVersion: string;
   policyRulesHash: string;
@@ -228,10 +229,7 @@ export function assertPolicySnapshotIntegrity(snapshot: PolicySnapshot) {
   if (sha256Hex(base) !== snapshotHash) {
     throw new Error("Policy snapshot integrity check failed");
   }
-  if (snapshot.learnedRule) {
-    const { assertLearnedRuleIntegrity } = require("@/lib/domain/learned-rules") as typeof import("@/lib/domain/learned-rules");
-    assertLearnedRuleIntegrity(snapshot.learnedRule);
-  }
+  if (snapshot.learnedRule) assertLearnedRuleIntegrity(snapshot.learnedRule);
   if (snapshot.confirmedPreferenceRule) assertConfirmedPreferenceRule(snapshot.confirmedPreferenceRule);
   if (
     snapshot.policyVersion !== CURRENT_POLICY_VERSION
