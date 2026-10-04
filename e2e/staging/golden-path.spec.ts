@@ -35,7 +35,7 @@ test.describe("authoritative staging browser golden path", () => {
       ),
       page.getByRole("button", { name: "Add Objective" }).click()
     ]);
-    expect(intentResponse.status()).toBe(202);
+    expect(intentResponse.status()).toBe(201);
     await expect(page.getByRole("status")).toContainText("Objective added. GetDone is taking it from here.");
     const objectiveResponse = await intentResponse.json() as {
       ok: boolean;
