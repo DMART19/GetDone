@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   confirmLearnedRule,
   createDecisionPreferenceObservation,
+  dismissLearnedRuleSuggestion,
   suggestLearnedRule,
   type PreferencePattern
 } from "@/lib/domain/preference-learning";
