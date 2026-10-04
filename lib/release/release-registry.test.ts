@@ -555,7 +555,7 @@ describe("Phase 41 release/version registry", () => {
       contractTracked: true
     });
     expect(registry.schemaVersions.zeroDowntimeMigrationPolicy).toMatchObject({
-      version: "1.0.0",
+      version: "1.1.0",
       sourcePath: "config/zero-downtime-migration-policy.json",
       contractTracked: true
     });
