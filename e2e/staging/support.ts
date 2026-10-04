@@ -595,7 +595,7 @@ export async function createTaskJobAndExecute(
     await runtime.enqueueAuthorizedBusinessAction(queuedJob, request);
     const result = await runtime.runOnce();
     if (result[0]?.outcome.kind !== "provider-completed") {
-      throw new Error("Safe staging integration did not reach provider completion");
+      throw new Error(`Safe staging integration did not reach provider completion: ${JSON.stringify(result[0]?.outcome ?? null)}`);
     }
 
     const providerEvidenceResult = await database.query<{ payload: VerificationEvidence }>(
