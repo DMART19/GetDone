@@ -154,6 +154,24 @@
       "transitionSchema": true,
       "destructive": false,
       "authorityCompatibilityRequired": true
+    },
+    {
+      "version": "2026-09-28.9z",
+      "file": "migrations/2026-09-28.9z_orchestration_runtime_grants.sql",
+      "releaseId": "orchestration-runtime-grants",
+      "phase": "expand",
+      "transitionSchema": false,
+      "destructive": false,
+      "authorityCompatibilityRequired": true
+    },
+    {
+      "version": "2026-09-28.9zz",
+      "file": "migrations/2026-09-28.9zz_orchestration_runtime_grants.sql",
+      "releaseId": "orchestration-runtime-grants-followup",
+      "phase": "expand",
+      "transitionSchema": false,
+      "destructive": false,
+      "authorityCompatibilityRequired": true
     }
   ]
 }
