@@ -219,7 +219,8 @@ describe("Task and Job authoritative lifecycle hardening", () => {
       version: 2,
       updatedAt: fixtureNow.toISOString()
     };
-    const grantBase = { ...grant };\n    delete (grantBase as Partial<AuthorizationGrant>).grantHash;
+    const grantBase = { ...grant };
+    delete (grantBase as Partial<AuthorizationGrant>).grantHash;
     const revokedBase = { ...grantBase, status: "revoked" as const };
     const revoked: AuthorizationGrant = {
       ...revokedBase,
