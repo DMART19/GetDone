@@ -402,6 +402,13 @@ function stagingGrant(correlationId: string): AuthorizationGrant {
     stepId: "step-safe-http",
     stepHash: sha256Hex({ correlationId, type: "step" }),
     capabilityNames: Object.freeze(["http.request"]),
+    executionLimits: Object.freeze({
+      environment: "staging" as const,
+      deadline: new Date(issuedAt.getTime() + 30 * 60_000).toISOString(),
+      expectedDurationSeconds: 10,
+      retryable: true,
+      maxJobCostCents: 0
+    }),
     validationReceiptId: "validation-browser-e2e",
     validationReceiptHash: sha256Hex({ correlationId, type: "validation" }),
     policySnapshotId: "policy-browser-e2e",
