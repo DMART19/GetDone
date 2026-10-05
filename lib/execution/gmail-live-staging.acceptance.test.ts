@@ -369,7 +369,6 @@ liveDescribe("real Gmail governed staging acceptance", () => {
       const value = runtime(db, gmailAdapter(liveFetch), Date.now());
       const authoritative = job("happy", new Date().toISOString());
       const request = actionRequest(authoritative, "happy");
-      await value.jobs.create(authoritative);
       await value.mvp.enqueueAuthorizedBusinessAction(authoritative, request);
       expect((await runUntilTerminal(value, authoritative.id)).state).toBe("released");
       const verified = await independentVerify(request.id);
@@ -400,7 +399,6 @@ liveDescribe("real Gmail governed staging acceptance", () => {
       const value = runtime(db, gmailAdapter(liveFetch), Date.now());
       const authoritative = job("duplicate", new Date().toISOString());
       const request = actionRequest(authoritative, "duplicate");
-      await value.jobs.create(authoritative);
       const first = await value.mvp.enqueueAuthorizedBusinessAction(authoritative, request);
       const replay = await value.mvp.enqueueAuthorizedBusinessAction(authoritative, request);
       expect(replay.transaction.transactionHash).toBe(first.transaction.transactionHash);
@@ -443,7 +441,6 @@ liveDescribe("real Gmail governed staging acceptance", () => {
       const value = runtime(db, gmailAdapter(faultFetch), Date.now());
       const authoritative = job("timeout-after-send", new Date().toISOString());
       const request = actionRequest(authoritative, "timeout-after-send");
-      await value.jobs.create(authoritative);
       await value.mvp.enqueueAuthorizedBusinessAction(authoritative, request);
       expect((await runUntilTerminal(value, authoritative.id)).state).toBe("released");
       const verified = await independentVerify(request.id);
@@ -513,7 +510,6 @@ liveDescribe("real Gmail governed staging acceptance", () => {
       const value = runtime(db, gmailAdapter(fetch, "definitely-invalid-token"), Date.now());
       const authoritative = job("invalid-token", new Date().toISOString());
       const request = actionRequest(authoritative, "invalid-token");
-      await value.jobs.create(authoritative);
       await value.mvp.enqueueAuthorizedBusinessAction(authoritative, request);
       expect((await runUntilTerminal(value, authoritative.id)).state).toBe("dead-lettered");
       await assertNoProviderObject(request.id);
@@ -535,7 +531,6 @@ liveDescribe("real Gmail governed staging acceptance", () => {
       const value = runtime(db, gmailAdapter(fetch, revoked), Date.now());
       const authoritative = job("revoked-token", new Date().toISOString());
       const request = actionRequest(authoritative, "revoked-token");
-      await value.jobs.create(authoritative);
       await value.mvp.enqueueAuthorizedBusinessAction(authoritative, request);
       expect((await runUntilTerminal(value, authoritative.id)).state).toBe("dead-lettered");
       await assertNoProviderObject(request.id);
@@ -569,7 +564,6 @@ liveDescribe("real Gmail governed staging acceptance", () => {
       const value = runtime(db, gmailAdapter(rateLimitedFetch), Date.now());
       const authoritative = job("rate-limit", new Date().toISOString());
       const request = actionRequest(authoritative, "rate-limit");
-      await value.jobs.create(authoritative);
       await value.mvp.enqueueAuthorizedBusinessAction(authoritative, request);
       expect((await runUntilTerminal(value, authoritative.id)).state).toBe("released");
       const verified = await independentVerify(request.id);
@@ -616,7 +610,6 @@ liveDescribe("real Gmail governed staging acceptance", () => {
       const value = runtime(db, gmailAdapter(malformedFetch), Date.now());
       const authoritative = job("malformed-response", new Date().toISOString());
       const request = actionRequest(authoritative, "malformed-response");
-      await value.jobs.create(authoritative);
       await value.mvp.enqueueAuthorizedBusinessAction(authoritative, request);
       expect((await runUntilTerminal(value, authoritative.id)).state).toBe("released");
       const verified = await independentVerify(request.id);
@@ -662,7 +655,6 @@ liveDescribe("real Gmail governed staging acceptance", () => {
       const value = runtime(db, gmailAdapter(verificationFailureFetch), Date.now());
       const authoritative = job("verification-failure", new Date().toISOString());
       const request = actionRequest(authoritative, "verification-failure");
-      await value.jobs.create(authoritative);
       await value.mvp.enqueueAuthorizedBusinessAction(authoritative, request);
       expect((await runUntilTerminal(value, authoritative.id)).state).toBe("dead-lettered");
       const verified = await independentVerify(request.id);
