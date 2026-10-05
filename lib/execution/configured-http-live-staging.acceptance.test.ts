@@ -293,6 +293,7 @@ function runtime(
     }
   );
   return {
+    db,
     queue,
     jobs,
     business,
@@ -312,7 +313,7 @@ async function runUntilTerminal(
     await value.mvp.runOnce();
     const snapshot = await value.queue.getRuntimeSnapshot(jobId);
     if (snapshot && ["released", "dead-lettered", "cancelled"].includes(snapshot.state)) {
-      if (snapshot.state === "dead-lettered") console.error("ACCEPTANCE_DEAD_LETTER", JSON.stringify(snapshot));
+      if (snapshot.state === "dead-lettered") { const dead = await value.db.query<{ payload: { reason?: string } }>("SELECT payload FROM job_dead_letters WHERE job_id=$1", [jobId]); console.error("ACCEPTANCE_DEAD_LETTER", dead.rows[0]?.payload?.reason, JSON.stringify(snapshot)); }
       return snapshot;
     }
     value.advance();
