@@ -281,12 +281,15 @@ export function handleOwnerIntent(request: Request) {
 }
 
 export function handleOwnerIntentStatus(request: Request, intentId: string) {
-  return execute(async (adapter) =>
-    adapter.getOwnerIntentStatus(
+  return execute(async (adapter) => {
+    if (!adapter.getOwnerIntentStatus) {
+      throw new ControlPlaneError("UNAVAILABLE", "Conversation status is not connected");
+    }
+    return adapter.getOwnerIntentStatus(
       await adapter.authenticate(request),
       safeId(intentId, "intentId")
-    )
-  );
+    );
+  });
 }
 
 export function handleSubmitObjectives(request: Request) {
