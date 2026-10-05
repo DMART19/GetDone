@@ -182,7 +182,7 @@ export interface ControlApiApplicationAdapter {
     idempotencyKey: string,
     correlationId?: string
   ): Promise<OwnerIntentRecord>;
-  getOwnerIntentStatus(principal: ControlApiPrincipal, intentId: string): Promise<{ intentId: string; conversation: ConversationSemantics; lifecycle: OwnerLifecycleView; orchestrationId?: string }>;
+  getOwnerIntentStatus(principal: ControlApiPrincipal, intentId: string): Promise<{ intentId: string; conversation: ConversationSemantics; lifecycle: OwnerLifecycleView; answer?: OwnerIntentRecord["answer"]; orchestrationId?: string }>;
 
   submitObjectives(
     principal: ControlApiPrincipal,
