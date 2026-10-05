@@ -441,9 +441,8 @@ liveDescribe("real Gmail governed staging acceptance", () => {
     let request: AuthorizedBusinessActionRequest;
     try {
       const first = runtime(firstDb, gmailAdapter(liveFetch), start, 0);
-      authoritative = job("restart-after-acceptance", new Date(start).toISOString());
+      authoritative = await seedLiveAcceptanceAuthority({ db: firstDb, id: "job-gmail-" + runId + "-restart-after-acceptance", taskId: "task-gmail-" + runId + "-restart-after-acceptance", correlationId: "corr-gmail-" + runId + "-restart-after-acceptance", scope, capability: "email.send", now: new Date(start).toISOString() });
       request = actionRequest(authoritative, "restart-after-acceptance");
-      await first.jobs.create(authoritative);
       await first.mvp.enqueueAuthorizedBusinessAction(authoritative, request);
       await first.mvp.runOnce();
       expect((await first.queue.getRuntimeSnapshot(authoritative.id))?.state).toBe("retry-wait");
