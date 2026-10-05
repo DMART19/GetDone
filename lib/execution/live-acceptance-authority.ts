@@ -48,7 +48,11 @@ export async function seedLiveAcceptanceAuthority(input: {
     ...integrationBase,
     recordHash: sha256Hex(integrationBase)
   });
-  await new PostgresEntityStore<CompanyIntegration>(input.db, "integration").insert(integration);
+  await input.db.query(
+    `INSERT INTO control_plane_entities(entity_type,id,portfolio_id,company_id,version,updated_at,payload)
+     VALUES('integration',$1,$2,$3,1,$4,$5::jsonb)`,
+    [integration.id, integration.portfolioId, integration.companyId, integration.updatedAt, JSON.stringify(integration)]
+  );
 
   const issuedAt = new Date(Date.parse(input.now) - 60_000).toISOString();
   const expiresAt = new Date(Date.parse(input.now) + 60 * 60_000).toISOString();
