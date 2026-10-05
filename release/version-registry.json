@@ -782,7 +782,7 @@
     "adapterImplementationStatus": "implemented-unconfigured"
   },
   "execution": {
-    "jobRuntimeContractVersion": "1.2.0",
+    "jobRuntimeContractVersion": "1.3.0",
     "durableJobStoreStatus": "implemented-unconnected",
     "businessActionContractVersion": "1.6.0",
     "businessAdaptersStatus": "implemented-unconfigured",
@@ -819,7 +819,7 @@
     "softwareWorkerRuntimeStatus": "implemented",
     "softwareWorkerRuntimeVersion": "1.0.0",
     "jobExecutionRouterStatus": "implemented",
-    "jobExecutionRouterVersion": "1.1.0",
+    "jobExecutionRouterVersion": "1.2.0",
     "jobExecutionBridgeStoreImplementationStatus": "implemented-unconnected",
     "persistenceBackend": "postgresql",
     "persistentWorkerServiceStatus": "implemented-unconnected",
