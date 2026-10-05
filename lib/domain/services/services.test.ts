@@ -21,6 +21,7 @@ import type {
   VerifiedRunningPlacement
 } from "@/lib/resources/scheduler";
 import { OutcomeService, type OutcomeRecord, type OutcomeStores } from "@/lib/domain/services/outcome-service";
+import { VerificationService, type VerificationRequestRecord, type VerificationStore } from "@/lib/domain/services/verification-service";
 import { createStepUpProof } from "@/lib/authorization/proofs";
 import { autoGrantFor, fixtureNow } from "@/lib/planning/test-security-fixture";
 import {
@@ -448,5 +449,104 @@ describe("transactional domain services", () => {
     const result = await service.verify(base.id, command("outcome.verify"), verified.id);
     expect(result.state).toBe("verified");
     expect(result.verificationReceiptHash).toBe(verified.receiptHash);
+  });
+});
+
+
+class MemoryVerificationStore implements VerificationStore {
+  private readonly records = new Map<string, VerificationRequestRecord>();
+  private readonly receipts = new Map<string, VerificationReceipt>();
+  async create(record: VerificationRequestRecord) { this.records.set(record.id, record); }
+  async get(id: string) { return this.records.get(id) ?? null; }
+  async save(next: VerificationRequestRecord, expectedVersion: number) {
+    const current = this.records.get(next.id);
+    if (!current || current.version !== expectedVersion) throw new Error("optimistic concurrency conflict");
+    this.records.set(next.id, next);
+  }
+  async getReceipt(id: string) { return this.receipts.get(id) ?? null; }
+  async insert(receipt: VerificationReceipt) { this.receipts.set(receipt.id, receipt); }
+}
+
+describe("VerificationService authoritative lifecycle", () => {
+  function verificationRequest() {
+    return createVerificationRequest({
+      id: "verification-service-request",
+      correlationId: "verification-service-correlation",
+      portfolioId: "portfolio-a",
+      companyId: "company-a",
+      environment: "staging",
+      subject: { type: "job", id: "job-verification-service" },
+      strategies: ["system"],
+      requiresIndependentEvidence: false,
+      maxEvidenceAgeSeconds: 600,
+      requestedAt: "2026-09-20T18:30:00.000Z",
+      expiresAt: "2026-09-20T18:40:00.000Z"
+    });
+  }
+
+  it("persists request, collecting, and verified receipt truth", async () => {
+    const store = new MemoryVerificationStore();
+    const service = new VerificationService(manager({ verifications: store }));
+    const request = verificationRequest();
+    const created = await service.request(request, command("verification.request"));
+    expect(created.state).toBe("requested");
+    expect((await service.beginCollecting(request.id, command("verification.collect"))).state).toBe("collecting");
+    const evidence = createVerificationEvidence({
+      id: "verification-service-evidence",
+      correlationId: request.correlationId,
+      portfolioId: request.portfolioId,
+      companyId: request.companyId,
+      subject: request.subject,
+      strategy: "system",
+      result: "pass",
+      sourceType: "system-probe",
+      sourceId: "verification-service-test",
+      independenceKey: "verification-service-independent",
+      observedAt: "2026-09-20T18:31:00.000Z",
+      payloadHash: sha256Hex({ ok: true }),
+      provenance: "unit-test"
+    });
+    const resolved = await service.resolve(
+      request.id,
+      command("verification.resolve"),
+      request,
+      [evidence],
+      { receiptId: "verification-service-receipt", verifiedAt: "2026-09-20T18:31:01.000Z", receiptTtlSeconds: 60 }
+    );
+    expect(resolved.state).toBe("verified");
+    expect(resolved.receipt?.verdict).toBe("verified");
+  });
+
+  it("fails closed on scope mismatch and request substitution, and supports cancellation", async () => {
+    const store = new MemoryVerificationStore();
+    const service = new VerificationService(manager({ verifications: store }));
+    const request = verificationRequest();
+    const wrong = createCommandEnvelope({
+      commandId: "verification-wrong-scope",
+      actor: { type: "user", id: "user-a" },
+      scope: { userId: "user-a", portfolioId: "portfolio-other", companyId: "company-a", environment: "staging" },
+      correlationId: "verification-wrong-scope",
+      environment: "staging",
+      idempotencyKey: "verification-wrong-scope",
+      provenance: "unit-test",
+      requestedMutation: { type: "verification.request" }
+    });
+    await expect(service.request(request, wrong)).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await service.request(request, command("verification.request-2"));
+    await service.beginCollecting(request.id, command("verification.collect-2"));
+    const substituted = createVerificationRequest({
+      ...request,
+      id: "verification-substituted",
+      subject: request.subject
+    });
+    await expect(service.resolve(request.id, command("verification.resolve-bad"), substituted, [], {
+      receiptId: "bad-receipt",
+      verifiedAt: "2026-09-20T18:31:01.000Z"
+    })).rejects.toMatchObject({ code: "FORBIDDEN" });
+
+    const cancelStore = new MemoryVerificationStore();
+    const cancelService = new VerificationService(manager({ verifications: cancelStore }));
+    await cancelService.request(request, command("verification.request-cancel"));
+    expect((await cancelService.cancel(request.id, command("verification.cancel"))).state).toBe("cancelled");
   });
 });
