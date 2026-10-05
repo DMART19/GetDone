@@ -485,17 +485,42 @@ function exactContextScope(run: OrchestrationRunRecord): ContextScope {
   };
 }
 
-const emptyOwnerIntentCandidates = {
-  async listForIntent(): Promise<readonly ContextItem[]> {
-    return [];
+function authoritativeContextCandidates(db: PostgresTransactionalDatabase) {
+  async function list(run: OrchestrationRunRecord): Promise<readonly ContextItem[]> {
+    const result = await db.query<{ entity_type: string; id: string; updated_at: string; payload: unknown }>(
+      `SELECT entity_type,id,updated_at,payload
+         FROM control_plane_entities
+        WHERE portfolio_id=$1 AND company_id=$2
+          AND entity_type = ANY($3::text[])
+        ORDER BY updated_at DESC
+        LIMIT 40`,
+      [run.scope.portfolioId, run.scope.companyId, ["objective", "decision", "job", "outcome", "resource", "verification"]]
+    );
+    const kind = (entityType: string): ContextItem["kind"] => {
+      if (entityType === "decision") return "decision";
+      if (entityType === "outcome" || entityType === "verification") return "outcome";
+      if (entityType === "resource") return "resource-summary";
+      return "fact";
+    };
+    return Object.freeze(result.rows.map((row) => Object.freeze({
+      id: `context:${row.entity_type}:${row.id}`,
+      kind: kind(row.entity_type),
+      portfolioId: run.scope.portfolioId,
+      companyId: run.scope.companyId,
+      resourceId: row.entity_type === "resource" ? row.id : undefined,
+      source: `control-plane:${row.entity_type}`,
+      provenance: `authoritative-postgres:${row.entity_type}:${row.id}`,
+      observedAt: new Date(row.updated_at).toISOString(),
+      freshnessSeconds: 7 * 24 * 60 * 60,
+      sensitivity: "internal" as const,
+      content: JSON.stringify(row.payload).slice(0, 4000)
+    })));
   }
-};
-
-const emptyObjectiveCandidates = {
-  async listForObjective(): Promise<readonly ContextItem[]> {
-    return [];
-  }
-};
+  return {
+    owner: { listForIntent: ({ run }: { run: OrchestrationRunRecord }) => list(run) },
+    objective: { listForObjective: ({ run }: { run: OrchestrationRunRecord }) => list(run) }
+  };
+}
 
 function exactContextPolicy() {
   return {
@@ -741,6 +766,7 @@ export function createAuthoritativeExecutionCoordinatorFromEnv(
     new PostgresOrchestrationCredentialLeaseResolver(db, now)
   );
   const outcomes = new PostgresObjectiveOutcomePort(db, now);
+  const contextCandidates = authoritativeContextCandidates(db);
   const planner = new AIGatewayDurablePlanner(
     getAIGatewayFromEnv(env),
     new PostgresPlannerAIBudgetProvider(db, config, now)
@@ -749,7 +775,7 @@ export function createAuthoritativeExecutionCoordinatorFromEnv(
   return new AuthoritativeExecutionCoordinator({
     ownerIntentContext: {
       ownerIntents: new PostgresOwnerIntentStore(db),
-      candidates: emptyOwnerIntentCandidates,
+      candidates: contextCandidates.owner,
       policy: exactContextPolicy(),
       snapshots,
       now
@@ -758,7 +784,7 @@ export function createAuthoritativeExecutionCoordinatorFromEnv(
       objectives: objectives as {
         get(id: string): Promise<AuthoritativeObjective | null>;
       },
-      candidates: emptyObjectiveCandidates,
+      candidates: contextCandidates.objective,
       policy: exactContextPolicy(),
       snapshots,
       now

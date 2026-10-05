@@ -1,4 +1,5 @@
 import { authorizeRequest } from "@/lib/auth/guard";
+import { analyzeConversationMessage } from "@/lib/conversation/contracts";
 import type { StepUpProof } from "@/lib/authorization/proofs";
 import type { AuthAdapter, AuthSession } from "@/lib/auth/contracts";
 import { createCommandEnvelope } from "@/lib/control-plane/command-envelope";
@@ -263,6 +264,7 @@ export class ServiceBackedControlApiAdapter implements ControlApiApplicationAdap
         message: input.message,
         channel: input.channel ?? "chat",
         status: "accepted",
+        conversation: analyzeConversationMessage(input.message),
         receivedAt: this.now().toISOString()
       });
       return this.deps.intents.create(record, idempotencyKey);
