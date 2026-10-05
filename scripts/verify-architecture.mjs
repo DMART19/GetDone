@@ -1158,7 +1158,7 @@ if (
   || releaseRegistry.execution.softwareWorkerRuntimeStatus !== "implemented"
   || releaseRegistry.execution.softwareDeploymentStatus !== "not-connected"
   || releaseRegistry.execution.jobExecutionRouterStatus !== "implemented"
-  || releaseRegistry.execution.jobExecutionRouterVersion !== "1.1.0"
+  || releaseRegistry.execution.jobExecutionRouterVersion !== "1.2.0"
   || releaseRegistry.execution.persistentWorkerServiceStatus !== "implemented-unconnected"
   || releaseRegistry.execution.persistentWorkerServiceVersion !== "1.0.0"
   || releaseRegistry.execution.jobExecutionBridgeContractVersion !== "1.0.0"
