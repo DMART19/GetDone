@@ -213,4 +213,90 @@ describe("fresh execution admission", () => {
     const grant = autoGrantFor(validPlan());
     await expect(gate([objectiveRow(grant), []]).assertAllowed(input(grant))).resolves.toBeUndefined();
   });
+  it("fails closed on missing limits, scope drift, invalid attempts, deadlines, and capability escalation", async () => {
+    const base = autoGrantFor(validPlan());
+
+    await expect(gate().assertAllowed(input({ ...base, executionLimits: undefined })))
+      .rejects.toThrow(/requires persisted authorization execution limits/i);
+
+    await expect(gate().assertAllowed(input({
+      ...base,
+      executionLimits: { ...base.executionLimits!, environment: "development" }
+    }))).rejects.toThrow(/environment no longer matches/i);
+
+    await expect(gate().assertAllowed({ ...input(base), timeoutMs: 0 }))
+      .rejects.toThrow(/positive integers/i);
+    await expect(gate().assertAllowed({ ...input(base), attempt: 0 }))
+      .rejects.toThrow(/positive integers/i);
+
+    await expect(gate().assertAllowed(input({
+      ...base,
+      executionLimits: { ...base.executionLimits!, deadline: fixtureNow.toISOString() }
+    }))).rejects.toThrow(/deadline is invalid or has elapsed/i);
+
+    await expect(gate().assertAllowed({ ...input(base), capability: "email.send" }))
+      .rejects.toThrow(/outside current grant authority/i);
+  });
+
+  it("fails closed when approval authority is missing or its proof has changed", async () => {
+    const base = autoGrantFor(validPlan());
+    const scope = fixtureScope(validPlan());
+    const grant = { ...base, decisionId: "decision-proof", approvalProofHash: "expected-proof" };
+
+    await expect(gate([[]]).assertAllowed(input(grant)))
+      .rejects.toThrow(/Decision is missing/i);
+
+    const approved = {
+      id: "decision-proof",
+      portfolioId: scope.portfolioId,
+      companyId: scope.companyId,
+      status: "approved",
+      version: 2,
+      requiresStepUp: false,
+      approvalProof: { proofHash: "different-proof" },
+      updatedAt: fixtureNow.toISOString()
+    };
+    await expect(gate([[{ payload: approved } as QueryResultRow]]).assertAllowed(input(grant)))
+      .rejects.toThrow(/proof no longer matches/i);
+  });
+
+  it("fails closed on missing objective and integration authority", async () => {
+    const base = autoGrantFor(validPlan());
+    const objectiveGrant = { ...base, objectiveId: "objective-missing" };
+    await expect(gate([[]]).assertAllowed(input(objectiveGrant)))
+      .rejects.toThrow(/Objective authority is missing/i);
+
+    const integrationGrant = {
+      ...base,
+      capabilityNames: ["email.send"],
+      integrationId: "integration-missing"
+    };
+    await expect(gate([[]]).assertAllowed(input(integrationGrant)))
+      .rejects.toThrow(/integration binding is missing/i);
+  });
+
+  it("rejects mock and accessless integrations for consequential execution", async () => {
+    const plan = validPlan();
+    const scope = fixtureScope(plan);
+    const base = autoGrantFor(plan);
+    const connected = createCompanyIntegration({
+      id: "integration-restricted",
+      scope,
+      kind: "gmail",
+      displayName: "Gmail",
+      adapterId: "business.email",
+      adapterVersion: "1.0.0",
+      writeScopes: [],
+      createdAt: fixtureNow.toISOString()
+    });
+    const grant = { ...base, capabilityNames: ["email.send"], integrationId: connected.id };
+
+    await expect(gate([[{ payload: connected } as QueryResultRow], []]).assertAllowed(input(grant)))
+      .rejects.toThrow(/grants no write access/i);
+
+    const mocked = { ...connected, mock: true, writeScopes: ["email.send"] };
+    await expect(gate([[{ payload: mocked } as QueryResultRow]]).assertAllowed(input(grant)))
+      .rejects.toThrow(/Mock integration cannot authorize/i);
+  });
+
 });
