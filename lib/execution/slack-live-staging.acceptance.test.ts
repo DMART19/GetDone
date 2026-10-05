@@ -476,9 +476,8 @@ liveDescribe("real Slack governed staging acceptance", () => {
     const firstDb = database();
     try {
       const first = runtime(firstDb, adapter(liveFetch), start, 0);
-      authoritative = job("restart-resume", new Date(start).toISOString());
+      authoritative = await seedLiveAcceptanceAuthority({ db: firstDb, id: "job-slack-" + runId + "-restart-resume", taskId: "task-slack-" + runId + "-restart-resume", correlationId: "corr-slack-" + runId + "-restart-resume", scope, capability: "slack.message.send", now: new Date(start).toISOString() });
       action = request(authoritative, "restart-resume");
-      await first.jobs.create(authoritative);
       await first.mvp.enqueueAuthorizedBusinessAction(authoritative, action);
       await first.mvp.runOnce();
       expect((await first.queue.getRuntimeSnapshot(authoritative.id))?.state).toBe("retry-wait");
