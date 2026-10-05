@@ -18,10 +18,10 @@ export function ChatComposer() {
       const response = await fetch("/api/control/chat/" + encodeURIComponent(intentId), { cache: "no-store" });
       const value = await response.json().catch(() => null) as {
         ok?: boolean;
-        data?: { lifecycle?: { label?: string; terminal?: boolean; verified?: boolean } };
+        data?: { lifecycle?: { label?: string; terminal?: boolean; verified?: boolean }; answer?: { text?: string } };
       } | null;
       if (!response.ok || !value?.ok || !value.data?.lifecycle) return;
-      setPreview(value.data.lifecycle.label ?? "GetDone is working…");
+      setPreview(value.data.answer?.text ?? value.data.lifecycle.label ?? "GetDone is working…");
       if (value.data.lifecycle.terminal) return;
     }
   }
