@@ -169,7 +169,7 @@ describe("fresh execution admission", () => {
 
   it("blocks an enabled emergency or scoped kill switch immediately", async () => {
     const grant = autoGrantFor(validPlan());
-    const admission = gate([[
+    const admission = gate([objectiveRow(grant), [
       {
         payload: {
           id: "emergency-stop",
@@ -211,6 +211,6 @@ describe("fresh execution admission", () => {
 
   it("allows current authority when no live revocation is present", async () => {
     const grant = autoGrantFor(validPlan());
-    await expect(gate().assertAllowed(input(grant))).resolves.toBeUndefined();
+    await expect(gate([objectiveRow(grant), []]).assertAllowed(input(grant))).resolves.toBeUndefined();
   });
 });
