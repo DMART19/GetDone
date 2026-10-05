@@ -355,7 +355,7 @@ liveDescribe("real Slack governed staging acceptance", () => {
         return fetch(url, init);
       };
       const value = runtime(db, adapter(liveFetch), Date.now());
-      const authoritative = job("happy", new Date().toISOString());
+      const authoritative = await seedLiveAcceptanceAuthority({ db, id: "job-slack-" + runId + "-happy", taskId: "task-slack-" + runId + "-happy", correlationId: "corr-slack-" + runId + "-happy", scope, capability: "slack.message.send", now: new Date().toISOString() });
       const action = request(authoritative, "happy");
       await value.mvp.enqueueAuthorizedBusinessAction(authoritative, action);
       expect((await runUntilTerminal(value, authoritative.id)).state).toBe("released");
@@ -382,7 +382,7 @@ liveDescribe("real Slack governed staging acceptance", () => {
     const db = database();
     try {
       const value = runtime(db, adapter(fetch), Date.now(), 0);
-      const authoritative = job("cancel", new Date().toISOString());
+      const authoritative = await seedLiveAcceptanceAuthority({ db, id: "job-slack-" + runId + "-cancel", taskId: "task-slack-" + runId + "-cancel", correlationId: "corr-slack-" + runId + "-cancel", scope, capability: "slack.message.send", now: new Date().toISOString() });
       const action = request(authoritative, "cancel");
       await value.mvp.enqueueAuthorizedBusinessAction(authoritative, action);
       await value.mvp.runOnce();
@@ -427,7 +427,7 @@ liveDescribe("real Slack governed staging acceptance", () => {
         return fetch(url, init);
       };
       const value = runtime(db, adapter(rateLimitedFetch), Date.now());
-      const authoritative = job("rate-limit", new Date().toISOString());
+      const authoritative = await seedLiveAcceptanceAuthority({ db, id: "job-slack-" + runId + "-rate-limit", taskId: "task-slack-" + runId + "-rate-limit", correlationId: "corr-slack-" + runId + "-rate-limit", scope, capability: "slack.message.send", now: new Date().toISOString() });
       const action = request(authoritative, "rate-limit");
       await value.mvp.enqueueAuthorizedBusinessAction(authoritative, action);
       expect((await runUntilTerminal(value, authoritative.id)).state).toBe("released");
@@ -451,7 +451,7 @@ liveDescribe("real Slack governed staging acceptance", () => {
     const db = database();
     try {
       const value = runtime(db, adapter(fetch, revokedToken), Date.now());
-      const authoritative = job("revoked-token", new Date().toISOString());
+      const authoritative = await seedLiveAcceptanceAuthority({ db, id: "job-slack-" + runId + "-revoked-token", taskId: "task-slack-" + runId + "-revoked-token", correlationId: "corr-slack-" + runId + "-revoked-token", scope, capability: "slack.message.send", now: new Date().toISOString() });
       const action = request(authoritative, "revoked-token");
       await value.mvp.enqueueAuthorizedBusinessAction(authoritative, action);
       expect((await runUntilTerminal(value, authoritative.id)).state).toBe("dead-lettered");
@@ -467,7 +467,7 @@ liveDescribe("real Slack governed staging acceptance", () => {
     const db = database();
     try {
       const value = runtime(db, adapter(fetch, noWriteToken), Date.now());
-      const authoritative = job("permission-failure", new Date().toISOString());
+      const authoritative = await seedLiveAcceptanceAuthority({ db, id: "job-slack-" + runId + "-permission-failure", taskId: "task-slack-" + runId + "-permission-failure", correlationId: "corr-slack-" + runId + "-permission-failure", scope, capability: "slack.message.send", now: new Date().toISOString() });
       const action = request(authoritative, "permission-failure");
       await value.mvp.enqueueAuthorizedBusinessAction(authoritative, action);
       expect((await runUntilTerminal(value, authoritative.id)).state).toBe("dead-lettered");
@@ -483,7 +483,7 @@ liveDescribe("real Slack governed staging acceptance", () => {
     const db = database();
     try {
       const value = runtime(db, adapter(fetch), Date.now());
-      const authoritative = job("channel-not-found", new Date().toISOString());
+      const authoritative = await seedLiveAcceptanceAuthority({ db, id: "job-slack-" + runId + "-channel-not-found", taskId: "task-slack-" + runId + "-channel-not-found", correlationId: "corr-slack-" + runId + "-channel-not-found", scope, capability: "slack.message.send", now: new Date().toISOString() });
       const action = request(authoritative, "channel-not-found", "C0000000000");
       await value.mvp.enqueueAuthorizedBusinessAction(authoritative, action);
       expect((await runUntilTerminal(value, authoritative.id)).state).toBe("dead-lettered");
