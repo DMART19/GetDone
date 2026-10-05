@@ -542,7 +542,7 @@ describe("MVP authority service hardening", () => {
     const taskService = new TaskService(manager<TaskStores>({
       tasks: taskStore,
       authorizationGrants: grants
-    }, taskAudit));
+    }, taskAudit), () => fixtureNow);
 
     const authorized = await taskService.authorize(
       taskStore.value.id,
@@ -557,7 +557,7 @@ describe("MVP authority service hardening", () => {
     const jobService = new JobService(manager<JobStores>({
       jobs: jobStore,
       authorizationGrants: grants
-    }, jobAudit));
+    }, jobAudit), () => fixtureNow);
     await jobService.queue(
       jobStore.value.id,
       command("job.queue.audit"),

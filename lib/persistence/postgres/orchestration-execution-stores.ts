@@ -268,7 +268,8 @@ export class PostgresOrchestrationJobGraphStore
     job: OrchestrationJobNode;
     expectedState: OrchestrationJobNodeState;
   }) {
-    const { nodeHash: _priorHash, ...hashBase } = input.job;
+    const hashBase = { ...input.job };
+    delete (hashBase as Partial<OrchestrationJobNode>).nodeHash;
     const nextHash = sha256Hex(hashBase);
     const next = Object.freeze({ ...hashBase, nodeHash: nextHash });
     const result = await this.db.query(

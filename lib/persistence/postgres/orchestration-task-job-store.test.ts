@@ -288,9 +288,17 @@ describe("Postgres Tranche A materialization store", () => {
     await store.claimTask(built.task, built.consumption);
     await store.claimJob(built.job, built.task);
 
+    const mutatedInput = {
+      ...(built.job.input as Record<string, unknown>),
+      ref: "phase-9-mutated-ref"
+    };
     const mutatedBase = {
       ...built.job,
-      inputHash: "c".repeat(64)
+      input: mutatedInput,
+      inputHash: sha256Hex({
+        capabilityId: built.job.capabilityId,
+        input: mutatedInput
+      })
     };
     delete (mutatedBase as Partial<OrchestrationJobArtifact>).jobHash;
     const mutated: OrchestrationJobArtifact = {

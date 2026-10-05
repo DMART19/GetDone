@@ -662,7 +662,8 @@ export function transitionOrchestrationRun(
     );
   }
 
-  const { recordHash: _currentRecordHash, ...currentWithoutHash } = current;
+  const currentWithoutHash = { ...current };
+  delete (currentWithoutHash as Partial<OrchestrationRunRecord>).recordHash;
   const base = recordBase({
     ...currentWithoutHash,
     state: input.to,

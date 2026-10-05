@@ -1088,12 +1088,12 @@ if (
   fail("Phase 28.4 release state drifted or overclaims live Node capability/binding connectivity");
 }
 if (
-  releaseRegistry.controlApi?.surfaceVersion !== "1.5.0"
+  releaseRegistry.controlApi?.surfaceVersion !== "1.6.0"
   || releaseRegistry.controlApi?.status !== "implemented-unconnected"
   || releaseRegistry.controlApi?.applicationAdapterStatus !== "not-connected"
   || releaseRegistry.controlApi?.authStatus !== "implemented-unconnected"
   || releaseRegistry.controlApi?.persistenceStatus !== "not-connected"
-  || releaseRegistry.schemaVersions?.controlApiSurface?.version !== "1.5.0"
+  || releaseRegistry.schemaVersions?.controlApiSurface?.version !== "1.6.0"
 ) {
   fail("Control API release state must expose the implemented surface while preserving unconnected authority adapters");
 }
@@ -1109,7 +1109,7 @@ if (
   releaseRegistry.database?.status !== "implemented-unconnected"
   || releaseRegistry.database?.engine !== "postgresql"
   || releaseRegistry.database?.minimumEngineVersion !== "16"
-  || releaseRegistry.database?.migrationVersion !== "2026-09-25.3"
+  || releaseRegistry.database?.migrationVersion !== "2026-09-28.9zz"
   || releaseRegistry.database?.schemaVersion !== "2.2.0"
   || releaseRegistry.schemaVersions?.postgresPersistence?.version !== "1.1.0"
   || releaseRegistry.schemaVersions?.disasterRecovery?.version !== "1.0.0"
@@ -1126,14 +1126,14 @@ if (
 }
 
 if (
-  releaseRegistry.integrations.registryContractVersion !== "1.0.0"
+  releaseRegistry.integrations.registryContractVersion !== "1.1.0"
   || releaseRegistry.integrations.liveAdaptersStatus !== "not-connected"
   || releaseRegistry.integrations.adapterImplementationStatus !== "implemented-unconfigured"
 ) {
   fail("Phase 4 release state drifted");
 }
 if (
-  releaseRegistry.execution.jobRuntimeContractVersion !== "1.2.0"
+  releaseRegistry.execution.jobRuntimeContractVersion !== "1.3.0"
   || releaseRegistry.execution.durableJobStoreStatus !== "implemented-unconnected"
   || releaseRegistry.execution.durableJobStoreVersion !== "1.0.0"
   || releaseRegistry.execution.businessActionContractVersion !== "1.6.0"
@@ -1158,7 +1158,7 @@ if (
   || releaseRegistry.execution.softwareWorkerRuntimeStatus !== "implemented"
   || releaseRegistry.execution.softwareDeploymentStatus !== "not-connected"
   || releaseRegistry.execution.jobExecutionRouterStatus !== "implemented"
-  || releaseRegistry.execution.jobExecutionRouterVersion !== "1.1.0"
+  || releaseRegistry.execution.jobExecutionRouterVersion !== "1.2.0"
   || releaseRegistry.execution.persistentWorkerServiceStatus !== "implemented-unconnected"
   || releaseRegistry.execution.persistentWorkerServiceVersion !== "1.0.0"
   || releaseRegistry.execution.jobExecutionBridgeContractVersion !== "1.0.0"

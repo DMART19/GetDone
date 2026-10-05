@@ -62,6 +62,9 @@ function workerRow(payload = run()) {
   return {
     payload,
     run_id: payload.id,
+    portfolio_id: payload.scope.portfolioId,
+    company_id: payload.scope.companyId,
+    run_state: payload.state,
     stage_run_version: payload.version,
     stage_attempt: 0,
     consecutive_failures: 0,
@@ -98,7 +101,7 @@ describe("PostgresOrchestrationWorkerStore", () => {
   it("lists only persisted ready candidates and validates batch bounds", async () => {
     const current = run();
     const store = new PostgresOrchestrationWorkerStore(
-      new ScriptedDb([{ rows: [workerRow(current)] }])
+      new ScriptedDb([{ rows: [workerRow(current)] }, { rows: [{ payload: current }] }])
     );
 
     const candidates = await store.listReady({
@@ -213,6 +216,7 @@ describe("PostgresOrchestrationWorkerStore", () => {
       claimed_record_hash: current.recordHash
     };
     const db = new ScriptedDb([
+      { rows: [expired] },
       { rows: [expired] },
       { rowCount: 1 }
     ]);

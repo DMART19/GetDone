@@ -189,8 +189,14 @@ export class RoutedJobExecutionHandler implements DurableJobExecutionHandler {
     if (authoritative.state === "cancelled") {
       return { kind: "cancelled", reason: "Authoritative Job was cancelled before execution" };
     }
-    if (authoritative.state === "verified" || authoritative.state === "succeeded") {
+    if (authoritative.state === "verified") {
       return { kind: "verified" };
+    }
+    if (authoritative.state === "succeeded") {
+      return {
+        kind: "dead-letter",
+        reason: "Legacy succeeded Job is read-compatible only and cannot be promoted to verified"
+      };
     }
     if (authoritative.state === "provider_completed") {
       return { kind: "provider-completed" };

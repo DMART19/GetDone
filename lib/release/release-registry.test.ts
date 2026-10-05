@@ -480,7 +480,7 @@ describe("Phase 41 release/version registry", () => {
       softwareWorkerRuntimeVersion: "1.0.0",
       softwareDeploymentStatus: "not-connected",
       jobExecutionRouterStatus: "implemented",
-      jobExecutionRouterVersion: "1.1.0",
+      jobExecutionRouterVersion: "1.2.0",
       jobExecutionBridgeContractVersion: JOB_EXECUTION_BRIDGE_CONTRACT_VERSION,
       jobExecutionBridgeStatus: "deterministic-contract",
       liveJobExecutionBridgeStoreStatus: "not-connected",
@@ -538,7 +538,7 @@ describe("Phase 41 release/version registry", () => {
       status: "implemented-unconnected",
       engine: "postgresql",
       minimumEngineVersion: "16",
-      migrationVersion: "2026-09-25.3",
+      migrationVersion: "2026-09-28.9zz",
       schemaVersion: "2.2.0"
     });
     expect(registry.adapters.postgresPersistence).toMatchObject({
@@ -555,7 +555,7 @@ describe("Phase 41 release/version registry", () => {
       contractTracked: true
     });
     expect(registry.schemaVersions.zeroDowntimeMigrationPolicy).toMatchObject({
-      version: "1.0.0",
+      version: "1.1.0",
       sourcePath: "config/zero-downtime-migration-policy.json",
       contractTracked: true
     });

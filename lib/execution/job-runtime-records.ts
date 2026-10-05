@@ -49,6 +49,9 @@ export function createDurableJobExecutionOutcome(
   if (!input.id || !input.jobId || !input.kind || !input.runtimeState || !input.transactionHash) {
     throw new ControlPlaneError("VALIDATION_FAILED", "Durable Job outcome identity and transaction lineage are required");
   }
+  if (input.kind === "succeeded") {
+    throw new ControlPlaneError("VALIDATION_FAILED", "Legacy succeeded Job outcomes are read-compatible only and cannot be emitted");
+  }
   if (!Number.isInteger(input.attempt) || input.attempt < 0) {
     throw new ControlPlaneError("VALIDATION_FAILED", "Durable Job outcome attempt must be non-negative");
   }

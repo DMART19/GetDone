@@ -2,6 +2,7 @@ import { ControlPlaneError } from "@/lib/control-plane/errors";
 import {
   createDeadLetterRecord,
   createJobRetryScheduleRecord,
+  type DurableJobCompletionKind,
   type DurableJobLease,
   type JobQueueEnvelope,
   type JobStoreTransactionReceipt
@@ -305,7 +306,7 @@ export class DurableJobWorker {
         expectedJobVersion: version,
         expectedJobHash: stateHash,
         idempotencyKey: `release:${lease.id}:${lease.version}`,
-        outcomeKind: outcome.kind
+        outcomeKind: outcome.kind as DurableJobCompletionKind
       }));
       latestTransaction = receipt;
     } else if (outcome.kind === "cancelled") {

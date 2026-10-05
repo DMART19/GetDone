@@ -157,7 +157,7 @@ export function autoGrantFor(
   const policySnapshot = policySnapshotFor(plan, stepId, now);
   const policyEvaluation = autoPolicyFor(plan, stepId);
 
-  return issueAuthorizationGrant({
+  const grant = issueAuthorizationGrant({
     id: `grant-${stepId}`,
     plan,
     stepId,
@@ -169,4 +169,5 @@ export function autoGrantFor(
     issuedAt: now.toISOString(),
     expiresAt: new Date(now.getTime() + 30_000).toISOString()
   });
+  return grant;
 }

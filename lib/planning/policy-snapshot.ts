@@ -7,6 +7,7 @@ import type { ResourceRequirementEnvelope } from "@/lib/planning/plan-schema";
 import type { CredentialAvailabilitySnapshot } from "@/lib/domain/credential-binding";
 import type { BudgetReservation } from "@/lib/domain/budget-reservation";
 import type { ProtectedCapacitySnapshot } from "@/lib/domain/protected-capacity";
+import { assertLearnedRuleIntegrity, type LearnedRuleRecord } from "@/lib/domain/learned-rules";
 import {
   POLICY_ENGINE_VERSION,
   POLICY_RULES_HASH,
@@ -20,9 +21,9 @@ import {
   assertCurrentPolicyVersion
 } from "@/lib/domain/policy-registry";
 import {
-  assertLearnedRuleIntegrity,
-  type LearnedRuleRecord
-} from "@/lib/domain/learned-rules";
+  assertConfirmedPreferenceRule,
+  type ConfirmedPreferenceRule
+} from "@/lib/domain/preference-learning";
 
 export type PolicyBudgetSnapshot = PolicyMonetaryBudgetInput;
 export type PolicyUsageBudgetSnapshot = PolicyUsageBudgetInput;
@@ -63,7 +64,7 @@ export interface PolicySnapshotInput {
   budgetReservations?: readonly BudgetReservation[];
   usageBudgets?: readonly PolicyUsageBudgetSnapshot[];
   riskContext?: PolicyRiskContext;
-  learnedRule?: LearnedRuleRecord;
+  confirmedPreferenceRule?: ConfirmedPreferenceRule;
   guardrails?: PolicyGuardrailSnapshot;
   killSwitches: readonly KillSwitch[];
 
@@ -81,6 +82,8 @@ export interface PolicySnapshotInput {
 }
 
 export interface PolicySnapshot extends PolicySnapshotInput {
+  /** @deprecated Persisted compatibility only. New snapshots never emit learnedRule. */
+  learnedRule?: LearnedRuleRecord;
   policyRegistryHash: string;
   policyEngineVersion: string;
   policyRulesHash: string;
@@ -118,7 +121,7 @@ export function hashKillSwitchSnapshot(killSwitches: readonly KillSwitch[]) {
 
 export function createPolicySnapshot(input: PolicySnapshotInput): PolicySnapshot {
   assertCurrentPolicyVersion(input.policyVersion);
-  if (input.learnedRule) assertLearnedRuleIntegrity(input.learnedRule);
+  if (input.confirmedPreferenceRule) assertConfirmedPreferenceRule(input.confirmedPreferenceRule);
 
   const capacityEvidenceRequired =
     input.capacityEvidenceRequired
@@ -168,7 +171,7 @@ export function createPolicySnapshot(input: PolicySnapshotInput): PolicySnapshot
     budgetReservationHashes,
     usageBudgets,
     riskContext: input.riskContext,
-    learnedRuleHash: input.learnedRule?.recordHash,
+    confirmedPreferenceRuleHash: input.confirmedPreferenceRule?.ruleHash,
     guardrails: input.guardrails,
     killSwitchSnapshotHash,
     credentialRequirementIds: [...new Set(input.credentialRequirementIds)].sort(),
@@ -194,7 +197,11 @@ export function createPolicySnapshot(input: PolicySnapshotInput): PolicySnapshot
     budgetReservations,
     usageBudgets,
     riskContext: input.riskContext ? { ...input.riskContext } : undefined,
-    learnedRule: input.learnedRule ? { ...input.learnedRule, conditions: { ...input.learnedRule.conditions } } : undefined,
+    confirmedPreferenceRule: input.confirmedPreferenceRule ? {
+      ...input.confirmedPreferenceRule,
+      pattern: { ...input.confirmedPreferenceRule.pattern },
+      sourceDecisionIds: [...input.confirmedPreferenceRule.sourceDecisionIds]
+    } : undefined,
     killSwitches,
     credentialRequirementIds: [...new Set(input.credentialRequirementIds)].sort(),
     capacityEvidenceRequired,
@@ -223,6 +230,7 @@ export function assertPolicySnapshotIntegrity(snapshot: PolicySnapshot) {
     throw new Error("Policy snapshot integrity check failed");
   }
   if (snapshot.learnedRule) assertLearnedRuleIntegrity(snapshot.learnedRule);
+  if (snapshot.confirmedPreferenceRule) assertConfirmedPreferenceRule(snapshot.confirmedPreferenceRule);
   if (
     snapshot.policyVersion !== CURRENT_POLICY_VERSION
     || snapshot.policyRegistryHash !== CURRENT_POLICY_REGISTRY_HASH

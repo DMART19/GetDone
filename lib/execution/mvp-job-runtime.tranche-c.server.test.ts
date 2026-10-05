@@ -128,7 +128,7 @@ describe("MVP capability-dispatched Job runtime", () => {
       status: async () => ({
         runtime: {
           state: "released",
-          envelope: { correlationId }
+          envelope: { correlationId, scope }
         },
         outcomes: [{
           id: "outcome-1",
@@ -159,7 +159,7 @@ describe("MVP capability-dispatched Job runtime", () => {
       status: async () => ({
         runtime: {
           state: "released",
-          envelope: { correlationId }
+          envelope: { correlationId, scope }
         },
         outcomes: [{
           id: "outcome-provider",
@@ -193,7 +193,7 @@ describe("MVP capability-dispatched Job runtime", () => {
       status: async () => ({
         runtime: {
           state: "released",
-          envelope: { correlationId }
+          envelope: { correlationId, scope }
         },
         outcomes: [{
           id: "outcome-provider",
@@ -225,7 +225,7 @@ describe("MVP capability-dispatched Job runtime", () => {
       status: async () => ({
         runtime: {
           state: "released",
-          envelope: { correlationId }
+          envelope: { correlationId, scope }
         },
         outcomes: [],
         events: []

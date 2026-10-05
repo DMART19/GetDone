@@ -187,11 +187,11 @@ export class MvpJobRuntime {
 
     const latest = status.outcomes.at(-1);
     const durableTerminal = latest
-      && ["verified", "dead-lettered", "cancelled", "succeeded"].includes(latest.kind)
+      && ["verified", "dead-lettered", "cancelled"].includes(latest.kind)
       ? latest
       : undefined;
     const authoritativeTerminal = authoritative
-      && ["verified", "succeeded", "failed", "cancelled"].includes(authoritative.state)
+      && ["verified", "failed", "blocked", "cancelled"].includes(authoritative.state)
       ? authoritative
       : undefined;
 
@@ -203,7 +203,7 @@ export class MvpJobRuntime {
             version: authoritativeTerminal.version,
             verificationReceiptHash: authoritativeTerminal.verificationReceiptHash
           })}`,
-          attention: authoritativeTerminal.state === "failed" ? "high" : "fyi",
+          attention: ["failed", "blocked"].includes(authoritativeTerminal.state) ? "high" : "fyi",
           target: { kind: "task-result", taskId: authoritativeTerminal.taskId },
           sensitive: true
         })

@@ -13,6 +13,15 @@ describe("authoritative state transitions", () => {
     expect(() => assertTransition("decision", "approved", "pending")).toThrow();
     expect(() => assertTransition("job", "created", "verified")).toThrow();
     expect(() => assertTransition("job", "provider_completed", "verified")).toThrow();
+    expect(() => assertTransition("job", "executing", "verified")).toThrow();
+    expect(() => assertTransition("job", "queued", "verified")).toThrow();
+    expect(() => assertTransition("job", "provider_completed", "succeeded")).toThrow();
+  });
+
+  it("keeps legacy Job states read-compatible without allowing them to authorize new success", () => {
+    expect(canTransition("job", "running", "provider_completed")).toBe(true);
+    expect(canTransition("job", "succeeded", "verified")).toBe(false);
+    expect(canTransition("job", "uncertain", "verified")).toBe(false);
   });
 
   it("records actor and scope when transitioning", () => {

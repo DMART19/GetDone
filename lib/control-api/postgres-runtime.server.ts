@@ -129,6 +129,9 @@ export function createPostgresControlApiAdapter(
     intents: new PostgresOwnerIntentStore(db),
     objectives,
     objectiveIntake: new PostgresObjectiveIntakeStore(db),
+    // Control API 1.6 preference endpoints fail closed until a durable Postgres
+    // PreferenceLearningStore is installed. Do not substitute ephemeral authority.
+    preferenceLearning: undefined,
     decisions,
     decisionTransactions,
     decisionResumeDispatcher,

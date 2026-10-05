@@ -233,7 +233,7 @@ integrationDescribe("PostgreSQL UFO orchestration persistence", () => {
       )
     );
 
-    let waiting = transitionOrchestrationRun(waitingBase, {
+    const waiting = transitionOrchestrationRun(waitingBase, {
       to: "context-ready",
       now: "2026-09-28T10:03:01.000Z",
       checkpointPatch: {

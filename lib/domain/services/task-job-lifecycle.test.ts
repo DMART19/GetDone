@@ -193,11 +193,11 @@ describe("Task and Job authoritative lifecycle hardening", () => {
       () => fixtureNow
     );
 
-    await expect(service.queue(child.id, command("task.queue.blocked")))
+    await expect(service.queue(child.id, command("task.queue.blocked", grant.scope)))
       .rejects.toThrow(/dependency is not authoritatively succeeded/i);
 
     store.values.set(dependency.id, { ...dependency, state: "succeeded" });
-    expect((await service.queue(child.id, command("task.queue.ready"))).state).toBe("queued");
+    expect((await service.queue(child.id, command("task.queue.ready", grant.scope))).state).toBe("queued");
   });
 
   it("prevents a queued Task from starting after its authorization is revoked", async () => {
@@ -219,7 +219,8 @@ describe("Task and Job authoritative lifecycle hardening", () => {
       version: 2,
       updatedAt: fixtureNow.toISOString()
     };
-    const { grantHash: _grantHash, ...grantBase } = grant;
+    const grantBase = { ...grant };
+    delete (grantBase as Partial<AuthorizationGrant>).grantHash;
     const revokedBase = { ...grantBase, status: "revoked" as const };
     const revoked: AuthorizationGrant = {
       ...revokedBase,
@@ -269,7 +270,7 @@ describe("Task and Job authoritative lifecycle hardening", () => {
 
     const recovered = await service.recoverTimeout(
       "task-retry",
-      command("task.timeout"),
+      command("task.timeout", grant.scope),
       "2026-09-20T18:30:01Z"
     );
     expect(recovered).toMatchObject({
@@ -284,7 +285,7 @@ describe("Task and Job authoritative lifecycle hardening", () => {
       failureReason: "still failing"
     });
     await expect(
-      service.retry("task-retry", command("task.retry.exhausted"), "again")
+      service.retry("task-retry", command("task.retry.exhausted", grant.scope), "again")
     ).rejects.toThrow(/retry limit is exhausted/i);
   });
 
@@ -338,7 +339,7 @@ describe("Task and Job authoritative lifecycle hardening", () => {
       fixtureNow.toISOString()
     )).rejects.toThrow(/dependency is not authoritatively succeeded/i);
 
-    store.values.set(dependency.id, { ...dependency, state: "succeeded" });
+    store.values.set(dependency.id, { ...dependency, state: "verified" });
     expect((await service.queue(
       created.id,
       command("job.queue.ready", grant.scope),

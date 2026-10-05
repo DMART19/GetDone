@@ -5,6 +5,9 @@ import { sha256Hex } from "../../lib/control-plane/canonical-hash";
 import { createCommandEnvelope } from "../../lib/control-plane/command-envelope";
 import type { TrustedExecutionScope } from "../../lib/control-plane/trusted-execution-scope";
 import type { AuthoritativeDecision } from "../../lib/domain/decision-service";
+import { CAPABILITY_REGISTRY_HASH, CAPABILITY_REGISTRY_VERSION } from "../../lib/domain/capabilities";
+import { CURRENT_POLICY_REGISTRY_HASH, CURRENT_POLICY_VERSION } from "../../lib/domain/policy-registry";
+import { POLICY_ENGINE_VERSION, POLICY_RULES_HASH } from "../../lib/planning/policy-engine";
 import {
   JobService,
   type JobRecord,
@@ -31,6 +34,7 @@ import { StaticBusinessActionAdapterRegistry } from "../../lib/execution/adapter
 import { BusinessActionExecutionOrchestrator } from "../../lib/execution/business-action-orchestrator";
 import { DurableJobEngine } from "../../lib/execution/durable-job-engine";
 import { RoutedJobExecutionHandler } from "../../lib/execution/job-execution-router";
+import { PostgresCurrentExecutionAdmissionGate } from "../../lib/execution/current-execution-admission";
 import { DurableJobWorker } from "../../lib/execution/job-worker-runtime";
 import { MvpJobRuntime } from "../../lib/execution/mvp-job-runtime.server";
 import { PostgresDatabase } from "../../lib/persistence/postgres/client";
@@ -398,13 +402,23 @@ function stagingGrant(correlationId: string): AuthorizationGrant {
     stepId: "step-safe-http",
     stepHash: sha256Hex({ correlationId, type: "step" }),
     capabilityNames: Object.freeze(["http.request"]),
+    executionLimits: Object.freeze({
+      environment: "staging" as const,
+      deadline: new Date(issuedAt.getTime() + 30 * 60_000).toISOString(),
+      expectedDurationSeconds: 10,
+      retryable: true,
+      maxJobCostCents: 0
+    }),
     validationReceiptId: "validation-browser-e2e",
     validationReceiptHash: sha256Hex({ correlationId, type: "validation" }),
     policySnapshotId: "policy-browser-e2e",
     policySnapshotHash: sha256Hex({ correlationId, type: "policy-snapshot" }),
-    policyVersion: "browser-e2e-1",
-    policyEngineVersion: "browser-e2e-1",
-    policyRulesHash: sha256Hex({ correlationId, type: "policy-rules" }),
+    policyVersion: CURRENT_POLICY_VERSION,
+    policyRegistryHash: CURRENT_POLICY_REGISTRY_HASH,
+    policyEngineVersion: POLICY_ENGINE_VERSION,
+    policyRulesHash: POLICY_RULES_HASH,
+    capabilityRegistryVersion: CAPABILITY_REGISTRY_VERSION,
+    capabilityRegistryHash: CAPABILITY_REGISTRY_HASH,
     actor: { type: "user" as const, id: STAGING_USER_ID },
     issuedAt: issuedAt.toISOString(),
     expiresAt: new Date(issuedAt.getTime() + 30 * 60_000).toISOString()
@@ -575,6 +589,9 @@ export async function createTaskJobAndExecute(
         undefined,
         {
           jobs,
+          tasks: new PostgresEntityStore<TaskRecord>(database, "task"),
+          grants: new PostgresAuthorizationGrantStore(database),
+          admission: new PostgresCurrentExecutionAdmissionGate(database),
           verificationEvidence: new PostgresJobVerificationEvidenceStore(database),
           lifecycle: jobService
         }
@@ -585,7 +602,7 @@ export async function createTaskJobAndExecute(
     await runtime.enqueueAuthorizedBusinessAction(queuedJob, request);
     const result = await runtime.runOnce();
     if (result[0]?.outcome.kind !== "provider-completed") {
-      throw new Error("Safe staging integration did not reach provider completion");
+      throw new Error(`Safe staging integration did not reach provider completion: ${JSON.stringify(result[0]?.outcome ?? null)}`);
     }
 
     const providerEvidenceResult = await database.query<{ payload: VerificationEvidence }>(

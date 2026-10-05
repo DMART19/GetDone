@@ -73,11 +73,11 @@ class AuthorizationBatchDb implements PostgresTransactionalDatabase {
 
     if (normalized.startsWith("SELECT * FROM idempotency_records")) {
       if (!this.record) return this.result([], 0);
-      return this.result([{
+      return this.result<R>([{
         ...this.record,
         failed_at: null,
         error_code: null
-      }], 1);
+      }] as unknown as R[], 1);
     }
 
     if (normalized.startsWith("INSERT INTO authorization_grants")) {
@@ -93,11 +93,11 @@ class AuthorizationBatchDb implements PostgresTransactionalDatabase {
         completed_at: String(values[2]),
         result: JSON.parse(String(values[3]))
       };
-      return this.result([{
+      return this.result<R>([{
         ...this.record,
         failed_at: null,
         error_code: null
-      }], 1);
+      }] as unknown as R[], 1);
     }
 
     if (normalized.startsWith("SELECT payload FROM authorization_grants")) {

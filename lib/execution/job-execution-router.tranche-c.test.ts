@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { sha256Hex } from "@/lib/control-plane/canonical-hash";
+import { createAuthorizationConsumptionRecord } from "@/lib/authorization/grants";
 import type { JobRecord } from "@/lib/domain/services/job-service";
+import type { TaskRecord } from "@/lib/domain/services/task-service";
 import {
   createDurableJobLease,
   createJobQueueEnvelope
@@ -12,6 +14,8 @@ import {
   type PersistedJobExecutionSpec
 } from "@/lib/execution/job-execution-router";
 import type { DurableJobExecutionContext } from "@/lib/execution/job-worker-runtime";
+import { autoGrantFor, fixtureNow } from "@/lib/planning/test-security-fixture";
+import { validPlan } from "@/lib/planning/test-fixture";
 import { createVerificationEvidence } from "@/lib/verification/verification";
 
 class MemorySpecStore implements JobExecutionSpecStore {
@@ -20,47 +24,64 @@ class MemorySpecStore implements JobExecutionSpecStore {
   async put(record: PersistedJobExecutionSpec) { this.value = record; }
 }
 
+const plan = validPlan();
+const grant = autoGrantFor(plan);
+const scope = grant.scope;
+const consumption = createAuthorizationConsumptionRecord({
+  id: `authorization-consumption:${grant.id}`,
+  grant,
+  consumerType: "task",
+  consumerId: "task-1",
+  consumedAt: fixtureNow.toISOString()
+});
+const actionInput = {
+  companyId: grant.scope.companyId,
+  repository: "DMART19/GetDone",
+  ref: "main"
+};
+
 const envelope = createJobQueueEnvelope({
   id: "queue-1",
   jobId: "job-1",
   taskId: "task-1",
-  scope: {
-    userId: "owner",
-    portfolioId: "portfolio",
-    companyId: "company",
-    environment: "staging"
-  },
-  authorizationConsumptionHash: "auth",
+  scope,
+  authorizationConsumptionHash: consumption.consumptionHash,
   idempotencyKey: "queue-1",
-  scheduledAt: "2026-09-21T04:00:00Z",
-  createdAt: "2026-09-21T04:00:00Z"
+  scheduledAt: fixtureNow.toISOString(),
+  createdAt: fixtureNow.toISOString()
 });
+
+const authoritativeTask: TaskRecord = {
+  id: "task-1",
+  portfolioId: grant.scope.portfolioId,
+  companyId: grant.scope.companyId,
+  state: "queued",
+  reason: "Execute governed repository inspection",
+  evidenceIds: [],
+  capabilityRequirements: [...grant.capabilityNames],
+  authorizationLineage: [grant.id],
+  authorizationGrantId: grant.id,
+  authorizationGrantHash: grant.grantHash,
+  authorizationConsumption: consumption,
+  verificationEvidenceIds: [],
+  version: 2,
+  updatedAt: fixtureNow.toISOString()
+};
 
 const authoritativeJob: JobRecord = {
   id: "job-1",
-  portfolioId: "portfolio",
-  companyId: "company",
+  portfolioId: grant.scope.portfolioId,
+  companyId: grant.scope.companyId,
   state: "queued",
   taskId: "task-1",
   attempt: 0,
   maxAttempts: 5,
-  authorizationGrantId: "grant-1",
-  authorizationGrantHash: "grant-hash",
-  authorizationConsumption: {
-    id: "consumption-1",
-    grantId: "grant-1",
-    grantHash: "grant-hash",
-    consumerType: "task",
-    consumerId: "task-1",
-    scope: envelope.scope,
-    planHash: "plan-hash",
-    stepHash: "step-hash",
-    consumedAt: "2026-09-21T03:59:00Z",
-    consumptionHash: "auth"
-  },
+  authorizationGrantId: grant.id,
+  authorizationGrantHash: grant.grantHash,
+  authorizationConsumption: consumption,
   verificationEvidenceIds: [],
   version: 2,
-  updatedAt: "2026-09-21T04:00:00Z"
+  updatedAt: fixtureNow.toISOString()
 };
 
 function authority(job: JobRecord = authoritativeJob) {
@@ -83,6 +104,9 @@ function authority(job: JobRecord = authoritativeJob) {
     lifecycle,
     value: {
       jobs: { get: async () => job },
+      tasks: { get: async () => authoritativeTask },
+      grants: { get: async () => grant },
+      admission: { assertAllowed: async () => undefined },
       verificationEvidence: {
         put: async (_jobId: string, _requestId: string, evidence: unknown) => {
           persisted.push(evidence);
@@ -152,7 +176,7 @@ describe("RoutedJobExecutionHandler", () => {
 
   it("routes completed business actions to verification handoff and persists evidence", async () => {
     const specs = new MemorySpecStore();
-    const payload = { message: "hello" };
+    const payload = actionInput;
     specs.value = createPersistedJobExecutionSpec({
       kind: "business-action",
       jobId: "job-1",
@@ -162,10 +186,10 @@ describe("RoutedJobExecutionHandler", () => {
         id: "action-1",
         jobId: "job-1",
         scope: envelope.scope,
-        capability: "email.send",
+        capability: "repository.inspect",
         input: payload,
         inputHash: sha256Hex(payload),
-        authorizationConsumptionHash: "auth",
+        authorizationConsumptionHash: consumption.consumptionHash,
         idempotencyKey: "action-1",
         timeoutMs: 1000,
         attempt: 1
@@ -174,8 +198,8 @@ describe("RoutedJobExecutionHandler", () => {
 
     const evidence = createVerificationEvidence({
       id: "evidence-1",
-      portfolioId: "portfolio",
-      companyId: "company",
+      portfolioId: grant.scope.portfolioId,
+      companyId: grant.scope.companyId,
       subject: { type: "job", id: "job-1" },
       strategy: "business",
       result: "pass",
@@ -204,7 +228,8 @@ describe("RoutedJobExecutionHandler", () => {
       specs,
       business as never,
       undefined,
-      auth.value as never
+      auth.value as never,
+      () => fixtureNow
     );
     expect(await handler.execute(context)).toEqual({ kind: "provider-completed" });
     expect(auth.persisted).toEqual([evidence]);

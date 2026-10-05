@@ -37,6 +37,10 @@ function gate(
   );
 }
 
+function objectiveRow(grant: AuthorizationGrant): QueryResultRow[] {
+  return grant.objectiveId ? [{ payload: { id: grant.objectiveId, scopeId: grant.scope.companyId, metric: "release-readiness", direction: "increase", target: 1, priority: 1, status: "active" } } as QueryResultRow] : [];
+}
+
 function input(grant: AuthorizationGrant) {
   return {
     scope: fixtureScope(validPlan()),
@@ -126,7 +130,7 @@ describe("fresh execution admission", () => {
       capabilityNames: ["email.send"],
       integrationId: mismatched.id
     };
-    const admission = gate([[{ payload: mismatched } as QueryResultRow]]);
+    const admission = gate([objectiveRow(grant), [{ payload: mismatched } as QueryResultRow]]);
 
     await expect(admission.assertAllowed(input(grant)))
       .rejects.toThrow(/adapter does not match/i);
@@ -157,7 +161,7 @@ describe("fresh execution admission", () => {
       capabilityNames: ["email.send"],
       integrationId: disabled.id
     };
-    const admission = gate([[{ payload: disabled } as QueryResultRow]]);
+    const admission = gate([objectiveRow(grant), [{ payload: disabled } as QueryResultRow]]);
 
     await expect(admission.assertAllowed(input(grant)))
       .rejects.toThrow(/Integration is disabled/i);
@@ -165,7 +169,7 @@ describe("fresh execution admission", () => {
 
   it("blocks an enabled emergency or scoped kill switch immediately", async () => {
     const grant = autoGrantFor(validPlan());
-    const admission = gate([[
+    const admission = gate([objectiveRow(grant), [
       {
         payload: {
           id: "emergency-stop",
@@ -207,6 +211,6 @@ describe("fresh execution admission", () => {
 
   it("allows current authority when no live revocation is present", async () => {
     const grant = autoGrantFor(validPlan());
-    await expect(gate().assertAllowed(input(grant))).resolves.toBeUndefined();
+    await expect(gate([objectiveRow(grant), []]).assertAllowed(input(grant))).resolves.toBeUndefined();
   });
 });

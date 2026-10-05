@@ -7,9 +7,9 @@ import {
 } from "@/lib/domain/capabilities";
 
 describe("capability registry", () => {
-  it("keeps routine repository work AUTO while production deployment requires approval", () => {
+  it("keeps branch creation AUTO while commits and production deployment require approval", () => {
     expect(requireEnabledCapability("github.branch.create").approval).toBe("auto");
-    expect(requireEnabledCapability("github.commit.create").approval).toBe("auto");
+    expect(requireEnabledCapability("github.commit.create").approval).toBe("approval");
 
     const capability = requireEnabledCapability("production.deploy");
     expect(capability.productionEffect).toBe(true);

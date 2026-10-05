@@ -34,6 +34,9 @@ class UnavailableControlApiAdapter implements ControlApiApplicationAdapter {
   async submitObjectives(): Promise<never> { return this.unavailable(); }
   async listObjectives(): Promise<never> { return this.unavailable(); }
   async getObjective(): Promise<never> { return this.unavailable(); }
+  async listPreferenceSuggestions(): Promise<never> { return this.unavailable(); }
+  async resolvePreferenceSuggestion(): Promise<never> { return this.unavailable(); }
+  async listConfirmedPreferenceRules(): Promise<never> { return this.unavailable(); }
   async listDecisions(): Promise<never> { return this.unavailable(); }
   async getDecision(): Promise<never> { return this.unavailable(); }
   async mutateDecision(): Promise<never> { return this.unavailable(); }
@@ -62,7 +65,7 @@ export function resetControlApiAdapter() {
   installedAdapter = null;
 }
 
-export function getControlApiAdapter() {
+export function getControlApiAdapter(): ControlApiApplicationAdapter {
   if (installedAdapter) return installedAdapter;
 
   const runtime = process.env.GETDONE_RUNTIME_ENV;
@@ -70,8 +73,9 @@ export function getControlApiAdapter() {
     (runtime === "staging" || runtime === "production")
     && process.env.DATABASE_URL?.trim()
   ) {
-    installedAdapter = createPostgresControlApiAdapter(process.env);
-    return installedAdapter;
+    const adapter = createPostgresControlApiAdapter(process.env);
+    installedAdapter = adapter;
+    return adapter;
   }
 
   return unavailableAdapter;

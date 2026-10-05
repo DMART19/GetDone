@@ -381,8 +381,7 @@ export class PostgresOrchestrationRunStore implements OrchestrationRunStore {
       const priorReceipt = await client.query<ReceiptRow>(
         `SELECT payload,expected_record_hash,next_record_hash
          FROM orchestration_transition_receipts
-         WHERE run_id=$1 AND idempotency_key=$2
-         FOR UPDATE`,
+         WHERE run_id=$1 AND idempotency_key=$2`,
         [next.id, input.idempotencyKey]
       );
 

@@ -102,6 +102,48 @@ describe("deterministic sensing", () => {
     expect(result.classification).toBe("anomaly");
   });
 
+  it("does not treat normal recent samples as sustained anomaly evidence", () => {
+    const result = evaluateSignal(
+      signal({ value: 0.018, sustainedForSeconds: 300 }),
+      profile,
+      [signal({ id: "normal-prior", value: 0.0101 })],
+      Date.parse("2026-09-20T16:01:00Z")
+    );
+    expect(result.action).toBe("MONITOR");
+  });
+
+  it("excludes future and cross-resource samples from sustained evidence", () => {
+    const current = signal({
+      value: 0.018,
+      sustainedForSeconds: 300,
+      scope: { portfolioId: "p1", companyId: "c1", resourceId: "r1" }
+    });
+    const result = evaluateSignal(
+      current,
+      profile,
+      [
+        signal({
+          id: "other-resource",
+          value: 0.018,
+          scope: { portfolioId: "p1", companyId: "c1", resourceId: "r2" }
+        }),
+        signal({
+          id: "future",
+          value: 0.018,
+          occurredAt: "2026-09-20T16:02:00Z",
+          scope: { portfolioId: "p1", companyId: "c1", resourceId: "r1" }
+        })
+      ],
+      Date.parse("2026-09-20T16:01:00Z")
+    );
+    expect(result.action).toBe("MONITOR");
+  });
+
+  it("rejects impossible zero-sample and sustained-window profiles", () => {
+    expect(() => validateSensingProfile({ ...profile, minimumSamples: 0 })).toThrow();
+    expect(() => validateSensingProfile({ ...profile, sustainedSeconds: 601 })).toThrow();
+  });
+
   it("prefers a resource-specific baseline over the company fallback", async () => {
     const resolver = new ScopedSensingProfileResolver({
       listForCompany: async () => [

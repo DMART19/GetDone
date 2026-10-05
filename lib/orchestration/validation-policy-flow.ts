@@ -346,9 +346,13 @@ export function createDurableValidationArtifact(input: {
     createdAt: new Date(input.createdAt).toISOString()
   };
 
+  // This artifact is persisted as JSONB. Hash the exact JSON-compatible shape
+  // so values normalized by JSON serialization cannot invalidate the durable
+  // artifact when it is read back from PostgreSQL.
+  const persistedBase = JSON.parse(JSON.stringify(base)) as typeof base;
   return deepFreeze({
-    ...base,
-    artifactHash: sha256Hex(base)
+    ...persistedBase,
+    artifactHash: sha256Hex(persistedBase)
   });
 }
 
@@ -684,9 +688,10 @@ export function createDurablePolicyStepSnapshotArtifact(input: {
     createdAt: new Date(input.createdAt).toISOString()
   };
 
+  const persistedBase = JSON.parse(JSON.stringify(base)) as typeof base;
   return deepFreeze({
-    ...base,
-    artifactHash: sha256Hex(base)
+    ...persistedBase,
+    artifactHash: sha256Hex(persistedBase)
   });
 }
 
@@ -808,9 +813,10 @@ export function createDurablePolicyEvaluationArtifact(input: {
     createdAt: new Date(input.createdAt).toISOString()
   };
 
+  const persistedBase = JSON.parse(JSON.stringify(base)) as typeof base;
   return deepFreeze({
-    ...base,
-    artifactHash: sha256Hex(base)
+    ...persistedBase,
+    artifactHash: sha256Hex(persistedBase)
   });
 }
 
@@ -918,7 +924,8 @@ export function assertDurablePolicyEvaluationArtifact(
       item.snapshot,
       Date.parse(artifact.createdAt)
     );
-    if (sha256Hex(reevaluated) !== sha256Hex(item.evaluation)) {
+    const persistedReevaluation = JSON.parse(JSON.stringify(reevaluated)) as StepPolicyEvaluation;
+    if (sha256Hex(persistedReevaluation) !== sha256Hex(item.evaluation)) {
       throw new ControlPlaneError(
         "FORBIDDEN",
         "Persisted policy evaluation does not match frozen policy inputs"
@@ -1149,12 +1156,14 @@ export async function advanceValidatedToPolicyEvaluated(input: {
       stepArtifact.snapshot,
       Date.parse(stepArtifact.createdAt)
     );
-    stepPolicies.push(deepFreeze({
+    // The policy evaluation artifact is durable JSON. Canonicalize the complete
+    // step record before hashing so optional undefined fields do not drift on JSONB readback.
+    stepPolicies.push(deepFreeze(JSON.parse(JSON.stringify({
       stepId: step.id,
       stepHash,
       snapshot: stepArtifact.snapshot,
       evaluation
-    }));
+    })) as DurableStepPolicyRecord));
   }
 
   const artifact = createDurablePolicyEvaluationArtifact({

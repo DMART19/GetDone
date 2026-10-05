@@ -333,11 +333,9 @@ describe("RoutedJobExecutionHandler", () => {
     const revokedGrant: AuthorizationGrant = {
       ...currentGrant,
       status: "revoked",
-      revokedAt: now.toISOString(),
       grantHash: sha256Hex({
         ...grantBase,
         status: "revoked",
-        revokedAt: now.toISOString()
       })
     };
     const auth = authority(authoritativeJob, authoritativeTask, revokedGrant);

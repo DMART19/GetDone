@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   confirmLearnedRule,
   createDecisionPreferenceObservation,
+  dismissLearnedRuleSuggestion,
   suggestLearnedRule,
   type PreferencePattern
 } from "@/lib/domain/preference-learning";
@@ -105,6 +106,34 @@ describe("confirmed preference learning", () => {
       { createdAt: "2026-09-28T20:01:00Z" }
     );
     expect(suggestion).toBeNull();
+  });
+
+  it("treats keep-asking and never-suggest as non-authorizing dispositions", async () => {
+    const suggestion = suggestLearnedRule(
+      [observation("decision-1"), observation("decision-2"), observation("decision-3")],
+      { createdAt: "2026-09-28T20:01:00Z" }
+    );
+    expect(suggestion).not.toBeNull();
+    if (!suggestion) return;
+
+    const keepAsking = dismissLearnedRuleSuggestion({
+      suggestion,
+      scope,
+      actorId: "owner-a",
+      action: "keep-asking",
+      resolvedAt: "2026-09-28T20:02:00Z"
+    });
+    const neverSuggest = dismissLearnedRuleSuggestion({
+      suggestion,
+      scope,
+      actorId: "owner-a",
+      action: "never-suggest",
+      resolvedAt: "2026-09-28T20:03:00Z"
+    });
+
+    expect(keepAsking.action).toBe("keep-asking");
+    expect(neverSuggest.action).toBe("never-suggest");
+    expect(evaluatePolicy(policy()).disposition).toBe("APPROVAL_REQUIRED");
   });
 
   it("does not change future authority until the owner explicitly confirms", () => {
