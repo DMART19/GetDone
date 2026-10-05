@@ -244,6 +244,7 @@ export class BusinessActionExecutionOrchestrator {
       correlationId: request.correlationId,
       jobId: request.jobId,
       requestHash,
+      dispatchedRequestHash: requestHash,
       adapterId: adapter.id,
       adapterVersion: adapter.version,
       providerOperationId: result.providerOperationId,
