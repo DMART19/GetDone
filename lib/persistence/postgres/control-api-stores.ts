@@ -118,6 +118,8 @@ export class PostgresOwnerIntentStore implements OwnerIntentStore {
       const previous = await this.db.query<{ payload: OwnerIntentRecord }>(
         `SELECT payload FROM owner_intents
           WHERE portfolio_id=$1 AND company_id=$2 AND user_id=$3
+            AND payload->>'status'='accepted'
+            AND payload->'conversation'->>'intent' IN ('action_request','objective_request','investigate_request')
           ORDER BY received_at DESC,id DESC LIMIT 1`,
         [record.portfolioId, record.companyId, record.userId]
       );
@@ -131,9 +133,22 @@ export class PostgresOwnerIntentStore implements OwnerIntentStore {
             references: Object.freeze([...(prior.conversation?.references ?? [])])
           })
         });
+      } else {
+        acceptedRecord = Object.freeze({
+          ...record,
+          status: "answered" as const,
+          answer: Object.freeze({
+            text: "I need a specific proposed action before I can continue. Tell me what you want fixed or changed.",
+            evidenceRefs: Object.freeze([]),
+            observedAt: record.receivedAt,
+            knownUnknowns: Object.freeze(["No prior actionable proposal exists in this conversation scope"])
+          })
+        });
       }
     }
-    acceptedRecord = await this.groundReadOnlyAnswer(acceptedRecord);
+    acceptedRecord = acceptedRecord.status === "answered"
+      ? acceptedRecord
+      : await this.groundReadOnlyAnswer(acceptedRecord);
     const fingerprint = this.fingerprint(record);
     const idempotencyRecordKey = this.idempotencyRecordKey(record, idempotencyKey);
 
