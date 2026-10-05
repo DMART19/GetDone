@@ -25,6 +25,7 @@ import { RoutedJobExecutionHandler } from "@/lib/execution/job-execution-router"
 import { PostgresCurrentExecutionAdmissionGate } from "@/lib/execution/current-execution-admission";
 import { DurableJobWorker } from "@/lib/execution/job-worker-runtime";
 import { MvpJobRuntime } from "@/lib/execution/mvp-job-runtime.server";
+import { seedLiveAcceptanceAuthority } from "@/lib/execution/live-acceptance-authority";
 import { PostgresAuthorizationGrantStore, PostgresEntityStore, PostgresVerificationReceiptStore } from "@/lib/persistence/postgres/authority-stores";
 import { PostgresControlPlaneTransactionManager } from "@/lib/persistence/postgres/transaction-manager";
 import { PostgresDatabase } from "@/lib/persistence/postgres/client";
