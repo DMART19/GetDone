@@ -71,6 +71,26 @@ export class PostgresOwnerIntentStore implements OwnerIntentStore {
   }
 
   async create(record: OwnerIntentRecord, idempotencyKey: string) {
+    let acceptedRecord = record;
+    if (record.conversation.continuation !== "none" && record.conversation.references.length === 0) {
+      const previous = await this.db.query<{ payload: OwnerIntentRecord }>(
+        `SELECT payload FROM owner_intents
+          WHERE portfolio_id=$1 AND company_id=$2 AND user_id=$3
+          ORDER BY received_at DESC,id DESC LIMIT 1`,
+        [record.portfolioId, record.companyId, record.userId]
+      );
+      const prior = previous.rows[0]?.payload;
+      if (prior) {
+        acceptedRecord = Object.freeze({
+          ...record,
+          continuesIntentId: prior.id,
+          conversation: Object.freeze({
+            ...record.conversation,
+            references: Object.freeze([...(prior.conversation?.references ?? [])])
+          })
+        });
+      }
+    }
     const fingerprint = this.fingerprint(record);
     const idempotencyRecordKey = this.idempotencyRecordKey(record, idempotencyKey);
 
@@ -101,17 +121,17 @@ export class PostgresOwnerIntentStore implements OwnerIntentStore {
          VALUES($1,$2,$3,$4,$5,$6,$7::jsonb)
          ON CONFLICT (portfolio_id,company_id,idempotency_key) DO NOTHING`,
         [
-          record.id,
-          record.portfolioId,
-          record.companyId,
-          record.userId,
+          acceptedRecord.id,
+          acceptedRecord.portfolioId,
+          acceptedRecord.companyId,
+          acceptedRecord.userId,
           idempotencyKey,
-          record.receivedAt,
-          JSON.stringify(record)
+          acceptedRecord.receivedAt,
+          JSON.stringify(acceptedRecord)
         ]
       );
 
-      let persisted = record;
+      let persisted = acceptedRecord;
       if (inserted.rowCount !== 1) {
         const existing = await client.query<{ payload: OwnerIntentRecord }>(
           `SELECT payload FROM owner_intents
@@ -122,9 +142,9 @@ export class PostgresOwnerIntentStore implements OwnerIntentStore {
         const prior = existing.rows[0]?.payload;
         if (
           !prior
-          || prior.userId !== record.userId
-          || prior.message !== record.message
-          || prior.channel !== record.channel
+          || prior.userId !== acceptedRecord.userId
+          || prior.message !== acceptedRecord.message
+          || prior.channel !== acceptedRecord.channel
         ) {
           throw new ControlPlaneError(
             "IDEMPOTENCY_CONFLICT",
