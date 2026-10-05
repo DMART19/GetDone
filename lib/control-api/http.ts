@@ -280,6 +280,15 @@ export function handleOwnerIntent(request: Request) {
   }, { status: 202 });
 }
 
+export function handleOwnerIntentStatus(request: Request, intentId: string) {
+  return execute(async (adapter) =>
+    adapter.getOwnerIntentStatus(
+      await adapter.authenticate(request),
+      safeId(intentId, "intentId")
+    )
+  );
+}
+
 export function handleSubmitObjectives(request: Request) {
   return execute(async (adapter, correlationId) => {
     const actor = await adapter.authenticate(request);
