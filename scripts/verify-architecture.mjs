@@ -1087,6 +1087,7 @@ if (
 ) {
   fail("Phase 28.4 release state drifted or overclaims live Node capability/binding connectivity");
 }
+console.log("ARCH_DEBUG", JSON.stringify({controlApi: releaseRegistry.controlApi, controlSchema: releaseRegistry.schemaVersions?.controlApiSurface, database: releaseRegistry.database, postgres: releaseRegistry.adapters?.postgresPersistence, durable: releaseRegistry.adapters?.durableJobStore, postgresSchema: releaseRegistry.schemaVersions?.postgresPersistence}));
 if (
   releaseRegistry.controlApi?.surfaceVersion !== "1.6.0"
   || releaseRegistry.controlApi?.status !== "implemented-unconnected"
