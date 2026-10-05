@@ -1,5 +1,7 @@
 import { authorizeRequest } from "@/lib/auth/guard";
 import { analyzeConversationMessage } from "@/lib/conversation/contracts";
+import { ownerLifecycleFromRun } from "@/lib/conversation/owner-lifecycle";
+import type { OrchestrationRunRecord } from "@/lib/orchestration/contracts";
 import type { StepUpProof } from "@/lib/authorization/proofs";
 import type { AuthAdapter, AuthSession } from "@/lib/auth/contracts";
 import { createCommandEnvelope } from "@/lib/control-plane/command-envelope";
@@ -78,6 +80,7 @@ export interface OwnerIntentStore {
    * together. In-memory/test implementations may remain non-durable.
    */
   create(record: OwnerIntentRecord, idempotencyKey: string): Promise<OwnerIntentRecord>;
+  get?(id: string): Promise<OwnerIntentRecord | null>;
 }
 
 export interface ServiceBackedControlApiDependencies {
@@ -85,6 +88,7 @@ export interface ServiceBackedControlApiDependencies {
   scopes: ControlApiScopeResolver;
   authorizationEvidence?: ControlApiAuthorizationEvidenceResolver;
   intents: OwnerIntentStore;
+  orchestrations?: { getByCorrelationId(correlationId: string): Promise<OrchestrationRunRecord | null> };
   objectives: ScopedReadStore<ObjectiveRecord>;
   objectiveIntake: ObjectiveIntakeStore;
   preferenceLearning?: PreferenceLearningService;
@@ -268,6 +272,30 @@ export class ServiceBackedControlApiAdapter implements ControlApiApplicationAdap
         receivedAt: this.now().toISOString()
       });
       return this.deps.intents.create(record, idempotencyKey);
+    });
+  }
+
+  async getOwnerIntentStatus(principal: ControlApiPrincipal, intentId: string) {
+    return this.scoped(principal, async () => {
+      if (!this.deps.intents.get || !this.deps.orchestrations) {
+        throw new ControlPlaneError("UNAVAILABLE", "Conversation status is not connected");
+      }
+      const intent = await this.deps.intents.get(intentId);
+      if (!intent || intent.portfolioId !== principal.scope.portfolioId || intent.companyId !== principal.scope.companyId || intent.userId !== principal.scope.userId) {
+        throw new ControlPlaneError("NOT_FOUND", "Conversation turn was not found");
+      }
+      const conversation = intent.conversation ?? analyzeConversationMessage(intent.message);
+      const run = intent.correlationId
+        ? await this.deps.orchestrations.getByCorrelationId(intent.correlationId)
+        : null;
+      return Object.freeze({
+        intentId: intent.id,
+        conversation,
+        lifecycle: run
+          ? ownerLifecycleFromRun(run)
+          : { state: "answering" as const, label: "Understanding your request", terminal: false, verified: false },
+        orchestrationId: run?.id
+      });
     });
   }
 
