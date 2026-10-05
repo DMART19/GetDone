@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { analyzeConversationMessage, classifyConversationIntent, resolveConversationReferences } from "@/lib/conversation/contracts";
 import { ownerLifecycleFromRun } from "@/lib/conversation/owner-lifecycle";
+import type { OrchestrationRunRecord, OrchestrationState } from "@/lib/orchestration/contracts";
 
 describe("conversation boundary", () => {
   it.each([
@@ -30,7 +31,7 @@ describe("conversation boundary", () => {
 });
 
 describe("owner lifecycle", () => {
-  const run = (state: any, extra: any = {}) => ({ state, ...extra });
+  const run = (state: OrchestrationState, extra: Partial<Pick<OrchestrationRunRecord, "blockedReason" | "failure">> = {}) => ({ state, ...extra });
   it.each([
     ["accepted", "answering", false], ["context-ready", "answering", false], ["planning", "answering", false],
     ["planned", "proposed_work", false], ["validated", "proposed_work", false], ["policy-evaluated", "proposed_work", false],
