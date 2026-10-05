@@ -12,6 +12,20 @@ export function ChatComposer() {
   const [preview, setPreview] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  async function pollStatus(intentId: string) {
+    for (let attempt = 0; attempt < 12; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      const response = await fetch("/api/control/chat/" + encodeURIComponent(intentId), { cache: "no-store" });
+      const value = await response.json().catch(() => null) as {
+        ok?: boolean;
+        data?: { lifecycle?: { label?: string; terminal?: boolean; verified?: boolean } };
+      } | null;
+      if (!response.ok || !value?.ok || !value.data?.lifecycle) return;
+      setPreview(value.data.lifecycle.label ?? "GetDone is working…");
+      if (value.data.lifecycle.terminal) return;
+    }
+  }
+
   async function submit(event: FormEvent) {
     event.preventDefault();
     const clean = message.trim();
@@ -37,7 +51,7 @@ export function ChatComposer() {
       });
       const value = await response.json().catch(() => null) as {
         ok?: boolean;
-        data?: { conversation?: { intent?: string; continuation?: string; requiresExecutionAuthority?: boolean } };
+        data?: { id?: string; conversation?: { intent?: string; continuation?: string; requiresExecutionAuthority?: boolean } };
         error?: { message?: string };
       } | null;
       if (!response.ok || !value?.ok) {
@@ -54,6 +68,7 @@ export function ChatComposer() {
               ? "Request accepted. GetDone will plan it and ask before any action that requires approval."
               : "Request accepted. GetDone is resolving the right context."
       );
+      if (value.data?.id) void pollStatus(value.data.id);
     } catch (error) {
       setPreview(error instanceof Error ? error.message : "GetDone could not accept the message");
     } finally {
