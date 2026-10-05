@@ -49,7 +49,7 @@ export interface OwnerIntentRecord {
   channel: "chat" | "api";
   status: "accepted";
   /** Advisory conversation semantics. Never execution authority. */
-  conversation: ConversationSemantics;
+  conversation?: ConversationSemantics;
   /** Previous trusted owner intent used only for conversational reference continuation. */
   continuesIntentId?: string;
   receivedAt: string;
