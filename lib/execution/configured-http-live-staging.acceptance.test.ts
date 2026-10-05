@@ -312,6 +312,7 @@ async function runUntilTerminal(
     await value.mvp.runOnce();
     const snapshot = await value.queue.getRuntimeSnapshot(jobId);
     if (snapshot && ["released", "dead-lettered", "cancelled"].includes(snapshot.state)) {
+      if (snapshot.state === "dead-lettered") console.error("ACCEPTANCE_DEAD_LETTER", JSON.stringify(snapshot));
       return snapshot;
     }
     value.advance();
