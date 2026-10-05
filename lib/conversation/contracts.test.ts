@@ -43,6 +43,6 @@ describe("owner lifecycle", () => {
   });
   it("surfaces owner-safe terminal summaries", () => {
     expect(ownerLifecycleFromRun(run("blocked", { blockedReason: "Approval expired" })).label).toBe("Approval expired");
-    expect(ownerLifecycleFromRun(run("failed", { failure: { message: "Provider unavailable" } })).label).toBe("Provider unavailable");
+    expect(ownerLifecycleFromRun(run("failed", { failure: { code: "PROVIDER_UNAVAILABLE", message: "Provider unavailable", retryable: true, failedAt: "2026-10-05T09:00:00.000Z" } })).label).toBe("Provider unavailable");
   });
 });
