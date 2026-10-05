@@ -70,6 +70,48 @@ export class PostgresOwnerIntentStore implements OwnerIntentStore {
     return orchestration;
   }
 
+  private async groundReadOnlyAnswer(record: OwnerIntentRecord) {
+    const intent = record.conversation?.intent;
+    if (!intent || !["status_query", "explain_query", "recommend_request"].includes(intent)) return record;
+    const result = await this.db.query<{ entity_type: string; id: string; updated_at: string; payload: Record<string, unknown> }>(
+      `SELECT entity_type,id,updated_at,payload
+         FROM control_plane_entities
+        WHERE portfolio_id=$1 AND company_id=$2
+          AND entity_type = ANY($3::text[])
+        ORDER BY updated_at DESC
+        LIMIT 30`,
+      [record.portfolioId, record.companyId, ["integration", "objective", "decision", "job", "outcome", "resource", "verification"]]
+    );
+    const names = record.conversation?.references.map((item) => item.name.toLowerCase()) ?? [];
+    const relevant = names.length === 0
+      ? result.rows
+      : result.rows.filter((row) => {
+          const haystack = JSON.stringify(row.payload).toLowerCase();
+          return names.some((name) => haystack.includes(name));
+        });
+    const evidence = relevant.slice(0, 6);
+    const summaries = evidence.map((row) => {
+      const state = row.payload.state ?? row.payload.status ?? row.payload.health ?? "recorded";
+      const label = row.payload.displayName ?? row.payload.title ?? row.payload.name ?? row.id;
+      return `${row.entity_type} ${String(label)}: ${typeof state === "object" ? JSON.stringify(state) : String(state)}`;
+    });
+    const observedAt = evidence[0]?.updated_at
+      ? new Date(evidence[0].updated_at).toISOString()
+      : record.receivedAt;
+    return Object.freeze({
+      ...record,
+      status: "answered" as const,
+      answer: Object.freeze({
+        text: summaries.length > 0
+          ? summaries.join(". ")
+          : "I don't have current authoritative evidence for that yet.",
+        evidenceRefs: Object.freeze(evidence.map((row) => `${row.entity_type}:${row.id}`)),
+        observedAt,
+        knownUnknowns: Object.freeze(summaries.length > 0 ? [] : ["No matching current authoritative records"])
+      })
+    });
+  }
+
   async create(record: OwnerIntentRecord, idempotencyKey: string) {
     let acceptedRecord = record;
     if (record.conversation?.continuation !== "none" && record.conversation?.continuation && record.conversation.references.length === 0) {
@@ -91,6 +133,7 @@ export class PostgresOwnerIntentStore implements OwnerIntentStore {
         });
       }
     }
+    acceptedRecord = await this.groundReadOnlyAnswer(acceptedRecord);
     const fingerprint = this.fingerprint(record);
     const idempotencyRecordKey = this.idempotencyRecordKey(record, idempotencyKey);
 
@@ -105,7 +148,7 @@ export class PostgresOwnerIntentStore implements OwnerIntentStore {
 
       if (claim.state === "COMPLETED" && claim.record.result) {
         const persisted = claim.record.result;
-        await this.ensureOrchestration(client, persisted);
+        if (persisted.status === "accepted") await this.ensureOrchestration(client, persisted);
         return persisted;
       }
       if (claim.state === "IN_PROGRESS" || claim.state === "FAILED") {
@@ -154,7 +197,7 @@ export class PostgresOwnerIntentStore implements OwnerIntentStore {
         persisted = prior;
       }
 
-      await this.ensureOrchestration(client, persisted);
+      if (persisted.status === "accepted") await this.ensureOrchestration(client, persisted);
 
       await new PostgresAuditLedger(client).append(createAuditEvent({
         correlationId: persisted.correlationId ?? `owner-intent:${persisted.id}`,
@@ -168,11 +211,11 @@ export class PostgresOwnerIntentStore implements OwnerIntentStore {
         environment: persisted.environment,
         entityType: "owner-intent",
         entityId: persisted.id,
-        newState: "accepted",
+        newState: persisted.status,
         provenance: "control-api:owner-intent",
         metadata: {
           idempotencyKey,
-          orchestrationRunId: createOwnerIntentOrchestrationRun(persisted).id
+          orchestrationRunId: persisted.status === "accepted" ? createOwnerIntentOrchestrationRun(persisted).id : null
         }
       }));
 
