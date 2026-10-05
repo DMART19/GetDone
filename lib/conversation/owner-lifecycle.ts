@@ -2,6 +2,7 @@ import type { OrchestrationRunRecord } from "@/lib/orchestration/contracts";
 
 export type OwnerLifecycleState =
   | "answering"
+  | "answer"
   | "proposed_work"
   | "awaiting_approval"
   | "running"
