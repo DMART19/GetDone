@@ -201,7 +201,7 @@ export class PostgresOwnerIntentStore implements OwnerIntentStore {
 
       await new PostgresAuditLedger(client).append(createAuditEvent({
         correlationId: persisted.correlationId ?? `owner-intent:${persisted.id}`,
-        eventType: "owner-intent.accepted",
+        eventType: persisted.status === "answered" ? "owner-intent.answered" : "owner-intent.accepted",
         actor: { type: "user", id: persisted.userId },
         scope: {
           userId: persisted.userId,
