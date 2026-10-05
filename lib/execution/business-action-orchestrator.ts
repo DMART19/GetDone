@@ -38,6 +38,7 @@ export interface BusinessActionExecutionRecord {
   requestHash: string;
   /** Hash of the provider-facing request after trusted runtime normalization. */
   dispatchedRequestHash?: string;
+  authorityIdentityHash?: string;
   adapterId: string;
   adapterVersion: string;
   providerOperationId?: string;
@@ -60,6 +61,10 @@ export interface BusinessActionExecutionStore {
 export interface BusinessActionExecutionResult {
   record: BusinessActionExecutionRecord;
   verificationEvidence?: VerificationEvidence;
+}
+
+function authorityIdentityHash(request: AuthorizedBusinessActionRequest) {
+  return sha256Hex({ ...request, correlationId: undefined, idempotencyKey: undefined });
 }
 
 function createRecord(
@@ -245,6 +250,7 @@ export class BusinessActionExecutionOrchestrator {
       jobId: request.jobId,
       requestHash,
       dispatchedRequestHash: requestHash,
+      authorityIdentityHash: authorityIdentityHash(request),
       adapterId: adapter.id,
       adapterVersion: adapter.version,
       providerOperationId: result.providerOperationId,
@@ -282,9 +288,8 @@ export class BusinessActionExecutionOrchestrator {
       throw new ControlPlaneError("NOT_FOUND", "Business action execution was not found");
     }
     const cancellationHash = sha256Hex(request);
-    const cancellationAuthorityHash = sha256Hex({ ...request, correlationId: undefined, idempotencyKey: undefined });
-    const persistedAuthorityHash = sha256Hex({ ...request, correlationId: undefined, idempotencyKey: undefined });
-    if (record.requestHash !== cancellationHash && record.dispatchedRequestHash !== cancellationHash && cancellationAuthorityHash !== persistedAuthorityHash) {
+    const cancellationAuthorityHash = authorityIdentityHash(request);
+    if (record.requestHash !== cancellationHash && record.dispatchedRequestHash !== cancellationHash && record.authorityIdentityHash !== cancellationAuthorityHash) {
       throw new ControlPlaneError("IDEMPOTENCY_CONFLICT", "Cancellation request does not match persisted action");
     }
     const adapter = await this.adapters.resolve(request);
