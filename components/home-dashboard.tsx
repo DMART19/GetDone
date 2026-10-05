@@ -5,6 +5,7 @@ import { FileText, Plus, Upload } from "lucide-react";
 import { FormEvent, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Brand } from "@/components/brand";
+import { ChatComposer } from "@/components/chat-composer";
 import type { ObjectiveView } from "@/lib/types";
 
 function authoritativeRuntime() {
@@ -119,9 +120,14 @@ export function HomeDashboard({ objectives }: { objectives: ObjectiveView[] }) {
       <div className="ufo-home-brand ufo-objective-brand">
         <Brand />
         <h1>What do you want done?</h1>
-        <p>Give GetDone the outcome. It handles the machinery.</p>
+        <p>Ask a question or tell GetDone what you want done.</p>
       </div>
 
+      <div className="ufo-command-card" aria-label="Conversation with GetDone">
+        <ChatComposer />
+      </div>
+
+      <div className="ufo-objective-section-heading"><span>OR ADD A STRUCTURED OBJECTIVE</span></div>
       <form className="ufo-command-card ufo-objective-composer" onSubmit={submit}>
         <textarea
           ref={inputRef}
