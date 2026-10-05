@@ -37,13 +37,23 @@ export function ChatComposer() {
       });
       const value = await response.json().catch(() => null) as {
         ok?: boolean;
+        data?: { conversation?: { intent?: string; continuation?: string; requiresExecutionAuthority?: boolean } };
         error?: { message?: string };
       } | null;
       if (!response.ok || !value?.ok) {
         throw new Error(value?.error?.message || "GetDone could not accept the message");
       }
       setMessage("");
-      setPreview("Accepted by GetDone.");
+      const intent = value.data?.conversation?.intent;
+      setPreview(
+        intent === "status_query" || intent === "explain_query"
+          ? "Checking authoritative evidence…"
+          : intent === "recommend_request" || intent === "investigate_request"
+            ? "Building a grounded response…"
+            : value.data?.conversation?.requiresExecutionAuthority
+              ? "Request accepted. GetDone will plan it and ask before any action that requires approval."
+              : "Request accepted. GetDone is resolving the right context."
+      );
     } catch (error) {
       setPreview(error instanceof Error ? error.message : "GetDone could not accept the message");
     } finally {
