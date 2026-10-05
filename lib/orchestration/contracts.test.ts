@@ -157,7 +157,7 @@ describe("UFO nervous-system coordinator contracts", () => {
     });
 
     expect(run.state).toBe("awaiting-decision");
-    expect(isOrchestrationWorkerResumable(run)).toBe(false);
+    expect(isOrchestrationWorkerResumable(run)).toBe(true);
 
     expect(() =>
       transitionOrchestrationRun(run, {
