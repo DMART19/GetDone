@@ -48,11 +48,12 @@ export interface OwnerIntentRecord {
   userId: string;
   message: string;
   channel: "chat" | "api";
-  status: "accepted";
+  status: "accepted" | "answered";
   /** Advisory conversation semantics. Never execution authority. */
   conversation?: ConversationSemantics;
   /** Previous trusted owner intent used only for conversational reference continuation. */
   continuesIntentId?: string;
+  answer?: Readonly<{ text: string; evidenceRefs: readonly string[]; observedAt: string; knownUnknowns: readonly string[] }>;
   receivedAt: string;
 }
 
