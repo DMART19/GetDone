@@ -28,6 +28,35 @@ describe("conversation boundary", () => {
     expect(analyzeConversationMessage("Fix it")).toMatchObject({ continuation: "fix-it", requiresExecutionAuthority: true });
     expect(analyzeConversationMessage("Do it")).toMatchObject({ continuation: "do-it", requiresExecutionAuthority: true });
   });
+  it("covers intent precedence, punctuation continuations, deduplication, and authority semantics", () => {
+    expect(classifyConversationIntent("Why is the webhook failing?")).toBe("investigate_request");
+    expect(classifyConversationIntent("How should we fix revenue?")).toBe("recommend_request");
+    expect(classifyConversationIntent("Please deploy the release")).toBe("action_request");
+    expect(classifyConversationIntent("Improve release readiness")).toBe("objective_request");
+    expect(classifyConversationIntent("What is revenue?")).toBe("status_query");
+
+    expect(resolveConversationReferences("github GitHub GITHUB for OpsManagerPro opsmanagerpro")).toEqual([
+      { kind: "integration", name: "github" },
+      { kind: "company", name: "OpsManagerPro" }
+    ]);
+
+    expect(analyzeConversationMessage("  Go ahead!  ")).toMatchObject({
+      intent: "action_request",
+      continuation: "do-it",
+      requiresExecutionAuthority: true
+    });
+    expect(analyzeConversationMessage("Grow revenue")).toMatchObject({
+      intent: "objective_request",
+      continuation: "none",
+      requiresExecutionAuthority: true
+    });
+    expect(analyzeConversationMessage("Is Slack connected?")).toMatchObject({
+      intent: "status_query",
+      continuation: "none",
+      requiresExecutionAuthority: false
+    });
+  });
+
 });
 
 describe("owner lifecycle", () => {
