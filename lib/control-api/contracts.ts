@@ -3,6 +3,7 @@ import type { StepUpProof } from "@/lib/authorization/proofs";
 import type { StepUpChallenge } from "@/lib/auth/contracts";
 import type { TrustedExecutionScope } from "@/lib/control-plane/trusted-execution-scope";
 import type { ConversationSemantics } from "@/lib/conversation/contracts";
+import type { OwnerLifecycleView } from "@/lib/conversation/owner-lifecycle";
 import type { AuthoritativeDecision } from "@/lib/domain/decision-service";
 import type { JobRecord } from "@/lib/domain/services/job-service";
 import type { VerificationRequestRecord } from "@/lib/domain/services/verification-service";
@@ -180,6 +181,7 @@ export interface ControlApiApplicationAdapter {
     idempotencyKey: string,
     correlationId?: string
   ): Promise<OwnerIntentRecord>;
+  getOwnerIntentStatus(principal: ControlApiPrincipal, intentId: string): Promise<{ intentId: string; conversation: ConversationSemantics; lifecycle: OwnerLifecycleView; orchestrationId?: string }>;
 
   submitObjectives(
     principal: ControlApiPrincipal,
