@@ -91,6 +91,18 @@ Connect these interfaces to durable server-side persistence and an always-on ing
 - matching signals update an existing investigation
 - cooldown suppresses repeated non-critical investigation creation
 
+### Stabilization hardening
+
+Phase 10 sensing evidence was hardened on the launch-blocker stabilization branch:
+
+- sustained anomaly evidence now counts only threshold-consistent recent samples;
+- recent evidence must match portfolio, company, resource, signal type, and configured metric;
+- future-dated and out-of-window samples cannot satisfy sustained evidence;
+- normal samples cannot inflate an investigation/escalation sample count;
+- profiles fail closed when the sensing window, minimum sample count, or freshness limit is zero;
+- profiles fail closed when sustained duration exceeds the configured sensing window;
+- regression coverage now exercises false-sustained, cross-resource, future-sample, and invalid-window cases.
+
 ### Owner / infrastructure action required for canonical PASS
 
 Persist sensing profiles, recent-signal windows, and investigations in authoritative storage and run sensing continuously in an always-on backend runtime. Until then, continuous client-independent sensing is a tested contract rather than a deployed service.
