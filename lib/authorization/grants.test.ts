@@ -206,7 +206,7 @@ describe("authorization grants", () => {
       expiresAt: "2026-09-20T18:33:00Z"
     });
 
-    expect(grant.disposition).toBe("STRONG_APPROVAL");
+    expect(grant.disposition).toBe("APPROVAL_REQUIRED");
     expect(grant.approvalProofId).toBe(approval.id);
     expect(grant.approvalProofHash).toBe(approval.proofHash);
     expect(grant.stepUpProofId).toBe(stepUp.id);
