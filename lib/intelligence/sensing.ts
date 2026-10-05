@@ -127,6 +127,20 @@ export function validateSensingProfile(profile: SensingProfile) {
     throw new ControlPlaneError("VALIDATION_FAILED", "Sensing window values must be non-negative integers");
   }
 
+  if (profile.windowSeconds === 0 || profile.minimumSamples === 0 || profile.maxAgeSeconds === 0) {
+    throw new ControlPlaneError(
+      "VALIDATION_FAILED",
+      "Sensing window, minimum samples, and freshness limit must be greater than zero"
+    );
+  }
+
+  if (profile.sustainedSeconds > profile.windowSeconds) {
+    throw new ControlPlaneError(
+      "VALIDATION_FAILED",
+      "Sustained duration cannot exceed the sensing window"
+    );
+  }
+
   if (!profile.id || !profile.portfolioId || !profile.companyId || !profile.signalType) {
     throw new ControlPlaneError("VALIDATION_FAILED", "Sensing profile must be scoped and named");
   }
@@ -153,12 +167,30 @@ function numericDecision(
   if (typeof signal.value !== "number" || typeof profile.baselineValue !== "number") return null;
 
   const deviation = directionalDeviation(signal.value, profile.baselineValue, profile.direction);
+  const signalTime = Date.parse(signal.occurredAt);
+  const sameScope = (candidate: NormalizedSignal) =>
+    candidate.scope.portfolioId === signal.scope.portfolioId
+    && candidate.scope.companyId === signal.scope.companyId
+    && candidate.scope.resourceId === signal.scope.resourceId;
+
   const windowSamples = recent
+    .filter((candidate) => sameScope(candidate))
     .filter((candidate) => candidate.type === signal.type)
     .filter((candidate) => !profile.metric || candidate.metric === profile.metric)
-    .filter((candidate) => typeof candidate.value === "number");
+    .filter((candidate) => typeof candidate.value === "number")
+    .filter((candidate) => {
+      const occurredAt = Date.parse(candidate.occurredAt);
+      return Number.isFinite(occurredAt)
+        && occurredAt <= signalTime
+        && occurredAt >= signalTime - profile.windowSeconds * 1000;
+    });
 
-  const sustained = windowSamples.length + 1 >= profile.minimumSamples
+  const thresholdConsistentSamples = windowSamples.filter((candidate) =>
+    directionalDeviation(candidate.value as number, profile.baselineValue as number, profile.direction)
+      >= profile.investigateDeviationRatio
+  );
+
+  const sustained = thresholdConsistentSamples.length + 1 >= profile.minimumSamples
     && (signal.sustainedForSeconds ?? 0) >= profile.sustainedSeconds;
 
   if (deviation >= profile.escalateDeviationRatio && sustained) {
