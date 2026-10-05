@@ -534,8 +534,9 @@ describe("VerificationService authoritative lifecycle", () => {
     await expect(service.request(request, wrong)).rejects.toMatchObject({ code: "FORBIDDEN" });
     await service.request(request, command("verification.request-2"));
     await service.beginCollecting(request.id, command("verification.collect-2"));
+    const { requestHash: _requestHash, ...authoritativeRequestFields } = request;
     const substituted = createVerificationRequest({
-      ...request,
+      ...authoritativeRequestFields,
       id: "verification-substituted",
       subject: request.subject
     });
