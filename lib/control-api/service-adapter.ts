@@ -293,7 +293,10 @@ export class ServiceBackedControlApiAdapter implements ControlApiApplicationAdap
         conversation,
         lifecycle: run
           ? ownerLifecycleFromRun(run)
-          : { state: "answering" as const, label: "Understanding your request", terminal: false, verified: false },
+          : intent.status === "answered"
+            ? { state: "answer" as const, label: "Answered", terminal: true, verified: false }
+            : { state: "answering" as const, label: "Understanding your request", terminal: false, verified: false },
+        answer: intent.answer,
         orchestrationId: run?.id
       });
     });
