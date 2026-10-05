@@ -357,7 +357,6 @@ liveDescribe("real Slack governed staging acceptance", () => {
       const value = runtime(db, adapter(liveFetch), Date.now());
       const authoritative = job("happy", new Date().toISOString());
       const action = request(authoritative, "happy");
-      await value.jobs.create(authoritative);
       await value.mvp.enqueueAuthorizedBusinessAction(authoritative, action);
       expect((await runUntilTerminal(value, authoritative.id)).state).toBe("released");
 
@@ -385,7 +384,6 @@ liveDescribe("real Slack governed staging acceptance", () => {
       const value = runtime(db, adapter(fetch), Date.now(), 0);
       const authoritative = job("cancel", new Date().toISOString());
       const action = request(authoritative, "cancel");
-      await value.jobs.create(authoritative);
       await value.mvp.enqueueAuthorizedBusinessAction(authoritative, action);
       await value.mvp.runOnce();
 
@@ -431,7 +429,6 @@ liveDescribe("real Slack governed staging acceptance", () => {
       const value = runtime(db, adapter(rateLimitedFetch), Date.now());
       const authoritative = job("rate-limit", new Date().toISOString());
       const action = request(authoritative, "rate-limit");
-      await value.jobs.create(authoritative);
       await value.mvp.enqueueAuthorizedBusinessAction(authoritative, action);
       expect((await runUntilTerminal(value, authoritative.id)).state).toBe("released");
       const record = await new PostgresBusinessActionExecutionStore(db).get(action.id);
@@ -456,7 +453,6 @@ liveDescribe("real Slack governed staging acceptance", () => {
       const value = runtime(db, adapter(fetch, revokedToken), Date.now());
       const authoritative = job("revoked-token", new Date().toISOString());
       const action = request(authoritative, "revoked-token");
-      await value.jobs.create(authoritative);
       await value.mvp.enqueueAuthorizedBusinessAction(authoritative, action);
       expect((await runUntilTerminal(value, authoritative.id)).state).toBe("dead-lettered");
       expect((await new PostgresBusinessActionExecutionStore(db).get(action.id))?.providerOperationId)
@@ -473,7 +469,6 @@ liveDescribe("real Slack governed staging acceptance", () => {
       const value = runtime(db, adapter(fetch, noWriteToken), Date.now());
       const authoritative = job("permission-failure", new Date().toISOString());
       const action = request(authoritative, "permission-failure");
-      await value.jobs.create(authoritative);
       await value.mvp.enqueueAuthorizedBusinessAction(authoritative, action);
       expect((await runUntilTerminal(value, authoritative.id)).state).toBe("dead-lettered");
       const record = await new PostgresBusinessActionExecutionStore(db).get(action.id);
@@ -490,7 +485,6 @@ liveDescribe("real Slack governed staging acceptance", () => {
       const value = runtime(db, adapter(fetch), Date.now());
       const authoritative = job("channel-not-found", new Date().toISOString());
       const action = request(authoritative, "channel-not-found", "C0000000000");
-      await value.jobs.create(authoritative);
       await value.mvp.enqueueAuthorizedBusinessAction(authoritative, action);
       expect((await runUntilTerminal(value, authoritative.id)).state).toBe("dead-lettered");
       const record = await new PostgresBusinessActionExecutionStore(db).get(action.id);
