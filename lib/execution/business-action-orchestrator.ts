@@ -36,6 +36,8 @@ export interface BusinessActionExecutionRecord {
   correlationId?: string;
   jobId: string;
   requestHash: string;
+  /** Hash of the provider-facing request after trusted runtime normalization. */
+  dispatchedRequestHash?: string;
   adapterId: string;
   adapterVersion: string;
   providerOperationId?: string;
@@ -278,7 +280,8 @@ export class BusinessActionExecutionOrchestrator {
     if (!record || !record.providerOperationId) {
       throw new ControlPlaneError("NOT_FOUND", "Business action execution was not found");
     }
-    if (record.requestHash !== sha256Hex(request)) {
+    const cancellationHash = sha256Hex(request);
+    if (record.requestHash !== cancellationHash && record.dispatchedRequestHash !== cancellationHash) {
       throw new ControlPlaneError("IDEMPOTENCY_CONFLICT", "Cancellation request does not match persisted action");
     }
     const adapter = await this.adapters.resolve(request);
