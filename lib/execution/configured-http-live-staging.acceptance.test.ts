@@ -395,7 +395,7 @@ liveDescribe("configured HTTPS real staging acceptance", () => {
     const db = database();
     try {
       const value = runtime(db, adapter(), Date.now());
-      const authoritative = job("normal", new Date().toISOString());
+      const authoritative = await seedLiveAcceptanceAuthority({ db, id: "job-http-" + runId + "-normal", taskId: "task-http-" + runId + "-normal", correlationId: "corr-http-" + runId + "-normal", scope, capability: "http.request", now: new Date().toISOString() });
       const action = actionRequest(authoritative, "normal", "stage.normal");
       await value.mvp.enqueueAuthorizedBusinessAction(authoritative, action);
       expect((await runUntilTerminal(value, authoritative.id)).state).toBe("released");
@@ -418,7 +418,7 @@ liveDescribe("configured HTTPS real staging acceptance", () => {
     const db = database();
     try {
       const value = runtime(db, adapter(), Date.now());
-      const authoritative = job("consequential", new Date().toISOString());
+      const authoritative = await seedLiveAcceptanceAuthority({ db, id: "job-http-" + runId + "-consequential", taskId: "task-http-" + runId + "-consequential", correlationId: "corr-http-" + runId + "-consequential", scope, capability: "http.request", now: new Date().toISOString() });
       const action = actionRequest(authoritative, "consequential", "stage.consequential");
       await value.mvp.enqueueAuthorizedBusinessAction(authoritative, action);
       expect((await runUntilTerminal(value, authoritative.id)).state).toBe("released");
@@ -441,7 +441,7 @@ liveDescribe("configured HTTPS real staging acceptance", () => {
     const db = database();
     try {
       const value = runtime(db, adapter(), Date.now(), { maxStatusPolls: 0 });
-      const authoritative = job("cancel", new Date().toISOString());
+      const authoritative = await seedLiveAcceptanceAuthority({ db, id: "job-http-" + runId + "-cancel", taskId: "task-http-" + runId + "-cancel", correlationId: "corr-http-" + runId + "-cancel", scope, capability: "http.request", now: new Date().toISOString() });
       const action = actionRequest(authoritative, "cancel", "stage.cancel");
       await value.mvp.enqueueAuthorizedBusinessAction(authoritative, action);
       await value.mvp.runOnce();
@@ -470,7 +470,7 @@ liveDescribe("configured HTTPS real staging acceptance", () => {
     const db = database();
     try {
       const value = runtime(db, adapter(), Date.now(), { maxAttempts: 1 });
-      const authoritative = job("client4xx", new Date().toISOString());
+      const authoritative = await seedLiveAcceptanceAuthority({ db, id: "job-http-" + runId + "-client4xx", taskId: "task-http-" + runId + "-client4xx", correlationId: "corr-http-" + runId + "-client4xx", scope, capability: "http.request", now: new Date().toISOString() });
       const action = actionRequest(authoritative, "client4xx", "stage.client4xx");
       await value.mvp.enqueueAuthorizedBusinessAction(authoritative, action);
       expect((await runUntilTerminal(value, authoritative.id)).state).toBe("dead-lettered");
@@ -486,7 +486,7 @@ liveDescribe("configured HTTPS real staging acceptance", () => {
     const db = database();
     try {
       const value = runtime(db, adapter(), Date.now(), { maxAttempts: 3 });
-      const authoritative = job("server5xx", new Date().toISOString());
+      const authoritative = await seedLiveAcceptanceAuthority({ db, id: "job-http-" + runId + "-server5xx", taskId: "task-http-" + runId + "-server5xx", correlationId: "corr-http-" + runId + "-server5xx", scope, capability: "http.request", now: new Date().toISOString() });
       const action = actionRequest(authoritative, "server5xx", "stage.server5xx");
       await value.mvp.enqueueAuthorizedBusinessAction(authoritative, action);
       expect((await runUntilTerminal(value, authoritative.id)).state).toBe("released");
@@ -511,7 +511,7 @@ liveDescribe("configured HTTPS real staging acceptance", () => {
         maxStatusPolls: 10,
         pollIntervalMs: 250
       });
-      const authoritative = job("slow", new Date().toISOString());
+      const authoritative = await seedLiveAcceptanceAuthority({ db, id: "job-http-" + runId + "-slow", taskId: "task-http-" + runId + "-slow", correlationId: "corr-http-" + runId + "-slow", scope, capability: "http.request", now: new Date().toISOString() });
       const action = actionRequest(authoritative, "slow", "stage.slow", 250);
       await value.mvp.enqueueAuthorizedBusinessAction(authoritative, action);
       expect((await runUntilTerminal(value, authoritative.id)).state).toBe("released");
@@ -533,7 +533,7 @@ liveDescribe("configured HTTPS real staging acceptance", () => {
     const db = database();
     try {
       const value = runtime(db, adapter(), Date.now(), { maxAttempts: 1 });
-      const authoritative = job("oversized", new Date().toISOString());
+      const authoritative = await seedLiveAcceptanceAuthority({ db, id: "job-http-" + runId + "-oversized", taskId: "task-http-" + runId + "-oversized", correlationId: "corr-http-" + runId + "-oversized", scope, capability: "http.request", now: new Date().toISOString() });
       const action = actionRequest(authoritative, "oversized", "stage.oversized");
       await value.mvp.enqueueAuthorizedBusinessAction(authoritative, action);
       expect((await runUntilTerminal(value, authoritative.id)).state).toBe("dead-lettered");
@@ -553,7 +553,7 @@ liveDescribe("configured HTTPS real staging acceptance", () => {
     const db = database();
     try {
       const value = runtime(db, adapter(), Date.now(), { maxAttempts: 1 });
-      const authoritative = job("malicious", new Date().toISOString());
+      const authoritative = await seedLiveAcceptanceAuthority({ db, id: "job-http-" + runId + "-malicious", taskId: "task-http-" + runId + "-malicious", correlationId: "corr-http-" + runId + "-malicious", scope, capability: "http.request", now: new Date().toISOString() });
       const action = actionRequest(authoritative, "malicious", "stage.malicious");
       await value.mvp.enqueueAuthorizedBusinessAction(authoritative, action);
       expect((await runUntilTerminal(value, authoritative.id)).state).toBe("dead-lettered");
@@ -574,7 +574,7 @@ liveDescribe("configured HTTPS real staging acceptance", () => {
     const db = database();
     try {
       const value = runtime(db, adapter(), Date.now(), { maxAttempts: 1 });
-      const authoritative = job("dns", new Date().toISOString());
+      const authoritative = await seedLiveAcceptanceAuthority({ db, id: "job-http-" + runId + "-dns", taskId: "task-http-" + runId + "-dns", correlationId: "corr-http-" + runId + "-dns", scope, capability: "http.request", now: new Date().toISOString() });
       const action = actionRequest(authoritative, "dns", "stage.dns", 2_000);
       await value.mvp.enqueueAuthorizedBusinessAction(authoritative, action);
       expect((await runUntilTerminal(value, authoritative.id)).state).toBe("dead-lettered");
@@ -608,7 +608,7 @@ liveDescribe("configured HTTPS real staging acceptance", () => {
     const db = database();
     try {
       const value = runtime(db, adapter(), Date.now());
-      const authoritative = job("rotated", new Date().toISOString());
+      const authoritative = await seedLiveAcceptanceAuthority({ db, id: "job-http-" + runId + "-rotated", taskId: "task-http-" + runId + "-rotated", correlationId: "corr-http-" + runId + "-rotated", scope, capability: "http.request", now: new Date().toISOString() });
       const action = actionRequest(authoritative, "rotated", "stage.rotated");
       await value.mvp.enqueueAuthorizedBusinessAction(authoritative, action);
       expect((await runUntilTerminal(value, authoritative.id)).state).toBe("released");
