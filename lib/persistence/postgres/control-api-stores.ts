@@ -72,7 +72,7 @@ export class PostgresOwnerIntentStore implements OwnerIntentStore {
 
   async create(record: OwnerIntentRecord, idempotencyKey: string) {
     let acceptedRecord = record;
-    if (record.conversation.continuation !== "none" && record.conversation.references.length === 0) {
+    if (record.conversation?.continuation !== "none" && record.conversation?.continuation && record.conversation.references.length === 0) {
       const previous = await this.db.query<{ payload: OwnerIntentRecord }>(
         `SELECT payload FROM owner_intents
           WHERE portfolio_id=$1 AND company_id=$2 AND user_id=$3
