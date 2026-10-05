@@ -367,7 +367,7 @@ liveDescribe("real Gmail governed staging acceptance", () => {
         return fetch(url, init);
       };
       const value = runtime(db, gmailAdapter(liveFetch), Date.now());
-      const authoritative = job("happy", new Date().toISOString());
+      const authoritative = await seedLiveAcceptanceAuthority({ db, id: "job-gmail-" + runId + "-happy", taskId: "task-gmail-" + runId + "-happy", correlationId: "corr-gmail-" + runId + "-happy", scope, capability: "email.send", now: new Date().toISOString() });
       const request = actionRequest(authoritative, "happy");
       await value.mvp.enqueueAuthorizedBusinessAction(authoritative, request);
       expect((await runUntilTerminal(value, authoritative.id)).state).toBe("released");
@@ -397,7 +397,7 @@ liveDescribe("real Gmail governed staging acceptance", () => {
         return fetch(url, init);
       };
       const value = runtime(db, gmailAdapter(liveFetch), Date.now());
-      const authoritative = job("duplicate", new Date().toISOString());
+      const authoritative = await seedLiveAcceptanceAuthority({ db, id: "job-gmail-" + runId + "-duplicate", taskId: "task-gmail-" + runId + "-duplicate", correlationId: "corr-gmail-" + runId + "-duplicate", scope, capability: "email.send", now: new Date().toISOString() });
       const request = actionRequest(authoritative, "duplicate");
       const first = await value.mvp.enqueueAuthorizedBusinessAction(authoritative, request);
       const replay = await value.mvp.enqueueAuthorizedBusinessAction(authoritative, request);
@@ -439,7 +439,7 @@ liveDescribe("real Gmail governed staging acceptance", () => {
         return fetch(url, init);
       };
       const value = runtime(db, gmailAdapter(faultFetch), Date.now());
-      const authoritative = job("timeout-after-send", new Date().toISOString());
+      const authoritative = await seedLiveAcceptanceAuthority({ db, id: "job-gmail-" + runId + "-timeout-after-send", taskId: "task-gmail-" + runId + "-timeout-after-send", correlationId: "corr-gmail-" + runId + "-timeout-after-send", scope, capability: "email.send", now: new Date().toISOString() });
       const request = actionRequest(authoritative, "timeout-after-send");
       await value.mvp.enqueueAuthorizedBusinessAction(authoritative, request);
       expect((await runUntilTerminal(value, authoritative.id)).state).toBe("released");
@@ -508,7 +508,7 @@ liveDescribe("real Gmail governed staging acceptance", () => {
     const db = database();
     try {
       const value = runtime(db, gmailAdapter(fetch, "definitely-invalid-token"), Date.now());
-      const authoritative = job("invalid-token", new Date().toISOString());
+      const authoritative = await seedLiveAcceptanceAuthority({ db, id: "job-gmail-" + runId + "-invalid-token", taskId: "task-gmail-" + runId + "-invalid-token", correlationId: "corr-gmail-" + runId + "-invalid-token", scope, capability: "email.send", now: new Date().toISOString() });
       const request = actionRequest(authoritative, "invalid-token");
       await value.mvp.enqueueAuthorizedBusinessAction(authoritative, request);
       expect((await runUntilTerminal(value, authoritative.id)).state).toBe("dead-lettered");
@@ -529,7 +529,7 @@ liveDescribe("real Gmail governed staging acceptance", () => {
     try {
       const revoked = required("GETDONE_GMAIL_STAGING_REVOKED_TOKEN");
       const value = runtime(db, gmailAdapter(fetch, revoked), Date.now());
-      const authoritative = job("revoked-token", new Date().toISOString());
+      const authoritative = await seedLiveAcceptanceAuthority({ db, id: "job-gmail-" + runId + "-revoked-token", taskId: "task-gmail-" + runId + "-revoked-token", correlationId: "corr-gmail-" + runId + "-revoked-token", scope, capability: "email.send", now: new Date().toISOString() });
       const request = actionRequest(authoritative, "revoked-token");
       await value.mvp.enqueueAuthorizedBusinessAction(authoritative, request);
       expect((await runUntilTerminal(value, authoritative.id)).state).toBe("dead-lettered");
@@ -562,7 +562,7 @@ liveDescribe("real Gmail governed staging acceptance", () => {
         return fetch(url, init);
       };
       const value = runtime(db, gmailAdapter(rateLimitedFetch), Date.now());
-      const authoritative = job("rate-limit", new Date().toISOString());
+      const authoritative = await seedLiveAcceptanceAuthority({ db, id: "job-gmail-" + runId + "-rate-limit", taskId: "task-gmail-" + runId + "-rate-limit", correlationId: "corr-gmail-" + runId + "-rate-limit", scope, capability: "email.send", now: new Date().toISOString() });
       const request = actionRequest(authoritative, "rate-limit");
       await value.mvp.enqueueAuthorizedBusinessAction(authoritative, request);
       expect((await runUntilTerminal(value, authoritative.id)).state).toBe("released");
@@ -608,7 +608,7 @@ liveDescribe("real Gmail governed staging acceptance", () => {
         return fetch(url, init);
       };
       const value = runtime(db, gmailAdapter(malformedFetch), Date.now());
-      const authoritative = job("malformed-response", new Date().toISOString());
+      const authoritative = await seedLiveAcceptanceAuthority({ db, id: "job-gmail-" + runId + "-malformed-response", taskId: "task-gmail-" + runId + "-malformed-response", correlationId: "corr-gmail-" + runId + "-malformed-response", scope, capability: "email.send", now: new Date().toISOString() });
       const request = actionRequest(authoritative, "malformed-response");
       await value.mvp.enqueueAuthorizedBusinessAction(authoritative, request);
       expect((await runUntilTerminal(value, authoritative.id)).state).toBe("released");
@@ -653,7 +653,7 @@ liveDescribe("real Gmail governed staging acceptance", () => {
         return fetch(url, init);
       };
       const value = runtime(db, gmailAdapter(verificationFailureFetch), Date.now());
-      const authoritative = job("verification-failure", new Date().toISOString());
+      const authoritative = await seedLiveAcceptanceAuthority({ db, id: "job-gmail-" + runId + "-verification-failure", taskId: "task-gmail-" + runId + "-verification-failure", correlationId: "corr-gmail-" + runId + "-verification-failure", scope, capability: "email.send", now: new Date().toISOString() });
       const request = actionRequest(authoritative, "verification-failure");
       await value.mvp.enqueueAuthorizedBusinessAction(authoritative, request);
       expect((await runUntilTerminal(value, authoritative.id)).state).toBe("dead-lettered");
