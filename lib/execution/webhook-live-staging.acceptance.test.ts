@@ -459,9 +459,9 @@ liveDescribe("real signed webhook governed staging acceptance", () => {
     try {
       const start = Date.now();
       const value = runtime(db, start);
-      const job = authoritativeJob("delivery", new Date(start).toISOString());
+      const job = await seedLiveAcceptanceAuthority({ db, id: "job-webhook-" + runId + "-delivery", taskId: "task-webhook-" + runId + "-delivery", correlationId: "corr-webhook-" + runId + "-delivery", scope, capability: "webhook.send", now: new Date(start).toISOString() });
       const request = actionRequest(job, "delivery", "stage.delivery");
-      await value.jobs.create(job);
+      
       await provisionLease(db, request, new Date(start));
       await value.mvp.enqueueAuthorizedBusinessAction(job, request);
       expect((await runUntilTerminal(value, job.id)).state).toBe("released");
@@ -497,9 +497,9 @@ liveDescribe("real signed webhook governed staging acceptance", () => {
     try {
       const start = Date.now();
       const value = runtime(db, start, { maxAttempts: 3 });
-      const job = authoritativeJob("duplicate", new Date(start).toISOString());
+      const job = await seedLiveAcceptanceAuthority({ db, id: "job-webhook-" + runId + "-duplicate", taskId: "task-webhook-" + runId + "-duplicate", correlationId: "corr-webhook-" + runId + "-duplicate", scope, capability: "webhook.send", now: new Date(start).toISOString() });
       const request = actionRequest(job, "duplicate", "stage.duplicate", 250);
-      await value.jobs.create(job);
+      
       await provisionLease(db, request, new Date(start));
       await value.mvp.enqueueAuthorizedBusinessAction(job, request);
       expect((await runUntilTerminal(value, job.id)).state).toBe("released");
@@ -528,9 +528,9 @@ liveDescribe("real signed webhook governed staging acceptance", () => {
     try {
       const start = Date.now();
       const value = runtime(db, start, { maxStatusPolls: 0 });
-      const job = authoritativeJob("cancel", new Date(start).toISOString());
+      const job = await seedLiveAcceptanceAuthority({ db, id: "job-webhook-" + runId + "-cancel", taskId: "task-webhook-" + runId + "-cancel", correlationId: "corr-webhook-" + runId + "-cancel", scope, capability: "webhook.send", now: new Date(start).toISOString() });
       const request = actionRequest(job, "cancel", "stage.cancel");
-      await value.jobs.create(job);
+      
       await provisionLease(db, request, new Date(start));
       await value.mvp.enqueueAuthorizedBusinessAction(job, request);
       await value.mvp.runOnce();
@@ -564,9 +564,9 @@ liveDescribe("real signed webhook governed staging acceptance", () => {
     try {
       const start = Date.now();
       const value = runtime(db, start, { maxAttempts: 2 });
-      const job = authoritativeJob("tampered", new Date(start).toISOString());
+      const job = await seedLiveAcceptanceAuthority({ db, id: "job-webhook-" + runId + "-tampered", taskId: "task-webhook-" + runId + "-tampered", correlationId: "corr-webhook-" + runId + "-tampered", scope, capability: "webhook.send", now: new Date(start).toISOString() });
       const request = actionRequest(job, "tampered", "stage.tampered");
-      await value.jobs.create(job);
+      
       await provisionLease(db, request, new Date(start));
       await value.mvp.enqueueAuthorizedBusinessAction(job, request);
       expect((await runUntilTerminal(value, job.id)).state).toBe("dead-lettered");
@@ -592,9 +592,9 @@ liveDescribe("real signed webhook governed staging acceptance", () => {
     try {
       const start = Date.now();
       const value = runtime(db, start, { maxAttempts: 3 });
-      const job = authoritativeJob("retry", new Date(start).toISOString());
+      const job = await seedLiveAcceptanceAuthority({ db, id: "job-webhook-" + runId + "-retry", taskId: "task-webhook-" + runId + "-retry", correlationId: "corr-webhook-" + runId + "-retry", scope, capability: "webhook.send", now: new Date(start).toISOString() });
       const request = actionRequest(job, "retry", "stage.retry");
-      await value.jobs.create(job);
+      
       await provisionLease(db, request, new Date(start));
       await value.mvp.enqueueAuthorizedBusinessAction(job, request);
       expect((await runUntilTerminal(value, job.id)).state).toBe("dead-lettered");
@@ -620,9 +620,9 @@ liveDescribe("real signed webhook governed staging acceptance", () => {
     const firstDb = database();
     try {
       const first = runtime(firstDb, start, { maxStatusPolls: 0 });
-      job = authoritativeJob("restart", new Date(start).toISOString());
+      job = await seedLiveAcceptanceAuthority({ db, id: "job-webhook-" + runId + "-restart", taskId: "task-webhook-" + runId + "-restart", correlationId: "corr-webhook-" + runId + "-restart", scope, capability: "webhook.send", now: new Date(start).toISOString() });
       request = actionRequest(job, "restart", "stage.restart");
-      await first.jobs.create(job);
+      
       await provisionLease(firstDb, request, new Date(start));
       await first.mvp.enqueueAuthorizedBusinessAction(job, request);
       await first.mvp.runOnce();
