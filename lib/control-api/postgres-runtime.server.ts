@@ -127,6 +127,7 @@ export function createPostgresControlApiAdapter(
     scopes: new PostgresControlApiScopeResolver(db, environment),
     authorizationEvidence: new SessionStepUpEvidenceResolver(),
     intents: new PostgresOwnerIntentStore(db),
+    orchestrations: new PostgresOrchestrationRunStore(db),
     objectives,
     objectiveIntake: new PostgresObjectiveIntakeStore(db),
     // Control API 1.6 preference endpoints fail closed until a durable Postgres
