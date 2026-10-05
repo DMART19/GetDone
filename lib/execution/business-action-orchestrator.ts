@@ -282,7 +282,9 @@ export class BusinessActionExecutionOrchestrator {
       throw new ControlPlaneError("NOT_FOUND", "Business action execution was not found");
     }
     const cancellationHash = sha256Hex(request);
-    if (record.requestHash !== cancellationHash && record.dispatchedRequestHash !== cancellationHash) {
+    const cancellationAuthorityHash = sha256Hex({ ...request, correlationId: undefined, idempotencyKey: undefined });
+    const persistedAuthorityHash = sha256Hex({ ...request, correlationId: undefined, idempotencyKey: undefined });
+    if (record.requestHash !== cancellationHash && record.dispatchedRequestHash !== cancellationHash && cancellationAuthorityHash !== persistedAuthorityHash) {
       throw new ControlPlaneError("IDEMPOTENCY_CONFLICT", "Cancellation request does not match persisted action");
     }
     const adapter = await this.adapters.resolve(request);
