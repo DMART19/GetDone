@@ -56,6 +56,7 @@ export type OrchestrationContextSourceInput =
       type: "owner-intent";
       message: string;
       channel: OwnerIntentRecord["channel"];
+      conversation: OwnerIntentRecord["conversation"];
     }
   | {
       type: "objective";
@@ -212,7 +213,8 @@ export function createOwnerIntentContextSnapshot(input: {
     sourceInput: {
       type: "owner-intent" as const,
       message: input.intent.message,
-      channel: input.intent.channel
+      channel: input.intent.channel,
+      conversation: input.intent.conversation
     },
     assembledContext: input.assembledContext,
     createdAt: new Date(input.createdAt).toISOString()
