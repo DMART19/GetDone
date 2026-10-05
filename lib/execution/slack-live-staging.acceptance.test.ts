@@ -80,38 +80,6 @@ function database() {
   });
 }
 
-function job(name: string, now: string): JobRecord {
-  const id = "job-slack-" + runId + "-" + name;
-  const taskId = "task-slack-" + runId + "-" + name;
-  const grantHash = sha256Hex({ id, type: "grant" });
-  return Object.freeze({
-    id,
-    portfolioId: scope.portfolioId,
-    companyId: scope.companyId,
-    state: "queued",
-    taskId,
-    attempt: 0,
-    maxAttempts: 5,
-    authorizationGrantId: "grant-" + id,
-    authorizationGrantHash: grantHash,
-    authorizationConsumption: {
-      id: "consumption-" + id,
-      grantId: "grant-" + id,
-      grantHash,
-      consumerType: "task" as const,
-      consumerId: taskId,
-      scope,
-      planHash: sha256Hex({ id, type: "plan" }),
-      stepHash: sha256Hex({ id, type: "step" }),
-      consumedAt: now,
-      consumptionHash: sha256Hex({ id, type: "consumption" })
-    },
-    verificationEvidenceIds: Object.freeze([]),
-    version: 2,
-    updatedAt: now
-  });
-}
-
 function request(authoritative: JobRecord, name: string, targetChannel = channelId): AuthorizedBusinessActionRequest {
   const input = {
     companyId: scope.companyId,
