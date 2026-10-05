@@ -587,7 +587,7 @@ liveDescribe("real signed webhook governed staging acceptance", () => {
     const firstDb = database();
     try {
       const first = runtime(firstDb, start, { maxStatusPolls: 0 });
-      job = await seedLiveAcceptanceAuthority({ db, id: "job-webhook-" + runId + "-restart", taskId: "task-webhook-" + runId + "-restart", correlationId: "corr-webhook-" + runId + "-restart", scope, capability: "webhook.send", now: new Date(start).toISOString() });
+      job = await seedLiveAcceptanceAuthority({ db: firstDb, id: "job-webhook-" + runId + "-restart", taskId: "task-webhook-" + runId + "-restart", correlationId: "corr-webhook-" + runId + "-restart", scope, capability: "webhook.send", now: new Date(start).toISOString() });
       request = actionRequest(job, "restart", "stage.restart");
       
       await provisionLease(firstDb, request, new Date(start));
