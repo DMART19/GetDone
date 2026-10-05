@@ -328,7 +328,7 @@ export const capabilityRegistry: readonly CapabilityDefinition[] = [
     reversible: true,
     risk: "critical",
     blastRadius: "company",
-    approval: "strong-approval",
+    approval: "approval",
     adapterBinding: "software.deploy",
     rateLimitPerMinute: 5,
     enabled: true,
