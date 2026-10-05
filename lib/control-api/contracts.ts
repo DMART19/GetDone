@@ -2,6 +2,7 @@ import type { TrustedActor } from "@/lib/control-plane/request-context";
 import type { StepUpProof } from "@/lib/authorization/proofs";
 import type { StepUpChallenge } from "@/lib/auth/contracts";
 import type { TrustedExecutionScope } from "@/lib/control-plane/trusted-execution-scope";
+import type { ConversationSemantics } from "@/lib/conversation/contracts";
 import type { AuthoritativeDecision } from "@/lib/domain/decision-service";
 import type { JobRecord } from "@/lib/domain/services/job-service";
 import type { VerificationRequestRecord } from "@/lib/domain/services/verification-service";
@@ -47,6 +48,8 @@ export interface OwnerIntentRecord {
   message: string;
   channel: "chat" | "api";
   status: "accepted";
+  /** Advisory conversation semantics. Never execution authority. */
+  conversation: ConversationSemantics;
   receivedAt: string;
 }
 
