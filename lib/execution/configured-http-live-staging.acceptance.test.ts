@@ -397,7 +397,6 @@ liveDescribe("configured HTTPS real staging acceptance", () => {
       const value = runtime(db, adapter(), Date.now());
       const authoritative = job("normal", new Date().toISOString());
       const action = actionRequest(authoritative, "normal", "stage.normal");
-      await value.jobs.create(authoritative);
       await value.mvp.enqueueAuthorizedBusinessAction(authoritative, action);
       expect((await runUntilTerminal(value, authoritative.id)).state).toBe("released");
       const provider = await inspectRequest(action.id);
@@ -421,7 +420,6 @@ liveDescribe("configured HTTPS real staging acceptance", () => {
       const value = runtime(db, adapter(), Date.now());
       const authoritative = job("consequential", new Date().toISOString());
       const action = actionRequest(authoritative, "consequential", "stage.consequential");
-      await value.jobs.create(authoritative);
       await value.mvp.enqueueAuthorizedBusinessAction(authoritative, action);
       expect((await runUntilTerminal(value, authoritative.id)).state).toBe("released");
       const record = await new PostgresBusinessActionExecutionStore(db).get(action.id);
@@ -445,7 +443,6 @@ liveDescribe("configured HTTPS real staging acceptance", () => {
       const value = runtime(db, adapter(), Date.now(), { maxStatusPolls: 0 });
       const authoritative = job("cancel", new Date().toISOString());
       const action = actionRequest(authoritative, "cancel", "stage.cancel");
-      await value.jobs.create(authoritative);
       await value.mvp.enqueueAuthorizedBusinessAction(authoritative, action);
       await value.mvp.runOnce();
       const before = await new PostgresBusinessActionExecutionStore(db).get(action.id);
@@ -475,7 +472,6 @@ liveDescribe("configured HTTPS real staging acceptance", () => {
       const value = runtime(db, adapter(), Date.now(), { maxAttempts: 1 });
       const authoritative = job("client4xx", new Date().toISOString());
       const action = actionRequest(authoritative, "client4xx", "stage.client4xx");
-      await value.jobs.create(authoritative);
       await value.mvp.enqueueAuthorizedBusinessAction(authoritative, action);
       expect((await runUntilTerminal(value, authoritative.id)).state).toBe("dead-lettered");
       expect(await inspectRequest(action.id)).toBeNull();
@@ -492,7 +488,6 @@ liveDescribe("configured HTTPS real staging acceptance", () => {
       const value = runtime(db, adapter(), Date.now(), { maxAttempts: 3 });
       const authoritative = job("server5xx", new Date().toISOString());
       const action = actionRequest(authoritative, "server5xx", "stage.server5xx");
-      await value.jobs.create(authoritative);
       await value.mvp.enqueueAuthorizedBusinessAction(authoritative, action);
       expect((await runUntilTerminal(value, authoritative.id)).state).toBe("released");
       const provider = await inspectRequest(action.id);
@@ -518,7 +513,6 @@ liveDescribe("configured HTTPS real staging acceptance", () => {
       });
       const authoritative = job("slow", new Date().toISOString());
       const action = actionRequest(authoritative, "slow", "stage.slow", 250);
-      await value.jobs.create(authoritative);
       await value.mvp.enqueueAuthorizedBusinessAction(authoritative, action);
       expect((await runUntilTerminal(value, authoritative.id)).state).toBe("released");
       const provider = await inspectRequest(action.id);
@@ -541,7 +535,6 @@ liveDescribe("configured HTTPS real staging acceptance", () => {
       const value = runtime(db, adapter(), Date.now(), { maxAttempts: 1 });
       const authoritative = job("oversized", new Date().toISOString());
       const action = actionRequest(authoritative, "oversized", "stage.oversized");
-      await value.jobs.create(authoritative);
       await value.mvp.enqueueAuthorizedBusinessAction(authoritative, action);
       expect((await runUntilTerminal(value, authoritative.id)).state).toBe("dead-lettered");
       const provider = await inspectRequest(action.id);
@@ -562,7 +555,6 @@ liveDescribe("configured HTTPS real staging acceptance", () => {
       const value = runtime(db, adapter(), Date.now(), { maxAttempts: 1 });
       const authoritative = job("malicious", new Date().toISOString());
       const action = actionRequest(authoritative, "malicious", "stage.malicious");
-      await value.jobs.create(authoritative);
       await value.mvp.enqueueAuthorizedBusinessAction(authoritative, action);
       expect((await runUntilTerminal(value, authoritative.id)).state).toBe("dead-lettered");
       const provider = await inspectRequest(action.id);
@@ -584,7 +576,6 @@ liveDescribe("configured HTTPS real staging acceptance", () => {
       const value = runtime(db, adapter(), Date.now(), { maxAttempts: 1 });
       const authoritative = job("dns", new Date().toISOString());
       const action = actionRequest(authoritative, "dns", "stage.dns", 2_000);
-      await value.jobs.create(authoritative);
       await value.mvp.enqueueAuthorizedBusinessAction(authoritative, action);
       expect((await runUntilTerminal(value, authoritative.id)).state).toBe("dead-lettered");
       const record = await new PostgresBusinessActionExecutionStore(db).get(action.id);
@@ -619,7 +610,6 @@ liveDescribe("configured HTTPS real staging acceptance", () => {
       const value = runtime(db, adapter(), Date.now());
       const authoritative = job("rotated", new Date().toISOString());
       const action = actionRequest(authoritative, "rotated", "stage.rotated");
-      await value.jobs.create(authoritative);
       await value.mvp.enqueueAuthorizedBusinessAction(authoritative, action);
       expect((await runUntilTerminal(value, authoritative.id)).state).toBe("released");
       const provider = await inspectRequest(action.id);
