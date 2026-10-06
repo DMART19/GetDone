@@ -1,10 +1,21 @@
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { buildSecurityHeaders } from "./lib/security/security-headers.mjs";
+
+const rootDir = path.dirname(fileURLToPath(import.meta.url));
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   poweredByHeader: false,
   reactStrictMode: true,
   serverExternalPackages: ["pg"],
+  webpack(config) {
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      "@": rootDir
+    };
+    return config;
+  },
   async headers() {
     const securityHeaders = buildSecurityHeaders(process.env);
     return [
