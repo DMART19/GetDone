@@ -1,4 +1,5 @@
 import type { DedicatedOrchestrationWorkerProcess } from "@/lib/orchestration/worker-process.server";
+import { redactTelemetryText } from "@/lib/observability/telemetry";
 import {
   createAuthoritativeOrchestrationWorkerProcessFromEnv
 } from "@/lib/orchestration/orchestration-worker-runtime.server";
@@ -8,9 +9,9 @@ let terminating = false;
 
 function safeError(error: unknown) {
   if (error instanceof Error) {
-    return { name: error.name, message: error.message };
+    return { name: error.name, message: redactTelemetryText(error.message) };
   }
-  return { name: "UnknownError", message: String(error) };
+  return { name: "UnknownError", message: redactTelemetryText(String(error)) };
 }
 
 async function terminate(exitCode: number, reason: string, error?: unknown) {
@@ -57,7 +58,7 @@ async function main() {
   try {
     workerProcess = await createAuthoritativeOrchestrationWorkerProcessFromEnv();
     await workerProcess.start();
-    console.log("GetDone orchestration worker ready", workerProcess.health());
+    console.log("GetDone orchestration worker started", workerProcess.health());
   } catch (error) {
     await terminate(1, "startup-failure", error);
   }

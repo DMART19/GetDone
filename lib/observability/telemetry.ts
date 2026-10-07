@@ -53,6 +53,21 @@ function hex(bytes: number) {
   return randomBytes(bytes).toString("hex");
 }
 
+const sensitiveKey = /authorization|cookie|password|secret|token|api[_.-]?key|private[_.-]?key|database[_.-]?url|credential[_.-]?(material|value)/i;
+
+export function redactTelemetryText(value: string): string {
+  let result = value
+    .replace(/-----BEGIN [^-]*PRIVATE KEY-----[\s\S]*?-----END [^-]*PRIVATE KEY-----/g, "[REDACTED]")
+    .replace(/\b(Bearer|Basic)\s+[^\s,;]+/gi, "$1 [REDACTED]")
+    .replace(/\b(?:gh[pousr]_[A-Za-z0-9_]+|github_pat_[A-Za-z0-9_]+|sk-or-v1-[A-Za-z0-9_-]+)\b/g, "[REDACTED]")
+    .replace(/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g, "[REDACTED]")
+    .replace(/\b(postgres(?:ql)?|https?):\/\/[^\s/@]+:[^\s/@]+@[^\s]+/gi, "$1://[REDACTED]");
+  for (const [key, secret] of Object.entries(process.env)) {
+    if (sensitiveKey.test(key) && secret && secret.length >= 8) result = result.split(secret).join("[REDACTED]");
+  }
+  return result;
+}
+
 function clean(attributes: Record<string, unknown>): TelemetryAttributes {
   return Object.freeze(Object.fromEntries(
     Object.entries(attributes)
@@ -62,7 +77,8 @@ function clean(attributes: Record<string, unknown>): TelemetryAttributes {
         || typeof value === "number"
         || typeof value === "boolean"
       ))
-      .map(([key, value]) => [key, value as TelemetryAttributeValue])
+      .map(([key, value]) => [key, sensitiveKey.test(key) ? "[REDACTED]"
+        : typeof value === "string" ? redactTelemetryText(value) : value as TelemetryAttributeValue])
   ));
 }
 
@@ -110,13 +126,19 @@ export class InMemoryTelemetrySink implements TelemetrySink {
 }
 
 export class Telemetry {
+  private lastExportFailureAt = 0;
   constructor(
     private readonly sink: TelemetrySink = new JsonConsoleTelemetrySink(),
     private readonly now: () => Date = () => new Date()
   ) {}
 
   private async emit(operation: () => void | Promise<void>) {
-    try { await operation(); } catch {}
+    try { await operation(); } catch {
+      if (Date.now() - this.lastExportFailureAt >= 60_000) {
+        this.lastExportFailureAt = Date.now();
+        process.stderr.write('{"severity":"ERROR","event":"telemetry.export.failed"}\n');
+      }
+    }
   }
 
   currentContext() {
@@ -142,7 +164,7 @@ export class Telemetry {
           traceId,
           spanId,
           parentSpanId: parent?.spanId,
-          name,
+          name: redactTelemetryText(name),
           startedAt: started.toISOString(),
           endedAt: ended.toISOString(),
           durationMs: Math.max(0, ended.getTime() - started.getTime()),
@@ -156,12 +178,12 @@ export class Telemetry {
           traceId,
           spanId,
           parentSpanId: parent?.spanId,
-          name,
+          name: redactTelemetryText(name),
           startedAt: started.toISOString(),
           endedAt: ended.toISOString(),
           durationMs: Math.max(0, ended.getTime() - started.getTime()),
           status: "error",
-          errorType: errorType(error),
+          errorType: redactTelemetryText(errorType(error)),
           attributes: baseAttributes
         }));
         throw error;
@@ -179,8 +201,8 @@ export class Telemetry {
     await this.emit(() => this.sink.log({
       timestamp: this.now().toISOString(),
       severity,
-      event,
-      message,
+      event: redactTelemetryText(event),
+      message: message === undefined ? undefined : redactTelemetryText(message),
       traceId: active?.traceId,
       spanId: active?.spanId,
       attributes: clean(attributes)
@@ -217,7 +239,7 @@ export class Telemetry {
     unit?: string
   ) {
     await this.emit(() => this.sink.metric({
-      name,
+      name: redactTelemetryText(name),
       kind,
       value,
       unit,
@@ -242,13 +264,20 @@ export class CompositeTelemetrySink implements TelemetrySink {
 
 export class OtlpJsonHttpTelemetrySink implements TelemetrySink {
   private readonly endpoint: string;
+  private readonly resource = { attributes: [
+    { key: "service.name", value: { stringValue: "getdone" } },
+    { key: "service.namespace", value: { stringValue: "getdone" } },
+    { key: "deployment.environment.name", value: { stringValue: process.env.GETDONE_RUNTIME_ENV ?? "unknown" } },
+    { key: "service.instance.id", value: { stringValue: process.env.GETDONE_JOB_WORKER_ID ?? process.env.GETDONE_PROCESS_ROLE ?? "unknown" } }
+  ] };
   constructor(
     endpoint: string,
     private readonly headers: Readonly<Record<string, string>> = {},
     private readonly fetchImpl: typeof fetch = fetch
   ) {
     const url = new URL(endpoint);
-    if (url.protocol !== "https:" && !(url.protocol === "http:" && ["127.0.0.1","localhost","::1"].includes(url.hostname))) {
+    if (url.username || url.password || url.hash || url.search || /\/v1\/(logs|metrics|traces)\/?$/.test(url.pathname)
+      || (url.protocol !== "https:" && !(url.protocol === "http:" && ["127.0.0.1","localhost","[::1]"].includes(url.hostname)))) {
       throw new Error("OTLP endpoint must use HTTPS outside loopback development");
     }
     this.endpoint = url.toString().replace(/\/$/, "");
@@ -258,16 +287,40 @@ export class OtlpJsonHttpTelemetrySink implements TelemetrySink {
     const response = await this.fetchImpl(this.endpoint + path, {
       method: "POST",
       headers: { "content-type": "application/json", ...this.headers },
-      body: JSON.stringify(body)
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(5_000),
+      redirect: "error"
     });
     if (!response.ok) {
       throw new Error(`OTLP export failed with HTTP ${response.status}`);
+    }
+    const reader = response.body?.getReader();
+    const chunks: Uint8Array[] = [];
+    let size = 0;
+    if (reader) {
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          size += value.byteLength;
+          if (size > 16_384) { await reader.cancel(); throw new Error("OTLP response exceeds size limit"); }
+          chunks.push(value);
+        }
+      } finally { reader.releaseLock(); }
+    }
+    if (size) {
+      const result = JSON.parse(Buffer.concat(chunks).toString("utf8")) as { partialSuccess?: Record<string, unknown> };
+      if (result.partialSuccess && Object.entries(result.partialSuccess).some(([key, value]) =>
+        key === "errorMessage" ? Boolean(value) : Number(value) > 0)) {
+        throw new Error("OTLP collector rejected telemetry records");
+      }
     }
   }
 
   log(record: StructuredLogRecord) {
     return this.send("/v1/logs", {
       resourceLogs: [{
+        resource: this.resource,
         scopeLogs: [{
           logRecords: [{
             timeUnixNano: String(Date.parse(record.timestamp) * 1_000_000),
@@ -291,18 +344,19 @@ export class OtlpJsonHttpTelemetrySink implements TelemetrySink {
         .map(([key, value]) => ({ key, value: { stringValue: String(value) } }))
     };
     const data = record.kind === "histogram"
-      ? { histogram: { dataPoints: [{ ...point, count: "1", sum: record.value }] } }
+      ? { histogram: { aggregationTemporality: 1, dataPoints: [{ timeUnixNano: point.timeUnixNano, attributes: point.attributes, startTimeUnixNano: point.timeUnixNano, count: "1", sum: record.value, bucketCounts: ["1"], explicitBounds: [] }] } }
       : record.kind === "counter"
         ? {
             sum: {
-              aggregationTemporality: 2,
+              aggregationTemporality: 1,
               isMonotonic: true,
-              dataPoints: [point]
+              dataPoints: [{ ...point, startTimeUnixNano: point.timeUnixNano }]
             }
           }
         : { gauge: { dataPoints: [point] } };
     return this.send("/v1/metrics", {
       resourceMetrics: [{
+        resource: this.resource,
         scopeMetrics: [{
           metrics: [{ name: record.name, unit: record.unit ?? "1", ...data }]
         }]
@@ -313,6 +367,7 @@ export class OtlpJsonHttpTelemetrySink implements TelemetrySink {
   span(record: SpanRecord) {
     return this.send("/v1/traces", {
       resourceSpans: [{
+        resource: this.resource,
         scopeSpans: [{
           spans: [{
             traceId: record.traceId,
@@ -331,6 +386,15 @@ export class OtlpJsonHttpTelemetrySink implements TelemetrySink {
   }
 }
 
+export function readOtlpHeaders(env: Readonly<Record<string, string | undefined>>) {
+  return Object.fromEntries((env.GETDONE_OTEL_EXPORTER_OTLP_HEADERS ?? "")
+    .split(",").map((entry) => entry.trim()).filter(Boolean).map((entry) => {
+      const index = entry.indexOf("=");
+      if (index < 1) throw new Error("OTLP headers must use key=value entries");
+      return [entry.slice(0, index), decodeURIComponent(entry.slice(index + 1))];
+    }));
+}
+
 export function telemetryFromEnv(
   env: Readonly<Record<string, string | undefined>> = process.env,
   fetchImpl: typeof fetch = fetch
@@ -341,16 +405,7 @@ export function telemetryFromEnv(
   const sinks: TelemetrySink[] = [new JsonConsoleTelemetrySink()];
   const endpoint = env.GETDONE_OTEL_EXPORTER_OTLP_ENDPOINT?.trim();
   if (endpoint) {
-    const headers = Object.fromEntries(
-      (env.GETDONE_OTEL_EXPORTER_OTLP_HEADERS ?? "")
-        .split(",")
-        .map((entry) => entry.trim())
-        .filter(Boolean)
-        .map((entry) => {
-          const index = entry.indexOf("=");
-          return index > 0 ? [entry.slice(0, index), entry.slice(index + 1)] : [entry, ""];
-        })
-    );
+    const headers = readOtlpHeaders(env);
     sinks.push(new OtlpJsonHttpTelemetrySink(endpoint, headers, fetchImpl));
   }
   return new Telemetry(new CompositeTelemetrySink(sinks));

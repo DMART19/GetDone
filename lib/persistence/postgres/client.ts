@@ -2,6 +2,7 @@ import { Pool, type PoolClient, type PoolConfig, type QueryResult, type QueryRes
 import { ControlPlaneError } from "@/lib/control-plane/errors";
 import { getTelemetry, OTEL_SEMANTIC } from "@/lib/observability/telemetry";
 import { getPostgresTenantScope } from "@/lib/persistence/postgres/tenant-context.server";
+import { postgresTlsConnection } from "@/lib/persistence/postgres/tls";
 
 export const POSTGRES_PERSISTENCE_VERSION = "1.1.0";
 
@@ -93,12 +94,11 @@ export class PostgresDatabase implements PostgresTransactionalDatabase {
   constructor(config: PostgresConnectionConfig) {
     this.runtimeRole = config.runtimeRole;
     const poolConfig: PoolConfig = {
-      connectionString: config.connectionString,
+      ...postgresTlsConnection(config.connectionString, { ...process.env, GETDONE_DB_SSL: config.ssl === false ? "false" : "true" }),
       max: config.maxConnections ?? 10,
       statement_timeout: config.statementTimeoutMs ?? 15_000,
       connectionTimeoutMillis: config.connectionTimeoutMs ?? 5_000,
-      application_name: "getdone-control-plane",
-      ssl: config.ssl === false ? false : { rejectUnauthorized: true }
+      application_name: "getdone-control-plane"
     };
     this.pool = new Pool(poolConfig);
     const logConnectionError = (error: unknown, source: "pool" | "client") => {

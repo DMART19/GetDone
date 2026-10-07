@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   InMemoryTelemetrySink,
   OtlpJsonHttpTelemetrySink,
@@ -6,6 +6,39 @@ import {
 } from "@/lib/observability/telemetry";
 
 describe("production observability foundation", () => {
+  it("redacts credential fields, provider tokens, authorization, URLs and configured secrets", async () => {
+    vi.stubEnv("GETDONE_CREDENTIAL_BROKER_TOKEN", "opaque-broker-material-for-test");
+    try {
+      const sink = new InMemoryTelemetrySink();
+      const telemetry = new Telemetry(sink);
+      const attributes = { authorization: "Basic sensitive", session_token: "session-secret", "credential.material": "ephemeral-value", detail: "ghs_sensitive sk-or-v1-sensitive postgres://user:password@db.example/db opaque-broker-material-for-test", "job.id": "job-1" };
+      await telemetry.withSpan("credential.resolve", attributes, async () => {
+        await telemetry.log("INFO", "credential.used", attributes, "Bearer confidential");
+        await telemetry.counter("credential.used", 1, attributes);
+      });
+      const serialized = JSON.stringify(sink);
+      for (const secret of ["Basic sensitive", "session-secret", "ephemeral-value", "ghs_sensitive", "sk-or-v1-sensitive", "user:password", "opaque-broker-material-for-test", "Bearer confidential"]) expect(serialized).not.toContain(secret);
+      expect(serialized).toContain("job-1");
+    } finally { vi.unstubAllEnvs(); }
+  });
+
+  it("bounds exporter latency and forbids credential-bearing redirects and endpoint URLs", async () => {
+    const fetcher = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      expect(init?.signal).toBeInstanceOf(AbortSignal);
+      expect(init?.redirect).toBe("error");
+      return new Response(null, { status: 200 });
+    });
+    await new Telemetry(new OtlpJsonHttpTelemetrySink("https://collector.test/otlp", {}, fetcher)).counter("test", 1);
+    for (const endpoint of ["https://user:pass@collector.test", "https://collector.test?token=secret", "https://collector.test/v1/traces"]) expect(() => new OtlpJsonHttpTelemetrySink(endpoint)).toThrow();
+    const body = JSON.parse(String(fetcher.mock.calls[0]?.[1]?.body));
+    expect(body.resourceMetrics[0].scopeMetrics[0].metrics[0].sum.aggregationTemporality).toBe(1);
+  });
+
+  it("does not count an HTTP 200 partial rejection as collector acceptance", async () => {
+    const sink = new OtlpJsonHttpTelemetrySink("https://collector.test", {}, async () => Response.json({ partialSuccess: { rejectedLogRecords: "1", errorMessage: "invalid record" } }));
+    await expect(sink.log({ timestamp: new Date().toISOString(), severity: "INFO", event: "test", attributes: {} })).rejects.toThrow(/rejected/);
+  });
+
   it("correlates structured logs and nested spans with one trace", async () => {
     const sink = new InMemoryTelemetrySink();
     let tick = 0;

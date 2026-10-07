@@ -85,6 +85,7 @@ export interface CredentialUsageAudit {
   capability: string;
   providerId: string;
   credentialVersion?: number;
+  providerExpiresAt?: string;
   usedAt: string;
   action: "issued" | "used" | "revoked" | "released";
   auditHash: string;
@@ -354,6 +355,7 @@ export function releaseCredentialLease(lease: CredentialLease, releasedAt: strin
 }
 
 export function createCredentialUsageAudit(input: Omit<CredentialUsageAudit, "auditHash">) {
+  if (input.providerExpiresAt) parseTime(input.providerExpiresAt, "Provider credential expiry");
   const base: Omit<CredentialUsageAudit, "auditHash"> = {
     ...input,
     usedAt: new Date(parseTime(input.usedAt, "Credential audit time")).toISOString()

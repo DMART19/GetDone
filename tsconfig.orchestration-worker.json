@@ -1,0 +1,7 @@
+{
+  "extends": "./tsconfig.worker.json",
+  "compilerOptions": { "outDir": "dist-orchestration-worker" },
+  "files": ["lib/orchestration/orchestration-worker-entry.ts"],
+  "include": [],
+  "exclude": ["node_modules", ".next", "dist-worker", "dist-orchestration-worker"]
+}

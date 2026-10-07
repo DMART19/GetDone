@@ -2,15 +2,16 @@ import {
   createDedicatedJobWorkerProcessFromEnv,
   type DedicatedJobWorkerProcess
 } from "@/lib/execution/job-worker-process.server";
+import { redactTelemetryText } from "@/lib/observability/telemetry";
 
 let workerProcess: DedicatedJobWorkerProcess | null = null;
 let terminating = false;
 
 function safeError(error: unknown) {
   if (error instanceof Error) {
-    return { name: error.name, message: error.message };
+    return { name: error.name, message: redactTelemetryText(error.message) };
   }
-  return { name: "UnknownError", message: String(error) };
+  return { name: "UnknownError", message: redactTelemetryText(String(error)) };
 }
 
 async function terminate(exitCode: number, reason: string, error?: unknown) {
@@ -54,7 +55,7 @@ async function main() {
   try {
     workerProcess = await createDedicatedJobWorkerProcessFromEnv();
     await workerProcess.start();
-    console.log("GetDone dedicated Job worker ready", workerProcess.health());
+    console.log("GetDone dedicated Job worker started", workerProcess.health());
   } catch (error) {
     await terminate(1, "startup-failure", error);
   }
