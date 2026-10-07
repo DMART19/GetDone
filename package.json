@@ -78,7 +78,7 @@
     "eslint-config-next": "15.5.25",
     "vitest": "3.2.7",
     "@types/pg": "8.23.1",
-    "@types/node": "24.0.0",
+    "@types/node": "26.6.4",
     "@types/react": "19.0.3",
     "@types/react-dom": "19.0.2",
     "typescript": "5.7.2"
