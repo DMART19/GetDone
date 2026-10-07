@@ -1,4 +1,5 @@
 import { timingSafeEqual } from "node:crypto";
+import { GithubJobCredentialBroker } from "@/lib/credentials/github-app.server";
 import {
   GovernedBusinessActionCredentialBroker,
   readCredentialDeliveryProviderFromEnv
@@ -234,7 +235,7 @@ export function getMvpJobRuntimeFromEnv(
   if (installed) return installed;
   const database = getPostgresRuntimeFromEnv(env).database;
   const credentialStore = new PostgresCredentialBrokerStore(database);
-  const credentialBroker = env.GETDONE_CREDENTIAL_DELIVERY_URL?.trim()
+  const baseCredentialBroker = env.GETDONE_CREDENTIAL_DELIVERY_URL?.trim()
     && env.GETDONE_CREDENTIAL_BROKER_TOKEN?.trim()
     ? new GovernedBusinessActionCredentialBroker(
         credentialStore,
@@ -242,6 +243,9 @@ export function getMvpJobRuntimeFromEnv(
         readCredentialDeliveryProviderFromEnv(env)
       )
     : undefined;
+  const credentialBroker = baseCredentialBroker && env.GETDONE_GITHUB_CREDENTIAL_PROVIDER_ID
+    ? new GithubJobCredentialBroker(database, baseCredentialBroker, env)
+    : baseCredentialBroker;
   const business = new BusinessActionExecutionOrchestrator(
     new StaticBusinessActionAdapterRegistry(
       createOrdinaryBusinessActionBindingsFromEnv(env, {

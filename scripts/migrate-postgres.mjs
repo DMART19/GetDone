@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import pg from "pg";
+import { postgresTlsConnection } from "../lib/persistence/postgres/tls.ts";
 
 const connectionString = process.env.DATABASE_URL?.trim();
 if (!connectionString) throw new Error("DATABASE_URL is required");
@@ -22,12 +23,9 @@ if (target) {
 }
 
 const pool = new pg.Pool({
-  connectionString,
+  ...postgresTlsConnection(connectionString, process.env),
   max: 1,
-  application_name: "getdone-migrator",
-  ssl: process.env.GETDONE_DB_SSL === "false"
-    ? false
-    : { rejectUnauthorized: true }
+  application_name: "getdone-migrator"
 });
 
 const client = await pool.connect();

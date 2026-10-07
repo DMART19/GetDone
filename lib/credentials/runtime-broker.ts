@@ -1,6 +1,7 @@
 import { ControlPlaneError } from "@/lib/control-plane/errors";
 import { createCredentialUsageAudit, assertCredentialLease, type CredentialLease, type CredentialUsageAudit } from "@/lib/credentials/broker";
 import { getTelemetry, OTEL_SEMANTIC } from "@/lib/observability/telemetry";
+import { readBoundedJson } from "@/lib/execution/adapters/ordinary-integration-framework";
 import type {
   AuthorizedBusinessActionRequest,
   BusinessActionCredentialMaterial,
@@ -35,6 +36,7 @@ export interface BusinessActionCredentialBroker {
     request: AuthorizedBusinessActionRequest;
     requirement: BusinessActionCredentialRequirement;
   }): Promise<BusinessActionCredentialMaterial>;
+  release?(credential: BusinessActionCredentialMaterial): Promise<void>;
 }
 
 function uniqueSorted(values: readonly string[]) {
@@ -97,6 +99,7 @@ export class GovernedBusinessActionCredentialBroker implements BusinessActionCre
       || !Number.isInteger(delivered.credentialVersion)
       || delivered.credentialVersion < (lease.issuedCredentialVersion ?? 1)
       || !requiredScopes.every((scope) => delivered.grantedScopes.includes(scope))
+      || delivered.grantedScopes.some((scope) => !lease.grantedScopes.includes(scope))
     ) {
       throw new ControlPlaneError("FORBIDDEN", "Credential delivery returned invalid, expired, or over-broad material");
     }
@@ -178,8 +181,11 @@ export class HttpCredentialDeliveryProvider implements CredentialDeliveryProvide
         jobId: input.request.jobId,
         providerId: input.lease.providerId,
         capability: input.request.capability,
+        portfolioId: input.lease.portfolioId,
+        companyId: input.lease.companyId,
         requiredScopes: input.requiredScopes
       }),
+      redirect: "error",
       signal: AbortSignal.timeout(this.timeoutMs)
     });
     if (!response.ok) {
@@ -189,7 +195,7 @@ export class HttpCredentialDeliveryProvider implements CredentialDeliveryProvide
     if (Number.isFinite(contentLength) && contentLength > 64_000) {
       throw new ControlPlaneError("UNAVAILABLE", "Credential delivery response exceeds size limit");
     }
-    const value = await response.json() as {
+    const value = await readBoundedJson(response, 64_000) as {
       material?: unknown;
       expiresAt?: unknown;
       providerId?: unknown;

@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import pg from "pg";
+import { postgresTlsConnection } from "../lib/persistence/postgres/tls.ts";
 
 const BOOTSTRAP_VERSION = "1.0.0";
 const POLICY_REGISTRY_ID = "getdone-core-policy";
@@ -135,12 +136,9 @@ const bootstrapAuditPayload = Object.freeze({
 });
 
 const pool = new pg.Pool({
-  connectionString,
+  ...postgresTlsConnection(connectionString, process.env),
   max: 1,
-  application_name: "getdone-production-bootstrap",
-  ssl: process.env.GETDONE_DB_SSL === "false"
-    ? false
-    : { rejectUnauthorized: true }
+  application_name: "getdone-production-bootstrap"
 });
 
 async function assertOne(client, sql, values, expected, label) {

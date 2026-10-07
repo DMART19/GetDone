@@ -1,4 +1,5 @@
 import { sha256Hex } from "@/lib/control-plane/canonical-hash";
+import { githubJobCredentialReference } from "@/lib/credentials/github-app.server";
 import { createCommandEnvelope } from "@/lib/control-plane/command-envelope";
 import { ControlPlaneError } from "@/lib/control-plane/errors";
 import {
@@ -381,7 +382,9 @@ export class PostgresGovernedJobRuntime implements GovernedJobRuntimePort {
       task,
       jobId: node.id,
       capability: node.capability
-    });
+    }) ?? (node.capability.startsWith("github.") && this.env.GETDONE_GITHUB_CREDENTIAL_PROVIDER_ID
+      ? githubJobCredentialReference(node.id)
+      : undefined);
     if (
       task.resourceRequirements.credentialBindingRequired
       && !credentialLeaseId

@@ -1,4 +1,4 @@
 {
   "extends": ["next/core-web-vitals", "next/typescript"],
-  "ignorePatterns": ["dist-worker/**", "next-env.d.ts"]
+  "ignorePatterns": ["dist-worker/**", "dist-worker-acceptance/**", "dist-orchestration-worker/**", "next-env.d.ts"]
 }

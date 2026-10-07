@@ -120,6 +120,10 @@ class MemoryDelivery implements CredentialDeliveryProvider {
 }
 
 describe("governed business-action credential broker", () => {
+  it("rejects delivered scopes beyond the authorized lease", async () => {
+    const broker = new GovernedBusinessActionCredentialBroker(new MemoryLeaseReader(lease()), new MemoryAudits(), new MemoryDelivery({ grantedScopes: ["deliver", "verify", "admin"] }), () => now);
+    await expect(broker.resolve({ request: action(), requirement: { providerId: "provider-a", requiredScopes: ["deliver", "verify"] } })).rejects.toThrow(/over-broad/);
+  });
   it("validates the persisted lease and returns short-lived material with a usage audit", async () => {
     const audits = new MemoryAudits();
     const broker = new GovernedBusinessActionCredentialBroker(

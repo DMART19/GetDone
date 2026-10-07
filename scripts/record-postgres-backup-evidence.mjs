@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import pg from "pg";
+import { postgresTlsConnection } from "../lib/persistence/postgres/tls.ts";
 
 function required(name) {
   const value = process.env[name]?.trim();
@@ -15,12 +16,9 @@ if (!/^[a-f0-9]{64}$/i.test(verificationHash)) {
 }
 
 const pool = new pg.Pool({
-  connectionString,
+  ...postgresTlsConnection(connectionString, process.env),
   max: 1,
-  application_name: "getdone-backup-evidence",
-  ssl: process.env.GETDONE_DB_SSL === "false"
-    ? false
-    : { rejectUnauthorized: true }
+  application_name: "getdone-backup-evidence"
 });
 
 const id = process.env.GETDONE_BACKUP_EVIDENCE_ID?.trim() || crypto.randomUUID();

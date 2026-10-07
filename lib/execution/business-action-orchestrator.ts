@@ -145,6 +145,24 @@ export class BusinessActionExecutionOrchestrator {
     return Object.freeze({ credential });
   }
 
+  private async withCredential<T>(request: AuthorizedBusinessActionRequest, adapter: BusinessActionAdapter,
+    operation: (context: BusinessActionExecutionContext | undefined) => Promise<T>): Promise<T> {
+    const context = await this.credentialContext(request, adapter);
+    try {
+      return await operation(context);
+    } finally {
+      if (context?.credential) {
+        try { await this.options.credentialBroker?.release?.(context.credential); }
+        catch {
+          // Preserve the provider result/error: cleanup failure must never cause redispatch.
+          await getTelemetry().log("ERROR", "credential.release.failed", {
+            "lease.id": context.credential.leaseId, "job.id": request.jobId
+          });
+        }
+      }
+    }
+  }
+
   private providerCall<T>(
     request: AuthorizedBusinessActionRequest,
     adapter: BusinessActionAdapter,
@@ -230,7 +248,7 @@ export class BusinessActionExecutionOrchestrator {
       request,
       adapter,
       "execute",
-      async () => adapter.execute(request, await this.credentialContext(request, adapter))
+      () => this.withCredential(request, adapter, (context) => adapter.execute(request, context))
     );
     assertBusinessActionAdapterResult(result);
     if (
@@ -300,11 +318,11 @@ export class BusinessActionExecutionOrchestrator {
       request,
       adapter,
       "cancel",
-      async () => adapter.cancel!({
+      () => this.withCredential(request, adapter, (context) => adapter.cancel!({
         requestId: request.id,
         providerOperationId: record.providerOperationId!,
         reason
-      }, await this.credentialContext(request, adapter))
+      }, context))
     );
     assertStatusIdentity(adapter, request, record.providerOperationId, status);
     const next = createRecord({
@@ -336,10 +354,10 @@ export class BusinessActionExecutionOrchestrator {
         request,
         adapter,
         "status",
-        async () => adapter.status({
+        () => this.withCredential(request, adapter, (context) => adapter.status({
           requestId: request.id,
           providerOperationId: initial.providerOperationId!
-        }, await this.credentialContext(request, adapter))
+        }, context))
       );
       assertStatusIdentity(adapter, request, initial.providerOperationId, status);
 

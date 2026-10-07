@@ -1,0 +1,282 @@
+# External Supabase/PostgreSQL only. Adopt existing getdone-web; preserve its secrets.
+# The GitHub App signing key stays exclusively on the web service.
+services:
+  - type: web
+    name: getdone-web
+    runtime: node
+    region: oregon
+    plan: starter
+    repo: https://github.com/DMART19/GetDone
+    branch: main
+    autoDeployTrigger: commit
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm run start
+    healthCheckPath: /api/health
+    maxShutdownDelaySeconds: 120
+    envVars:
+      - fromGroup: getdone-production-runtime
+      - key: GETDONE_PROCESS_ROLE
+        value: web
+      - key: GETDONE_GITHUB_APP_PRIVATE_KEY_PEM
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: GETDONE_INTERNAL_WORKER_TOKEN
+        sync: false
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: GETDONE_AI_MODEL_PROFILES_JSON
+        sync: false
+      - key: GETDONE_AI_ROUTING_POLICY_JSON
+        sync: false
+      - key: OPENROUTER_CANARY_MODEL
+        sync: false
+      - key: GETDONE_OTEL_EXPORTER_OTLP_ENDPOINT
+        sync: false
+      - key: GETDONE_OTEL_EXPORTER_OTLP_HEADERS
+        sync: false
+      - key: GETDONE_CREDENTIAL_BROKER_TOKEN
+        sync: false
+      - key: GETDONE_OWNER_COMPANY_ID
+        sync: false
+      - key: GETDONE_OWNER_PORTFOLIO_ID
+        sync: false
+      - key: GETDONE_GITHUB_ACTIONS_JSON
+        sync: false
+      - key: GETDONE_GITHUB_CREDENTIAL_PROVIDER_ID
+        sync: false
+      - key: GETDONE_GITHUB_CREDENTIAL_RESOURCE_IDS_JSON
+        sync: false
+      - key: GETDONE_GITHUB_APP_ID
+        sync: false
+      - key: GETDONE_GITHUB_INSTALLATION_ID
+        sync: false
+  - type: worker
+    name: getdone-job-worker
+    runtime: node
+    region: oregon
+    plan: starter
+    repo: https://github.com/DMART19/GetDone
+    branch: main
+    autoDeployTrigger: commit
+    buildCommand: npm ci --include=dev && npm run build:worker
+    startCommand: npm run start:worker
+    maxShutdownDelaySeconds: 120
+    envVars:
+      - fromGroup: getdone-production-runtime
+      - key: GETDONE_PROCESS_ROLE
+        value: job-worker
+      - key: GETDONE_JOB_WORKER_ID
+        value: getdone-job-worker-1
+      - key: GETDONE_JOB_WORKER_HEALTH_PORT
+        value: '3001'
+      - key: DATABASE_URL
+        fromService:
+          name: getdone-web
+          type: web
+          envVarKey: DATABASE_URL
+      - key: GETDONE_INTERNAL_WORKER_TOKEN
+        fromService:
+          name: getdone-web
+          type: web
+          envVarKey: GETDONE_INTERNAL_WORKER_TOKEN
+      - key: OPENROUTER_API_KEY
+        fromService:
+          name: getdone-web
+          type: web
+          envVarKey: OPENROUTER_API_KEY
+      - key: GETDONE_AI_MODEL_PROFILES_JSON
+        fromService:
+          name: getdone-web
+          type: web
+          envVarKey: GETDONE_AI_MODEL_PROFILES_JSON
+      - key: GETDONE_AI_ROUTING_POLICY_JSON
+        fromService:
+          name: getdone-web
+          type: web
+          envVarKey: GETDONE_AI_ROUTING_POLICY_JSON
+      - key: OPENROUTER_CANARY_MODEL
+        fromService:
+          name: getdone-web
+          type: web
+          envVarKey: OPENROUTER_CANARY_MODEL
+      - key: GETDONE_OTEL_EXPORTER_OTLP_ENDPOINT
+        fromService:
+          name: getdone-web
+          type: web
+          envVarKey: GETDONE_OTEL_EXPORTER_OTLP_ENDPOINT
+      - key: GETDONE_OTEL_EXPORTER_OTLP_HEADERS
+        fromService:
+          name: getdone-web
+          type: web
+          envVarKey: GETDONE_OTEL_EXPORTER_OTLP_HEADERS
+      - key: GETDONE_CREDENTIAL_BROKER_TOKEN
+        fromService:
+          name: getdone-web
+          type: web
+          envVarKey: GETDONE_CREDENTIAL_BROKER_TOKEN
+      - key: GETDONE_OWNER_COMPANY_ID
+        fromService:
+          name: getdone-web
+          type: web
+          envVarKey: GETDONE_OWNER_COMPANY_ID
+      - key: GETDONE_OWNER_PORTFOLIO_ID
+        fromService:
+          name: getdone-web
+          type: web
+          envVarKey: GETDONE_OWNER_PORTFOLIO_ID
+      - key: GETDONE_GITHUB_ACTIONS_JSON
+        fromService:
+          name: getdone-web
+          type: web
+          envVarKey: GETDONE_GITHUB_ACTIONS_JSON
+      - key: GETDONE_GITHUB_CREDENTIAL_PROVIDER_ID
+        fromService:
+          name: getdone-web
+          type: web
+          envVarKey: GETDONE_GITHUB_CREDENTIAL_PROVIDER_ID
+      - key: GETDONE_GITHUB_CREDENTIAL_RESOURCE_IDS_JSON
+        fromService:
+          name: getdone-web
+          type: web
+          envVarKey: GETDONE_GITHUB_CREDENTIAL_RESOURCE_IDS_JSON
+      - key: GETDONE_GITHUB_APP_ID
+        fromService:
+          name: getdone-web
+          type: web
+          envVarKey: GETDONE_GITHUB_APP_ID
+      - key: GETDONE_GITHUB_INSTALLATION_ID
+        fromService:
+          name: getdone-web
+          type: web
+          envVarKey: GETDONE_GITHUB_INSTALLATION_ID
+  - type: worker
+    name: getdone-orchestration-worker
+    runtime: node
+    region: oregon
+    plan: starter
+    repo: https://github.com/DMART19/GetDone
+    branch: main
+    autoDeployTrigger: commit
+    buildCommand: npm ci --include=dev && npm run build:orchestration-worker
+    startCommand: npm run start:orchestration-worker
+    maxShutdownDelaySeconds: 120
+    envVars:
+      - fromGroup: getdone-production-runtime
+      - key: GETDONE_PROCESS_ROLE
+        value: orchestration-worker
+      - key: GETDONE_ORCHESTRATION_WORKER_ID
+        value: getdone-orchestration-worker-1
+      - key: GETDONE_ORCHESTRATION_WORKER_HEALTH_PORT
+        value: '3002'
+      - key: DATABASE_URL
+        fromService:
+          name: getdone-web
+          type: web
+          envVarKey: DATABASE_URL
+      - key: GETDONE_INTERNAL_WORKER_TOKEN
+        fromService:
+          name: getdone-web
+          type: web
+          envVarKey: GETDONE_INTERNAL_WORKER_TOKEN
+      - key: OPENROUTER_API_KEY
+        fromService:
+          name: getdone-web
+          type: web
+          envVarKey: OPENROUTER_API_KEY
+      - key: GETDONE_AI_MODEL_PROFILES_JSON
+        fromService:
+          name: getdone-web
+          type: web
+          envVarKey: GETDONE_AI_MODEL_PROFILES_JSON
+      - key: GETDONE_AI_ROUTING_POLICY_JSON
+        fromService:
+          name: getdone-web
+          type: web
+          envVarKey: GETDONE_AI_ROUTING_POLICY_JSON
+      - key: OPENROUTER_CANARY_MODEL
+        fromService:
+          name: getdone-web
+          type: web
+          envVarKey: OPENROUTER_CANARY_MODEL
+      - key: GETDONE_OTEL_EXPORTER_OTLP_ENDPOINT
+        fromService:
+          name: getdone-web
+          type: web
+          envVarKey: GETDONE_OTEL_EXPORTER_OTLP_ENDPOINT
+      - key: GETDONE_OTEL_EXPORTER_OTLP_HEADERS
+        fromService:
+          name: getdone-web
+          type: web
+          envVarKey: GETDONE_OTEL_EXPORTER_OTLP_HEADERS
+      - key: GETDONE_CREDENTIAL_BROKER_TOKEN
+        fromService:
+          name: getdone-web
+          type: web
+          envVarKey: GETDONE_CREDENTIAL_BROKER_TOKEN
+      - key: GETDONE_OWNER_COMPANY_ID
+        fromService:
+          name: getdone-web
+          type: web
+          envVarKey: GETDONE_OWNER_COMPANY_ID
+      - key: GETDONE_OWNER_PORTFOLIO_ID
+        fromService:
+          name: getdone-web
+          type: web
+          envVarKey: GETDONE_OWNER_PORTFOLIO_ID
+      - key: GETDONE_GITHUB_ACTIONS_JSON
+        fromService:
+          name: getdone-web
+          type: web
+          envVarKey: GETDONE_GITHUB_ACTIONS_JSON
+      - key: GETDONE_GITHUB_CREDENTIAL_PROVIDER_ID
+        fromService:
+          name: getdone-web
+          type: web
+          envVarKey: GETDONE_GITHUB_CREDENTIAL_PROVIDER_ID
+      - key: GETDONE_GITHUB_CREDENTIAL_RESOURCE_IDS_JSON
+        fromService:
+          name: getdone-web
+          type: web
+          envVarKey: GETDONE_GITHUB_CREDENTIAL_RESOURCE_IDS_JSON
+      - key: GETDONE_GITHUB_APP_ID
+        fromService:
+          name: getdone-web
+          type: web
+          envVarKey: GETDONE_GITHUB_APP_ID
+      - key: GETDONE_GITHUB_INSTALLATION_ID
+        fromService:
+          name: getdone-web
+          type: web
+          envVarKey: GETDONE_GITHUB_INSTALLATION_ID
+envVarGroups:
+  - name: getdone-production-runtime
+    envVars:
+      - key: NODE_VERSION
+        value: 24.19.0
+      - key: NODE_ENV
+        value: production
+      - key: GETDONE_RUNTIME_ENV
+        value: production
+      - key: NEXT_PUBLIC_APP_ENV
+        value: production
+      - key: GETDONE_DATA_MODE
+        value: authoritative
+      - key: GETDONE_DB_RUNTIME_ROLE
+        value: getdone_tenant_runtime
+      - key: GETDONE_DB_SSL
+        value: 'true'
+      - key: GETDONE_AUTH_COOKIE_SECURE
+        value: 'true'
+      - key: GETDONE_WEBAUTHN_RP_ID
+        value: getdone-web.onrender.com
+      - key: GETDONE_WEBAUTHN_ORIGINS
+        value: https://getdone-web.onrender.com
+      - key: GETDONE_OBSERVABILITY_ENABLED
+        value: 'true'
+      - key: OPENROUTER_BASE_URL
+        value: https://openrouter.ai/api/v1
+      - key: OPENROUTER_CANARY_ENABLED
+        value: 'true'
+      - key: GETDONE_CREDENTIAL_DELIVERY_URL
+        value: https://getdone-web.onrender.com/api/internal/credentials/github

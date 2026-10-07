@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { sha256Hex } from "@/lib/control-plane/canonical-hash";
 import {
   createBusinessActionAdapterResult,
@@ -264,5 +264,21 @@ describe("BusinessActionExecutionOrchestrator", () => {
       { capability: "email.send", adapter },
       { capability: "email.send", adapter }
     ])).toThrow(/multiple adapters/i);
+  });
+
+  it("releases credentials on every call and preserves completion if cleanup fails", async () => {
+    const adapter = Object.assign(new SequencedAdapter(), { credentialRequirement: () => ({ providerId: "provider", requiredScopes: ["send"] }) });
+    adapter.states = ["completed"];
+    const release = vi.fn().mockRejectedValue(new Error("cleanup unavailable"));
+    const store = new MemoryExecutionStore();
+    const orchestrator = new BusinessActionExecutionOrchestrator(new StaticBusinessActionAdapterRegistry([{ capability: "email.send", adapter }]), store, {
+      maxStatusPolls: 1, pollIntervalMs: 0,
+      credentialBroker: { resolve: async () => ({ leaseId: "lease", leaseHash: "lease-hash", providerId: "provider", capability: "email.send", grantedScopes: ["send"], material: "ephemeral-fixture", issuedAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 60_000).toISOString() }), release }
+    });
+    expect((await orchestrator.execute(request)).record.state).toBe("completed");
+    expect(release).toHaveBeenCalledTimes(2);
+    expect((await orchestrator.execute(request)).record.state).toBe("completed");
+    expect(adapter.executeCalls).toBe(1);
+    expect(JSON.stringify(store.value)).not.toContain("ephemeral-fixture");
   });
 });

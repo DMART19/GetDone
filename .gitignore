@@ -3,6 +3,8 @@ node_modules/
 out/
 coverage/
 dist-worker/
+dist-worker-acceptance/
+dist-orchestration-worker/
 .env
 .env.local
 .env.*.local

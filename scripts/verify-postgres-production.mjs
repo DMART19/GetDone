@@ -1,6 +1,7 @@
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import pg from "pg";
+import { postgresTlsConnection } from "../lib/persistence/postgres/tls.ts";
 
 function required(name) {
   const value = process.env[name]?.trim();
@@ -19,12 +20,9 @@ if (!Number.isFinite(maxBackupAgeHours) || maxBackupAgeHours <= 0) {
 }
 
 const pool = new pg.Pool({
-  connectionString: required("DATABASE_URL"),
+  ...postgresTlsConnection(required("DATABASE_URL"), { ...process.env, GETDONE_RUNTIME_ENV: "production" }),
   max: 2,
-  application_name: "getdone-production-verifier",
-  ssl: process.env.GETDONE_DB_SSL === "false"
-    ? false
-    : { rejectUnauthorized: true }
+  application_name: "getdone-production-verifier"
 });
 
 const client = await pool.connect();
