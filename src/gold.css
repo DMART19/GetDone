@@ -411,3 +411,6 @@ html { -webkit-tap-highlight-color: transparent; text-rendering: optimizeLegibil
 .cz-horizon { left: -30%; bottom: -105%; width: 70%; }
 .cz-command, .cz-command > *, .cz-command form, .cz-command .gd-ask { width: 100%; max-width: 760px; box-sizing: border-box; }
 .cz-command { margin-left: auto; margin-right: auto; }
+.cz-world { text-decoration: none; }
+.cz-world .cz-tag { gap: 7px; padding: 5px 11px; border-radius: 999px; }
+.cz-world .cz-tag strong { font-size: 12px; }
