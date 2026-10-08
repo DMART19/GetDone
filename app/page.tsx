@@ -17,7 +17,7 @@ export default async function HomePage() {
     <AppShell>
       <AppHeader />
       <OperationalSolarSystem objectives={[...objectives]} resources={[...resources]} />
-      <HomeDashboard objectives={[...objectives]} />
+      <HomeDashboard objectives={[...objectives]} showChat={false} />
     </AppShell>
   );
 }
