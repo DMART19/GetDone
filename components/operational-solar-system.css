@@ -36,3 +36,28 @@
 .universe-overflow{padding:0 25px 20px;color:#d1b47e;font-size:12px}
 @media(max-width:800px){.universe-stage{display:flex;flex-direction:column;gap:0;min-height:0}.universe-space{width:100%;height:440px;min-height:440px}.universe-inspector{width:100%;max-width:540px;margin-bottom:14px}.universe-sun{width:110px;height:110px}.universe-sun-core{width:88px;height:88px;font-size:15px}.universe-planet{width:72px;height:72px}.universe-planet-core{width:38px;height:38px}.universe-planet.is-selected .universe-planet-core{width:45px;height:45px}.universe-planet-label{font-size:9px}.universe-top,.universe-bottom{padding:18px}.universe-readonly{font-size:9px}}
 @media(prefers-reduced-motion:reduce){.universe *{animation:none!important;transition:none!important}}
+
+/* Keep conversation inside the universe on both wide touchscreens and phones. */
+.universe-chat{position:relative;z-index:5;width:min(850px,calc(100% - 36px));margin:0 auto 10px;padding:14px 18px;border:1px solid #254765;border-radius:20px;background:#091b2de8;backdrop-filter:blur(18px)}
+.universe-chat-title{display:flex;justify-content:space-between;gap:12px;color:#a7d4f8;letter-spacing:.12em;font-size:10px;font-weight:700;margin-bottom:10px}
+.universe-chat-title span{letter-spacing:0;color:#819bb1;font-weight:400}
+.universe .composer-wrap.composer-embedded{position:static;transform:none;left:auto;bottom:auto;width:100%;padding:0;background:transparent}
+.universe .composer-embedded .composer{height:58px;border-color:#315676;background:#071321}
+.universe .composer-embedded .composer input{font-size:16px}
+.universe .composer-embedded .local-toast{max-height:220px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere}
+.app-shell:has(.universe) .bottom-nav{width:100%;max-width:none}
+.app-shell:has(.universe) .offline-notice{width:100%;max-width:none}
+@media(max-width:800px){
+.universe{min-height:0}
+.universe-top h1{font-size:24px}
+.universe-stage{padding:0 12px}
+.universe-space{height:330px;min-height:330px}
+.universe-inspector{padding:18px;border-radius:16px}
+.universe-inspector h2{font-size:22px}
+.universe-chat{width:calc(100% - 24px);padding:12px;margin-bottom:12px}
+.universe-chat-title span{display:none}
+.universe .composer-embedded .composer{height:54px}
+.universe-bottom{padding:10px 18px 20px}
+.universe-legend{gap:8px}
+}
+@media(max-width:390px){.universe-space{height:290px;min-height:290px}.universe-planet-label{font-size:8px;max-width:84px;white-space:normal;overflow-wrap:anywhere;text-align:center}}
