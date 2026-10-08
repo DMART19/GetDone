@@ -1,76 +1,81 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import type { ObjectiveView, Resource } from "@/lib/types";
+import "./operational-solar-system.css";
 
-type Health = "green" | "yellow" | "red" | "unknown";
-type Node = { id: string; name: string; kind: string; health: Health; explanation: string; href?: string };
-const palette: Record<Health, string> = {
-  green: "#4be38b", yellow: "#ffc72c", red: "#ff445c", unknown: "#8495a8"
-};
-
-function resourceHealth(resource: Resource): Health {
-  if (resource.health === "healthy") return "green";
-  if (resource.health === "degraded") return "yellow";
-  if (resource.health === "offline") return "red";
+type Health = "healthy" | "warning" | "critical" | "unknown";
+type Node = { id: string; name: string; kind: string; health: Health; detail: string; href: string };
+const colors: Record<Health, string> = { healthy:"#4be38b",warning:"#ffc72c",critical:"#ff445c",unknown:"#8295ac" };
+function healthOf(resource: Resource): Health {
+  if (resource.health === "healthy") return "healthy";
+  if (resource.health === "degraded") return "warning";
+  if (resource.health === "offline") return "critical";
   return "unknown";
 }
-
-export function OperationalSolarSystem({ resources, objectives }: {
-  resources: Resource[]; objectives: ObjectiveView[];
-}) {
-  const [selected, setSelected] = useState<string>("getdone");
-  const nodes = useMemo<Node[]>(() => resources.map((resource) => ({
-    id: resource.id,
-    name: resource.name,
-    kind: resource.kind,
-    health: resourceHealth(resource),
-    explanation: resource.role + " · " + resource.provider,
-    href: "/resources/" + encodeURIComponent(resource.id)
+export function OperationalSolarSystem({ resources, objectives }: { resources: Resource[]; objectives: ObjectiveView[] }) {
+  const [selected, setSelected] = useState("getdone");
+  const nodes = useMemo<Node[]>(() => resources.map(resource => ({
+    id:resource.id, name:resource.name, kind:resource.kind, health:healthOf(resource),
+    detail:resource.role + " · " + resource.provider, href:"/resources/" + encodeURIComponent(resource.id)
   })), [resources]);
-  const failures = objectives.filter((objective) => objective.status === "failed" || objective.status === "blocked");
-  const warnings = objectives.filter((objective) => objective.status === "needs_owner_input" || objective.status === "partially_completed");
-  const rootHealth: Health = failures.length || nodes.some((node) => node.health === "red")
-    ? "red" : warnings.length || nodes.some((node) => node.health === "yellow")
-      ? "yellow" : "unknown";
-  const current = nodes.find((node) => node.id === selected);
-  return (
-    <section aria-label="GetDone operational solar system" style={{ padding: "18px", margin: "12px 16px", border: "1px solid #23364b", borderRadius: 18, background: "#07111e" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
-        <strong>Operational universe</strong>
-        <span style={{ color: "#aab9ca", fontSize: 11 }}>Read-only · live repository data</span>
-      </div>
-      <p style={{ fontSize: 12, color: "#9eb2c9" }}>Select a node to inspect its recorded status. Unregistered products are never shown as connected.</p>
-      <svg role="img" aria-label="GetDone connected to registered resources" viewBox="0 0 340 235" style={{ width: "100%", maxHeight: 320 }}>
-        <circle cx="170" cy="115" r="82" stroke="#2b4b6b" strokeDasharray="4 6" fill="none" />
-        <circle cx="170" cy="115" r="110" stroke="#1d334c" strokeDasharray="3 7" fill="none" />
-        {nodes.slice(0, 12).map((node, index) => {
-          const angle = index * Math.PI * 2 / Math.max(1, Math.min(nodes.length, 12)) - Math.PI / 2;
-          const x = 170 + 107 * Math.cos(angle), y = 115 + 87 * Math.sin(angle);
-          const active = selected === node.id;
-          return <g key={node.id}>
-            <line x1="170" y1="115" x2={x} y2={y} stroke={palette[node.health]} strokeWidth={active ? 3 : 1} opacity={active ? 1 : .35} />
-            <circle cx={x} cy={y} r={active ? 17 : 13} fill="#13263a" stroke={palette[node.health]} strokeWidth={active ? 3 : 1.5} />
-            <text x={x} y={y + 3} textAnchor="middle" fill="#fff" fontSize="8">{index + 1}</text>
-          </g>;
+  const failures = objectives.filter(o => o.status === "failed" || o.status === "blocked").length;
+  const warnings = objectives.filter(o => o.status === "needs_owner_input" || o.status === "partially_completed").length;
+  const rootHealth: Health = failures || nodes.some(n=>n.health==="critical") ? "critical"
+    : warnings || nodes.some(n=>n.health==="warning") ? "warning" : "unknown";
+  const active = nodes.find(n=>n.id===selected);
+  const activeHealth = active?.health ?? rootHealth;
+  const visible = nodes.slice(0,18);
+  return <section className="universe" aria-label="Read-only GetDone operational universe">
+    <header className="universe-top">
+      <div><span className="universe-eyebrow">GETDONE / LIVE OPERATIONS</span><h1>Operational universe</h1></div>
+      <span className="universe-readonly">● READ ONLY</span>
+    </header>
+    <div className="universe-stage">
+      <div className="universe-space" aria-label="Connected resources">
+        <div className="universe-orbit universe-orbit-one" aria-hidden="true" />
+        <div className="universe-orbit universe-orbit-two" aria-hidden="true" />
+        <svg className="universe-lines" viewBox="0 0 1000 650" preserveAspectRatio="none" aria-hidden="true">
+          {visible.map((node,i)=>{
+            const a=2*Math.PI*i/Math.max(visible.length,1)-Math.PI/2;
+            const x=500+365*Math.cos(a),y=325+235*Math.sin(a);
+            return <line key={node.id} x1="500" y1="325" x2={x} y2={y} stroke={colors[node.health]} strokeWidth={selected===node.id?3:1} opacity={selected===node.id?0.95:selected==="getdone"?0.42:0.12}/>;
+          })}
+        </svg>
+        <button type="button" className={"universe-sun"+(selected==="getdone"?" is-selected":"")} onClick={()=>setSelected("getdone")} aria-pressed={selected==="getdone"} style={{"--planet-health":colors[rootHealth]} as React.CSSProperties}>
+          <span className="universe-sun-core">GetDone</span>
+        </button>
+        {visible.map((node,i)=>{
+          const a=2*Math.PI*i/Math.max(visible.length,1)-Math.PI/2;
+          return <button key={node.id} type="button" aria-label={node.name+" "+node.health} aria-pressed={selected===node.id}
+            onClick={()=>setSelected(node.id)} className={"universe-planet"+(selected===node.id?" is-selected":"")}
+            style={{left:(50+36.5*Math.cos(a))+"%",top:(50+36.15*Math.sin(a))+"%","--planet-health":colors[node.health]} as React.CSSProperties}>
+            <span className="universe-planet-core" /><span className="universe-planet-label">{node.name}</span>
+          </button>;
         })}
-        <circle cx="170" cy="115" r="36" fill="#174b79" stroke={palette[rootHealth]} strokeWidth={selected === "getdone" ? 4 : 2} />
-        <text x="170" y="119" textAnchor="middle" fill="white" fontSize="12" fontWeight="bold">GetDone</text>
-      </svg>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginBottom: 12 }}>
-        <button type="button" onClick={() => setSelected("getdone")} aria-pressed={selected === "getdone"} style={{ padding: "10px 12px", borderRadius: 12, background: selected === "getdone" ? "#1c4568" : "#102234", color: "#fff", border: "1px solid #35516b" }}>GetDone</button>
-        {nodes.map((node, index) => <button key={node.id} type="button" onClick={() => setSelected(node.id)} aria-pressed={selected === node.id} style={{ padding: "10px 12px", borderRadius: 12, background: selected === node.id ? "#1c4568" : "#102234", color: "#fff", border: "1px solid " + palette[node.health] }}>
-          {index + 1}. {node.name}
-        </button>)}
+        {!nodes.length && <div className="universe-empty">No registered resources yet. Product connections are unverified.</div>}
       </div>
-      <div aria-live="polite" style={{ padding: 12, background: "#0c1b2b", borderRadius: 12, fontSize: 12 }}>
-        <strong style={{ color: palette[current?.health ?? rootHealth] }}>{current?.name ?? "GetDone"} · {current?.health ?? rootHealth}</strong>
-        <p style={{ color: "#b8c8d9" }}>{current?.explanation ?? (failures.length + " failed/blocked objectives; " + warnings.length + " needing attention; " + resources.length + " registered resources.")}</p>
-        {current?.href ? <a href={current.href} style={{ color: "#8bcaff" }}>Open resource details →</a> : null}
-        {!resources.length ? <p style={{ color: "#c9a86a" }}>No registered resources available. Product connections and health cannot be verified from this view.</p> : null}
-        {resources.length > 12 ? <p style={{ color: "#c9a86a" }}>Showing the first 12 resources in the diagram; all are selectable below.</p> : null}
-      </div>
-      <p style={{ fontSize: 11, color: "#8495a8", marginBottom: 0 }}>Green = ready · Yellow = degraded · Red = failed/offline · Gray = unverified. Resource health is not proof of overall product health.</p>
-    </section>
-  );
+      <aside className="universe-inspector" aria-live="polite">
+        <span className="universe-eyebrow">SELECTED NODE</span>
+        <h2>{active?.name ?? "GetDone"}</h2>
+        <span className="universe-health" style={{color:colors[activeHealth]}}>● {activeHealth==="healthy"?"Healthy":activeHealth==="warning"?"Needs attention":activeHealth==="critical"?"Critical":"Unverified"}</span>
+        <p>{active?.detail ?? "GetDone control plane · recorded resources and objectives"}</p>
+        <div className="universe-metrics">
+          {active ? <><span>Resource type</span><strong>{active.kind}</strong></> : <>
+            <span>Registered resources</span><strong>{resources.length}</strong>
+            <span>Failed / blocked objectives</span><strong>{failures}</strong>
+            <span>Owner attention</span><strong>{warnings}</strong>
+          </>}
+        </div>
+        {active && <Link className="universe-details" href={active.href}>View resource details ↗</Link>}
+        <span className="universe-caveat">Status reflects recorded resource state, not verified end-to-end product health. Unknown is never green.</span>
+      </aside>
+    </div>
+    <footer className="universe-bottom">
+      <span>Tap a node to inspect · Tap GetDone to reset</span>
+      <div className="universe-legend"><span>🟢 Healthy</span><span>🟡 Attention</span><span>🔴 Critical</span><span>⚪ Unknown</span></div>
+    </footer>
+    {nodes.length>18 && <p className="universe-overflow">Showing 18 of {nodes.length} registered resources. More are available in Resources.</p>}
+  </section>;
 }
