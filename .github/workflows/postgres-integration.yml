@@ -56,57 +56,76 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y postgresql-client
 
+      - name: Enable certificate-verified TLS on the disposable database
+        env:
+          POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
+        run: |
+          cert_dir="$RUNNER_TEMP/getdone-postgres-tls"
+          mkdir -p "$cert_dir"
+          openssl req -x509 -newkey rsa:2048 -nodes -days 1 \
+            -keyout "$cert_dir/server.key" -out "$cert_dir/server.crt" \
+            -subj '/CN=localhost' -addext 'subjectAltName=DNS:localhost,IP:127.0.0.1'
+          docker cp "$cert_dir/server.key" "$POSTGRES_CONTAINER_ID:/var/lib/postgresql/data/server.key"
+          docker cp "$cert_dir/server.crt" "$POSTGRES_CONTAINER_ID:/var/lib/postgresql/data/server.crt"
+          docker exec --user root "$POSTGRES_CONTAINER_ID" chown postgres:postgres /var/lib/postgresql/data/server.key /var/lib/postgresql/data/server.crt
+          docker exec --user root "$POSTGRES_CONTAINER_ID" chmod 600 /var/lib/postgresql/data/server.key
+          docker exec "$POSTGRES_CONTAINER_ID" psql -U postgres -c "ALTER SYSTEM SET ssl = 'on'"
+          docker exec "$POSTGRES_CONTAINER_ID" psql -U postgres -c 'SELECT pg_reload_conf()'
+          echo "NODE_EXTRA_CA_CERTS=$cert_dir/server.crt" >> "$GITHUB_ENV"
+          PGSSLMODE=verify-full PGSSLROOTCERT="$cert_dir/server.crt" PGPASSWORD=postgres \
+            psql -h 127.0.0.1 -U postgres -d postgres -c 'SELECT ssl FROM pg_stat_ssl WHERE pid = pg_backend_pid()'
+
       - name: Run PostgreSQL 16 migration and concurrency acceptance
         run: npm run db:test-integration
         env:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
-          GETDONE_DB_SSL: "false"
+          GETDONE_DB_SSL: "true"
 
       - name: Run zero-downtime rolling migration acceptance
         run: npm run db:test-zero-downtime
         env:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
-          GETDONE_DB_SSL: "false"
+          GETDONE_DB_SSL: "true"
 
       - name: Run PostgreSQL startup/readiness acceptance
         run: npx vitest run lib/persistence/postgres/postgres-readiness.integration.test.ts
         env:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
-          GETDONE_DB_SSL: "false"
+          GETDONE_DB_SSL: "true"
           GETDONE_POSTGRES_INTEGRATION: "true"
 
       - name: Run PostgreSQL tenant RLS adversarial acceptance
         run: npx vitest run lib/persistence/postgres/postgres-tenant-rls.integration.test.ts
         env:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
-          GETDONE_DB_SSL: "false"
+          GETDONE_DB_SSL: "true"
           GETDONE_POSTGRES_INTEGRATION: "true"
 
       - name: Run production runtime startup validator acceptance
         run: npx vitest run lib/runtime/production-runtime-validator.integration.test.ts
         env:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
-          GETDONE_DB_SSL: "false"
+          GETDONE_DB_SSL: "true"
           GETDONE_POSTGRES_INTEGRATION: "true"
 
       - name: Run deterministic production bootstrap acceptance
         run: npx vitest run lib/auth/production-bootstrap.integration.test.ts
         env:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
-          GETDONE_DB_SSL: "false"
+          GETDONE_DB_SSL: "true"
           GETDONE_POSTGRES_INTEGRATION: "true"
 
       - name: Migrate Control API integration database
         run: npm run db:migrate
         env:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
-          GETDONE_DB_SSL: "false"
+          GETDONE_DB_SSL: "true"
 
       - name: Run UFO orchestration persistence acceptance
         run: npx vitest run lib/persistence/postgres/orchestration-store.integration.test.ts
         env:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
-          GETDONE_DB_SSL: "false"
+          GETDONE_DB_SSL: "true"
           GETDONE_DB_RUNTIME_ROLE: getdone_tenant_runtime
           GETDONE_POSTGRES_INTEGRATION: "true"
 
@@ -114,7 +133,7 @@ jobs:
         run: npx vitest run lib/persistence/postgres/orchestration-worker-store.integration.test.ts
         env:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
-          GETDONE_DB_SSL: "false"
+          GETDONE_DB_SSL: "true"
           GETDONE_DB_RUNTIME_ROLE: getdone_tenant_runtime
           GETDONE_POSTGRES_INTEGRATION: "true"
 
@@ -122,7 +141,7 @@ jobs:
         run: npx vitest run lib/persistence/postgres/owner-intent-orchestration.integration.test.ts
         env:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
-          GETDONE_DB_SSL: "false"
+          GETDONE_DB_SSL: "true"
           GETDONE_DB_RUNTIME_ROLE: getdone_tenant_runtime
           GETDONE_POSTGRES_INTEGRATION: "true"
 
@@ -130,7 +149,7 @@ jobs:
         run: npx vitest run lib/persistence/postgres/orchestration-planning.integration.test.ts
         env:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
-          GETDONE_DB_SSL: "false"
+          GETDONE_DB_SSL: "true"
           GETDONE_DB_RUNTIME_ROLE: getdone_tenant_runtime
           GETDONE_POSTGRES_INTEGRATION: "true"
 
@@ -138,7 +157,7 @@ jobs:
         run: npx vitest run lib/persistence/postgres/orchestration-validation-policy.integration.test.ts
         env:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
-          GETDONE_DB_SSL: "false"
+          GETDONE_DB_SSL: "true"
           GETDONE_DB_RUNTIME_ROLE: getdone_tenant_runtime
           GETDONE_POSTGRES_INTEGRATION: "true"
 
@@ -146,7 +165,7 @@ jobs:
         run: npx vitest run lib/persistence/postgres/orchestration-authorization.integration.test.ts
         env:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
-          GETDONE_DB_SSL: "false"
+          GETDONE_DB_SSL: "true"
           GETDONE_DB_RUNTIME_ROLE: getdone_tenant_runtime
           GETDONE_POSTGRES_INTEGRATION: "true"
 
@@ -154,48 +173,48 @@ jobs:
         run: npx vitest run lib/security/rate-limit-postgres.integration.test.ts
         env:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
-          GETDONE_DB_SSL: "false"
+          GETDONE_DB_SSL: "true"
           GETDONE_POSTGRES_INTEGRATION: "true"
 
       - name: Run analytics ingestion checkpoint and dedupe acceptance
         run: npx vitest run lib/analytics/analytics-ingestion-postgres.integration.test.ts
         env:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
-          GETDONE_DB_SSL: "false"
+          GETDONE_DB_SSL: "true"
           GETDONE_POSTGRES_INTEGRATION: "true"
 
       - name: Run audit ledger tamper detection acceptance
         run: npx vitest run lib/security/audit-ledger-integrity-postgres.integration.test.ts
         env:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
-          GETDONE_DB_SSL: "false"
+          GETDONE_DB_SSL: "true"
           GETDONE_POSTGRES_INTEGRATION: "true"
 
       - name: Run real staging backup restore and app boot acceptance
         run: npm run db:test-backup-restore
         env:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
-          GETDONE_DB_SSL: "false"
+          GETDONE_DB_SSL: "true"
 
       - name: Run disaster recovery primary-loss acceptance
         run: npm run dr:test-acceptance
         env:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
-          GETDONE_DB_SSL: "false"
+          GETDONE_DB_SSL: "true"
           GETDONE_POSTGRES_INTEGRATION: "true"
 
       - name: Run owner-safe AI Gateway health PostgreSQL acceptance
         run: npx vitest run lib/ai-gateway/health-postgres.integration.test.ts
         env:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
-          GETDONE_DB_SSL: "false"
+          GETDONE_DB_SSL: "true"
           GETDONE_POSTGRES_INTEGRATION: "true"
 
       - name: Run PostgreSQL-backed Control API acceptance
         run: npx vitest run lib/control-api/postgres-http.integration.test.ts
         env:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
-          GETDONE_DB_SSL: "false"
+          GETDONE_DB_SSL: "true"
           GETDONE_RUNTIME_ENV: staging
           GETDONE_DATA_MODE: authoritative
           NEXT_PUBLIC_APP_ENV: staging
@@ -205,28 +224,28 @@ jobs:
         run: npx vitest run lib/execution/postgres-worker.integration.test.ts
         env:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
-          GETDONE_DB_SSL: "false"
+          GETDONE_DB_SSL: "true"
           GETDONE_POSTGRES_INTEGRATION: "true"
 
       - name: Run queue saturation and backpressure acceptance
         run: npx vitest run lib/execution/queue-backpressure-postgres.integration.test.ts
         env:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
-          GETDONE_DB_SSL: "false"
+          GETDONE_DB_SSL: "true"
           GETDONE_POSTGRES_INTEGRATION: "true"
 
       - name: Run dead-letter operator acceptance
         run: npx vitest run lib/execution/dead-letter-operator-postgres.integration.test.ts
         env:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
-          GETDONE_DB_SSL: "false"
+          GETDONE_DB_SSL: "true"
           GETDONE_POSTGRES_INTEGRATION: "true"
 
       - name: Run correlation lineage reconstruction acceptance
         run: npx vitest run lib/observability/correlation-lineage-postgres.integration.test.ts
         env:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
-          GETDONE_DB_SSL: "false"
+          GETDONE_DB_SSL: "true"
           GETDONE_POSTGRES_INTEGRATION: "true"
 
       - name: Build crash acceptance worker process
@@ -236,12 +255,12 @@ jobs:
         run: npx vitest run lib/execution/worker-crash-restart.integration.test.ts
         env:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
-          GETDONE_DB_SSL: "false"
+          GETDONE_DB_SSL: "true"
           GETDONE_POSTGRES_INTEGRATION: "true"
 
       - name: Run production auth and WebAuthn acceptance
         run: npx vitest run lib/auth/postgres-auth.integration.test.ts
         env:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
-          GETDONE_DB_SSL: "false"
+          GETDONE_DB_SSL: "true"
           GETDONE_POSTGRES_INTEGRATION: "true"

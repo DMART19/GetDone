@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { sha256Hex } from "@/lib/control-plane/canonical-hash";
 import type { QueryResultRow } from "pg";
 import type { AuthorizationGrant } from "@/lib/authorization/grants";
 import type { SqlQueryable } from "@/lib/persistence/postgres/client";
@@ -271,7 +272,7 @@ describe("fresh execution admission", () => {
       capabilityNames: ["email.send"],
       integrationId: "integration-missing"
     };
-    await expect(gate([[]]).assertAllowed(input(integrationGrant)))
+    await expect(gate([objectiveRow(integrationGrant), []]).assertAllowed(input(integrationGrant)))
       .rejects.toThrow(/integration binding is missing/i);
   });
 
@@ -279,7 +280,7 @@ describe("fresh execution admission", () => {
     const plan = validPlan();
     const scope = fixtureScope(plan);
     const base = autoGrantFor(plan);
-    const connected = createCompanyIntegration({
+    const registered = createCompanyIntegration({
       id: "integration-restricted",
       scope,
       kind: "gmail",
@@ -289,13 +290,18 @@ describe("fresh execution admission", () => {
       writeScopes: [],
       createdAt: fixtureNow.toISOString()
     });
+    const { recordHash: _hash, ...baseRecord } = registered;
+    expect(_hash).toMatch(/^[a-f0-9]{64}$/);
+    const connectedBase = { ...baseRecord, state: "connected" as const };
+    const connected = { ...connectedBase, recordHash: sha256Hex(connectedBase) };
     const grant = { ...base, capabilityNames: ["email.send"], integrationId: connected.id };
 
-    await expect(gate([[{ payload: connected } as QueryResultRow], []]).assertAllowed(input(grant)))
+    await expect(gate([objectiveRow(grant), [{ payload: connected } as QueryResultRow], []]).assertAllowed(input(grant)))
       .rejects.toThrow(/grants no write access/i);
 
-    const mocked = { ...connected, mock: true, writeScopes: ["email.send"] };
-    await expect(gate([[{ payload: mocked } as QueryResultRow]]).assertAllowed(input(grant)))
+    const mockedBase = { ...connectedBase, mock: true, writeScopes: ["email.send"] };
+    const mocked = { ...mockedBase, recordHash: sha256Hex(mockedBase) };
+    await expect(gate([objectiveRow(grant), [{ payload: mocked } as QueryResultRow]]).assertAllowed(input(grant)))
       .rejects.toThrow(/Mock integration cannot authorize/i);
   });
 
