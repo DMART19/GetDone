@@ -7,7 +7,7 @@ function authoritativeRuntime() {
   return process.env.NEXT_PUBLIC_APP_ENV !== "development";
 }
 
-export function ChatComposer() {
+export function ChatComposer({ embedded = false }: { embedded?: boolean } = {}) {
   const [message, setMessage] = useState("");
   const [preview, setPreview] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -77,10 +77,10 @@ export function ChatComposer() {
   }
 
   return (
-    <div className="composer-wrap">
+    <div className={embedded ? "composer-wrap composer-embedded" : "composer-wrap"}>
       {preview ? <div className="local-toast" role="status">{preview}</div> : null}
       <form className="composer" onSubmit={submit}>
-        <button type="button" className="composer-icon" aria-label="Attach"><Paperclip size={20} /></button>
+        {!embedded ? <button type="button" className="composer-icon" aria-label="Attach" disabled title="Attachments not supported"><Paperclip size={20} /></button> : null}
         <input
           value={message}
           onChange={(event) => setMessage(event.target.value)}
