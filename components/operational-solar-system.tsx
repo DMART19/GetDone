@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type CSSProperties } from "react";
 import Link from "next/link";
 import type { ObjectiveView, Resource } from "@/lib/types";
 import "./operational-solar-system.css";
@@ -43,14 +43,14 @@ export function OperationalSolarSystem({ resources, objectives }: { resources: R
             return <line key={node.id} x1="500" y1="325" x2={x} y2={y} stroke={colors[node.health]} strokeWidth={selected===node.id?3:1} opacity={selected===node.id?0.95:selected==="getdone"?0.42:0.12}/>;
           })}
         </svg>
-        <button type="button" className={"universe-sun"+(selected==="getdone"?" is-selected":"")} onClick={()=>setSelected("getdone")} aria-pressed={selected==="getdone"} style={{"--planet-health":colors[rootHealth]} as React.CSSProperties}>
+        <button type="button" className={"universe-sun"+(selected==="getdone"?" is-selected":"")} onClick={()=>setSelected("getdone")} aria-pressed={selected==="getdone"} style={{"--planet-health":colors[rootHealth]} as CSSProperties}>
           <span className="universe-sun-core">GetDone</span>
         </button>
         {visible.map((node,i)=>{
           const a=2*Math.PI*i/Math.max(visible.length,1)-Math.PI/2;
           return <button key={node.id} type="button" aria-label={node.name+" "+node.health} aria-pressed={selected===node.id}
             onClick={()=>setSelected(node.id)} className={"universe-planet"+(selected===node.id?" is-selected":"")}
-            style={{left:(50+36.5*Math.cos(a))+"%",top:(50+36.15*Math.sin(a))+"%","--planet-health":colors[node.health]} as React.CSSProperties}>
+            style={{left:(50+36.5*Math.cos(a))+"%",top:(50+36.15*Math.sin(a))+"%","--planet-health":colors[node.health]} as CSSProperties}>
             <span className="universe-planet-core" /><span className="universe-planet-label">{node.name}</span>
           </button>;
         })}
