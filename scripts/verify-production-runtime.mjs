@@ -31,7 +31,9 @@ function parseJson(name) {
 }
 
 function isPlaceholderSecret(value) {
-  return /^(changeme|change-me|example|placeholder|secret|token|test|dummy)$/i.test(value);
+  return /^(changeme|change-me|example|placeholder|secret|token|test|dummy)$/i.test(value)
+    || /^(?:generate[_ -]|replace[_ -]|your[_ -])/i.test(value)
+    || /^(?:openssl\s+rand|node\s+-e|python(?:3)?\s+-c)\b/i.test(value);
 }
 
 function assertSecret(name, minLength = 16) {

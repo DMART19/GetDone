@@ -7,6 +7,9 @@ describe("conversation boundary", () => {
   it.each([
     ["How's GetDone?", "status_query"],
     ["Why is GitHub disconnected?", "explain_query"],
+    ["How does GetDone deploy code?", "explain_query"],
+    ["Explain how to delete a resource", "explain_query"],
+    ["Why did it send that email?", "explain_query"],
     ["Investigate the webhook failures", "investigate_request"],
     ["What should we do about revenue?", "recommend_request"],
     ["Fix the webhook", "action_request"],

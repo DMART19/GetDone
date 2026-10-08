@@ -34,9 +34,10 @@ export function classifyConversationIntent(message: string): ConversationIntent 
   if (/^(fix it|fix that|do it|do that|go ahead|proceed)[.!]?$/i.test(value)) return "action_request";
   if (INVESTIGATE.test(value)) return "investigate_request";
   if (RECOMMEND.test(value)) return "recommend_request";
+  // Questions about actions are explanations, not permission to perform them.
+  if (EXPLAIN.test(value)) return "explain_query";
   if (ACTION.test(value)) return "action_request";
   if (OBJECTIVE.test(value)) return "objective_request";
-  if (EXPLAIN.test(value)) return "explain_query";
   if (STATUS.test(value) || value.endsWith("?")) return "status_query";
   return "ambiguous";
 }

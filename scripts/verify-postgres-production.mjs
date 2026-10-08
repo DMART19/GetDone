@@ -22,6 +22,8 @@ if (!Number.isFinite(maxBackupAgeHours) || maxBackupAgeHours <= 0) {
 const pool = new pg.Pool({
   ...postgresTlsConnection(required("DATABASE_URL"), { ...process.env, GETDONE_RUNTIME_ENV: "production" }),
   max: 2,
+  connectionTimeoutMillis: 5_000,
+  statement_timeout: 15_000,
   application_name: "getdone-production-verifier"
 });
 
