@@ -1,0 +1,63 @@
+/* The universe is the primary interface on the homepage, not a narrow card. */
+.app-shell:has(.universe){width:100%;max-width:none;box-shadow:none;background:#030a12}
+.app-shell:has(.universe) .screen{width:100%}
+.universe{position:relative;min-height:min(780px,calc(100dvh - 110px));overflow:hidden;color:#e9f5ff;background:radial-gradient(ellipse at 50% 45%,#112c49 0%,#071524 38%,#02060d 78%);border-bottom:1px solid #1b334d}
+.universe:before{content:"";position:absolute;inset:0;pointer-events:none;opacity:.32;background-image:radial-gradient(#a4d6ff 1px,transparent 1px);background-size:43px 47px;mask-image:linear-gradient(90deg,transparent,#000,transparent)}
+.universe-top,.universe-bottom{position:relative;z-index:4;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:22px clamp(18px,4vw,60px)}
+.universe-eyebrow{font-size:10px;letter-spacing:.2em;color:#79a7c9;font-weight:700}
+.universe-top h1{margin:7px 0 0;font-size:clamp(22px,2.5vw,35px);letter-spacing:-.04em}
+.universe-readonly{font-size:10px;color:#9ed9ff;border:1px solid #2d5878;background:#0c2336;padding:9px 13px;border-radius:99px;white-space:nowrap}
+.universe-stage{position:relative;display:grid;grid-template-columns:minmax(0,1fr) minmax(260px,320px);align-items:center;gap:12px;padding:0 clamp(18px,4vw,60px);min-height:560px}
+.universe-space{position:relative;height:min(62vw,570px);min-height:380px;isolation:isolate}
+.universe-orbit{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) rotate(-17deg);border:1px solid #294a67;border-radius:50%;pointer-events:none}
+.universe-orbit-one{width:54%;height:57%;opacity:.6}
+.universe-orbit-two{width:89%;height:82%;opacity:.4}
+.universe-lines{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.universe-sun,.universe-planet{position:absolute;z-index:2;display:grid;place-items:center;border:0;background:transparent;color:#fff;cursor:pointer;touch-action:manipulation;transform:translate(-50%,-50%);font:inherit}
+.universe-sun{left:50%;top:50%;width:160px;height:160px;border-radius:50%;filter:drop-shadow(0 0 28px #176aaf66)}
+.universe-sun-core{display:grid;place-items:center;width:120px;height:120px;border-radius:50%;font-size:20px;font-weight:800;letter-spacing:-.05em;background:radial-gradient(circle at 31% 25%,#b8e9ff,#408ecb 34%,#1b4d83 63%,#091b3b);box-shadow:inset -15px -18px 22px #030e2888,0 0 30px #3488d066}
+.universe-sun.is-selected .universe-sun-core{outline:3px solid var(--planet-health);outline-offset:7px}
+.universe-planet{width:88px;height:88px}
+.universe-planet-core{width:51px;height:51px;border-radius:50%;background:radial-gradient(circle at 28% 23%,#c9d9e4,#45708b 36%,#172c4c 70%,#07111f);border:2px solid var(--planet-health);box-shadow:inset -12px -10px 16px #0008,0 0 19px color-mix(in srgb,var(--planet-health),transparent 60%)}
+.universe-planet.is-selected .universe-planet-core{width:62px;height:62px;outline:2px solid var(--planet-health);outline-offset:5px}
+.universe-planet-label{position:absolute;top:79%;left:50%;transform:translateX(-50%);white-space:nowrap;font-size:11px;font-weight:650;text-shadow:0 2px 8px #000}
+.universe-planet:focus-visible,.universe-sun:focus-visible{outline:2px solid white;outline-offset:5px}
+.universe-inspector{position:relative;z-index:3;border:1px solid #2a4662;border-radius:22px;background:linear-gradient(140deg,#132b40e8,#071320ec);padding:25px;box-shadow:0 20px 70px #0007;backdrop-filter:blur(18px)}
+.universe-inspector h2{font-size:clamp(22px,2.4vw,30px);margin:12px 0 8px;overflow-wrap:anywhere}
+.universe-health{font-size:12px;font-weight:750}
+.universe-inspector p{color:#a9bed2;line-height:1.5;font-size:13px}
+.universe-metrics{display:grid;grid-template-columns:1fr auto;gap:13px 8px;border-top:1px solid #30465c;border-bottom:1px solid #30465c;padding:18px 0;margin:20px 0;font-size:12px}
+.universe-metrics span{color:#9bb0c5}.universe-metrics strong{color:#fff}
+.universe-details{display:block;padding:13px;border:1px solid #346c96;border-radius:12px;text-align:center;background:#123656;font-size:13px}
+.universe-caveat{display:block;color:#7892a8;font-size:11px;line-height:1.5;margin-top:16px}
+.universe-bottom{font-size:11px;color:#91a9bd;flex-wrap:wrap}
+.universe-legend{display:flex;gap:14px;flex-wrap:wrap}
+.universe-empty{position:absolute;bottom:5%;left:50%;transform:translateX(-50%);font-size:12px;color:#a4b7ca;text-align:center;width:80%}
+.universe-overflow{padding:0 25px 20px;color:#d1b47e;font-size:12px}
+@media(max-width:800px){.universe-stage{display:flex;flex-direction:column;gap:0;min-height:0}.universe-space{width:100%;height:440px;min-height:440px}.universe-inspector{width:100%;max-width:540px;margin-bottom:14px}.universe-sun{width:110px;height:110px}.universe-sun-core{width:88px;height:88px;font-size:15px}.universe-planet{width:72px;height:72px}.universe-planet-core{width:38px;height:38px}.universe-planet.is-selected .universe-planet-core{width:45px;height:45px}.universe-planet-label{font-size:9px}.universe-top,.universe-bottom{padding:18px}.universe-readonly{font-size:9px}}
+@media(prefers-reduced-motion:reduce){.universe *{animation:none!important;transition:none!important}}
+
+/* Keep conversation inside the universe on both wide touchscreens and phones. */
+.universe-chat{position:relative;z-index:5;width:min(850px,calc(100% - 36px));margin:0 auto 10px;padding:14px 18px;border:1px solid #254765;border-radius:20px;background:#091b2de8;backdrop-filter:blur(18px)}
+.universe-chat-title{display:flex;justify-content:space-between;gap:12px;color:#a7d4f8;letter-spacing:.12em;font-size:10px;font-weight:700;margin-bottom:10px}
+.universe-chat-title span{letter-spacing:0;color:#819bb1;font-weight:400}
+.universe .composer-wrap.composer-embedded{position:static;transform:none;left:auto;bottom:auto;width:100%;padding:0;background:transparent}
+.universe .composer-embedded .composer{height:58px;border-color:#315676;background:#071321}
+.universe .composer-embedded .composer input{font-size:16px}
+.universe .composer-embedded .local-toast{max-height:220px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere}
+.app-shell:has(.universe) .bottom-nav{width:100%;max-width:none}
+.app-shell:has(.universe) .offline-notice{width:100%;max-width:none}
+@media(max-width:800px){
+.universe{min-height:0}
+.universe-top h1{font-size:24px}
+.universe-stage{padding:0 12px}
+.universe-space{height:330px;min-height:330px}
+.universe-inspector{padding:18px;border-radius:16px}
+.universe-inspector h2{font-size:22px}
+.universe-chat{width:calc(100% - 24px);padding:12px;margin-bottom:12px}
+.universe-chat-title span{display:none}
+.universe .composer-embedded .composer{height:54px}
+.universe-bottom{padding:10px 18px 20px}
+.universe-legend{gap:8px}
+}
+@media(max-width:390px){.universe-space{height:290px;min-height:290px}.universe-planet-label{font-size:8px;max-width:84px;white-space:normal;overflow-wrap:anywhere;text-align:center}}
