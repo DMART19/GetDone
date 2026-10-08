@@ -2,6 +2,7 @@
 
 import { useMemo, useState, type CSSProperties } from "react";
 import Link from "next/link";
+import { ChatComposer } from "@/components/chat-composer";
 import type { ObjectiveView, Resource } from "@/lib/types";
 import "./operational-solar-system.css";
 
@@ -72,6 +73,7 @@ export function OperationalSolarSystem({ resources, objectives }: { resources: R
         <span className="universe-caveat">Status reflects recorded resource state, not verified end-to-end product health. Unknown is never green.</span>
       </aside>
     </div>
+    <div className="universe-chat"><div className="universe-chat-title">ASK GETDONE <span>Connected to /api/control/chat</span></div><ChatComposer embedded /></div>
     <footer className="universe-bottom">
       <span>Tap a node to inspect · Tap GetDone to reset</span>
       <div className="universe-legend"><span>🟢 Healthy</span><span>🟡 Attention</span><span>🔴 Critical</span><span>⚪ Unknown</span></div>
