@@ -72,6 +72,7 @@ jobs:
           docker exec "$POSTGRES_CONTAINER_ID" psql -U postgres -c "ALTER SYSTEM SET ssl = 'on'"
           docker exec "$POSTGRES_CONTAINER_ID" psql -U postgres -c 'SELECT pg_reload_conf()'
           echo "NODE_EXTRA_CA_CERTS=$cert_dir/server.crt" >> "$GITHUB_ENV"
+          echo "PGSSLROOTCERT=$cert_dir/server.crt" >> "$GITHUB_ENV"
           PGSSLMODE=verify-full PGSSLROOTCERT="$cert_dir/server.crt" PGPASSWORD=postgres \
             psql -h 127.0.0.1 -U postgres -d postgres -c 'SELECT ssl FROM pg_stat_ssl WHERE pid = pg_backend_pid()'
 
