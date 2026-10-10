@@ -65,7 +65,13 @@ const userId = required("GETDONE_OWNER_USER_ID");
 const organizationId = required("GETDONE_OWNER_ORGANIZATION_ID");
 const portfolioId = required("GETDONE_OWNER_PORTFOLIO_ID");
 const companyId = required("GETDONE_OWNER_COMPANY_ID");
-const credentialId = required("GETDONE_OWNER_PASSKEY_CREDENTIAL_ID");
+const enrollmentMode = process.argv.includes("--enroll-passkey");
+const invitationFileIndex = process.argv.indexOf("--invitation-file");
+const invitationFile = invitationFileIndex >= 0 ? process.argv[invitationFileIndex + 1] : null;
+if (enrollmentMode && (!invitationFile || invitationFile.startsWith("--"))) {
+  throw new Error("--enroll-passkey requires --invitation-file <private output path>");
+}
+const credentialId = enrollmentMode ? null : required("GETDONE_OWNER_PASSKEY_CREDENTIAL_ID");
 const organizationName = process.env.GETDONE_OWNER_ORGANIZATION_NAME?.trim() || organizationId;
 const companyName = process.env.GETDONE_OWNER_COMPANY_NAME?.trim() || companyId;
 const portfolioName = process.env.GETDONE_OWNER_PORTFOLIO_NAME?.trim() || portfolioId;
@@ -75,11 +81,12 @@ if (passkeyAlgorithm !== "ES256" && passkeyAlgorithm !== "RS256") {
   throw new Error("GETDONE_OWNER_PASSKEY_ALGORITHM must be ES256 or RS256");
 }
 
-const publicKeyPem = Buffer.from(
+const publicKeyPem = enrollmentMode ? null : Buffer.from(
   required("GETDONE_OWNER_PASSKEY_PUBLIC_KEY_PEM_B64"),
   "base64"
 ).toString("utf8");
 let parsedPublicKey;
+if (!enrollmentMode) {
 try {
   parsedPublicKey = crypto.createPublicKey(publicKeyPem);
 } catch {
@@ -90,6 +97,32 @@ if (
   || (passkeyAlgorithm === "RS256" && parsedPublicKey.asymmetricKeyType !== "rsa")
 ) {
   throw new Error("GETDONE_OWNER_PASSKEY_ALGORITHM does not match the supplied public key");
+}
+
+}
+
+let invitation;
+if (enrollmentMode) {
+  const rpId = required("GETDONE_WEBAUTHN_RP_ID");
+  const rawOrigins = required("GETDONE_WEBAUTHN_ORIGINS");
+  const origins = rawOrigins.startsWith("[") ? JSON.parse(rawOrigins) : rawOrigins.split(",").map(v => v.trim());
+  if (!/^[A-Za-z0-9.-]+$/.test(rpId) || rpId === "localhost" || !Array.isArray(origins) || !origins.length) {
+    throw new Error("Owner enrollment requires a production WebAuthn RP and origins");
+  }
+  for (const origin of origins) {
+    const url = new URL(origin);
+    if (url.protocol !== "https:" || url.origin !== origin
+      || !(url.hostname === rpId || url.hostname.endsWith(`.${rpId}`))
+      || ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname)) {
+      throw new Error("Owner enrollment requires exact production HTTPS origins for the RP");
+    }
+  }
+  invitation = {
+    token: crypto.randomBytes(32).toString("base64url"),
+    rpId, origins,
+    userHandle: crypto.createHash("sha256").update(userId).digest("base64url"),
+    expiresAt: new Date(Date.now() + 30 * 60_000).toISOString()
+  };
 }
 
 const bootstrapSeed = [
@@ -158,6 +191,8 @@ async function insertOrVerify(client, insertSql, insertValues, readSql, readValu
   return inserted.rowCount === 1;
 }
 
+let invitationFileCreated = false;
+let committed = false;
 const client = await pool.connect();
 try {
   await client.query("BEGIN ISOLATION LEVEL SERIALIZABLE");
@@ -303,6 +338,26 @@ try {
     "Owner portfolio membership"
   );
 
+  if (invitation) {
+    // Lock the owner across invitation issuance and registration. Never replace
+    // an existing (including revoked) passkey through the bootstrap path.
+    await client.query("SELECT id FROM auth_users WHERE id=$1 FOR UPDATE", [userId]);
+    const existing = await client.query("SELECT 1 FROM auth_webauthn_credentials WHERE user_id=$1", [userId]);
+    if (existing.rowCount) throw new Error("Owner already has a passkey; bootstrap enrollment cannot reset it");
+    const issued = await client.query(
+      `INSERT INTO auth_owner_enrollments
+        (user_id,token_hash,environment,rp_id,allowed_origins,user_handle,expires_at)
+       VALUES($1,$2,'production',$3,$4::jsonb,$5,$6)
+       ON CONFLICT(user_id) DO UPDATE SET token_hash=excluded.token_hash,
+         environment=excluded.environment,rp_id=excluded.rp_id,allowed_origins=excluded.allowed_origins,
+         user_handle=excluded.user_handle,expires_at=excluded.expires_at,
+         challenge_hash=NULL,challenge_expires_at=NULL
+       WHERE auth_owner_enrollments.consumed_at IS NULL`,
+      [userId,hash(invitation.token),invitation.rpId,JSON.stringify(invitation.origins),invitation.userHandle,invitation.expiresAt]
+    );
+    if (issued.rowCount !== 1) throw new Error("Owner invitation has already been consumed; recovery is required");
+    created.passkey = false;
+  } else {
   created.passkey = await insertOrVerify(
     client,
     `INSERT INTO auth_webauthn_credentials
@@ -325,6 +380,8 @@ try {
     },
     "Owner passkey"
   );
+
+  }
 
   const policyInsert = await client.query(
     `INSERT INTO control_plane_entities
@@ -434,10 +491,18 @@ try {
   );
   created.auditEvidence = auditInsert.rowCount === 1;
 
+  if (invitation) {
+    fs.writeFileSync(invitationFile, JSON.stringify({
+      userId, expiresAt: invitation.expiresAt,
+      url: `${invitation.origins[0]}/setup/owner#${invitation.token}`
+    }, null, 2) + "\n", { mode: 0o600, flag: "wx" });
+    invitationFileCreated = true;
+  }
   await client.query("COMMIT");
+  committed = true;
 
   console.log(JSON.stringify({
-    status: "ready",
+    status: invitation ? "awaiting-owner-passkey" : "ready",
     bootstrapVersion: BOOTSTRAP_VERSION,
     bootstrapId,
     environment: runtimeEnvironment,
@@ -459,6 +524,7 @@ try {
   }, null, 2));
 } catch (error) {
   try { await client.query("ROLLBACK"); } catch {}
+  if (invitationFileCreated && !committed) fs.rmSync(invitationFile);
   throw error;
 } finally {
   client.release();

@@ -50,6 +50,9 @@ jobs:
 
       - run: npm ci --ignore-scripts --no-audit --no-fund
 
+      - name: Enable certificate-verified PostgreSQL TLS
+        run: bash scripts/configure-ci-postgres-tls.sh "${{ job.services.postgres.id }}"
+
       - name: Verify protected Gmail staging inputs
         shell: bash
         env:
@@ -69,13 +72,13 @@ jobs:
         run: npm run db:migrate
         env:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
-          GETDONE_DB_SSL: "false"
+          GETDONE_DB_SSL: "true"
 
       - name: Run governed real Gmail staging acceptance
         run: npm run gmail:accept-staging
         env:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
-          GETDONE_DB_SSL: "false"
+          GETDONE_DB_SSL: "true"
           GETDONE_GMAIL_STAGING_ACCEPTANCE: "true"
           GETDONE_GMAIL_STAGING_CLIENT_ID: ${{ secrets.GMAIL_STAGING_CLIENT_ID }}
           GETDONE_GMAIL_STAGING_CLIENT_SECRET: ${{ secrets.GMAIL_STAGING_CLIENT_SECRET }}

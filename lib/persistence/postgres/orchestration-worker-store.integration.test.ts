@@ -1,3 +1,6 @@
+import { execFileSync } from "node:child_process";
+import pg from "pg";
+import { postgresTlsConnection } from "./tls";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   createOrchestrationRun,
@@ -60,14 +63,27 @@ integrationDescribe("PostgreSQL UFO orchestration worker", () => {
     });
   }
 
-  beforeAll(() => {
-    database = new PostgresDatabase(readPostgresConfigFromEnv(process.env));
+  const databaseName = `getdone_worker_store_${process.pid}_${Date.now()}`;
+  let admin: pg.Pool;
+  beforeAll(async () => {
+    const baseUrl = process.env.DATABASE_URL!;
+    admin = new pg.Pool(postgresTlsConnection(baseUrl, process.env));
+    await admin.query(`CREATE DATABASE "${databaseName}"`);
+    const url = new URL(baseUrl);
+    url.pathname = `/${databaseName}`;
+    const env = { ...process.env, DATABASE_URL: url.toString() };
+    execFileSync(process.execPath, ["scripts/migrate-postgres.mjs"], { env, stdio: "pipe" });
+    database = new PostgresDatabase(readPostgresConfigFromEnv(env));
     runStore = new PostgresOrchestrationRunStore(db());
     workerStore = new PostgresOrchestrationWorkerStore(db());
-  });
+  }, 30_000);
 
   afterAll(async () => {
     if (database) await database.close();
+    if (admin) {
+      await admin.query(`DROP DATABASE IF EXISTS "${databaseName}" WITH (FORCE)`);
+      await admin.end();
+    }
   });
 
   it("claims one run with an exclusive lease and blocks a second worker", async () => {

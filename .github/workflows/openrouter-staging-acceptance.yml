@@ -51,6 +51,9 @@ jobs:
 
       - run: npm ci --ignore-scripts --no-audit --no-fund
 
+      - name: Enable certificate-verified PostgreSQL TLS
+        run: bash scripts/configure-ci-postgres-tls.sh "${{ job.services.postgres.id }}"
+
       - name: Verify staging acceptance inputs
         shell: bash
         env:
@@ -67,13 +70,13 @@ jobs:
         run: npm run db:migrate
         env:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
-          GETDONE_DB_SSL: "false"
+          GETDONE_DB_SSL: "true"
 
       - name: Run real OpenRouter staging acceptance
         run: npm run ai:accept-staging
         env:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
-          GETDONE_DB_SSL: "false"
+          GETDONE_DB_SSL: "true"
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GETDONE_OPENROUTER_PRIMARY_MODEL: ${{ vars.OPENROUTER_PRIMARY_MODEL }}
           GETDONE_OPENROUTER_FALLBACK_MODEL: ${{ vars.OPENROUTER_FALLBACK_MODEL }}

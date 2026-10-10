@@ -21,6 +21,20 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
     steps:
       - uses: actions/checkout@v7
         with:
@@ -43,8 +57,25 @@ jobs:
       - run: npm run verify:contract-versions
       - run: npm run typecheck
       - run: npm run lint
-      - run: npm run verify:coverage
+      - name: Prepare certificate-verified PostgreSQL coverage
+        run: |
+          bash scripts/configure-ci-postgres-tls.sh "${{ job.services.postgres.id }}"
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+      - run: npm run db:migrate
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+          GETDONE_DB_SSL: "true"
+      - run: npm run build:worker-acceptance
+      - name: Verify unit and database coverage
+        run: npm run verify:coverage
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+          GETDONE_DB_SSL: "true"
+          GETDONE_DB_RUNTIME_ROLE: getdone_tenant_runtime
+          GETDONE_POSTGRES_INTEGRATION: "true"
       - run: npm run build:worker
+      - run: npm run build:orchestration-worker
       - run: docker build --file Dockerfile.worker --tag getdone-job-worker:ci .
       - run: docker build --file Dockerfile.web --tag getdone-web:ci --build-arg NEXT_PUBLIC_APP_ENV=development .
       - run: npm run build

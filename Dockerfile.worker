@@ -26,6 +26,7 @@ COPY --from=build /app/dist-worker ./dist-worker
 COPY --from=build /app/scripts/register-worker-alias.cjs ./scripts/register-worker-alias.cjs
 COPY scripts/verify-production-runtime.mjs scripts/verify-postgres-production.mjs ./scripts/
 COPY release ./release
+COPY lib/persistence/postgres/tls.ts ./lib/persistence/postgres/tls.ts
 
 EXPOSE 3001
 

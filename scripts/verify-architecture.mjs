@@ -1109,14 +1109,14 @@ if (
   releaseRegistry.database?.status !== "implemented-unconnected"
   || releaseRegistry.database?.engine !== "postgresql"
   || releaseRegistry.database?.minimumEngineVersion !== "16"
-  || releaseRegistry.database?.migrationVersion !== "2026-09-28.9zz"
-  || releaseRegistry.database?.schemaVersion !== "2.2.0"
+  || releaseRegistry.database?.migrationVersion !== "2026-10-10.1"
+  || releaseRegistry.database?.schemaVersion !== "2.3.0"
   || releaseRegistry.schemaVersions?.postgresPersistence?.version !== "1.1.0"
   || releaseRegistry.schemaVersions?.disasterRecovery?.version !== "1.0.0"
   || releaseRegistry.schemaVersions?.disasterRecovery?.contractTracked !== true
-  || releaseRegistry.schemaVersions?.zeroDowntimeMigrationPolicy?.version !== "1.1.0"
+  || releaseRegistry.schemaVersions?.zeroDowntimeMigrationPolicy?.version !== "1.2.0"
   || releaseRegistry.schemaVersions?.zeroDowntimeMigrationPolicy?.contractTracked !== true
-  || releaseRegistry.schemaVersions?.productionReleaseGate?.version !== "1.0.0"
+  || releaseRegistry.schemaVersions?.productionReleaseGate?.version !== "1.1.0"
   || releaseRegistry.schemaVersions?.productionReleaseGate?.contractTracked !== true
   || releaseRegistry.adapters?.postgresPersistence?.status !== "implemented-unconnected"
   || releaseRegistry.adapters?.postgresPersistence?.version !== "1.1.0"
@@ -1170,7 +1170,7 @@ if (
   fail("Phases 19-21 / Phase 34 Job bridge release state drifted");
 }
 if (
-  releaseRegistry.composition?.goldenPathHarnessVersion !== "1.1.0"
+  releaseRegistry.composition?.goldenPathHarnessVersion !== "1.2.0"
   || releaseRegistry.composition?.status !== "deterministic-simulation-only"
   || releaseRegistry.composition?.productionExecutionClaimed !== false
 ) {
@@ -1248,8 +1248,8 @@ for (const [name, state] of Object.entries(releaseEnvironment.environments ?? {}
     || state.execution?.liveJobExecutionBridgeStoreStatus !== status("controlApiPersistence")
     || state.database?.engine !== "postgresql"
     || state.database?.adapterStatus !== (state.connections?.database ? "connected" : "implemented-unconnected")
-    || state.database?.migrationVersion !== "2026-09-25.3"
-    || state.database?.schemaVersion !== "2.2.0"
+    || state.database?.migrationVersion !== "2026-10-10.1"
+    || state.database?.schemaVersion !== "2.3.0"
     || state.resourceFabric?.storageRuntimeStatus !== status("storageFabricRuntime")
     || state.resourceFabric?.failoverRuntimeStatus !== status("resilienceFailoverRuntime")
     || state.resourceFabric?.secondProviderStatus !== status("secondResourceProvider")

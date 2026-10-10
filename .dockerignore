@@ -1,0 +1,13 @@
+.git
+node_modules
+.next
+dist-worker
+dist-worker-acceptance
+dist-orchestration-worker
+dist-commissioning
+coverage
+playwright-report*
+test-results
+.env
+.env.*
+*.tsbuildinfo

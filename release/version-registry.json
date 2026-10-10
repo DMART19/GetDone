@@ -248,7 +248,7 @@
       ]
     },
     "zeroDowntimeMigrationPolicy": {
-      "version": "1.1.0",
+      "version": "1.2.0",
       "sourcePath": "config/zero-downtime-migration-policy.json",
       "contractTracked": true,
       "contractSourcePaths": [
@@ -257,7 +257,7 @@
       ]
     },
     "productionReleaseGate": {
-      "version": "1.0.0",
+      "version": "1.1.0",
       "sourcePath": "scripts/verify-production-promotion.mjs",
       "contractTracked": true,
       "contractSourcePaths": [
@@ -317,7 +317,7 @@
       ]
     },
     "authoritativeExecutionPath": {
-      "version": "1.0.0",
+      "version": "1.0.1",
       "sourcePath": "lib/orchestration/post-authorization-flow.ts",
       "contractTracked": true,
       "contractSourcePaths": [
@@ -758,9 +758,9 @@
     "status": "implemented-unconnected",
     "engine": "postgresql",
     "minimumEngineVersion": "16",
-    "migrationVersion": "2026-09-28.9zz",
-    "schemaVersion": "2.2.0",
-    "sourcePath": "migrations/2026-09-28.9zz_orchestration_runtime_grants.sql",
+    "migrationVersion": "2026-10-10.1",
+    "schemaVersion": "2.3.0",
+    "sourcePath": "migrations/2026-10-10.1_owner_passkey_enrollment.sql",
     "adapterSourcePath": "lib/persistence/postgres/client.ts"
   },
   "voice": {
@@ -848,7 +848,7 @@
     "sourcePath": "lib/security/phase44-adversarial-harness.ts"
   },
   "composition": {
-    "goldenPathHarnessVersion": "1.1.0",
+    "goldenPathHarnessVersion": "1.2.0",
     "status": "deterministic-simulation-only",
     "productionExecutionClaimed": false,
     "sourcePath": "lib/composition/golden-path-harness.ts",

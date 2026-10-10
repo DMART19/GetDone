@@ -353,14 +353,14 @@ if (failures.length === 0) {
     registry.database.status !== "implemented-unconnected"
     || registry.database.engine !== "postgresql"
     || registry.database.minimumEngineVersion !== "16"
-    || registry.database.migrationVersion !== "2026-09-28.7"
+    || registry.database.migrationVersion !== "2026-10-10.1"
     || registry.database.schemaVersion !== "2.3.0"
     || registry.schemaVersions.postgresPersistence?.version !== "1.1.0"
     || registry.schemaVersions.disasterRecovery?.version !== "1.0.0"
     || registry.schemaVersions.disasterRecovery?.sourcePath !== "lib/execution/disaster-recovery.ts"
-    || registry.schemaVersions.zeroDowntimeMigrationPolicy?.version !== "1.0.0"
+    || registry.schemaVersions.zeroDowntimeMigrationPolicy?.version !== "1.2.0"
     || registry.schemaVersions.zeroDowntimeMigrationPolicy?.contractTracked !== true
-    || registry.schemaVersions.productionReleaseGate?.version !== "1.0.0"
+    || registry.schemaVersions.productionReleaseGate?.version !== "1.1.0"
     || registry.schemaVersions.productionReleaseGate?.contractTracked !== true
     || registry.adapters.postgresPersistence?.version !== "1.1.0"
     || manifest.database.status !== registry.database.status
@@ -414,7 +414,7 @@ if (failures.length === 0) {
     || registry.execution.softwareWorkerRuntimeStatus !== "implemented"
     || registry.execution.softwareDeploymentStatus !== "not-connected"
     || registry.execution.jobExecutionRouterStatus !== "implemented"
-    || registry.execution.jobExecutionRouterVersion !== "1.1.0"
+    || registry.execution.jobExecutionRouterVersion !== "1.2.0"
     || registry.execution.persistentWorkerServiceStatus !== "implemented-unconnected"
     || registry.execution.persistentWorkerServiceVersion !== "1.0.0"
     || registry.execution.jobExecutionBridgeStatus !== "deterministic-contract"

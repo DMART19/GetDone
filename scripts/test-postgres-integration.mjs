@@ -311,7 +311,8 @@ const allMigrationVersions = [
   "2026-09-28.8",
   "2026-09-28.9",
   "2026-09-28.9z",
-  "2026-09-28.9zz"
+  "2026-09-28.9zz",
+  "2026-10-10.1"
 ];
 
 try {
@@ -326,7 +327,7 @@ try {
   const emptyUrl = databaseUrl(databases.empty);
   runMigrations(emptyUrl);
   await withPool(emptyUrl, async (pool) => {
-    await assertMigrationState(pool, "2026-09-28.9zz", allMigrationVersions);
+    await assertMigrationState(pool, "2026-10-10.1", allMigrationVersions);
     await seedVerifiedBackupFixture(pool);
   });
   const emptyVerification = runProductionVerifier(emptyUrl);
@@ -342,7 +343,7 @@ try {
   });
   runMigrations(upgradeUrl);
   await withPool(upgradeUrl, async (pool) => {
-    await assertMigrationState(pool, "2026-09-28.9zz", allMigrationVersions);
+    await assertMigrationState(pool, "2026-10-10.1", allMigrationVersions);
     await seedVerifiedBackupFixture(pool);
   });
   const upgradeVerification = runProductionVerifier(upgradeUrl);
@@ -353,7 +354,7 @@ try {
 
   console.log(JSON.stringify({
     postgresMajor: Math.floor(serverVersionNum / 10000),
-    latestMigration: "2026-09-28.9zz",
+    latestMigration: "2026-10-10.1",
     emptyDatabaseMigration: "verified",
     previousVersionUpgrade: "verified",
     productionVerifierEmptyDatabase: JSON.parse(emptyVerification),

@@ -8,7 +8,7 @@ services:
     plan: starter
     repo: https://github.com/DMART19/GetDone
     branch: main
-    autoDeployTrigger: commit
+    autoDeployTrigger: off
     buildCommand: npm ci --include=dev && npm run build
     startCommand: npm run start
     healthCheckPath: /api/health
@@ -58,7 +58,7 @@ services:
     plan: starter
     repo: https://github.com/DMART19/GetDone
     branch: main
-    autoDeployTrigger: commit
+    autoDeployTrigger: off
     buildCommand: npm ci --include=dev && npm run build:worker
     startCommand: npm run start:worker
     maxShutdownDelaySeconds: 120
@@ -157,7 +157,7 @@ services:
     plan: starter
     repo: https://github.com/DMART19/GetDone
     branch: main
-    autoDeployTrigger: commit
+    autoDeployTrigger: off
     buildCommand: npm ci --include=dev && npm run build:orchestration-worker
     startCommand: npm run start:orchestration-worker
     maxShutdownDelaySeconds: 120
@@ -253,7 +253,7 @@ envVarGroups:
   - name: getdone-production-runtime
     envVars:
       - key: NODE_VERSION
-        value: 24.19.0
+        value: 24.14.1
       - key: NODE_ENV
         value: production
       - key: GETDONE_RUNTIME_ENV

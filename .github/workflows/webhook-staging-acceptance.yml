@@ -58,6 +58,9 @@ jobs:
 
       - run: npm ci --ignore-scripts --no-audit --no-fund
 
+      - name: Enable certificate-verified PostgreSQL TLS
+        run: bash scripts/configure-ci-postgres-tls.sh "${{ job.services.postgres.id }}"
+
       - name: Generate ephemeral webhook broker material
         shell: bash
         run: |
@@ -107,13 +110,13 @@ jobs:
         run: npm run db:migrate
         env:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
-          GETDONE_DB_SSL: "false"
+          GETDONE_DB_SSL: "true"
 
       - name: Run governed live webhook staging acceptance
         run: npm run webhook:accept-staging
         env:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
-          GETDONE_DB_SSL: "false"
+          GETDONE_DB_SSL: "true"
           GETDONE_WEBHOOK_STAGING_ACCEPTANCE: "true"
           GETDONE_WEBHOOK_STAGING_ORIGIN: ${{ env.GETDONE_WEBHOOK_STAGING_ORIGIN }}
           GETDONE_WEBHOOK_STAGING_SIGNING_SECRET: ${{ env.GETDONE_WEBHOOK_STAGING_SIGNING_SECRET }}

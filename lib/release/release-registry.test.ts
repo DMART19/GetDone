@@ -488,7 +488,7 @@ describe("Phase 41 release/version registry", () => {
       persistenceBackend: "postgresql"
     });
     expect(registry.composition).toMatchObject({
-      goldenPathHarnessVersion: "1.1.0",
+      goldenPathHarnessVersion: "1.2.0",
       status: "deterministic-simulation-only",
       productionExecutionClaimed: false,
       sourcePath: "lib/composition/golden-path-harness.ts",
@@ -538,8 +538,8 @@ describe("Phase 41 release/version registry", () => {
       status: "implemented-unconnected",
       engine: "postgresql",
       minimumEngineVersion: "16",
-      migrationVersion: "2026-09-28.9zz",
-      schemaVersion: "2.2.0"
+      migrationVersion: "2026-10-10.1",
+      schemaVersion: "2.3.0"
     });
     expect(registry.adapters.postgresPersistence).toMatchObject({
       status: "implemented-unconnected",
@@ -555,12 +555,12 @@ describe("Phase 41 release/version registry", () => {
       contractTracked: true
     });
     expect(registry.schemaVersions.zeroDowntimeMigrationPolicy).toMatchObject({
-      version: "1.1.0",
+      version: "1.2.0",
       sourcePath: "config/zero-downtime-migration-policy.json",
       contractTracked: true
     });
     expect(registry.schemaVersions.productionReleaseGate).toMatchObject({
-      version: "1.0.0",
+      version: "1.1.0",
       sourcePath: "scripts/verify-production-promotion.mjs",
       contractTracked: true
     });
@@ -570,8 +570,8 @@ describe("Phase 41 release/version registry", () => {
         engine: "postgresql",
         minimumEngineVersion: "16",
         adapterStatus: "implemented-unconnected",
-        migrationVersion: "2026-09-25.3",
-        schemaVersion: "2.2.0"
+        migrationVersion: "2026-10-10.1",
+        schemaVersion: "2.3.0"
       });
       expect(state.execution).toMatchObject({
         durableJobStoreStatus: "not-connected",

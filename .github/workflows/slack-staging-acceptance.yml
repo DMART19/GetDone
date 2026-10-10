@@ -50,6 +50,9 @@ jobs:
 
       - run: npm ci --ignore-scripts --no-audit --no-fund
 
+      - name: Enable certificate-verified PostgreSQL TLS
+        run: bash scripts/configure-ci-postgres-tls.sh "${{ job.services.postgres.id }}"
+
       - name: Verify protected Slack staging inputs
         shell: bash
         env:
@@ -68,13 +71,13 @@ jobs:
         run: npm run db:migrate
         env:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
-          GETDONE_DB_SSL: "false"
+          GETDONE_DB_SSL: "true"
 
       - name: Run governed real Slack staging acceptance
         run: npm run slack:accept-staging
         env:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
-          GETDONE_DB_SSL: "false"
+          GETDONE_DB_SSL: "true"
           GETDONE_SLACK_STAGING_ACCEPTANCE: "true"
           GETDONE_SLACK_STAGING_BOT_TOKEN: ${{ secrets.SLACK_STAGING_BOT_TOKEN }}
           GETDONE_SLACK_STAGING_READ_TOKEN: ${{ secrets.SLACK_STAGING_READ_TOKEN }}

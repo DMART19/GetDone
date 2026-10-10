@@ -4,7 +4,7 @@ import {
   readPostgresConfigFromEnv
 } from "@/lib/persistence/postgres/client";
 
-export const REQUIRED_POSTGRES_MIGRATION = "2026-09-28.9zz";
+export const REQUIRED_POSTGRES_MIGRATION = "2026-10-10.1";
 
 export const REQUIRED_POSTGRES_RELATIONS = Object.freeze([
   "getdone_schema_migrations",
@@ -34,6 +34,7 @@ export const REQUIRED_POSTGRES_RELATIONS = Object.freeze([
   "auth_webauthn_credentials",
   "auth_step_up_challenges",
   "auth_sign_in_challenges",
+  "auth_owner_enrollments",
   "organizations",
   "companies",
   "portfolios",

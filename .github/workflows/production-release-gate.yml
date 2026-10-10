@@ -68,6 +68,9 @@ jobs:
 
       - run: npm ci --ignore-scripts --no-audit --no-fund
 
+      - name: Enable certificate-verified PostgreSQL TLS
+        run: bash scripts/configure-ci-postgres-tls.sh "${{ job.services.postgres.id }}"
+
       - name: Install PostgreSQL client tools
         run: |
           sudo apt-get update
@@ -86,13 +89,13 @@ jobs:
         run: npm run db:migrate
         env:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
-          GETDONE_DB_SSL: "false"
+          GETDONE_DB_SSL: "true"
 
       - name: Record verified canary backup evidence
         run: npm run db:record-backup
         env:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
-          GETDONE_DB_SSL: "false"
+          GETDONE_DB_SSL: "true"
           GETDONE_BACKUP_REF: production-release-gate-canary
           GETDONE_BACKUP_VERIFICATION_HASH: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 
@@ -103,7 +106,7 @@ jobs:
         run: npm run test:e2e:staging
         env:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
-          GETDONE_DB_SSL: "false"
+          GETDONE_DB_SSL: "true"
           GETDONE_SESSION_TTL_SECONDS: "3600"
           GETDONE_SIGN_IN_CHALLENGE_TTL_SECONDS: "300"
           GETDONE_STEP_UP_TTL_SECONDS: "300"
@@ -125,7 +128,7 @@ jobs:
         env:
           GETDONE_OPENROUTER_STAGING_ACCEPTANCE: "true"
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
-          GETDONE_DB_SSL: "false"
+          GETDONE_DB_SSL: "true"
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GETDONE_OPENROUTER_PRIMARY_MODEL: ${{ vars.OPENROUTER_PRIMARY_MODEL }}
           GETDONE_OPENROUTER_FALLBACK_MODEL: ${{ vars.OPENROUTER_FALLBACK_MODEL }}
@@ -185,7 +188,7 @@ jobs:
         env:
           GETDONE_HTTP_STAGING_ACCEPTANCE: "true"
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
-          GETDONE_DB_SSL: "false"
+          GETDONE_DB_SSL: "true"
 
       - name: Build dedicated worker
         run: npm run build:worker
@@ -194,7 +197,7 @@ jobs:
         run: npm run release:worker-health-canary
         env:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
-          GETDONE_DB_SSL: "false"
+          GETDONE_DB_SSL: "true"
           GETDONE_RUNTIME_ENV: staging
           GETDONE_DATA_MODE: authoritative
           GETDONE_PROCESS_ROLE: job-worker

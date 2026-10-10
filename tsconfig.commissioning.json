@@ -1,0 +1,7 @@
+{
+  "extends": "./tsconfig.worker.json",
+  "compilerOptions": { "outDir": "dist-commissioning" },
+  "files": ["lib/commissioning/github-entry.ts"],
+  "include": [],
+  "exclude": ["node_modules", ".next", "dist-commissioning"]
+}

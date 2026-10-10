@@ -1,3 +1,4 @@
+import * as productionFlow from "./post-authorization-flow";
 import { describe, expect, it } from "vitest";
 import {
   assertAuthorizationConsumption,
@@ -774,5 +775,79 @@ describe("Core Tranche A: AuthorizationGrant -> Task DAG -> Jobs", () => {
         now: () => new Date("2026-09-28T13:00:11.000Z")
       })
     ).rejects.toThrow(/scope|tenant|lineage/i);
+  });
+});
+
+
+describe("production coordinator Task DAG handoff", () => {
+  function productionFixture() {
+    const built = buildAuthorized();
+    let artifact: productionFlow.DurableTaskDagArtifact | null = null;
+    const taskDags: productionFlow.OrchestrationTaskDagStore = {
+      async get() { return artifact; },
+      async getByRunId() { return artifact; },
+      async create(value) { artifact = value; return { status: "created", artifact: value }; }
+    };
+    const input: Parameters<typeof productionFlow.advanceAuthorizedToTasksCreated>[0] = {
+      run: built.authorized, ...built.stores, taskDags,
+      grants: { get: id => built.grantStore.get(id), async insertMany() { throw new Error("No new authority allowed"); } },
+      taskDedupe: { async claim(task, consumption) {
+        await built.grantStore.consume(consumption);
+        return { created: true, task, consumption };
+      } },
+      now: () => new Date("2026-09-28T13:00:11.000Z")
+    };
+    return { built, input, taskDags };
+  }
+
+  it("persists the DAG checkpoint on first materialization and replay", async () => {
+    const { built, input, taskDags } = productionFixture();
+    const first = await productionFlow.advanceAuthorizedToTasksCreated(input);
+    const replay = await productionFlow.advanceAuthorizedToTasksCreated(input);
+    expect(first.kind).toBe("advance");
+    if (first.kind !== "advance" || replay.kind !== "advance") throw new Error("Expected task creation");
+    const dag = await taskDags.getByRunId(built.authorized.id);
+    expect(first.next.checkpoints.taskDag).toEqual({ id: dag!.id, hash: dag!.artifactHash });
+    expect(replay.next.checkpoints).toEqual(first.next.checkpoints);
+    expect(built.grantStore.consumptions.size).toBe(4);
+  });
+
+  it("hands off to the governed worker and waits for verification", async () => {
+    const { input, taskDags } = productionFixture();
+    const tasks = await productionFlow.advanceAuthorizedToTasksCreated(input);
+    if (tasks.kind !== "advance") throw new Error("Expected task creation");
+    const taskDag = (await taskDags.getByRunId(input.run.id))!;
+    const graph = productionFlow.createJobGraphArtifact({ run: tasks.next, taskDag, createdAt: input.now!().toISOString(), jobs: [{
+      id: "job-1", runId: input.run.id, nodeId: "node-1", taskId: taskDag.tasks[0].id,
+      capability: "health.check", capabilityInput: {}, dependsOnJobIds: [],
+      authorizationGrantId: taskDag.tasks[0].authorizationConsumption.grantId,
+      authorizationGrantHash: "a".repeat(64), authorizationConsumptionHash: taskDag.tasks[0].authorizationConsumption.consumptionHash,
+      state: "enqueued", createdAt: input.now!().toISOString(), updatedAt: input.now!().toISOString(), nodeHash: "b".repeat(64)
+    }] });
+    let result: Awaited<ReturnType<productionFlow.GovernedJobRuntimePort["reconcile"]>> = { kind: "pending", reason: "worker still running" };
+    const runtime: productionFlow.GovernedJobRuntimePort = {
+      descriptor: { providerCalls: "job-worker-only", authoritativeState: "postgresql", requiresAuthorizationConsumption: true, verifiesBeforeSuccess: true },
+      async materializeAndEnqueue() { return graph; }, async reconcile() { return result; }
+    };
+    const jobs = await productionFlow.advanceTasksCreatedToJobsEnqueued({ run: tasks.next, taskDags, runtime, now: input.now });
+    if (jobs.kind !== "advance") throw new Error("Expected jobs");
+    const executing = productionFlow.advanceJobsEnqueuedToExecuting({ run: jobs.next, now: input.now });
+    if (executing.kind !== "advance") throw new Error("Expected execution");
+    const executionInput = { run: executing.next, taskDags, runtime, jobGraphs: { async create() { return { status: "created" as const, artifact: graph }; }, async getByRunId() { return graph; } }, now: input.now };
+    expect(await productionFlow.advanceExecutingToVerifying(executionInput)).toMatchObject({ kind: "defer", reason: "worker still running" });
+    result = { kind: "failed", code: "PROVIDER_FAILED", reason: "provider rejected" };
+    expect(await productionFlow.advanceExecutingToVerifying(executionInput)).toMatchObject({ kind: "failed", code: "PROVIDER_FAILED" });
+    result = { kind: "verified", jobGraph: graph, verificationRequestIds: [], evidence: [] };
+    await expect(productionFlow.advanceExecutingToVerifying(executionInput)).rejects.toThrow(/without authoritative Verification/);
+    result = { ...result, verificationRequestIds: ["verification-1"] };
+    const verifying = await productionFlow.advanceExecutingToVerifying(executionInput);
+    expect(verifying.kind === "advance" && verifying.next.state).toBe("verifying");
+    expect(verifying.kind === "advance" && verifying.next.checkpoints.taskDag).toEqual(tasks.next.checkpoints.taskDag);
+  });
+
+  it("fails before task generation when authorization lineage is missing or expired", async () => {
+    const { input } = productionFixture();
+    await expect(productionFlow.advanceAuthorizedToTasksCreated({ ...input, grants: { ...input.grants, async get() { return null; } } })).rejects.toThrow(/AuthorizationGrant checkpoint/);
+    expect(await productionFlow.advanceAuthorizedToTasksCreated({ ...input, now: () => new Date("2026-09-29T13:00:00Z") })).toMatchObject({ kind: "failed", code: "TASK_GENERATION_BLOCKED" });
   });
 });

@@ -63,3 +63,34 @@ export async function getPasskeyAssertion(challenge: BrowserPasskeyChallenge) {
     }
   };
 }
+
+export async function createOwnerPasskey(token: string): Promise<{ userId: string }> {
+  async function post(path: string, body: unknown) {
+    const response = await fetch(`/api/control/auth/enrollment/${path}`, {
+      method: "POST", cache: "no-store", headers: { "content-type": "application/json" }, body: JSON.stringify(body)
+    });
+    const result = await response.json();
+    if (!response.ok || !result.ok) throw new Error(result.error?.message || "Owner setup is unavailable");
+    return result.data;
+  }
+  if (!window.PublicKeyCredential) throw new Error("This browser does not support passkeys.");
+  const options = await post("begin", { token });
+  const credential = await navigator.credentials.create({ publicKey: {
+    ...options, challenge: decodeBase64Url(options.challenge),
+    user: { ...options.user, id: decodeBase64Url(options.user.id) },
+    excludeCredentials: []
+  }});
+  if (!(credential instanceof PublicKeyCredential) || !(credential.response instanceof AuthenticatorAttestationResponse)) {
+    throw new Error("Passkey creation was cancelled or unavailable.");
+  }
+  return post("complete", { token, credential: {
+    id: credential.id, rawId: encodeBase64Url(credential.rawId), type: "public-key",
+    response: {
+      clientDataJSON: encodeBase64Url(credential.response.clientDataJSON),
+      attestationObject: encodeBase64Url(credential.response.attestationObject),
+      transports: credential.response.getTransports()
+    },
+    clientExtensionResults: credential.getClientExtensionResults(),
+    authenticatorAttachment: credential.authenticatorAttachment ?? undefined
+  }});
+}
