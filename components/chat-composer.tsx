@@ -1,102 +1,106 @@
 "use client";
 
-import { ArrowUp, Paperclip } from "lucide-react";
-import { FormEvent, useState } from "react";
+import { ArrowUp } from "lucide-react";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import { DecisionActions } from "@/components/decision-actions";
+import type { ThreadTurn } from "@/lib/conversation/thread-service";
+import type { ConversationState, RegisteredBusiness } from "@/lib/conversation/understanding";
 
-function authoritativeRuntime() {
-  return process.env.NEXT_PUBLIC_APP_ENV !== "development";
-}
-
+type Thread = { threadId: string; turns: ThreadTurn[]; state: ConversationState; businesses: RegisteredBusiness[] };
 export function ChatComposer() {
   const [message, setMessage] = useState("");
-  const [preview, setPreview] = useState<string | null>(null);
+  const [thread, setThread] = useState<Thread | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-
-  async function pollStatus(intentId: string) {
-    for (let attempt = 0; attempt < 12; attempt += 1) {
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      const response = await fetch("/api/control/chat/" + encodeURIComponent(intentId), { cache: "no-store" });
-      const value = await response.json().catch(() => null) as {
-        ok?: boolean;
-        data?: { lifecycle?: { label?: string; terminal?: boolean; verified?: boolean }; answer?: { text?: string } };
-      } | null;
-      if (!response.ok || !value?.ok || !value.data?.lifecycle) return;
-      setPreview(value.data.answer?.text ?? value.data.lifecycle.label ?? "GetDone is working…");
-      if (value.data.lifecycle.terminal) return;
+  const [loading, setLoading] = useState(true);
+  const [expanded, setExpanded] = useState(true);
+  const currentId = useRef<string | undefined>(undefined);
+  const mounted = useRef(true);
+  const pending = useRef<{ message: string; key: string } | undefined>(undefined);
+  const load = useCallback(async (signal?: AbortSignal) => {
+    const response = await fetch(`/api/control/chat${currentId.current ? `?threadId=${encodeURIComponent(currentId.current)}` : ""}`, { cache: "no-store", signal });
+    const value = await response.json();
+    if (!response.ok || !value.ok) throw new Error(value.error?.message || "Conversation could not be restored");
+    if (!mounted.current || signal?.aborted) return;
+    currentId.current = value.data.threadId;
+    setThread(value.data);
+    setLoading(false);
+    setError(null);
+  }, []);
+  useEffect(() => {
+    mounted.current = true;
+    const controller = new AbortController();
+    void load(controller.signal).catch(e => { if (!controller.signal.aborted) { setError(e.message); setLoading(false); } });
+    return () => { mounted.current = false; controller.abort(); };
+  }, [load]);
+  const running = thread?.turns.some(turn => !turn.status.lifecycle.terminal);
+  useEffect(() => {
+    if (!running || submitting) return;
+    const controller = new AbortController();
+    let timer: ReturnType<typeof setTimeout>;
+    async function poll() {
+      try { await load(controller.signal); }
+      catch { if (!controller.signal.aborted) setError("Connection interrupted. Work may still be running; retrying automatically."); }
+      if (!controller.signal.aborted) timer = setTimeout(poll, 4000);
     }
-  }
+    timer = setTimeout(poll, 2000);
+    return () => { controller.abort(); clearTimeout(timer); };
+  }, [running, submitting, load]);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
     const clean = message.trim();
-    if (!clean || submitting) return;
-
-    if (!authoritativeRuntime()) {
-      setPreview(`Queued locally for preview: “${clean}”`);
-      setMessage("");
-      return;
-    }
-
+    if (!clean || submitting || !currentId.current) return;
     setSubmitting(true);
-    setPreview("Sending to GetDone...");
+    setError(null);
+    if (pending.current?.message !== clean) pending.current = { message: clean, key: crypto.randomUUID() };
     try {
       const response = await fetch("/api/control/chat", {
-        method: "POST",
-        cache: "no-store",
-        headers: {
-          "content-type": "application/json",
-          "idempotency-key": crypto.randomUUID()
-        },
-        body: JSON.stringify({ message: clean, channel: "chat" })
+        method: "POST", cache: "no-store", headers: { "content-type": "application/json", "idempotency-key": pending.current.key },
+        body: JSON.stringify({ message: clean, threadId: currentId.current, channel: "chat" })
       });
-      const value = await response.json().catch(() => null) as {
-        ok?: boolean;
-        data?: { id?: string; answer?: { text?: string }; conversation?: { intent?: string; continuation?: string; requiresExecutionAuthority?: boolean } };
-        error?: { message?: string };
-      } | null;
-      if (!response.ok || !value?.ok) {
-        throw new Error(value?.error?.message || "GetDone could not accept the message");
-      }
+      const value = await response.json();
+      if (!response.ok || !value.ok) throw new Error(value.error?.message || "Message was not accepted");
+      pending.current = undefined;
       setMessage("");
-      const intent = value.data?.conversation?.intent;
-      setPreview(
-        value.data?.answer?.text ?? (intent === "status_query" || intent === "explain_query"
-          ? "Checking authoritative evidence…"
-          : intent === "recommend_request" || intent === "investigate_request"
-            ? "Building a grounded response…"
-            : value.data?.conversation?.requiresExecutionAuthority
-              ? "Request accepted. GetDone will plan it and ask before any action that requires approval."
-              : "Request accepted. GetDone is resolving the right context.")
-      );
-      if (value.data?.id) void pollStatus(value.data.id);
-    } catch (error) {
-      setPreview(error instanceof Error ? error.message : "GetDone could not accept the message");
-    } finally {
-      setSubmitting(false);
-    }
+      await load();
+    } catch (e) { setError(e instanceof Error ? e.message : "Connection failed. Your message is retained for retry."); }
+    finally { if (mounted.current) setSubmitting(false); }
   }
-
-  return (
-    <div className="composer-wrap">
-      {preview ? <div className="local-toast" role="status">{preview}</div> : null}
-      <form className="composer" onSubmit={submit}>
-        <button type="button" className="composer-icon" aria-label="Attach"><Paperclip size={20} /></button>
-        <input
-          value={message}
-          onChange={(event) => setMessage(event.target.value)}
-          placeholder="Message GetDone..."
-          aria-label="Message GetDone"
-          disabled={submitting}
-        />
-        <button
-          className="send-button"
-          aria-label={authoritativeRuntime() ? "Send message" : "Send preview message"}
-          type="submit"
-          disabled={submitting}
-        >
-          <ArrowUp size={20} />
-        </button>
-      </form>
+  return <section className="composer-wrap" aria-label="Business conversation">
+    <div className="chat-toolbar">
+      <button type="button" onClick={() => setExpanded(!expanded)} aria-expanded={expanded}>{expanded ? "Hide conversation" : "Show conversation"}</button>
+      <span>{thread?.state.activeBusiness?.name ?? "Choose a business by name"}</span>
     </div>
-  );
+    {expanded && <div className="chat-thread" role="log" aria-label="Conversation history">
+      {loading && <p role="status">Restoring conversation…</p>}
+      {!loading && thread?.turns.length === 0 && <p>Ask about a registered business, investigate a finding, or propose work.</p>}
+      {thread?.turns.map(({ record, status }) => <article key={record.id} className="chat-turn">
+        <p className="chat-user"><strong>You</strong><br />{record.message}</p>
+        <div className="chat-assistant"><strong>GetDone</strong>
+          <p>{status.answer?.text ?? status.lifecycle.label}</p>
+          {!status.answer && <p className="chat-progress" role="status">{status.lifecycle.label}{status.lifecycle.verified ? " — verification recorded" : ""}</p>}
+          {status.answer?.evidenceRefs.length ? <details><summary>Evidence ({status.answer.evidenceRefs.length})</summary><ul>{status.answer.evidenceRefs.map(ref => <li key={ref}>{ref}</li>)}</ul></details> : null}
+          {status.verificationRefs?.length ? <details open><summary>Verified results</summary><ul>{status.verificationRefs.map(ref => <li key={ref}>Verification receipt: {ref}</li>)}</ul></details> : null}
+          {status.results?.map(result => <div key={result.jobId} className="chat-result">
+            <p><strong>{result.explanation.title}</strong><br />{result.explanation.summary}</p>
+            <p>Work: {result.explanation.authority.capabilityNames.join(", ") || result.jobId}. Verification: {result.explanation.verification.status}.</p>
+            {result.failure && <p>{result.failure.safetyMessage}</p>}
+          </div>)}
+          {status.decisions?.map(decision => <div key={decision.id} className="chat-approval">
+            <p>Proposed step: {decision.summary?.title ?? decision.stepId ?? decision.id}. {decision.requiresStepUp ? "Passkey confirmation required." : "Approval required."}</p>
+            {decision.summary && <p>{decision.summary.expectedOutcome}<br />Estimated cost: ${(decision.summary.estimatedCostCents / 100).toFixed(2)}. Risk: {decision.summary.risk}.<br />Verification: {decision.summary.verification.join("; ")}</p>}
+            {decision.status === "pending" && decision.summary ? <DecisionActions authoritative decisionId={decision.id} initialStatus={decision.status} portfolioId={record.portfolioId}
+              onResolved={() => { void load().catch(() => setError("Approval saved. Refresh to check execution.")); }} /> : <p>Decision: {decision.status}. {decision.status === "pending" && <a href={`/decisions/${encodeURIComponent(decision.id)}`}>Review full scope before approving</a>}</p>}
+          </div>)}
+        </div>
+      </article>)}
+      {submitting && <p role="status">Understanding your message and selecting evidence…</p>}
+    </div>}
+    {error && <div className="local-toast" role="alert">{error} <button type="button" onClick={() => { void load().catch(e => setError(e.message)); }}>Retry loading</button></div>}
+    <form className="composer" onSubmit={submit}>
+      <input value={message} onChange={event => setMessage(event.target.value)} placeholder="Message GetDone…" aria-label="Message GetDone" disabled={submitting || loading} />
+      <button className="send-button" aria-label="Send message" type="submit" disabled={submitting || loading || !thread || !message.trim()}><ArrowUp size={20} /></button>
+    </form>
+  </section>;
 }

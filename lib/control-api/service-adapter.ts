@@ -1,3 +1,5 @@
+import type { OrchestrationPlanProposalStore } from "@/lib/orchestration/planning-flow";
+import { redactTelemetryText } from "@/lib/observability/telemetry";
 import { authorizeRequest } from "@/lib/auth/guard";
 import { analyzeConversationMessage } from "@/lib/conversation/contracts";
 import { ownerLifecycleFromRun } from "@/lib/conversation/owner-lifecycle";
@@ -43,6 +45,7 @@ import type {
   DecisionMutationInput,
   JobResultView,
   OwnerIntentInput,
+  PreparedConversationTurn,
   OwnerIntentRecord,
   ResourceDiscoveryInput,
   ResourceEnrollmentActionInput,
@@ -88,6 +91,7 @@ export interface ServiceBackedControlApiDependencies {
   scopes: ControlApiScopeResolver;
   authorizationEvidence?: ControlApiAuthorizationEvidenceResolver;
   intents: OwnerIntentStore;
+  conversationPlans?: Pick<OrchestrationPlanProposalStore, "get">;
   orchestrations?: { getByCorrelationId(correlationId: string): Promise<OrchestrationRunRecord | null> };
   objectives: ScopedReadStore<ObjectiveRecord>;
   objectiveIntake: ObjectiveIntakeStore;
@@ -254,7 +258,8 @@ export class ServiceBackedControlApiAdapter implements ControlApiApplicationAdap
     principal: ControlApiPrincipal,
     input: OwnerIntentInput,
     idempotencyKey: string,
-    correlationId?: string
+    correlationId?: string,
+    prepared?: PreparedConversationTurn
   ) {
     return this.scoped(principal, async () => {
       requireRole(principal, ["owner"], "Owner intent submission");
@@ -267,8 +272,12 @@ export class ServiceBackedControlApiAdapter implements ControlApiApplicationAdap
         userId: principal.scope.userId,
         message: input.message,
         channel: input.channel ?? "chat",
-        status: "accepted",
-        conversation: analyzeConversationMessage(input.message),
+        status: prepared?.clarification ? "answered" : "accepted",
+        threadId: prepared?.threadId,
+        requestKeyHash: prepared?.requestKeyHash,
+        conversationState: prepared?.state,
+        conversation: prepared?.semantics ?? analyzeConversationMessage(input.message),
+        ...(prepared?.clarification ? { answer: { text: prepared.clarification, evidenceRefs: [], knownUnknowns: [prepared.clarification], observedAt: this.now().toISOString() } } : {}),
         receivedAt: this.now().toISOString()
       });
       return this.deps.intents.create(record, idempotencyKey);
@@ -281,14 +290,42 @@ export class ServiceBackedControlApiAdapter implements ControlApiApplicationAdap
         throw new ControlPlaneError("UNAVAILABLE", "Conversation status is not connected");
       }
       const intent = await this.deps.intents.get(intentId);
-      if (!intent || intent.portfolioId !== principal.scope.portfolioId || intent.companyId !== principal.scope.companyId || intent.userId !== principal.scope.userId) {
+      if (!intent || intent.portfolioId !== principal.scope.portfolioId || intent.companyId !== principal.scope.companyId || intent.userId !== principal.scope.userId || intent.environment !== principal.scope.environment) {
         throw new ControlPlaneError("NOT_FOUND", "Conversation turn was not found");
       }
       const conversation = intent.conversation ?? analyzeConversationMessage(intent.message);
       const run = intent.correlationId
         ? await this.deps.orchestrations.getByCorrelationId(intent.correlationId)
         : null;
+      if (run && (run.scope.portfolioId !== intent.portfolioId || run.scope.companyId !== intent.companyId
+        || run.scope.userId !== intent.userId || run.scope.environment !== intent.environment
+        || run.source.type !== "owner-intent" || run.source.id !== intent.id)) {
+        throw new ControlPlaneError("NOT_FOUND", "Conversation execution was not found");
+      }
+      const plan = run?.checkpoints.plan && this.deps.conversationPlans
+        ? await this.deps.conversationPlans.get(run.checkpoints.plan.id) : null;
+      const visiblePlan = plan && plan.portfolioId === principal.scope.portfolioId && plan.companyId === principal.scope.companyId
+        && plan.runId === run?.id && plan.artifactHash === run.checkpoints.plan?.hash
+        && ["public", "internal"].includes(plan.proposal.scope.dataClass) ? plan : null;
+      const decisions = run ? (await Promise.all(run.checkpoints.decisionIds.map(id => this.deps.decisions.get(id))))
+        .filter((d): d is AuthoritativeDecision => Boolean(d && d.portfolioId === principal.scope.portfolioId && d.companyId === principal.scope.companyId
+          && d.approvalBinding?.orchestrationRunId === run.id))
+        .map(d => {
+          const step = visiblePlan?.proposal.steps.find(step => step.id === d.approvalBinding?.stepId);
+          const bound = visiblePlan?.planHash === d.approvalBinding?.planHash && visiblePlan?.artifactHash === d.approvalBinding?.planArtifactHash;
+          return { id: d.id, status: d.status, stepId: d.approvalBinding?.stepId, requiresStepUp: d.requiresStepUp,
+            summary: step && bound ? { title: redactTelemetryText(step.title), expectedOutcome: redactTelemetryText(step.expectedOutcome),
+              estimatedCostCents: step.estimatedCostCents, risk: step.risk.level,
+              verification: step.verificationRequirements.map(v => redactTelemetryText(v.description)) } : undefined };
+        }) : [];
+      const results = run ? (await Promise.all(run.checkpoints.jobIds.map(id => this.deps.jobs.get(id))))
+        .filter((job): job is JobRecord => Boolean(job && job.portfolioId === principal.scope.portfolioId
+          && job.companyId === principal.scope.companyId && job.correlationId === run.correlationId))
+        .map(toJobResultView) : [];
       return Object.freeze({
+        results,
+        decisions,
+        verificationRefs: run?.checkpoints.verifiedOutcomes.map(outcome => outcome.verificationReceiptId) ?? [],
         intentId: intent.id,
         conversation,
         lifecycle: run

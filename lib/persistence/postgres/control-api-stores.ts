@@ -1,3 +1,5 @@
+import type { ContextItem } from "@/lib/intelligence/context";
+import { groundConversationAnswer } from "@/lib/conversation/answers";
 import { sha256Hex } from "@/lib/control-plane/canonical-hash";
 import { ControlPlaneError } from "@/lib/control-plane/errors";
 import { createAuditEvent } from "@/lib/domain/audit";
@@ -48,7 +50,8 @@ export class PostgresOwnerIntentStore implements OwnerIntentStore {
       companyId: record.companyId,
       userId: record.userId,
       message: record.message,
-      channel: record.channel
+      channel: record.channel,
+      threadId: record.threadId
     }));
   }
 
@@ -72,78 +75,36 @@ export class PostgresOwnerIntentStore implements OwnerIntentStore {
 
   private async groundReadOnlyAnswer(record: OwnerIntentRecord) {
     const intent = record.conversation?.intent;
-    if (!intent || !["status_query", "explain_query", "recommend_request"].includes(intent)) return record;
-    const result = await this.db.query<{ entity_type: string; id: string; updated_at: string; payload: Record<string, unknown> }>(
-      `SELECT entity_type,id,updated_at,payload
-         FROM control_plane_entities
-        WHERE portfolio_id=$1 AND company_id=$2
-          AND entity_type = ANY($3::text[])
-        ORDER BY updated_at DESC
-        LIMIT 30`,
-      [record.portfolioId, record.companyId, ["integration", "objective", "decision", "job", "outcome", "resource", "verification"]]
+    if (!intent || !["status_query", "explain_query", "recommend_request", "investigate_request"].includes(intent)
+      || record.conversation?.requiresExecutionAuthority) return record;
+    // Only presentation fields from authorized, fresh records become answer evidence.
+    const result = await this.db.query<{ id: string; entity_type: string; updated_at: string; title: string; state: string; sensitivity: ContextItem["sensitivity"] }>(
+      `SELECT id,entity_type,updated_at,
+        COALESCE(payload->>'displayName',payload->>'title',payload->>'normalizedGoal',id) AS title,
+        COALESCE(payload->>'state',payload->>'status','recorded') AS state,
+        LOWER(COALESCE(payload->>'sensitivity',payload->>'dataClass',payload->'scope'->>'dataClass','internal')) AS sensitivity
+       FROM control_plane_entities
+       WHERE portfolio_id=$1 AND company_id=$2
+         AND entity_type = ANY($3::text[])
+         AND (payload->>'environment'=$4 OR (entity_type IN ('decision','job','outcome','verification') AND NOT payload ? 'environment'))
+         AND updated_at >= $5::timestamptz - interval '7 days'
+       ORDER BY updated_at DESC,id LIMIT 500`,
+      [record.portfolioId, record.companyId, ["fact", "signal", "integration", "objective", "decision", "job", "outcome", "verification"], record.environment, record.receivedAt]
     );
-    const names = record.conversation?.references.map((item) => item.name.toLowerCase()) ?? [];
-    const relevant = names.length === 0
-      ? result.rows
-      : result.rows.filter((row) => {
-          const haystack = JSON.stringify(row.payload).toLowerCase();
-          return names.some((name) => haystack.includes(name));
-        });
-    const evidence = relevant.slice(0, 6);
-    const summaries = evidence.map((row) => {
-      const state = row.payload.state ?? row.payload.status ?? row.payload.health ?? "recorded";
-      const label = row.payload.displayName ?? row.payload.title ?? row.payload.name ?? row.id;
-      return `${row.entity_type} ${String(label)}: ${typeof state === "object" ? JSON.stringify(state) : String(state)}`;
-    });
-    const observedAt = evidence[0]?.updated_at
-      ? new Date(evidence[0].updated_at).toISOString()
-      : record.receivedAt;
-    return Object.freeze({
-      ...record,
-      status: "answered" as const,
-      answer: Object.freeze({
-        text: summaries.length > 0
-          ? summaries.join(". ")
-          : "I don't have current authoritative evidence for that yet.",
-        evidenceRefs: Object.freeze(evidence.map((row) => `${row.entity_type}:${row.id}`)),
-        observedAt,
-        knownUnknowns: Object.freeze(summaries.length > 0 ? [] : ["No matching current authoritative records"])
-      })
-    });
+    return groundConversationAnswer(record, result.rows);
   }
 
   async create(record: OwnerIntentRecord, idempotencyKey: string) {
     let acceptedRecord = record;
-    if (record.conversation?.continuation !== "none" && record.conversation?.continuation && record.conversation.references.length === 0) {
-      const previous = await this.db.query<{ payload: OwnerIntentRecord }>(
-        `SELECT payload FROM owner_intents
-          WHERE portfolio_id=$1 AND company_id=$2 AND user_id=$3
-            AND payload->>'status'='accepted'
-            AND payload->'conversation'->>'intent' IN ('action_request','objective_request','investigate_request')
-          ORDER BY received_at DESC,id DESC LIMIT 1`,
-        [record.portfolioId, record.companyId, record.userId]
-      );
-      const prior = previous.rows[0]?.payload;
-      if (prior) {
-        acceptedRecord = Object.freeze({
-          ...record,
-          continuesIntentId: prior.id,
-          conversation: Object.freeze({
-            ...record.conversation,
-            references: Object.freeze([...(prior.conversation?.references ?? [])])
-          })
-        });
+    if (record.conversation?.continuation && record.conversation.continuation !== "none" && record.status !== "answered") {
+      const selected = record.conversationState?.selectedAction;
+      if (selected) {
+        acceptedRecord = { ...record, continuesIntentId: selected.sourceIntentId };
       } else {
-        acceptedRecord = Object.freeze({
-          ...record,
-          status: "answered" as const,
-          answer: Object.freeze({
-            text: "I need a specific proposed action before I can continue. Tell me what you want fixed or changed.",
-            evidenceRefs: Object.freeze([]),
-            observedAt: record.receivedAt,
-            knownUnknowns: Object.freeze(["No prior actionable proposal exists in this conversation scope"])
-          })
-        });
+        acceptedRecord = { ...record, status: "answered", answer: {
+          text: "Which proposed action should I prepare? Please specify its scope.", evidenceRefs: [],
+          observedAt: record.receivedAt, knownUnknowns: ["No unambiguous selected action"]
+        } };
       }
     }
     acceptedRecord = acceptedRecord.status === "answered"
@@ -203,6 +164,7 @@ export class PostgresOwnerIntentStore implements OwnerIntentStore {
           || prior.userId !== acceptedRecord.userId
           || prior.message !== acceptedRecord.message
           || prior.channel !== acceptedRecord.channel
+          || prior.threadId !== acceptedRecord.threadId
         ) {
           throw new ControlPlaneError(
             "IDEMPOTENCY_CONFLICT",
@@ -243,6 +205,15 @@ export class PostgresOwnerIntentStore implements OwnerIntentStore {
 
       return persisted;
     });
+  }
+
+  async listConversation(portfolioId: string, companyId: string, userId: string, environment: string, threadId?: string): Promise<OwnerIntentRecord[]> {
+    const result = await this.db.query<{ payload: OwnerIntentRecord }>(
+      `SELECT payload FROM owner_intents WHERE portfolio_id=$1 AND company_id=$2 AND user_id=$3
+        AND payload->>'environment'=$4 AND payload ? 'threadId'
+        AND ($5::text IS NULL OR payload->>'threadId'=$5)
+       ORDER BY received_at DESC,id DESC LIMIT 100`, [portfolioId, companyId, userId, environment, threadId ?? null]);
+    return result.rows.map(row => row.payload);
   }
 
   async get(id: string): Promise<OwnerIntentRecord | null> {
