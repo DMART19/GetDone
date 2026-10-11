@@ -67,7 +67,7 @@
   },
   "dependencies": {
     "lucide-react": "0.468.0",
-    "next": "15.5.27",
+    "next": "16.4.0",
     "react": "19.1.2",
     "react-dom": "19.1.2",
     "zod": "3.25.76",
