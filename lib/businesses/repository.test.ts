@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { listBusinesses, readBusinessContext } from "./repository";
+import { listBusinesses, readBusinessContext, withBusinessActivity } from "./repository";
 import { getPostgresTenantScope } from "@/lib/persistence/postgres/tenant-context.server";
 import type { SqlQueryable } from "@/lib/persistence/postgres/client";
 
@@ -30,6 +30,25 @@ describe("business read boundaries", () => {
     expect(result.sections.objectives.records[0]).toEqual({ id: "record", title: "Work", status: "queued", updatedAt: "2026-10-11T00:00:00.000Z" });
     expect(JSON.stringify(result)).not.toContain("private");
     expect(result.sections.signals.note).toContain("not connected");
+    expect(getPostgresTenantScope()).toBeNull();
+  });
+});
+
+describe("business activity timestamp normalization", () => {
+  it.each([
+    [new Date("2026-10-11T00:00:00Z"), "2026-10-11T00:00:00.000Z"],
+    ["2026-10-11T00:00:00+00:00", "2026-10-11T00:00:00+00:00"],
+    [null, undefined],
+    [undefined, undefined]
+  ])("normalizes %s without inventing missing activity", async (value, expected) => {
+    const business = { id: "company-a", portfolioId: "portfolio-a", name: "A" };
+    const query = vi.fn().mockImplementation(async (_sql, values) => {
+      expect(getPostgresTenantScope()).toEqual({ portfolioId: "portfolio-a", companyId: "company-a" });
+      expect(values).toEqual(["portfolio-a", "company-a", "staging"]);
+      return { rows: value === undefined ? [] : [{ last_activity_at: value }] };
+    });
+    const [result] = await withBusinessActivity({ query } as SqlQueryable, [business], "staging");
+    expect(result).toEqual({ ...business, ...(expected === undefined ? {} : { lastActivityAt: expected }) });
     expect(getPostgresTenantScope()).toBeNull();
   });
 });

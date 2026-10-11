@@ -51,13 +51,14 @@ export async function withBusinessActivity(db: SqlQueryable, businesses: Busines
   const result: Business[] = [];
   for (const business of businesses) {
     const lastActivityAt = await runWithPostgresTenantScope({ portfolioId: business.portfolioId, companyId: business.id }, async () => {
-      const activity = await db.query<{ last_activity_at: Date | null }>(`
+      const activity = await db.query<{ last_activity_at: Date | string | null }>(`
         SELECT MAX(updated_at) AS last_activity_at FROM control_plane_entities
         WHERE portfolio_id=$1 AND company_id=$2
           AND entity_type IN ('objective','integration','decision','job','outcome')
           AND (payload->>'environment'=$3 OR (entity_type IN ('decision','job','outcome') AND NOT payload ? 'environment'))`,
       [business.portfolioId, business.id, environment]);
-      return activity.rows[0]?.last_activity_at?.toISOString();
+      const value = activity.rows[0]?.last_activity_at;
+      return value instanceof Date ? value.toISOString() : value ?? undefined;
     });
     result.push({ ...business, ...(lastActivityAt ? { lastActivityAt } : {}) });
   }
