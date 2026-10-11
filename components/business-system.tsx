@@ -9,6 +9,7 @@ async function read<T>(url: string, signal: AbortSignal): Promise<T> {
   try {
     const response = await fetch(url, { cache: "no-store", signal });
     if (response.status === 401) message = "Your session has expired. Sign in again.";
+    if (response.status === 403) message = "You do not have access to this business information.";
     if (!response.ok) throw new Error();
     const result = await response.json();
     if (!result?.ok) throw new Error();

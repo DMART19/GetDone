@@ -99,6 +99,27 @@ test("empty, loading, failure recovery, mobile and reduced motion", async ({ pag
   await expect(page.locator(".business-planet")).toHaveCount(0);
 });
 
+for (const [status, message] of [
+  [401, "Your session has expired. Sign in again."],
+  [403, "You do not have access to this business information."]
+] as const) {
+  test(`business catalog and context show a safe specific message for HTTP ${status}`, async ({ page }) => {
+    await seed(page);
+    await page.goto("/");
+    await page.route("**/api/businesses?*", route => route.fulfill({ status, json: { ok: false, error: { message: "private authorization detail" } } }));
+    await page.getByRole("button", { name: "Open OpsManagerPro" }).click();
+    const alert = page.locator(".business-system").getByRole("alert");
+    await expect(alert).toContainText(message);
+    await expect(alert).not.toContainText("Business information could not be loaded. Please retry.");
+    await expect(page.getByText("private authorization detail")).toHaveCount(0);
+    await page.route("**/api/businesses", route => route.fulfill({ status, contentType: "text/html", body: "<html>private authorization detail</html>" }));
+    await page.reload();
+    await expect(alert).toContainText(message);
+    await expect(alert).not.toContainText("Business information could not be loaded. Please retry.");
+    await expect(page.getByText(/private authorization detail|Unexpected token/)).toHaveCount(0);
+  });
+}
+
 test("many real businesses paginate with keyboard focus and narrow-screen labels", async ({ page }) => {
   await seed(page);
   const db = pool();
