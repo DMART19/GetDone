@@ -1,0 +1,60 @@
+.business-home.app-shell { width: min(100%, 960px); }
+.business-home .bottom-nav { width: min(100%, 960px); }
+.business-home .ufo-objective-home { max-width: 510px; margin: 30px auto 0; }
+.business-system { padding: 10px 0 24px; color: #e9f4ff; }
+.business-system-heading { text-align: center; max-width: 550px; margin: auto; }
+.business-eyebrow { color: #8ab8d5; font-size: 10px; letter-spacing: .15em; font-weight: 700; }
+.business-system-heading h1 { font-size: clamp(24px, 4vw, 34px); line-height: 1.2; margin: 12px 0; }
+.business-system p { color: #a5bbd0; line-height: 1.6; font-size: 14px; }
+.business-universe { position: relative; height: 440px; max-width: 620px; margin: 10px auto; background: radial-gradient(ellipse at center, #12426655 0, transparent 58%); }
+.business-orbits { position: absolute; width: 100%; height: 100%; overflow: visible; fill: none; stroke: #49748c55; stroke-width: .2; }
+.business-orbits line { stroke: #65cfff88; stroke-dasharray: 1 1.4; }
+.business-sun { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 126px; height: 126px; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; background: radial-gradient(circle at 40% 30%, #316586, #0c283d 70%); border: 1px solid #79d9ff; box-shadow: 0 0 40px #5acfff30, inset 0 0 25px #67cfff30; }
+.business-sun > span { color: #a6edff; font-size: 24px; }
+.business-sun strong { font-size: 22px; }
+.business-sun small { font-size: 9px; color: #bcddf2; margin-top: 5px; }
+.business-planet { position: absolute; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; width: 116px; padding: 6px; background: transparent; border: 1px solid transparent; border-radius: 12px; color: #eef7ff; cursor: pointer; }
+.business-planet-globe { width: 40px; height: 40px; border-radius: 50%; margin-bottom: 7px; background: radial-gradient(circle at 30% 25%, hsl(var(--planet-hue) 65% 78%), hsl(var(--planet-hue) 45% 35%) 55%, #071525 95%); box-shadow: 0 0 20px hsl(var(--planet-hue) 60% 60% / .2); }
+.business-planet strong { font-size: 12px; overflow-wrap: anywhere; line-height: 1.4; background: #071322dc; border-radius: 4px; padding: 2px; }
+.business-planet small { color: #a2bdd1; font-size: 10px; margin-top: 2px; }
+.business-planet:hover, .business-planet[aria-pressed=true] { background: #17344a99; border-color: #5a9bbd; }
+.business-system button:focus-visible, .business-system summary:focus-visible, .business-system a:focus-visible { outline: 2px solid #a6edff; outline-offset: 4px; }
+.business-system-feedback { max-width: 550px; margin: auto; text-align: center; }
+.business-empty, .business-context { padding: 20px; border: 1px solid #2a465f; border-radius: 18px; background: #0a192bcc; }
+.business-empty h2, .business-context h2 { font-size: 20px; margin: 0 0 10px; overflow-wrap: anywhere; }
+.business-empty details { text-align: left; color: #afc6da; line-height: 1.6; font-size: 13px; }
+.business-empty summary { color: #91d8ff; cursor: pointer; padding: 12px 0; }
+.business-empty ol { padding-left: 20px; }
+.business-system a { color: #91d8ff; text-decoration: underline; }
+.business-system-feedback button, .business-context button { border: 1px solid #3a5a76; background: #122b41; color: #dcedfc; border-radius: 9px; padding: 10px 13px; cursor: pointer; min-height: 44px; }
+.business-system button:disabled { opacity: .45; cursor: default; }
+.business-pagination { display: flex; justify-content: center; align-items: center; gap: 18px; }
+.business-legend { font-size: 12px !important; }
+.business-context { margin-top: 24px; }
+.business-context-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.business-context-heading h2 { margin-top: 8px; }
+.business-sections { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0; }
+.business-sections button { font-size: 12px; }
+.business-sections button[aria-pressed=true] { background: #285375; border-color: #88c9ee; }
+.business-context h3 { font-size: 16px; }
+.business-context small { color: #a5bbd0; }
+.business-records { list-style: none; padding: 0; }
+.business-records li { padding: 12px 0; border-bottom: 1px solid #263f55; display: grid; grid-template-columns: 1fr auto; gap: 7px; font-size: 13px; }
+.business-records strong { overflow-wrap: anywhere; }
+.business-records span { color: #abd3eb; }
+.business-records time { font-size: 11px; color: #9db4ca; }
+.business-scope-note { color: #a5bbd0; font-size: 13px; line-height: 1.6; }
+@media(max-width: 480px) {
+  .business-universe { height: 410px; }
+  .business-planet { width: 94px; }
+  .business-planet strong { font-size: 11px; }
+  .business-sun { width: 110px; height: 110px; }
+  .business-sun strong { font-size: 20px; }
+  .business-context { padding: 15px; }
+}
+/* Orbits are intentionally stationary, including with reduced motion enabled. */
+@media(prefers-reduced-motion: reduce) { .business-system *, .business-system *::before, .business-system *::after { animation: none !important; transition: none !important; } }
+
+.business-universe[data-empty=true] { height: 260px; }
+.business-universe[data-count="1"] .business-planet,
+.business-universe[data-count="2"] .business-planet { width: 140px; }

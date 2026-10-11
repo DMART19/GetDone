@@ -172,6 +172,15 @@
       "transitionSchema": false,
       "destructive": false,
       "authorityCompatibilityRequired": true
+    },
+    {
+      "version": "2026-10-10.1",
+      "file": "migrations/2026-10-10.1_owner_passkey_enrollment.sql",
+      "releaseId": "owner-passkey-enrollment",
+      "phase": "expand",
+      "transitionSchema": false,
+      "destructive": false,
+      "authorityCompatibilityRequired": true
     }
   ]
 }

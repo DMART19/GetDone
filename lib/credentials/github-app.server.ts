@@ -25,6 +25,12 @@ import { PostgresJobExecutionSpecStore } from "@/lib/persistence/postgres/job-ex
 type Env = Readonly<Record<string, string | undefined>>;
 const repository = "DMART19/GetDone";
 const capabilities = ["github.repository.read", "github.branch.create", "github.commit.create", "github.pull-request.write", "github.issue.write"];
+const installationTokenSchema = z.object({
+  token: z.string().min(1).max(4096).regex(/^[A-Za-z0-9_]+$/),
+  expires_at: z.string().datetime({ offset: true }),
+  repositories: z.array(z.object({ full_name: z.string() })),
+  permissions: z.record(z.enum(["read", "write", "admin"]))
+});
 
 // A reference reserves no authority. Issuance happens only after the worker claim.
 export function githubJobCredentialReference(jobId: string) {
@@ -293,7 +299,17 @@ async function mintGithubInstallationToken(registration: ReturnType<typeof githu
     body: JSON.stringify({ repositories: ["GetDone"], permissions }), signal: AbortSignal.timeout(10_000), redirect: "error"
   });
   if (!response.ok) throw new ControlPlaneError("UNAVAILABLE", `GitHub App token issuance failed with HTTP ${response.status}`);
-  const value = await readBoundedJson(response, 64_000) as { token?: string; expires_at?: string; repositories?: { full_name: string }[]; permissions?: Record<string, string> };
+  const raw: unknown = await readBoundedJson(response, 64_000).catch(() => undefined);
+  const parsed = installationTokenSchema.safeParse(raw);
+  if (!parsed.success) {
+    // Revoke a usable token even when the rest of the provider envelope is malformed.
+    const token = z.object({ token: installationTokenSchema.shape.token }).safeParse(raw);
+    if (token.success) await fetchImpl("https://api.github.com/installation/token", {
+      method: "DELETE", headers: { authorization: `Bearer ${token.data.token}` }, signal: AbortSignal.timeout(10_000), redirect: "error"
+    }).catch(() => undefined);
+    throw new ControlPlaneError("FORBIDDEN", "GitHub returned an invalid or over-scoped installation token");
+  }
+  const value = parsed.data;
   const expiry = Date.parse(value.expires_at ?? "");
   if (typeof value.token !== "string" || !value.token || !Number.isFinite(expiry) || expiry <= Date.now() || expiry > Date.now() + 3_660_000
     || value.repositories?.length !== 1 || value.repositories[0]?.full_name !== repository

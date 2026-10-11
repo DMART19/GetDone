@@ -11,7 +11,7 @@ ENV GETDONE_DATA_MODE=$GETDONE_BUILD_DATA_MODE
 ENV NODE_ENV=production
 
 COPY package.json package-lock.json ./
-RUN npm ci --ignore-scripts --no-audit --no-fund
+RUN npm ci --include=dev --ignore-scripts --no-audit --no-fund
 
 COPY . .
 RUN npm run build
@@ -33,6 +33,9 @@ COPY --from=build /app/public ./public
 COPY --from=build /app/next.config.mjs ./next.config.mjs
 COPY --from=build /app/scripts ./scripts
 COPY --from=build /app/release ./release
+COPY --from=build /app/lib/security/security-headers.mjs ./lib/security/security-headers.mjs
+COPY --from=build /app/lib/persistence/postgres/tls.ts ./lib/persistence/postgres/tls.ts
+COPY --from=build /app/migrations ./migrations
 
 EXPOSE 3000
 

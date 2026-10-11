@@ -62,17 +62,20 @@ jobs:
 
       - run: npm ci --ignore-scripts --no-audit --no-fund
 
+      - name: Enable certificate-verified PostgreSQL TLS
+        run: bash scripts/configure-ci-postgres-tls.sh "${{ job.services.postgres.id }}"
+
       - name: Migrate authoritative staging PostgreSQL
         run: npm run db:migrate
         env:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
-          GETDONE_DB_SSL: "false"
+          GETDONE_DB_SSL: "true"
 
       - name: Record verified staging backup evidence
         run: npm run db:record-backup
         env:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
-          GETDONE_DB_SSL: "false"
+          GETDONE_DB_SSL: "true"
           GETDONE_BACKUP_REF: staging-browser-preflight
           GETDONE_BACKUP_VERIFICATION_HASH: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 
@@ -83,7 +86,7 @@ jobs:
         run: npm run test:e2e:staging
         env:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
-          GETDONE_DB_SSL: "false"
+          GETDONE_DB_SSL: "true"
           GETDONE_SESSION_TTL_SECONDS: "3600"
           GETDONE_SIGN_IN_CHALLENGE_TTL_SECONDS: "300"
           GETDONE_STEP_UP_TTL_SECONDS: "300"

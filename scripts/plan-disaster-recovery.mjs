@@ -1,4 +1,5 @@
 import pg from "pg";
+import { postgresTlsConnection } from "../lib/persistence/postgres/tls.ts";
 import { sha256Hex } from "./postgres-backup-integrity.mjs";
 
 function required(name) {
@@ -100,10 +101,9 @@ const lostPrimaryAt = iso("GETDONE_DR_LOST_PRIMARY_AT");
 const decidedAt = iso("GETDONE_DR_DECIDED_AT", declaredAt);
 
 const pool = new pg.Pool({
-  connectionString,
+  ...postgresTlsConnection(connectionString, process.env),
   max: 2,
-  application_name:"getdone-dr-plan",
-  ssl: process.env.GETDONE_DB_SSL === "false" ? false : { rejectUnauthorized:true }
+  application_name:"getdone-dr-plan"
 });
 const client = await pool.connect();
 

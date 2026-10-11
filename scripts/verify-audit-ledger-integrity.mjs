@@ -1,4 +1,5 @@
 import pg from "pg";
+import { postgresTlsConnection } from "../lib/persistence/postgres/tls.ts";
 
 function required(name) {
   const value = process.env[name]?.trim();
@@ -16,12 +17,9 @@ if ((portfolioFilter && !companyFilter) || (!portfolioFilter && companyFilter)) 
 }
 
 const pool = new pg.Pool({
-  connectionString,
+  ...postgresTlsConnection(connectionString, process.env),
   max: 2,
-  application_name: "getdone-audit-integrity-verifier",
-  ssl: process.env.GETDONE_DB_SSL === "false"
-    ? false
-    : { rejectUnauthorized: true }
+  application_name: "getdone-audit-integrity-verifier"
 });
 
 const where = portfolioFilter

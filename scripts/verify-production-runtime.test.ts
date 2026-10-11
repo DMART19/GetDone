@@ -71,7 +71,7 @@ function baseEnv(): Record<string, string | undefined> {
     GETDONE_PROCESS_ROLE: "web",
     DATABASE_URL: "postgresql://runtime:runtime@127.0.0.1:1/getdone",
     GETDONE_DB_RUNTIME_ROLE: "getdone_tenant_runtime",
-    GETDONE_DB_SSL: "false",
+    GETDONE_DB_SSL: "true",
     GETDONE_BACKUP_MAX_AGE_HOURS: "24",
     GETDONE_WEBAUTHN_RP_ID: "getdone.example",
     GETDONE_WEBAUTHN_ORIGINS: JSON.stringify(["https://app.getdone.example"]),
@@ -85,13 +85,16 @@ function baseEnv(): Record<string, string | undefined> {
       version: "production-1",
       routes: { STANDARD: ["standard-primary", "standard-fallback"] }
     }),
-    PROD_HTTP_TOKEN: "t".repeat(40),
+    GETDONE_OBSERVABILITY_ENABLED: "true",
+    GETDONE_OTEL_EXPORTER_OTLP_ENDPOINT: "https://otel.example.com",
+    GETDONE_CREDENTIAL_DELIVERY_URL: "https://app.getdone.example/api/internal/credentials/github",
+    GETDONE_CREDENTIAL_BROKER_TOKEN: "b".repeat(40),
     GETDONE_HTTP_ACTIONS_JSON: JSON.stringify([{
       name: "crm-sync",
       companyId: "company-prod",
       environment: "production",
       url: "https://api.example.com/actions",
-      credentialRef: "env:PROD_HTTP_TOKEN"
+      credentialProviderId: "fixture-provider"
     }])
   };
 }
@@ -127,7 +130,7 @@ describe("verify-production-runtime static fail-closed validation", () => {
       GETDONE_WEBAUTHN_ORIGINS: JSON.stringify(["http://localhost:3000"])
     });
     expect(result.status).not.toBe(0);
-    expect(output(result)).toContain("WEBAUTHN_CONFIG");
+    expect(output(result)).toContain("INSECURE_URL");
   });
 
   it("rejects unsafe production auth cookie names", () => {
@@ -186,7 +189,7 @@ describe("verify-production-runtime static fail-closed validation", () => {
     expect(result.status).not.toBe(0);
     const text = output(result);
     expect(text).toContain("NON_PRODUCTION_INTEGRATION");
-    expect(text).toContain("MISSING_CREDENTIAL");
+    expect(text).toContain("LEGACY_CREDENTIAL_CONFIG");
     expect(text).toContain("INSECURE_URL");
   });
 

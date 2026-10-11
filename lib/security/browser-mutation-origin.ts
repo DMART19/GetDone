@@ -43,7 +43,8 @@ export function evaluateBrowserMutationOrigin(
   const cookieName = env.GETDONE_AUTH_COOKIE_NAME?.trim() || "getdone_session";
   const hasCookie = cookiePresent(request.headers.get("cookie"), cookieName);
   const hasBearer = /^Bearer\s+\S+/i.test(request.headers.get("authorization") ?? "");
-  const signInMutation = url.pathname.startsWith("/api/control/auth/sign-in/");
+  const signInMutation = url.pathname.startsWith("/api/control/auth/sign-in/")
+    || url.pathname.startsWith("/api/control/auth/enrollment/");
 
   if (hasBearer && !hasCookie && !signInMutation) {
     return { allowed: true };

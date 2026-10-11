@@ -104,6 +104,7 @@ integrationDescribe("PostgreSQL orchestration crash/restart lifecycle matrix", (
         };
       case "tasks-created":
         return {
+          taskDag: { id: "dag", hash: "5".repeat(64) },
           tasks: [{
             id: "task",
             hash: "1".repeat(64),

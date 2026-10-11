@@ -32,7 +32,7 @@ import {
 } from "@/lib/planning/task-generator";
 import type { VerificationEvidence } from "@/lib/verification/verification";
 
-export const ORCHESTRATION_POST_AUTHORIZATION_FLOW_VERSION = "1.0.0";
+export const ORCHESTRATION_POST_AUTHORIZATION_FLOW_VERSION = "1.0.1";
 
 function deepFreeze<T>(value: T): T {
   if (!value || typeof value !== "object" || Object.isFrozen(value)) return value;
@@ -372,6 +372,7 @@ export async function advanceAuthorizedToTasksCreated(input: {
         to: "tasks-created",
         now: now().toISOString(),
         checkpointPatch: {
+          taskDag: { id: existing.id, hash: existing.artifactHash },
           tasks: existing.tasks.map((task) => ({
             id: task.id,
             hash: sha256Hex(task),
@@ -476,6 +477,7 @@ export async function advanceAuthorizedToTasksCreated(input: {
       to: "tasks-created",
       now: now().toISOString(),
       checkpointPatch: {
+        taskDag: { id: persisted.artifact.id, hash: persisted.artifact.artifactHash },
         tasks: persisted.artifact.tasks.map((task) => ({
           id: task.id,
           hash: sha256Hex(task),

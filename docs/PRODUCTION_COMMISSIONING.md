@@ -119,9 +119,9 @@ three production gates must pass. Check web `/api/health` (liveness) and authent
 claims, heartbeats and a safe owner-approved branch operation through chat.
 
 Before rollout, retain the exact previous web/worker deploy IDs and successful
-health evidence. Roll back code by deploying that immutable prior commit on all
-affected services, preserving the existing Supabase database and secrets. This
-change adds no schema migration, so code rollback needs no down migration. Drain
-workers before replacement and confirm active leases recover. Database rollback
-requires the repository's separate restore procedure and actual restore evidence;
-never run destructive down migrations as an application rollback shortcut.
+health evidence. Follow [the narrow launch runbook](NARROW_LAUNCH_RUNBOOK.md) for
+owner invitation enrollment, integration commissioning and this release's additive
+migration. The startup verifier checks the exact migration version, so validate a
+rollback build against the new schema before rollout; the old commit alone may
+refuse startup. Preserve the database and secrets, drain workers and confirm leases
+recover. Never run destructive down migrations as an application rollback shortcut.

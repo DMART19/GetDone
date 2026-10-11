@@ -10,6 +10,9 @@ dist-orchestration-worker/
 .env.*.local
 .DS_Store
 *.log
-release/out/\n
+release/out/
 *.tsbuildinfo
 test-results/
+
+dist-commissioning/
+playwright-report*/
