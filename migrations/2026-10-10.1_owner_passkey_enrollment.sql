@@ -17,7 +17,11 @@ CREATE TABLE IF NOT EXISTS auth_owner_enrollments (
   CHECK ((consumed_at IS NULL) = (credential_id IS NULL))
 );
 REVOKE ALL ON auth_owner_enrollments FROM PUBLIC;
-GRANT SELECT,INSERT,UPDATE ON auth_owner_enrollments TO getdone_tenant_runtime;
+-- Clear inherited default table privileges as well as grants from earlier runs.
+-- Only the bootstrap administrator may issue or reissue invitation authority.
+REVOKE ALL ON auth_owner_enrollments FROM getdone_tenant_runtime;
+GRANT SELECT,UPDATE(challenge_hash,challenge_expires_at,consumed_at,credential_id)
+  ON auth_owner_enrollments TO getdone_tenant_runtime;
 
 INSERT INTO getdone_schema_migrations(version) VALUES ('2026-10-10.1')
 ON CONFLICT(version) DO NOTHING;

@@ -560,7 +560,7 @@ describe("Phase 41 release/version registry", () => {
       contractTracked: true
     });
     expect(registry.schemaVersions.productionReleaseGate).toMatchObject({
-      version: "1.1.0",
+      version: "1.1.1",
       sourcePath: "scripts/verify-production-promotion.mjs",
       contractTracked: true
     });

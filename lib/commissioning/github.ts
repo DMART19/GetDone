@@ -1,4 +1,5 @@
 import { sign } from "node:crypto";
+import { z } from "zod";
 import { sha256Hex } from "@/lib/control-plane/canonical-hash";
 import { createAuditEvent } from "@/lib/domain/audit";
 import { githubRegistration } from "@/lib/credentials/github-app.server";
@@ -12,6 +13,12 @@ import type { PostgresTransactionalDatabase } from "@/lib/persistence/postgres/c
 import { runWithPostgresTenantScope } from "@/lib/persistence/postgres/tenant-context.server";
 
 type Env = Readonly<Record<string, string | undefined>>;
+const installationSchema = z.object({
+  id: z.number().int().positive().safe(),
+  app_id: z.number().int().positive().safe(),
+  suspended_at: z.string().datetime({ offset: true }).nullable(),
+  permissions: z.record(z.enum(["read", "write", "admin"]))
+});
 /** Operator-only configuration, never a business execution or token-issuance path. */
 export async function commissionGithub(db: PostgresTransactionalDatabase, env: Env, apply: boolean, fetcher = fetch) {
   if (env.GETDONE_RUNTIME_ENV !== "production") throw new Error("GitHub commissioning requires production configuration");
@@ -40,9 +47,9 @@ export async function commissionGithub(db: PostgresTransactionalDatabase, env: E
     redirect: "error", signal: AbortSignal.timeout(10_000)
   });
   if (!response.ok) throw new Error(`GitHub installation verification failed (HTTP ${response.status})`);
-  const installation = await readBoundedJson(response, 64_000) as {
-    id: number; app_id: number; suspended_at: string | null; permissions: Record<string, string>;
-  };
+  const parsed = installationSchema.safeParse(await readBoundedJson(response, 64_000).catch(() => undefined));
+  if (!parsed.success) throw new Error("GitHub installation verification returned an invalid response");
+  const installation = parsed.data;
   if (String(installation.id) !== registration.installationId || String(installation.app_id) !== registration.appId
     || installation.suspended_at !== null
     || ["contents", "issues", "pull_requests"].some(permission => installation.permissions?.[permission] !== "write")) {

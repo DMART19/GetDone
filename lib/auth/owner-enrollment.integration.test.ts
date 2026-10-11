@@ -102,8 +102,21 @@ suite("first owner passkey enrollment with PostgreSQL", () => {
   it("rejects absent, expired, and wrong-environment invitations", async () => {
     await expect(service.begin(randomBytes(32).toString("base64url"))).rejects.toThrow(/invitation/);
     await expect(new OwnerEnrollmentService(db, config, "staging").begin(token)).rejects.toThrow(/invitation/);
-    await db.query("UPDATE auth_owner_enrollments SET expires_at=now()-interval '1 second' WHERE user_id=$1", [owner]);
+    const operator = new Pool({ connectionString: connection, ssl });
+    try { await operator.query("UPDATE auth_owner_enrollments SET expires_at=now()-interval '1 second' WHERE user_id=$1", [owner]); }
+    finally { await operator.end(); }
     await expect(service.begin(token)).rejects.toThrow(/invitation/);
+  });
+  it("keeps invitation issuance and authority changes exclusive to the administrator after repeated migrations", async () => {
+    const migrated = spawnSync(process.execPath, ["scripts/migrate-postgres.mjs"], { encoding: "utf8", env: { ...process.env, DATABASE_URL: connection } });
+    expect(migrated.status, migrated.stderr).toBe(0);
+    await expect(db.query("INSERT INTO auth_owner_enrollments SELECT * FROM auth_owner_enrollments")).rejects.toThrow(/permission denied/);
+    for (const column of ["token_hash", "expires_at", "rp_id", "allowed_origins", "user_id", "user_handle", "environment"]) {
+      await expect(db.query(`UPDATE auth_owner_enrollments SET ${column}=${column} WHERE user_id=$1`, [owner])).rejects.toThrow(/permission denied/);
+    }
+    await expect(db.query("DELETE FROM auth_owner_enrollments WHERE user_id=$1", [owner])).rejects.toThrow(/permission denied/);
+    const options = await service.begin(token);
+    await expect(service.complete(token, registration(options.challenge).response)).resolves.toEqual({ userId: owner });
   });
   it("allows only one concurrent registration and rolls back the losing transaction", async () => {
     const options = await service.begin(token); const response = registration(options.challenge).response;

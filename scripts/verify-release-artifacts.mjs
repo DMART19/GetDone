@@ -360,7 +360,7 @@ if (failures.length === 0) {
     || registry.schemaVersions.disasterRecovery?.sourcePath !== "lib/execution/disaster-recovery.ts"
     || registry.schemaVersions.zeroDowntimeMigrationPolicy?.version !== "1.2.0"
     || registry.schemaVersions.zeroDowntimeMigrationPolicy?.contractTracked !== true
-    || registry.schemaVersions.productionReleaseGate?.version !== "1.1.0"
+    || registry.schemaVersions.productionReleaseGate?.version !== "1.1.1"
     || registry.schemaVersions.productionReleaseGate?.contractTracked !== true
     || registry.adapters.postgresPersistence?.version !== "1.1.0"
     || manifest.database.status !== registry.database.status

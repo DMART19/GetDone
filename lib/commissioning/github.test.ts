@@ -54,4 +54,14 @@ describe("operator GitHub commissioning", () => {
     const f = fixture(); await expect(commissionGithub(f.db, { ...env, GETDONE_RUNTIME_ENV: "staging" }, true, f.fetcher)).rejects.toThrow(/production configuration/);
     expect(f.fetcher).not.toHaveBeenCalled();
   });
+  it.each([null, [], {}, "provider detail", { id: "456", app_id: 123, suspended_at: null, permissions: { contents: "write", issues: "write", pull_requests: "write" } }, { id: 456, app_id: 123, suspended_at: null, permissions: [] }])("rejects malformed installation envelopes without database access: %j", async body => {
+    const f = fixture(); f.fetcher.mockResolvedValue(Response.json(body));
+    await expect(commissionGithub(f.db, env, true, f.fetcher)).rejects.toThrow("GitHub installation verification returned an invalid response");
+    expect(f.query).not.toHaveBeenCalled();
+  });
+  it("does not log or expose non-JSON provider response details", async () => {
+    const f = fixture(); f.fetcher.mockResolvedValue(new Response("upstream private detail", { status: 200 }));
+    await expect(commissionGithub(f.db, env, true, f.fetcher)).rejects.toThrow("GitHub installation verification returned an invalid response");
+    expect(f.query).not.toHaveBeenCalled();
+  });
 });

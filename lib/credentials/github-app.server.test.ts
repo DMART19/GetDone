@@ -133,6 +133,18 @@ describe("production GitHub App credential delivery", () => {
     expect(fetcher.mock.calls[1]?.[0]).toBe("https://api.github.com/installation/token");
   });
 
+  it.each([null, [], { token: { secret: "private-detail" } }, { token: "ghs_malformed", expires_at: [], repositories: {}, permissions: null }])("rejects malformed token envelopes safely: %j", async body => {
+    const f = fixture();
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(Response.json(body)).mockResolvedValue(new Response(null, { status: 204 }));
+    await expect(deliverGithubCredential(f.db, f.delivery, env, fetcher)).rejects.toThrow("GitHub returned an invalid or over-scoped installation token");
+    if (body && "token" in body && body.token === "ghs_malformed") {
+      expect(fetcher.mock.calls[1]?.[0]).toBe("https://api.github.com/installation/token");
+      expect(fetcher.mock.calls[1]?.[1]?.headers).toEqual({ authorization: "Bearer ghs_malformed" });
+    } else expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(vi.mocked(f.db.query).mock.calls)).not.toContain("ghs_malformed");
+    await expect(deliverGithubCredential(f.db, f.delivery, env, fetcher)).rejects.toThrow(/redeemed/);
+  });
+
   it.each(["approval", "cancelled", "expired-worker", "foreign-tenant", "resource", "tampered-request", "main", "repository", "scope"])("denies %s before calling GitHub", async (failure) => {
     const f = fixture();
     if (failure === "approval") f.decision.status = "rejected";

@@ -5,10 +5,18 @@ import Link from "next/link";
 import { businessSections, type Business, type BusinessContext, type BusinessSection } from "@/lib/businesses/contracts";
 
 async function read<T>(url: string, signal: AbortSignal): Promise<T> {
-  const response = await fetch(url, { cache: "no-store", signal });
-  const result = await response.json();
-  if (!response.ok || !result.ok) throw new Error(response.status === 401 ? "Your session has expired. Sign in again." : "Business information could not be loaded. Please retry.");
-  return result.data;
+  let message = "Business information could not be loaded. Please retry.";
+  try {
+    const response = await fetch(url, { cache: "no-store", signal });
+    if (response.status === 401) message = "Your session has expired. Sign in again.";
+    if (!response.ok) throw new Error();
+    const result = await response.json();
+    if (!result?.ok) throw new Error();
+    return result.data;
+  } catch {
+    // Proxy HTML, parser details and transport errors are not owner-facing content.
+    throw new Error(message);
+  }
 }
 
 export function BusinessSystem() {

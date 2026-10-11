@@ -344,6 +344,9 @@ try {
     await client.query("SELECT id FROM auth_users WHERE id=$1 FOR UPDATE", [userId]);
     const existing = await client.query("SELECT 1 FROM auth_webauthn_credentials WHERE user_id=$1", [userId]);
     if (existing.rowCount) throw new Error("Owner already has a passkey; bootstrap enrollment cannot reset it");
+    // Invitation authority requires the operator connection's administration role.
+    // The tenant runtime may only consume an already-issued invitation.
+    await client.query("SET LOCAL ROLE NONE");
     const issued = await client.query(
       `INSERT INTO auth_owner_enrollments
         (user_id,token_hash,environment,rp_id,allowed_origins,user_handle,expires_at)
@@ -355,6 +358,7 @@ try {
        WHERE auth_owner_enrollments.consumed_at IS NULL`,
       [userId,hash(invitation.token),invitation.rpId,JSON.stringify(invitation.origins),invitation.userHandle,invitation.expiresAt]
     );
+    await client.query(`SET LOCAL ROLE ${quoteIdentifier(runtimeRole)}`);
     if (issued.rowCount !== 1) throw new Error("Owner invitation has already been consumed; recovery is required");
     created.passkey = false;
   } else {

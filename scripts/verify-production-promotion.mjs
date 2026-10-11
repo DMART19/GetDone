@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import pg from "pg";
+import { postgresTlsConnection } from "../lib/persistence/postgres/tls.ts";
 
 const root = process.cwd();
 function required(name) {
@@ -126,10 +127,9 @@ fs.mkdirSync(path.dirname(out),{recursive:true});
 fs.writeFileSync(out,JSON.stringify(report,null,2)+"\n");
 
 const pool = new pg.Pool({
-  connectionString:databaseUrl,
+  ...postgresTlsConnection(databaseUrl, { ...process.env, GETDONE_RUNTIME_ENV: "production" }),
   max:1,
-  application_name:"getdone-production-release-gate",
-  ssl:process.env.GETDONE_DB_SSL === "false" ? false : {rejectUnauthorized:true}
+  application_name:"getdone-production-release-gate"
 });
 try {
   const id = `release-gate:${candidateSha}`;
