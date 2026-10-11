@@ -1,3 +1,4 @@
+import type { ConversationState } from "@/lib/conversation/understanding";
 import type { TrustedActor } from "@/lib/control-plane/request-context";
 import type { StepUpProof } from "@/lib/authorization/proofs";
 import type { StepUpChallenge } from "@/lib/auth/contracts";
@@ -34,6 +35,14 @@ export interface ControlApiPrincipal {
   stepUpProof?: StepUpProof;
 }
 
+export interface PreparedConversationTurn {
+  threadId: string;
+  requestKeyHash?: string;
+  semantics: ConversationSemantics;
+  state: ConversationState;
+  clarification?: string;
+}
+
 export interface OwnerIntentInput {
   message: string;
   channel?: "chat" | "api";
@@ -53,8 +62,34 @@ export interface OwnerIntentRecord {
   conversation?: ConversationSemantics;
   /** Previous trusted owner intent used only for conversational reference continuation. */
   continuesIntentId?: string;
+  threadId?: string;
+  requestKeyHash?: string;
+  conversationState?: ConversationState;
   answer?: Readonly<{ text: string; evidenceRefs: readonly string[]; observedAt: string; knownUnknowns: readonly string[] }>;
   receivedAt: string;
+}
+
+export interface OwnerIntentStatusView {
+  intentId: string;
+  conversation: ConversationSemantics;
+  lifecycle: OwnerLifecycleView;
+  answer?: OwnerIntentRecord["answer"];
+  orchestrationId?: string;
+  decisions?: readonly {
+    id: string;
+    status: AuthoritativeDecision["status"];
+    stepId?: string;
+    requiresStepUp: boolean;
+    summary?: {
+      title: string;
+      expectedOutcome: string;
+      estimatedCostCents: number;
+      risk: string;
+      verification: string[];
+    };
+  }[];
+  verificationRefs?: readonly string[];
+  results?: readonly JobResultView[];
 }
 
 export interface DecisionMutationInput {
@@ -180,9 +215,10 @@ export interface ControlApiApplicationAdapter {
     principal: ControlApiPrincipal,
     input: OwnerIntentInput,
     idempotencyKey: string,
-    correlationId?: string
+    correlationId?: string,
+    prepared?: PreparedConversationTurn
   ): Promise<OwnerIntentRecord>;
-  getOwnerIntentStatus?(principal: ControlApiPrincipal, intentId: string): Promise<{ intentId: string; conversation: ConversationSemantics; lifecycle: OwnerLifecycleView; answer?: OwnerIntentRecord["answer"]; orchestrationId?: string }>;
+  getOwnerIntentStatus?(principal: ControlApiPrincipal, intentId: string): Promise<OwnerIntentStatusView>;
 
   submitObjectives(
     principal: ControlApiPrincipal,

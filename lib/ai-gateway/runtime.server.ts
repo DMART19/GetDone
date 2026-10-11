@@ -21,7 +21,7 @@ const profileSchema = z.object({
   supportsTools: z.boolean(),
   supportsStructuredOutput: z.boolean(),
   maxContextTokens: z.number().int().positive(),
-  allowedDataClasses: z.array(z.enum(["PUBLIC", "INTERNAL", "CONFIDENTIAL", "RESTRICTED"])),
+  allowedDataClasses: z.array(z.enum(["PUBLIC", "INTERNAL", "CONFIDENTIAL", "RESTRICTED", "CUSTOMER", "SENSITIVE", "PRODUCTION_CRITICAL", "REBUILDABLE", "TEMPORARY", "ARCHIVE", "BACKUP", "MODEL_ARTIFACT"])),
   allowedEnvironments: z.array(z.enum(["development", "staging", "production"])),
   health: z.enum(["healthy", "degraded", "disabled"]),
   latencyClass: z.enum(["low", "standard", "high"]),

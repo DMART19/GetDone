@@ -1,3 +1,5 @@
+import { topicFor } from "@/lib/conversation/understanding";
+import { relevance } from "@/lib/conversation/evidence";
 export type ContextKind =
   | "fact"
   | "signal"
@@ -60,6 +62,7 @@ export interface AssembledContext {
 }
 
 export interface ContextAssemblyOptions {
+  question?: string;
   now?: number;
   maxItems?: number;
   maxCharacters?: number;
@@ -138,7 +141,19 @@ export function assembleContext(
     eligible.push(item);
   }
 
-  eligible.sort((left, right) => Date.parse(right.observedAt) - Date.parse(left.observedAt));
+  eligible.sort((left, right) => relevance(right, options.question) - relevance(left, options.question)
+    || Date.parse(right.observedAt) - Date.parse(left.observedAt) || left.id.localeCompare(right.id));
+  if (options.question && !topicFor(options.question)) {
+    const represented = new Set<string>();
+    const representatives = eligible.filter(item => {
+      const area = topicFor(`${item.source} ${item.content}`);
+      if (!area || represented.has(area)) return false;
+      represented.add(area);
+      return true;
+    });
+    const ids = new Set(representatives.map(item => item.id));
+    eligible.splice(0, eligible.length, ...representatives, ...eligible.filter(item => !ids.has(item.id)));
+  }
 
   const sectionItems: Record<keyof AssembledContext["sections"], ContextItem[]> = {
     facts: [],

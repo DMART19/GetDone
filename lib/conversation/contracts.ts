@@ -16,6 +16,13 @@ export interface ConversationEntityReference {
 
 export interface ConversationSemantics {
   intent: ConversationIntent;
+  confidence?: number;
+  businessId?: string;
+  businessReference?: string;
+  topic?: string;
+  asksForAction?: boolean;
+  needsClarification?: boolean;
+  interpretationSource?: "model" | "deterministic";
   references: readonly ConversationEntityReference[];
   continuation: "none" | "fix-it" | "do-it";
   requiresExecutionAuthority: boolean;
@@ -37,21 +44,25 @@ export function classifyConversationIntent(message: string): ConversationIntent 
   if (ACTION.test(value)) return "action_request";
   if (OBJECTIVE.test(value)) return "objective_request";
   if (EXPLAIN.test(value)) return "explain_query";
-  if (STATUS.test(value) || value.endsWith("?")) return "status_query";
+  if (STATUS.test(value) || /^(what|how) about\b/i.test(value) || value.endsWith("?")) return "status_query";
   return "ambiguous";
 }
 
-export function resolveConversationReferences(message: string): readonly ConversationEntityReference[] {
+export function resolveConversationReferences(message: string, businesses: readonly { name: string; aliases?: readonly string[] }[] = []): readonly ConversationEntityReference[] {
   const refs: ConversationEntityReference[] = [];
   const patterns: Array<[ConversationEntityKind, RegExp]> = [
-    ["integration", /\b(GitHub|Gmail|Slack|HubSpot|Stripe|OpenRouter|Notion|Salesforce|Shopify|Jira|Linear)\b/gi],
-    ["company", /\b(GetDone|OpsManagerPro|StatusWatchPro)\b/gi]
+    ["integration", /\b(GitHub|Gmail|Slack|HubSpot|Stripe|OpenRouter|Notion|Salesforce|Shopify|Jira|Linear)\b/gi]
   ];
   for (const [kind, pattern] of patterns) {
     for (const match of message.matchAll(pattern)) {
       if (!refs.some((item) => item.kind === kind && item.name.toLowerCase() === match[0].toLowerCase())) {
         refs.push(Object.freeze({ kind, name: match[0] }));
       }
+    }
+  }
+  for (const business of businesses) {
+    if ([business.name, ...(business.aliases ?? [])].some(name => (` ${message.toLowerCase().replace(/[^a-z0-9]+/g, " ")} `).includes(` ${name.toLowerCase()} `))) {
+      refs.push({ kind: "company", name: business.name });
     }
   }
   return Object.freeze(refs);

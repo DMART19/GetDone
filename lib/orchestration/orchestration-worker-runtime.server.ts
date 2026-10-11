@@ -159,7 +159,7 @@ function utcDayStart(now: Date) {
   ));
 }
 
-class PostgresPlannerAIBudgetProvider implements PlannerAIBudgetProvider {
+export class PostgresPlannerAIBudgetProvider implements PlannerAIBudgetProvider {
   constructor(
     private readonly db: PostgresTransactionalDatabase,
     private readonly config: AuthoritativeOrchestrationRuntimeConfig,
@@ -452,7 +452,7 @@ function validKillSwitch(value: unknown): value is KillSwitch {
     && typeof item.activatedBy === "string";
 }
 
-async function loadKillSwitches(
+export async function loadKillSwitches(
   db: PostgresTransactionalDatabase
 ): Promise<readonly KillSwitch[]> {
   const result = await db.query<{ payload: unknown }>(
