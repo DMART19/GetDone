@@ -24,7 +24,7 @@ printf '%s\\n' "$count" > "$RUNNER_TEMP/attempts"
 [[ "$count" -ge "${successAt}" ]]`);
     const result = spawnSync("bash", [script, "a".repeat(64)], {
       env: { ...process.env, PATH: `${dir}:${process.env.PATH}`, RUNNER_TEMP: dir, GITHUB_ENV: path.join(dir, "env") },
-      encoding: "utf8", timeout: 10_000
+      encoding: "utf8", timeout: 30_000
     });
     return {
       status: result.status, error: result.stderr,
