@@ -1,4 +1,8 @@
 import { getAIGatewayFromEnv } from "@/lib/ai-gateway/runtime.server";
+import { OperationalStore } from "@/lib/operations/store.server";
+import { capabilityMap } from "@/lib/operations/capability-map";
+import { createExecutionPreview } from "@/lib/operations/preview";
+import { authorizedEvidence } from "@/lib/operations/evidence";
 import type { AIBudgetSnapshot } from "@/lib/ai-gateway/contracts";
 import { ControlPlaneError } from "@/lib/control-plane/errors";
 import type { ObjectiveRecord } from "@/lib/domain/objective-inbox";
@@ -492,9 +496,12 @@ function authoritativeContextCandidates(db: PostgresTransactionalDatabase) {
          FROM control_plane_entities
         WHERE portfolio_id=$1 AND company_id=$2
           AND entity_type = ANY($3::text[])
+          AND (payload->>'environment'=$4 OR payload->'approvalBinding'->'trustedScope'->>'environment'=$4
+            OR payload->'authorizationConsumption'->'scope'->>'environment'=$4)
+          AND LOWER(COALESCE(payload->>'sensitivity',payload->>'dataClass',payload->'scope'->>'dataClass','internal')) IN ('public','internal')
         ORDER BY updated_at DESC
         LIMIT 40`,
-      [run.scope.portfolioId, run.scope.companyId, ["objective", "decision", "job", "outcome", "resource", "verification"]]
+      [run.scope.portfolioId, run.scope.companyId, ["objective", "decision", "job", "outcome", "resource", "verification"], run.scope.environment]
     );
     const kind = (entityType: string): ContextItem["kind"] => {
       if (entityType === "decision") return "decision";
@@ -502,7 +509,20 @@ function authoritativeContextCandidates(db: PostgresTransactionalDatabase) {
       if (entityType === "resource") return "resource-summary";
       return "fact";
     };
-    return Object.freeze(result.rows.map((row) => Object.freeze({
+    const store = new OperationalStore(db, run.scope);
+    const at = Date.now();
+    const connections = (await store.connections()).filter(c => c.status === "healthy"
+      && c.grantedUserIds.includes(run.scope.userId) && (!c.expiresAt || Date.parse(c.expiresAt) > at));
+    const evidence = authorizedEvidence(await store.evidence(), run.scope, undefined, ["public", "internal"], at)
+      .filter(e => connections.some(c => c.id === e.authorization.connectionId && c.resources.includes(e.authorization.resourceId)));
+    const normalized: ContextItem[] = evidence.map(e => ({
+      id: e.evidenceId, kind: "fact", portfolioId: e.portfolioId, companyId: e.companyId,
+      resourceId: e.authorization.resourceId, source: e.sourceType, provenance: e.authorization.provenanceRef,
+      observedAt: e.observedAt, freshnessSeconds: Math.floor((Date.parse(e.freshUntil) - Date.parse(e.observedAt)) / 1000),
+      sensitivity: e.sensitivity, content: JSON.stringify({ summary: e.summary, facts: e.facts,
+        connectionId: e.authorization.connectionId, resourceId: e.authorization.resourceId })
+    }));
+    return Object.freeze([...normalized, ...result.rows.map((row) => Object.freeze({
       id: `context:${row.entity_type}:${row.id}`,
       kind: kind(row.entity_type),
       portfolioId: run.scope.portfolioId,
@@ -514,7 +534,7 @@ function authoritativeContextCandidates(db: PostgresTransactionalDatabase) {
       freshnessSeconds: 7 * 24 * 60 * 60,
       sensitivity: "internal" as const,
       content: JSON.stringify(row.payload).slice(0, 4000)
-    })));
+    }))]);
   }
   return {
     owner: { listForIntent: ({ run }: { run: OrchestrationRunRecord }) => list(run) },
@@ -631,10 +651,14 @@ export class PostgresOrchestrationCredentialLeaseResolver
 function validationResolver(
   db: PostgresTransactionalDatabase,
   config: AuthoritativeOrchestrationRuntimeConfig,
-  now: () => Date
+  now: () => Date,
+  n8nEnabled = false
 ): DurableValidationInputResolver {
   return {
     async resolve({ run, planArtifact }) {
+      if (n8nEnabled && planArtifact.proposal.steps.some(s => s.capabilityRequests.some(r =>
+        !["github.repository.read", "github.branch.create", "http.request"].includes(r.capability))))
+        throw new ControlPlaneError("POLICY_BLOCKED", "Narrow release permits only repository health, deployment health and non-protected branch creation");
       const at = now();
       const credentials = await credentialSnapshot({
         db,
@@ -705,7 +729,8 @@ function validationResolver(
 
 function policyResolver(
   db: PostgresTransactionalDatabase,
-  now: () => Date
+  now: () => Date,
+  n8nEnabled = false
 ): DurablePolicyInputResolver {
   return {
     async resolveStep({ run, planArtifact, step }) {
@@ -720,6 +745,8 @@ function policyResolver(
       const allowedRegions = step.resourceRequirements.data.allowedRegions;
 
       return {
+        riskContext: n8nEnabled && step.capabilityRequests.some(r => r.capability === "github.branch.create")
+          ? { ownerInstruction: "require-approval" as const } : undefined,
         region: allowedRegions.length === 1 ? allowedRegions[0] : undefined,
         allowedEnvironments: [run.scope.environment],
         allowedDataClasses: [planArtifact.proposal.scope.dataClass],
@@ -803,7 +830,7 @@ export function createAuthoritativeExecutionCoordinatorFromEnv(
     validation: {
       plans,
       validations,
-      resolver: validationResolver(db, config, now),
+      resolver: validationResolver(db, config, now, env.GETDONE_N8N_ENABLED === "true"),
       now
     },
     policy: {
@@ -811,11 +838,32 @@ export function createAuthoritativeExecutionCoordinatorFromEnv(
       validations,
       policyStepSnapshots,
       policies,
-      resolver: policyResolver(db, now),
+      resolver: policyResolver(db, now, env.GETDONE_N8N_ENABLED === "true"),
       preferenceLearning,
       now
     },
     authorization: {
+      previewResolver: async (run, lineage, stepPolicy) => {
+        if (env.GETDONE_N8N_ENABLED !== "true") return undefined;
+        const step = lineage.planArtifact.proposal.steps.find(s => s.id === stepPolicy.stepId)!;
+        if (!step.capabilityRequests.some(r => r.capability === "github.branch.create")) return undefined;
+        if (step.capabilityRequests.length !== 1) throw new ControlPlaneError("POLICY_BLOCKED", "n8n branch preview permits exactly one capability per step");
+        const request = step.capabilityRequests[0];
+        const store = new OperationalStore(db, run.scope);
+        const registration = capabilityMap(run.scope, await store.connections(), Date.parse(lineage.policyArtifact.createdAt))
+          .find(v => v.workflow === "github_create_branch" && v.connectionId === (request.input as { connectionId?: string }).connectionId);
+        if (!registration) throw new ControlPlaneError("UNAVAILABLE", "Missing scoped n8n GitHub branch connection");
+        const parameters = request.input as { repository?: string; fromRef?: string; expectedSourceSha?: string };
+        const sourceEvidence = authorizedEvidence(await store.evidence(), run.scope, "deployment", ["internal", "public"], now().getTime(), registration.resources)
+          .find(e => e.authorization.connectionId === registration.connectionId && e.sourceRef === parameters.repository
+            && e.facts.sourceBranch === parameters.fromRef && e.facts.sourceSha === parameters.expectedSourceSha);
+        if (!sourceEvidence) throw new ControlPlaneError("UNAVAILABLE", "Synchronize repository health to independently resolve the source SHA before previewing branch creation");
+        return createExecutionPreview({ scope: run.scope, registration, parameters: request.input,
+          policy: { disposition: stepPolicy.evaluation.disposition, artifactHash: lineage.policyArtifact.artifactHash,
+            planHash: lineage.planArtifact.planHash, stepHash: stepPolicy.stepHash },
+          now: lineage.policyArtifact.createdAt, expiresAt: new Date(Date.parse(lineage.policyArtifact.createdAt) + 15 * 60_000).toISOString(),
+          estimatedCostCents: step.estimatedCostCents });
+      },
       plans,
       validations,
       policies,

@@ -65,7 +65,9 @@ export interface OwnerIntentRecord {
   threadId?: string;
   requestKeyHash?: string;
   conversationState?: ConversationState;
-  answer?: Readonly<{ text: string; evidenceRefs: readonly string[]; observedAt: string; knownUnknowns: readonly string[] }>;
+  answer?: Readonly<{ text: string; evidenceRefs: readonly string[]; observedAt: string; knownUnknowns: readonly string[];
+    footer?: import("@/lib/operations/footer").OperationalFooter;
+    inboxItems?: readonly import("@/lib/operations/contracts").OwnerInboxItem[] }>;
   receivedAt: string;
 }
 
@@ -80,6 +82,7 @@ export interface OwnerIntentStatusView {
     status: AuthoritativeDecision["status"];
     stepId?: string;
     requiresStepUp: boolean;
+    preview?: import("@/lib/operations/preview").ExecutionPreview;
     summary?: {
       title: string;
       expectedOutcome: string;

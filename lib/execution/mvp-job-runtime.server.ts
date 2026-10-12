@@ -13,6 +13,8 @@ import type { TaskRecord } from "@/lib/domain/services/task-service";
 import type { AuthorizedBusinessActionRequest } from "@/lib/execution/adapters/business-action";
 import { StaticBusinessActionAdapterRegistry } from "@/lib/execution/adapters/business-action-registry";
 import { createOrdinaryBusinessActionBindingsFromEnv } from "@/lib/execution/adapters/ordinary-integration-registry";
+import { resolvePreviewAuthority } from "@/lib/operations/preview-authority.server";
+import { synchronizeProviderRead, markConnectionDegraded } from "@/lib/operations/synchronization.server";
 import { BusinessActionExecutionOrchestrator } from "@/lib/execution/business-action-orchestrator";
 import { PostgresCurrentExecutionAdmissionGate } from "@/lib/execution/current-execution-admission";
 import {
@@ -249,6 +251,9 @@ export function getMvpJobRuntimeFromEnv(
   const business = new BusinessActionExecutionOrchestrator(
     new StaticBusinessActionAdapterRegistry(
       createOrdinaryBusinessActionBindingsFromEnv(env, {
+        n8nAuthority: request => resolvePreviewAuthority(database, request),
+        n8nEvidence: (request, output) => synchronizeProviderRead(database, request, output),
+        n8nDegraded: (request, connectionId) => markConnectionDegraded(database, request, connectionId),
         analyticsStore: new PostgresAnalyticsIngestionStore(database)
       })
     ),

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { analyzeConversationMessage, type ConversationSemantics } from "./contracts";
+import { isOwnerInputQuestion } from "@/lib/operations/inbox";
 
 export const interpretationSchema = z.object({
   intent: z.enum(["status_query", "explain_query", "investigate_request", "recommend_request", "action_request", "objective_request", "ambiguous"]),
@@ -32,6 +33,8 @@ export function topicFor(message: string): Interpretation["topic"] {
   return null;
 }
 export async function interpret(message: string, model?: () => Promise<unknown>): Promise<Interpretation> {
+  if (isOwnerInputQuestion(message)) return { intent: "status_query", confidence: 1, businessReference: null,
+    topic: "health", asksForAction: false, needsClarification: false, source: "deterministic" };
   if (model) {
     try {
       const parsed = interpretationSchema.safeParse(await model());

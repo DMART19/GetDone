@@ -79,6 +79,16 @@ export function ChatComposer() {
         <p className="chat-user"><strong>You</strong><br />{record.message}</p>
         <div className="chat-assistant"><strong>GetDone</strong>
           <p>{status.answer?.text ?? status.lifecycle.label}</p>
+          {status.answer?.inboxItems?.length ? <ul>{status.answer.inboxItems.map(item => <li key={item.id}>
+            {item.summary} — <a href={item.nextAction.href}>{item.nextAction.label}</a>
+          </li>)}</ul> : null}
+          {status.answer?.footer && <small aria-label="Operational evidence summary">
+            {status.answer.footer.evidenceCount} evidence records
+            {status.answer.footer.freshness && ` · oldest observed ${status.answer.footer.freshness}`}
+            {status.answer.footer.confidence !== undefined && ` · confidence ${Math.round(status.answer.footer.confidence * 100)}%`}
+            {status.answer.footer.missing?.map((missing, index) => <span key={index}> · {missing}</span>)}
+            {status.answer.footer.deepLink && <a href={status.answer.footer.deepLink}> · {status.answer.footer.nextDecision ?? "Review"}</a>}
+          </small>}
           {!status.answer && <p className="chat-progress" role="status">{status.lifecycle.label}{status.lifecycle.verified ? " — verification recorded" : ""}</p>}
           {status.answer?.evidenceRefs.length ? <details><summary>Evidence ({status.answer.evidenceRefs.length})</summary><ul>{status.answer.evidenceRefs.map(ref => <li key={ref}>{ref}</li>)}</ul></details> : null}
           {status.verificationRefs?.length ? <details open><summary>Verified results</summary><ul>{status.verificationRefs.map(ref => <li key={ref}>Verification receipt: {ref}</li>)}</ul></details> : null}
@@ -88,6 +98,14 @@ export function ChatComposer() {
             {result.failure && <p>{result.failure.safetyMessage}</p>}
           </div>)}
           {status.decisions?.map(decision => <div key={decision.id} className="chat-approval">
+            {decision.preview && <details open><summary>Exact execution preview</summary>
+              <p>{decision.preview.capability} · {decision.preview.resources.join(", ")}<br />{decision.preview.expectedResult}</p>
+              <p>Business: {decision.preview.scope.companyId} · Approval: {decision.preview.approval}</p>
+              <pre aria-label="Validated execution parameters">{JSON.stringify(decision.preview.parameters, null, 2)}</pre>
+              <p>Effects: {decision.preview.sideEffects.join("; ") || "Read only"}<br />Non-effects: {decision.preview.nonEffects.join("; ")}</p>
+              <p>Verification: {decision.preview.verificationMethod}<br />Expires: {decision.preview.expiresAt}</p>
+              {decision.preview.estimatedCostCents !== undefined && <p>Estimated external cost: ${(decision.preview.estimatedCostCents / 100).toFixed(2)}</p>}
+            </details>}
             <p>Proposed step: {decision.summary?.title ?? decision.stepId ?? decision.id}. {decision.requiresStepUp ? "Passkey confirmation required." : "Approval required."}</p>
             {decision.summary && <p>{decision.summary.expectedOutcome}<br />Estimated cost: ${(decision.summary.estimatedCostCents / 100).toFixed(2)}. Risk: {decision.summary.risk}.<br />Verification: {decision.summary.verification.join("; ")}</p>}
             {decision.status === "pending" && decision.summary ? <DecisionActions authoritative decisionId={decision.id} initialStatus={decision.status} portfolioId={record.portfolioId}
