@@ -48,6 +48,7 @@ import type {
   PreparedConversationTurn,
   OwnerIntentRecord,
   ResourceDiscoveryInput,
+  GithubResourceEnrollmentInput,
   ResourceEnrollmentActionInput,
   ResourceEnrollmentStartInput
 } from "@/lib/control-api/contracts";
@@ -110,6 +111,12 @@ export interface ServiceBackedControlApiDependencies {
   resourceRegistry: ResourceRegistryService;
   resourceEnrollments: ScopedReadStore<ResourceEnrollmentRecord>;
   resourceEnrollmentService: ResourceEnrollmentService;
+  githubResourceEnrollment?: {
+    enroll(
+      principal: ControlApiPrincipal,
+      input: GithubResourceEnrollmentInput
+    ): Promise<Resource>;
+  };
   jobs: ScopedReadStore<JobRecord>;
   verifications: ScopedReadStore<VerificationRequestRecord>;
   health: () => Promise<ControlApiHealth>;
@@ -524,6 +531,22 @@ export class ServiceBackedControlApiAdapter implements ControlApiApplicationAdap
       architecture: input.architecture,
       discoveredAt: this.now().toISOString()
       }, command);
+    });
+  }
+
+  enrollGithubResource(
+    principal: ControlApiPrincipal,
+    input: GithubResourceEnrollmentInput
+  ) {
+    return this.scoped(principal, () => {
+      requireRole(principal, ["owner", "admin"], "GitHub resource enrollment");
+      if (!this.deps.githubResourceEnrollment) {
+        throw new ControlPlaneError(
+          "UNAVAILABLE",
+          "GitHub resource enrollment is not configured"
+        );
+      }
+      return this.deps.githubResourceEnrollment.enroll(principal, input);
     });
   }
 

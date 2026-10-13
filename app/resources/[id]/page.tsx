@@ -18,7 +18,7 @@ export default async function ResourceDetailPage({ params }: { params: Promise<{
 
   return (
     <AppShell navigation={false}>
-      <BackHeader title="Resource Details" href="/resources" showMenu />
+      <BackHeader title="Resource Details" href="/resources" />
       <DevelopmentBadge />
       <section className="page-content resource-detail-page">
         <div className="resource-hero">
@@ -29,17 +29,28 @@ export default async function ResourceDetailPage({ params }: { params: Promise<{
           </div>
         </div>
 
-        <button type="button" className="primary-action resource-actions">
-          Actions <span>⌄</span>
+        <button type="button" className="primary-action resource-actions" disabled title="No governed actions are currently available">
+          No actions available
         </button>
 
         <ResourceTabs resource={resource} />
 
-        <button type="button" className="capabilities-button">
+        <a href="#resource-capabilities" className="capabilities-button">
           <span className="cube">◇</span>
           View Capabilities
           <ChevronRight size={17} />
-        </button>
+        </a>
+
+        <section id="resource-capabilities" className="workload-card" aria-labelledby="resource-capabilities-heading">
+          <div>
+            <strong id="resource-capabilities-heading">Governed capabilities</strong>
+            <span>
+              {resource.capabilityNames?.length
+                ? resource.capabilityNames.join(" · ")
+                : "No governed capabilities are registered for this resource."}
+            </span>
+          </div>
+        </section>
 
         <section className="workload-card">
           <div>

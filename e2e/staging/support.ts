@@ -78,6 +78,14 @@ export interface VirtualPasskeyFixture {
 function databaseUrl() {
   const value = process.env.DATABASE_URL?.trim();
   if (!value) throw new Error("DATABASE_URL is required for staging browser E2E");
+  if (
+    process.env.GETDONE_RUNTIME_ENV !== "staging"
+    || process.env.GETDONE_E2E_DATABASE_RESET_ALLOWED !== "true"
+  ) {
+    throw new Error(
+      "Staging browser E2E requires GETDONE_RUNTIME_ENV=staging and GETDONE_E2E_DATABASE_RESET_ALLOWED=true"
+    );
+  }
   return value;
 }
 

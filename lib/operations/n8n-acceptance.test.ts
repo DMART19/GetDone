@@ -1,9 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { createHmac } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { runInNewContext } from "node:vm";
-import * as cryptoModule from "node:crypto";
-import { sha256Hex, canonicalSerialize } from "@/lib/control-plane/canonical-hash";
+import { sha256Hex } from "@/lib/control-plane/canonical-hash";
 import { createApprovalProof } from "@/lib/authorization/proofs";
 import { BusinessActionExecutionOrchestrator, type BusinessActionExecutionRecord } from "@/lib/execution/business-action-orchestrator";
 import { StaticBusinessActionAdapterRegistry } from "@/lib/execution/adapters/business-action-registry";
@@ -109,23 +107,26 @@ describe("narrow three-workflow acceptance", () => {
     expect((await adapter.execute(request("github.repository.read", { companyId: "c", connectionId: "github", repository: "acme/app", operation: "repository" }), context("github.repository.read"))).status).toBe("completed");
     expect(sync).toHaveBeenCalledTimes(1);
   });
-  it("all three importable workflows are inactive, signature-gated and contain no external write beyond branch creation", () => {
+  it("all three importable workflows are inactive, use GetDone's validator, and contain no external write beyond branch creation", () => {
     for (const name of ["github_repository_health", "deployment_health", "github_create_branch"]) {
       const workflow = JSON.parse(readFileSync(`n8n/${name}.json`, "utf8"));
       expect(workflow.active).toBe(false);
-      const guard = workflow.nodes.find((n: { id: string }) => n.id === "guard").parameters.jsCode;
+      const guard = workflow.nodes.find((n: { id: string }) => n.id === "guard");
       const receipt = workflow.nodes.find((n: { id: string }) => n.id === "receipt").parameters.jsCode;
-      expect(() => new Function(guard)).not.toThrow(); expect(() => new Function(receipt)).not.toThrow();
-      const envelope = { ...request(), version: "1.0.0", parameters, previewHash: authority().preview.previewHash, sentAt: new Date().toISOString() };
-      const signature = createHmac("sha256", key).update(canonicalSerialize(envelope)).digest("hex");
-      const sandbox = { require: () => cryptoModule, Buffer, URL, $json: { body: envelope, headers: { "x-getdone-signature": signature } },
-        $env: { GETDONE_N8N_SIGNING_KEY: key, GETDONE_N8N_ALLOWED_SCOPE_JSON: JSON.stringify([{ ...scope, connectionId: "github", repositories: ["acme/app"] }]) },
-        $workflow: { name }, Date };
-      if (name === "github_create_branch") expect(runInNewContext(`(function(){${guard}})()`, sandbox)[0].json.envelope.parameters.branch).toBe("fix-health");
-      sandbox.$json.headers["x-getdone-signature"] = "f".repeat(64);
-      expect(() => runInNewContext(`(function(){${guard}})()`, sandbox)).toThrow("Invalid signature");
+      expect(guard.type).toBe("n8n-nodes-base.httpRequest");
+      expect(guard.parameters).toMatchObject({
+        method: "POST",
+        url: "https://getdone-web.onrender.com/api/integrations/n8n/validate",
+        sendBody: true,
+        jsonBody: "={{ $json.body }}",
+      });
+      expect(JSON.stringify(guard)).toContain("X-GetDone-Signature");
+      expect(JSON.stringify(workflow)).not.toContain("$env.");
+      expect(() => new Function(receipt)).not.toThrow();
       expect(workflow.nodes.filter((n: { type: string; parameters: { method?: string } }) => n.type === "n8n-nodes-base.httpRequest")
-        .map((n: { parameters: { method: string } }) => n.parameters.method)).toEqual(name === "github_create_branch" ? ["POST"] : name === "github_repository_health" ? ["GET", "GET"] : ["GET"]);
+        .map((n: { parameters: { method: string } }) => n.parameters.method)).toEqual(
+          name === "github_create_branch" ? ["POST", "POST"] : name === "github_repository_health" ? ["POST", "GET", "GET"] : ["POST", "GET"],
+        );
     }
   });
 });

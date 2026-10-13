@@ -22,6 +22,7 @@ import type {
   ResourceEnrollmentStores
 } from "@/lib/resources/enrollment";
 import { ResourceEnrollmentService } from "@/lib/resources/enrollment";
+import { GithubResourceEnrollmentService } from "@/lib/resources/github-enrollment.server";
 import { PostgresEntityStore } from "@/lib/persistence/postgres/authority-stores";
 import {
   PostgresOwnerIntentStore,
@@ -117,6 +118,13 @@ export function createPostgresControlApiAdapter(
     )
   );
 
+  const githubResourceEnrollment = new GithubResourceEnrollmentService({
+    resources,
+    registry: resourceRegistry,
+    enrollments: resourceEnrollmentService,
+    env
+  });
+
   return new ServiceBackedControlApiAdapter({
     auth: new PostgresAuthAdapter(db, {
       cookieName: webAuthn.cookieName,
@@ -141,6 +149,7 @@ export function createPostgresControlApiAdapter(
     resourceRegistry,
     resourceEnrollments,
     resourceEnrollmentService,
+    githubResourceEnrollment,
     jobs,
     verifications,
     tenantScopeRunner: (scope, operation) =>
