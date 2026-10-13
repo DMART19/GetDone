@@ -81,6 +81,12 @@ const resourceEnrollmentStartSchema = z.object({
   challengeExpiresAt: z.string().datetime()
 });
 
+const githubResourceEnrollmentSchema = z.object({
+  repository: z.literal("DMART19/GetDone"),
+  environment: z.literal("production"),
+  protectedBranches: z.tuple([z.literal("main")])
+}).strict();
+
 const resourceEnrollmentActionSchema = z.object({
   action: z.enum([
     "create", "owner-action", "authenticate", "discover", "profile", "validate",
@@ -474,6 +480,32 @@ export function handleStartResourceEnrollment(request: Request) {
     );
     const body = await parseJson(request, resourceEnrollmentStartSchema, "resource enrollment");
     return adapter.startResourceEnrollment(actor, {
+      ...body,
+      idempotencyKey: requireIdempotencyKey(request)
+    });
+  }, { status: 201 });
+}
+
+export function handleEnrollGithubResource(request: Request) {
+  return execute(async (adapter) => {
+    const actor = await adapter.authenticate(request);
+    await enforceRateLimit(
+      RATE_LIMIT_POLICIES.enrollmentMutation,
+      tenantRateLimitKey({
+        portfolioId: actor.scope.portfolioId,
+        companyId: actor.scope.companyId,
+        userId: actor.scope.userId
+      }, "github-resource-enrollment")
+    );
+    if (!adapter.enrollGithubResource) {
+      throw new ControlPlaneError("UNAVAILABLE", "GitHub resource enrollment is not configured");
+    }
+    const body = await parseJson(
+      request,
+      githubResourceEnrollmentSchema,
+      "GitHub resource enrollment"
+    );
+    return adapter.enrollGithubResource(actor, {
       ...body,
       idempotencyKey: requireIdempotencyKey(request)
     });

@@ -20,6 +20,7 @@ import {
   handleListObjectives,
   handleGetObjective,
   handleStartResourceEnrollment,
+  handleEnrollGithubResource,
   handleLogout,
   handleRevokeOtherSessions,
   handleVerifyStepUp
@@ -219,6 +220,16 @@ function fakeAdapter(): ControlApiApplicationAdapter {
       ...enrollment,
       id: input.id,
       requestedType: input.requestedType
+    }),
+    enrollGithubResource: async () => ({
+      ...resource,
+      id: "github-repository:DMART19.GetDone",
+      type: "cloud",
+      state: "ready",
+      environmentPermissions: ["production"],
+      providerId: "github-production",
+      credentialBindingIds: ["github-binding:github-production"],
+      trustClass: "production-eligible"
     }),
     advanceResourceEnrollment: async (_principal, id, input) => ({
       ...enrollment,
@@ -533,6 +544,51 @@ describe("Control API HTTP surface", () => {
       "enrollment-1"
     );
     expect(await json(advanced)).toMatchObject({ ok: true, data: { state: "create-enrollment" } });
+  });
+
+  it("accepts only the narrow GitHub enrollment contract with an idempotency key", async () => {
+    const requestBody = JSON.stringify({
+      repository: "DMART19/GetDone",
+      environment: "production",
+      protectedBranches: ["main"]
+    });
+    const missingKey = await handleEnrollGithubResource(new Request(
+      "http://localhost/api/control/resources/github/enroll",
+      { method: "POST", headers: { "content-type": "application/json" }, body: requestBody }
+    ));
+    expect(missingKey.status).toBe(400);
+
+    const invalidScope = await handleEnrollGithubResource(new Request(
+      "http://localhost/api/control/resources/github/enroll",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json", "idempotency-key": "github-enroll-1" },
+        body: JSON.stringify({
+          repository: "DMART19/other",
+          environment: "production",
+          protectedBranches: ["main"]
+        })
+      }
+    ));
+    expect(invalidScope.status).toBe(400);
+
+    const response = await handleEnrollGithubResource(new Request(
+      "http://localhost/api/control/resources/github/enroll",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json", "idempotency-key": "github-enroll-1" },
+        body: requestBody
+      }
+    ));
+    expect(response.status).toBe(201);
+    expect(await json(response)).toMatchObject({
+      ok: true,
+      data: {
+        id: "github-repository:DMART19.GetDone",
+        state: "ready",
+        providerId: "github-production"
+      }
+    });
   });
 
   it("accepts and reads owner-facing Objectives through the Control API", async () => {

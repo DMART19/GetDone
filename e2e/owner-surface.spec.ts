@@ -35,8 +35,43 @@ test.describe("existing owner surface", () => {
     await expect(page.getByText("Home Pi")).toBeVisible();
 
     await page.getByRole("link", { name: /Add Resource/i }).click();
-    await expect(page.getByRole("heading", { name: "What would you like to add?" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Connect a governed resource" })).toBeVisible();
     await expect(page.getByRole("link", { name: "Cancel" })).toHaveAttribute("href", "/resources");
+  });
+
+  test("GitHub enrollment submits to the governed API and deferred choices cannot pretend to enroll", async ({ page }) => {
+    let requestBody: unknown;
+    let idempotencyKey: string | undefined;
+    await page.route("**/api/control/resources/github/enroll", async (route) => {
+      requestBody = route.request().postDataJSON();
+      idempotencyKey = route.request().headers()["idempotency-key"];
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ ok: true, data: { id: "home-pi" } }),
+      });
+    });
+
+    await page.goto("/resources/add");
+    await expect(page.getByLabel("Repository")).toHaveValue("DMART19/GetDone");
+    await expect(page.getByLabel("Environment")).toHaveValue("production");
+    await expect(page.getByLabel("Protected branches")).toHaveValue("main");
+
+    for (const name of ["Compute", "Storage", "Network", "Cloud Provider", "Data Center / Partner", "Other"]) {
+      const choice = page.getByRole("button", { name: new RegExp(`^${name}`) });
+      await expect(choice).toBeDisabled();
+      await expect(choice).toContainText("Coming soon");
+    }
+
+    await page.getByRole("button", { name: "Enroll GitHub repository" }).click();
+    await expect(page).toHaveURL(/\/resources\/home-pi$/);
+    await expect(page.getByRole("heading", { name: /Home Pi/ })).toBeVisible();
+    expect(requestBody).toEqual({
+      repository: "DMART19/GetDone",
+      environment: "production",
+      protectedBranches: ["main"],
+    });
+    expect(idempotencyKey).toMatch(/^[0-9a-f-]{36}$/);
   });
 
   test("direct decision and resource deep links resolve to scoped detail views", async ({ page }) => {

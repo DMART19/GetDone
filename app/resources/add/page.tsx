@@ -9,8 +9,8 @@ export default function AddResourcePage() {
       <BackHeader title="Add Resource" href="/resources" rightLabel="Cancel" rightHref="/resources" />
       <DevelopmentBadge />
       <section className="page-content add-resource-page">
-        <h2>What would you like to add?</h2>
-        <p>Same simple flow for a Raspberry Pi or a data-center. GetDone will guide you.</p>
+        <h2>Connect a governed resource</h2>
+        <p>GitHub is available for the initial release. Other resource types are clearly deferred.</p>
         <AddResourceChoices />
       </section>
     </AppShell>

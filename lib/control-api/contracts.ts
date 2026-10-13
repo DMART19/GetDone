@@ -126,6 +126,13 @@ export interface ResourceEnrollmentStartInput {
   idempotencyKey: string;
 }
 
+export interface GithubResourceEnrollmentInput {
+  repository: string;
+  environment: "production";
+  protectedBranches: readonly string[];
+  idempotencyKey: string;
+}
+
 export type ResourceEnrollmentAction =
   | "create"
   | "owner-action"
@@ -258,6 +265,10 @@ export interface ControlApiApplicationAdapter {
   discoverResource(
     principal: ControlApiPrincipal,
     input: ResourceDiscoveryInput
+  ): Promise<Resource>;
+  enrollGithubResource?(
+    principal: ControlApiPrincipal,
+    input: GithubResourceEnrollmentInput
   ): Promise<Resource>;
 
   listResourceEnrollments(

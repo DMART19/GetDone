@@ -14,6 +14,7 @@ export interface Resource {
   reliabilityTier: string;
   autoScheduling: boolean;
   metrics: Array<{ label: string; value: string; tone?: "good" | "neutral" }>;
+  capabilityNames?: string[];
   workloads: { running: number; queued: number; utilization: number };
   icon: "server" | "gpu" | "storage" | "cloud" | "network";
 }
