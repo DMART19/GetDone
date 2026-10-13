@@ -1,0 +1,159 @@
+{
+  "name": "github_repository_health",
+  "active": false,
+  "nodes": [
+    {
+      "id": "trigger",
+      "name": "Governed webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "getdone-github_repository_health",
+        "responseMode": "lastNode",
+        "responseData": "firstEntryJson",
+        "options": {}
+      }
+    },
+    {
+      "id": "guard",
+      "name": "Validate governed envelope",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ],
+      "parameters": {
+        "jsCode": "const crypto = require('crypto');\nconst canonical = v => Array.isArray(v) ? '['+v.map(canonical).join(',')+']' : v && typeof v === 'object' ? '{'+Object.entries(v).filter(([,x])=>x!==undefined).sort(([a],[b])=>a.localeCompare(b)).map(([k,x])=>JSON.stringify(k)+':'+canonical(x)).join(',')+'}' : JSON.stringify(v);\nconst envelope = $json.body;\nconst key = $env.GETDONE_N8N_SIGNING_KEY;\nif (!key || key.length < 32 || !envelope || typeof envelope !== 'object') throw new Error('Missing trusted configuration');\nconst signature = $json.headers['x-getdone-signature'];\nconst expected = crypto.createHmac('sha256',key).update(canonical(envelope)).digest('hex');\nif (typeof signature !== 'string' || !/^[a-f0-9]{64}$/.test(signature) || !crypto.timingSafeEqual(Buffer.from(expected,'hex'),Buffer.from(signature,'hex'))) throw new Error('Invalid signature');\nif (!Number.isFinite(Date.parse(envelope.sentAt)) || Math.abs(Date.now()-Date.parse(envelope.sentAt)) > 60000 || !envelope.authorizationConsumptionHash || !envelope.idempotencyKey) throw new Error('Expired or unauthorized envelope');\nconst registrations = JSON.parse($env.GETDONE_N8N_ALLOWED_SCOPE_JSON || '[]');\nconst p = envelope.parameters;\nconst registration = registrations.find(c=>c.portfolioId===envelope.scope.portfolioId && c.companyId===envelope.scope.companyId && c.environment===envelope.scope.environment && c.connectionId===p.connectionId);\nif (!registration || p.companyId!==registration.companyId) throw new Error('Tenant scope mismatch');\nconst workflow = $workflow.name;\nif (workflow==='deployment_health') {\n if(envelope.capability!=='http.request' || Object.keys(p.payload || {}).length || p.operation!==registration.operation) throw new Error('Read-only deployment scope required');\n const url=new URL(registration.deploymentUrl);\n if(url.protocol!=='https:' || url.username || url.password || url.search || url.hash) throw new Error('Invalid registered deployment URL');\n return [{json:{envelope, deploymentUrl:url.toString()}}];\n}\nif(!registration.repositories?.includes(p.repository) || !/^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$/.test(p.repository)) throw new Error('Repository is not allowlisted');\nif(workflow==='github_create_branch') {\n if(envelope.capability!=='github.branch.create' || !/^[a-f0-9]{64}$/.test(envelope.previewHash || '') || !/^[a-f0-9]{40}$/.test(p.expectedSourceSha || '') || !/^(?!\\/)(?!.*\\.\\.)(?!.*\\/\\/)[A-Za-z0-9._\\/-]+$/.test(p.branch || '') || ['main','master',...(registration.protectedBranches || [])].includes(p.branch)) throw new Error('Invalid approved branch scope');\n} else if(envelope.capability!=='github.repository.read' || !['repository','checks'].includes(p.operation)) throw new Error('Repository-health reads only');\nreturn [{json:{envelope}}];"
+      }
+    },
+    {
+      "id": "provider",
+      "name": "Bounded provider request",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        480,
+        0
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://api.github.com/repos/' + $json.envelope.parameters.repository + ($json.envelope.parameters.operation === 'checks' ? '/commits/' + encodeURIComponent($json.envelope.parameters.ref || 'main') + '/check-runs' : '') }}",
+        "options": {
+          "timeout": 15000,
+          "redirect": {
+            "redirect": {
+              "followRedirects": false
+            }
+          }
+        },
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "githubApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/vnd.github+json"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "receipt",
+      "name": "Return read evidence or dispatch receipt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        0
+      ],
+      "parameters": {
+        "jsCode": "const crypto=require('crypto');\nconst canonical=v=>Array.isArray(v)?'['+v.map(canonical).join(',')+']':v&&typeof v==='object'?'{'+Object.entries(v).filter(([,x])=>x!==undefined).sort(([a],[b])=>a.localeCompare(b)).map(([k,x])=>JSON.stringify(k)+':'+canonical(x)).join(',')+'}':JSON.stringify(v);\nconst envelope=$('Validate governed envelope').first().json.envelope;\nconst observedAt=new Date().toISOString();\nif($workflow.name==='github_create_branch') return [{json:{accepted:true,requestId:envelope.requestId}}];\nif($workflow.name==='deployment_health') return [{json:{output:{providerOperationId:'deployment-health:'+envelope.requestId,responseStatus:200,responseBodyHash:crypto.createHash('sha256').update(canonical($json)).digest('hex'),observedAt},facts:{status:typeof $json.status==='string'?$json.status:'read completed',failures:typeof $json.failures==='number'?$json.failures:null}}}];\nreturn [{json:{repository:envelope.parameters.repository,operation:envelope.parameters.operation,data:{...$('Bounded provider request').first().json,sourceSha:$json.object.sha,sourceBranch:envelope.parameters.ref || $('Bounded provider request').first().json.default_branch || 'main'},dataHash:crypto.createHash('sha256').update(canonical({...$('Bounded provider request').first().json,sourceSha:$json.object.sha,sourceBranch:envelope.parameters.ref || $('Bounded provider request').first().json.default_branch || 'main'})).digest('hex'),observedAt}}];"
+      }
+    },
+    {
+      "id": "source",
+      "name": "Read source commit",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        720,
+        0
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://api.github.com/repos/' + $('Validate governed envelope').first().json.envelope.parameters.repository + '/git/ref/heads/' + encodeURIComponent($('Validate governed envelope').first().json.envelope.parameters.ref || $json.default_branch || 'main') }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "githubApi",
+        "options": {
+          "timeout": 10000,
+          "redirect": {
+            "redirect": {
+              "followRedirects": false
+            }
+          }
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Governed webhook": {
+      "main": [
+        [
+          {
+            "node": "Validate governed envelope",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate governed envelope": {
+      "main": [
+        [
+          {
+            "node": "Bounded provider request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Bounded provider request": {
+      "main": [
+        [
+          {
+            "node": "Read source commit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read source commit": {
+      "main": [
+        [
+          {
+            "node": "Return read evidence or dispatch receipt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataErrorExecution": "none",
+    "saveDataSuccessExecution": "none",
+    "saveExecutionProgress": false
+  },
+  "tags": []
+}

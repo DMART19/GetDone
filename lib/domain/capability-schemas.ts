@@ -158,7 +158,8 @@ export const GithubBranchCreateInputSchema = z.object({
   connectionId: id,
   repository,
   branch: githubBranch,
-  fromRef: z.string().min(1).max(255)
+  fromRef: z.string().min(1).max(255),
+  expectedSourceSha: z.string().regex(/^[a-f0-9]{40}$/).optional()
 }).strict();
 
 export const GithubFileChangeSchema = z.object({

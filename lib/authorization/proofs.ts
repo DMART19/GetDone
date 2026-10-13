@@ -17,6 +17,8 @@ export interface StepUpProof {
 }
 
 export interface ApprovalProof {
+  /** Bound by the server, never supplied as independent execution authority. */
+  previewHash?: string;
   id: string;
   decisionId: string;
   approvalId: string;

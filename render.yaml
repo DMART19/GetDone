@@ -7,7 +7,7 @@ services:
     region: oregon
     plan: starter
     repo: https://github.com/DMART19/GetDone
-    branch: main
+    branch: codex/narrow-optimization-addendum
     autoDeployTrigger: off
     buildCommand: npm ci --include=dev && npm run build
     startCommand: npm run start
@@ -57,7 +57,7 @@ services:
     region: oregon
     plan: starter
     repo: https://github.com/DMART19/GetDone
-    branch: main
+    branch: codex/narrow-optimization-addendum
     autoDeployTrigger: off
     buildCommand: npm ci --include=dev && npm run build:worker
     startCommand: npm run start:worker
@@ -156,7 +156,7 @@ services:
     region: oregon
     plan: starter
     repo: https://github.com/DMART19/GetDone
-    branch: main
+    branch: codex/narrow-optimization-addendum
     autoDeployTrigger: off
     buildCommand: npm ci --include=dev && npm run build:orchestration-worker
     startCommand: npm run start:orchestration-worker

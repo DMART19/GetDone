@@ -1,5 +1,11 @@
 import type { ContextItem } from "@/lib/intelligence/context";
 import { groundConversationAnswer } from "@/lib/conversation/answers";
+import { OperationalStore } from "@/lib/operations/store.server";
+import { capabilityMap, connectionRequirement } from "@/lib/operations/capability-map";
+import { authorizedEvidence } from "@/lib/operations/evidence";
+import { operationalFooter } from "@/lib/operations/footer";
+import { isOwnerInputQuestion } from "@/lib/operations/inbox";
+import { verifiedRecommendationScore, type VerifiedOutcome } from "@/lib/operations/outcomes";
 import { sha256Hex } from "@/lib/control-plane/canonical-hash";
 import { ControlPlaneError } from "@/lib/control-plane/errors";
 import { createAuditEvent } from "@/lib/domain/audit";
@@ -77,6 +83,40 @@ export class PostgresOwnerIntentStore implements OwnerIntentStore {
     const intent = record.conversation?.intent;
     if (!intent || !["status_query", "explain_query", "recommend_request", "investigate_request"].includes(intent)
       || record.conversation?.requiresExecutionAuthority) return record;
+    const scope = { portfolioId: record.portfolioId, companyId: record.companyId, userId: record.userId, environment: record.environment };
+    const operations = new OperationalStore(this.db, scope);
+    if (isOwnerInputQuestion(record.message)) {
+      await operations.refreshInbox(record.receivedAt);
+      const items = await operations.inbox(Date.parse(record.receivedAt));
+      return { ...record, status: "answered" as const, answer: { text: items.length
+        ? `${items.length} decision${items.length === 1 ? "" : "s"} need your input for this business.`
+        : "No actionable items currently need your input for this business.", evidenceRefs: [], observedAt: record.receivedAt,
+        knownUnknowns: [], inboxItems: items, footer: operationalFooter([], { nextDecision: items[0]?.nextAction.label, deepLink: items[0]?.nextAction.href }) } };
+    }
+    const topic = record.conversationState?.activeTopic ?? record.conversation?.topic;
+    const connections = await operations.connections();
+    const resources = connections.filter(c => c.status === "healthy" && c.grantedUserIds.includes(scope.userId)
+      && (!c.expiresAt || Date.parse(c.expiresAt) > Date.parse(record.receivedAt))).flatMap(c => c.resources);
+    const normalized = authorizedEvidence(await operations.evidence(), scope, topic ?? undefined,
+      ["public", "internal"], Date.parse(record.receivedAt), resources).filter(e => connections.some(c =>
+        c.id === e.authorization.connectionId && c.status === "healthy" && c.grantedUserIds.includes(scope.userId)
+        && c.resources.includes(e.authorization.resourceId) && (!c.expiresAt || Date.parse(c.expiresAt) > Date.parse(record.receivedAt))));
+    if (normalized.length) {
+      const refs = normalized.slice(0, 6);
+      const history = await operations.list<VerifiedOutcome>("verified-outcome");
+      const ranked = [{ kind: "investigate", description: "Investigate the recorded health findings with read-only evidence", base: 0.5 },
+        { kind: "github_create_branch", description: "Prepare a preview for a non-protected repair branch; approval is required before creation", base: 0.4 }]
+        .map(r => ({ ...r, score: verifiedRecommendationScore(r.base, r.kind, topic ?? "deployment", scope, history, Date.parse(record.receivedAt)) }))
+        .sort((a, b) => b.score - a.score);
+      const proposedActions = intent === "recommend_request" ? ranked.map((r, i) => ({ id: `${record.id}:${i}`,
+        description: r.description, sourceIntentId: record.id })) : record.conversationState?.proposedActions ?? [];
+      return { ...record, status: "answered" as const,
+        conversationState: record.conversationState ? { ...record.conversationState, evidenceRefs: refs.map(e => e.evidenceId),
+          lastFinding: refs[0].summary, proposedActions } : undefined,
+        answer: { text: refs.map(e => e.summary).join(" ") + (intent === "explain_query" ? " These records establish status, not a verified root cause; diagnostic evidence is still needed." : "")
+          + (intent === "recommend_request" ? ` Recommended next steps: ${ranked.map(r => r.description).join("; ")}.` : ""),
+        evidenceRefs: refs.map(e => e.evidenceId), observedAt: record.receivedAt, knownUnknowns: [], footer: operationalFooter(refs) } };
+    }
     // Only presentation fields from authorized, fresh records become answer evidence.
     const result = await this.db.query<{ id: string; entity_type: string; updated_at: string; title: string; state: string; sensitivity: ContextItem["sensitivity"] }>(
       `SELECT id,entity_type,updated_at,
@@ -86,12 +126,17 @@ export class PostgresOwnerIntentStore implements OwnerIntentStore {
        FROM control_plane_entities
        WHERE portfolio_id=$1 AND company_id=$2
          AND entity_type = ANY($3::text[])
-         AND (payload->>'environment'=$4 OR (entity_type IN ('decision','job','outcome','verification') AND NOT payload ? 'environment'))
+         AND (payload->>'environment'=$4 OR payload->'scope'->>'environment'=$4
+           OR payload->'approvalBinding'->'trustedScope'->>'environment'=$4
+           OR payload->'authorizationConsumption'->'scope'->>'environment'=$4)
          AND updated_at >= $5::timestamptz - interval '7 days'
        ORDER BY updated_at DESC,id LIMIT 500`,
       [record.portfolioId, record.companyId, ["fact", "signal", "integration", "objective", "decision", "job", "outcome", "verification"], record.environment, record.receivedAt]
     );
-    return groundConversationAnswer(record, result.rows);
+    const grounded = groundConversationAnswer(record, result.rows);
+    const missing = connectionRequirement(topic, capabilityMap(scope, connections, Date.parse(record.receivedAt)));
+    return grounded.answer?.evidenceRefs.length ? grounded : { ...grounded, answer: { ...grounded.answer!,
+      text: missing, knownUnknowns: [missing], footer: operationalFooter([], { missing: [missing] }) } };
   }
 
   async create(record: OwnerIntentRecord, idempotencyKey: string) {

@@ -314,6 +314,7 @@ export class ServiceBackedControlApiAdapter implements ControlApiApplicationAdap
           const step = visiblePlan?.proposal.steps.find(step => step.id === d.approvalBinding?.stepId);
           const bound = visiblePlan?.planHash === d.approvalBinding?.planHash && visiblePlan?.artifactHash === d.approvalBinding?.planArtifactHash;
           return { id: d.id, status: d.status, stepId: d.approvalBinding?.stepId, requiresStepUp: d.requiresStepUp,
+            preview: step && bound ? d.executionPreview : undefined,
             summary: step && bound ? { title: redactTelemetryText(step.title), expectedOutcome: redactTelemetryText(step.expectedOutcome),
               estimatedCostCents: step.estimatedCostCents, risk: step.risk.level,
               verification: step.verificationRequirements.map(v => redactTelemetryText(v.description)) } : undefined };

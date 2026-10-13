@@ -70,7 +70,10 @@ function authorityIdentityHash(request: AuthorizedBusinessActionRequest) {
 function createRecord(
   input: Omit<BusinessActionExecutionRecord, "recordHash">
 ): BusinessActionExecutionRecord {
-  return Object.freeze({ ...input, recordHash: sha256Hex(input) });
+  // A spread of a previous persisted record must not include its old hash in the new hash preimage.
+  const { recordHash: priorHash, ...base } = input as BusinessActionExecutionRecord;
+  void priorHash;
+  return Object.freeze({ ...base, recordHash: sha256Hex(base) });
 }
 
 function assertStatusIdentity(
