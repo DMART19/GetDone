@@ -66,7 +66,7 @@ export function ChatComposer({ portfolioId, businesses = [] }: { portfolioId?: s
   async function submit(event: FormEvent) {
     event.preventDefault();
     const clean = message.trim();
-    if (!clean || submitting || (businesses.length > 0 && !scopedPortfolio)) return;
+    if (!clean || submitting || historyLoading || (businesses.length > 0 && !scopedPortfolio)) return;
 
     if (!authoritativeRuntime()) {
       setPreview(`Queued locally for preview: “${clean}”`);
@@ -139,7 +139,7 @@ export function ChatComposer({ portfolioId, businesses = [] }: { portfolioId?: s
           onChange={(event) => setMessage(event.target.value)}
           placeholder="Message GetDone..."
           aria-label="Message GetDone"
-          disabled={submitting || (businesses.length > 0 && !scopedPortfolio)}
+          disabled={submitting || historyLoading || (businesses.length > 0 && !scopedPortfolio)}
         />
         <button
           className="send-button"
