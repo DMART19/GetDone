@@ -27,7 +27,7 @@ export default async function HomePage() {
 
   return (
     <AppShell className="business-home">
-      <AppHeader />
+      <div className="de-caption">✦ DAVID EDITION / OWNER 01 / UNIVERSE COMMAND</div>
       <BusinessSystem />
       {objectives ? <HomeDashboard objectives={[...objectives]} /> : businessCount > 1 ? (
         <p className="business-scope-note">Select a business to inspect its work. Objective submission and chat currently require an account with one active business.</p>
