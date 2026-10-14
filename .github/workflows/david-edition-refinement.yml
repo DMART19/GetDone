@@ -5,6 +5,10 @@ on:
       - "components/david-**"
       - "components/decision-actions.tsx"
       - "components/app-shell.tsx"
+      - "components/business-system.tsx"
+      - "playwright.config.ts"
+      - "e2e/david-edition-cosmos.spec.ts"
+      - "app/david-edition.css"
       - "app/page.tsx"
       - "app/decisions/**"
       - "app/resources/**"
@@ -30,3 +34,7 @@ jobs:
       - run: npm run build
       - run: npm run verify:architecture
       - run: npm run verify:secrets
+      - run: npx playwright install --with-deps chromium
+      - run: npx playwright test e2e/david-edition-cosmos.spec.ts --project=desktop-chromium --project=mobile-chromium
+        env:
+          GETDONE_DAVID_EDITION: "true"
