@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, ChevronDown, ChevronRight, CheckCircle2, CircleAlert, Filter, LockKeyhole, Orbit, Search, ShieldCheck, Sparkles, X } from "lucide-react";
+import { ArrowRight, ChevronDown, ChevronRight, CheckCircle2, CircleAlert, Filter, LockKeyhole, Orbit, Search, ShieldCheck, X } from "lucide-react";
 import { DecisionActions } from "@/components/decision-actions";
 import type { Decision } from "@/lib/types";
 
@@ -48,7 +48,7 @@ export function DavidEditionDecisionCommand({ decisions }: { decisions: Decision
         <div className="de37-context">{categoryLabel[selected.category]} · {selected.age} · {selected.priority.toUpperCase()} PRIORITY</div>
         <h2>{selected.title}</h2><p className="de37-desc">{selected.subtitle}</p>
         <div className="de37-essentials"><div><small>WHY IT MATTERS</small><strong>{selected.rationale}</strong></div><div><small>WHAT YOU NEED TO DO</small><strong>{selected.status === "pending" ? (selected.actionLabel ?? "Review and authorize the proposed decision") : "No further action requested"}</strong></div></div>
-        {selected.status === "pending" ? <div className="de37-direct-action"><div className="de37-direct-head"><span><LockKeyhole size={15}/> SECURE DECISION</span><small>{needsStepUp ? "HIGH PRIORITY" : "SERVER-VERIFIED"}</small></div><p>This action uses GetDone's existing authenticated decision endpoint. Approval may require a passkey challenge. No direct execution is bypassed.</p><DecisionActions key={selected.id} decisionId={selected.id} initialStatus={selected.status} approveLabel={selected.actionLabel ?? "Approve"}/></div> : <div className="de37-done"><CheckCircle2 size={17}/> Decision status: {selected.status}.</div>}
+        {selected.status === "pending" ? <div className="de37-direct-action"><div className="de37-direct-head"><span><LockKeyhole size={15}/> SECURE DECISION</span><small>{needsStepUp ? "HIGH PRIORITY" : "SERVER-VERIFIED"}</small></div><p>This action uses GetDone&apos;s existing authenticated decision endpoint. Approval may require a passkey challenge. No direct execution is bypassed.</p><DecisionActions key={selected.id} decisionId={selected.id} initialStatus={selected.status} approveLabel={selected.actionLabel ?? "Approve"}/></div> : <div className="de37-done"><CheckCircle2 size={17}/> Decision status: {selected.status}.</div>}
         <div className="de37-support-actions"><button type="button" onClick={() => setInspectorOpen(v => !v)} aria-expanded={inspectorOpen}><ShieldCheck size={16}/>{inspectorOpen ? "Hide supporting evidence" : "Show evidence & related systems"}</button><Link href={decisionDetailUrl(selected.id)}><ArrowRight size={16}/> Full decision record</Link></div>
       </article>
       <div className="de37-queue-heading"><div><strong>Remaining queue</strong><small>{remaining.length} other record{remaining.length === 1 ? "" : "s"}</small></div><span>OWNER 01 / LIVE RECORDS</span></div>
