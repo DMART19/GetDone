@@ -119,7 +119,7 @@ export class PostgresOwnerIntentStore implements OwnerIntentStore {
     const previous = await this.db.query<{ payload: OwnerIntentRecord }>(
       `SELECT payload FROM owner_intents
        WHERE portfolio_id=$1 AND company_id=$2 AND user_id=$3
-         AND payload->>\'channel\'=$4
+         AND payload->>'channel'=$4
        ORDER BY received_at DESC, id DESC LIMIT 1`,
       [record.portfolioId, record.companyId, record.userId, record.channel]
     );
@@ -253,7 +253,7 @@ export class PostgresOwnerIntentStore implements OwnerIntentStore {
     const result = await this.db.query<{ payload: OwnerIntentRecord }>(
       `SELECT payload FROM owner_intents
        WHERE portfolio_id=$1 AND company_id=$2 AND user_id=$3
-         AND payload->>\'channel\'=\'chat\'
+         AND payload->>'channel'='chat'
        ORDER BY received_at DESC, id DESC LIMIT 100`,
       [portfolioId, companyId, userId]
     );
