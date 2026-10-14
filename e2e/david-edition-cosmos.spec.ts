@@ -2,9 +2,10 @@ import { expect, test } from "@playwright/test";
 
 test("David Edition keeps the real business UI and gated navigation", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByRole("navigation", { name: "Primary navigation" })).toBeVisible();
+  await expect(page.locator(".de-header")).toBeVisible();
+  await expect(page.locator(".de-topnav, .de-mobile-nav").filter({ visible: true }).first()).toBeVisible();
   await expect(page.getByText("DAVID EDITION / COMMAND 37")).toBeVisible();
-  const businessUniverse = page.getByRole("region", { name: "GetDone and your businesses" });
+  const businessUniverse = page.locator(".business-universe");
   const spaceScene = page.locator(".de-cosmos");
   // The cinematic scene renders only when the authenticated catalog has a business.
   if (await spaceScene.count()) {
@@ -17,8 +18,8 @@ test("David Edition keeps the real business UI and gated navigation", async ({ p
   } else {
     await expect(businessUniverse).toBeVisible();
   }
-  await page.getByRole("link", { name: /Decisions/i }).first().click();
+  await page.locator(".de-topnav a, .de-mobile-nav a").filter({ visible: true }).filter({ hasText: "Decisions" }).first().click();
   await expect(page.getByRole("region", { name: "David Edition decision command" })).toBeVisible();
-  await page.getByRole("link", { name: /Resources/i }).first().click();
+  await page.locator(".de-topnav a, .de-mobile-nav a").filter({ visible: true }).filter({ hasText: "Resources" }).first().click();
   await expect(page.getByText("Resource command")).toBeVisible();
 });
