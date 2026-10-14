@@ -1,3 +1,4 @@
+import { DavidEditionHome } from "@/components/david-edition-home";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { BusinessSystem } from "@/components/business-system";
@@ -28,7 +29,7 @@ export default async function HomePage() {
   return (
     <AppShell className="business-home">
       <AppHeader />
-      <BusinessSystem />
+      {process.env.GETDONE_DAVID_EDITION === "true" ? <DavidEditionHome /> : <BusinessSystem />}
       {objectives ? <HomeDashboard objectives={[...objectives]} /> : businessCount > 1 ? (
         <p className="business-scope-note">Select a business to inspect its work. Objective submission and chat currently require an account with one active business.</p>
       ) : null}
