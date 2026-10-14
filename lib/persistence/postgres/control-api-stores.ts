@@ -49,7 +49,8 @@ export class PostgresOwnerIntentStore implements OwnerIntentStore {
       companyId: record.companyId,
       userId: record.userId,
       message: record.message,
-      channel: record.channel
+      channel: record.channel,
+      threadId: record.threadId ?? null
     }));
   }
 
@@ -120,8 +121,9 @@ export class PostgresOwnerIntentStore implements OwnerIntentStore {
       `SELECT payload FROM owner_intents
        WHERE portfolio_id=$1 AND company_id=$2 AND user_id=$3
          AND payload->>'channel'=$4
+         AND COALESCE(payload->>'threadId','')=$5
        ORDER BY received_at DESC, id DESC LIMIT 1`,
-      [record.portfolioId, record.companyId, record.userId, record.channel]
+      [record.portfolioId, record.companyId, record.userId, record.channel, record.threadId ?? ""]
     );
     const prior = previous.rows[0]?.payload;
     const continuity = resolveConversationContinuity(record.message, prior ? {
@@ -207,6 +209,7 @@ export class PostgresOwnerIntentStore implements OwnerIntentStore {
           || prior.userId !== acceptedRecord.userId
           || prior.message !== acceptedRecord.message
           || prior.channel !== acceptedRecord.channel
+          || (prior.threadId ?? null) !== (acceptedRecord.threadId ?? null)
         ) {
           throw new ControlPlaneError(
             "IDEMPOTENCY_CONFLICT",
