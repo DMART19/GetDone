@@ -1,0 +1,32 @@
+name: David Edition Production Refinement
+on:
+  pull_request:
+    paths:
+      - "components/david-**"
+      - "components/decision-actions.tsx"
+      - "components/app-shell.tsx"
+      - "app/page.tsx"
+      - "app/decisions/**"
+      - "app/resources/**"
+      - ".github/workflows/david-edition-refinement.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  production-quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run build
+      - run: npm run verify:architecture
+      - run: npm run verify:secrets
