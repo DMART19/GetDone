@@ -263,7 +263,16 @@ export function handleOwnerIntentHistory(request: Request) {
   return execute(async adapter => {
     const principal = await adapter.authenticate(request);
     if (!adapter.listOwnerIntents) throw new ControlPlaneError("UNAVAILABLE", "Conversation history is not connected");
-    return adapter.listOwnerIntents(principal);
+    const records = await adapter.listOwnerIntents(principal);
+    // Return only an owner-facing transcript allowlist, never internal
+    // orchestration metadata, scope identifiers or persisted execution detail.
+    return records.map(record => ({
+      id: record.id,
+      message: record.message,
+      status: record.status,
+      receivedAt: record.receivedAt,
+      ...(record.answer?.text ? { answer: { text: record.answer.text } } : {})
+    }));
   });
 }
 
