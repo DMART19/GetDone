@@ -17,9 +17,11 @@ export default async function HomePage() {
   let catalogUnavailable = false;
   let businessCount = 0;
   let authorizedBusinesses: Business[] = [];
+  let ownerBusinesses: Business[] = [];
   try {
     const businesses = await getBusinessCatalog(new Request("http://getdone.internal/", { headers: await headers() }));
     authorizedBusinesses = businesses;
+    ownerBusinesses = businesses.filter(business => business.role === "owner");
     businessCount = businesses.length;
     singleBusiness ||= businessCount === 1;
   } catch (error) {
@@ -38,7 +40,7 @@ export default async function HomePage() {
       <BusinessSystem cinematic={process.env.GETDONE_DAVID_EDITION === "true"} />
       {objectives && decisions ? <OwnerAttentionRadar objectives={objectives} decisions={decisions} /> : null}
       {objectives ? <HomeDashboard objectives={[...objectives]} portfolioId={authorizedBusinesses[0]?.portfolioId} /> : businessCount > 1 ? (
-        <section className="ufo-command-card" aria-label="Multi-business conversation"><h2>Ask GetDone about a business</h2><p>Select an authorized planet. Each conversation is securely scoped to that business.</p><ChatComposer businesses={authorizedBusinesses} /></section>
+        <section className="ufo-command-card" aria-label="Multi-business conversation"><h2>Ask GetDone about a business</h2><p>Select an authorized planet. Each conversation is securely scoped to that business.</p>{ownerBusinesses.length ? <ChatComposer businesses={ownerBusinesses} /> : <p>No owner-authorized portfolio is available for conversation. Contact your administrator to confirm your role.</p>}</section>
       ) : null}
     </AppShell>
   );
