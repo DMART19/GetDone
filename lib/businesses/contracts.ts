@@ -2,6 +2,8 @@ export interface Business {
   id: string;
   portfolioId: string;
   name: string;
+  /** Membership role supplied by the server, not client authorization. */
+  role?: string;
   lastActivityAt?: string;
 }
 
