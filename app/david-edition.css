@@ -112,3 +112,9 @@
 .de-business-attention li button{flex-shrink:0;background:rgba(44,72,100,.42);border:1px solid rgba(155,188,222,.25);border-radius:8px;padding:8px 11px;color:#d4eafd;cursor:pointer;font-size:11px}
 .de-business-attention>small,.de-business-attention>p{color:#b5cadf;font-size:11px}
 @media(max-width:520px){.de-business-attention li{align-items:flex-start;flex-direction:column}}
+
+/* Authenticated multi-business conversational context selection. */
+.de-chat-business{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:9px 14px 13px;color:#bbd4ed;font-size:12px;font-weight:700}
+.de-chat-business select{min-width:175px;max-width:75%;color:#f6f8ff;background:#12253c;border:1px solid rgba(155,195,232,.38);border-radius:9px;padding:9px 12px;font:inherit}
+.de-chat-business select:focus-visible{outline:3px solid #f0c581;outline-offset:2px}
+@media(max-width:560px){.de-chat-business{align-items:flex-start;flex-direction:column}.de-chat-business select{width:100%;max-width:100%}}
