@@ -30,6 +30,9 @@ export function BusinessSystem({ cinematic = false }: { cinematic?: boolean }) {
   const [context, setContext] = useState<BusinessContext | null>(null);
   const [contextError, setContextError] = useState("");
   const [contextRetry, setContextRetry] = useState(0);
+  const [contextUpdatedAt, setContextUpdatedAt] = useState<string | null>(null);
+  const [contextRefreshing, setContextRefreshing] = useState(false);
+  const [contextStale, setContextStale] = useState(false);
   const [section, setSection] = useState<BusinessSection>("objectives");
   const panel = useRef<HTMLElement>(null);
   const selectedButton = useRef<HTMLButtonElement>(null);
@@ -48,12 +51,54 @@ export function BusinessSystem({ cinematic = false }: { cinematic?: boolean }) {
     if (!selected) return;
     const controller = new AbortController();
     setContext(null);
+    setContextUpdatedAt(null);
+    setContextStale(false);
     setContextError("");
     void read<BusinessContext>(`/api/businesses?portfolioId=${encodeURIComponent(selected.portfolioId)}`, controller.signal)
-      .then(setContext).catch(error => { if (!controller.signal.aborted) setContextError(error.message); });
+      .then(value => { if (!controller.signal.aborted) { setContext(value); setContextUpdatedAt(new Date().toISOString()); } }).catch(error => { if (!controller.signal.aborted) setContextError(error.message); });
     panel.current?.focus();
     return () => controller.abort();
   }, [selected, contextRetry]);
+
+  // Reconcile the selected business against the server on return to the tab and at
+  // a bounded cadence. Do not erase the last good snapshot on a transient outage.
+  useEffect(() => {
+    if (!cinematic || !selected) return;
+    const portfolioId = selected.portfolioId;
+    let controller: AbortController | null = null;
+    let stopped = false;
+    const refresh = async () => {
+      if (document.visibilityState !== "visible" || controller) return;
+      const pending = new AbortController();
+      controller = pending;
+      setContextRefreshing(true);
+      try {
+        const value = await read<BusinessContext>(`/api/businesses?portfolioId=${encodeURIComponent(portfolioId)}`, pending.signal);
+        if (!stopped && !pending.signal.aborted) {
+          setContext(value);
+          setContextUpdatedAt(new Date().toISOString());
+          setContextStale(false);
+          setContextError("");
+        }
+      } catch {
+        if (!stopped && !pending.signal.aborted) setContextStale(true);
+      } finally {
+        if (controller === pending) controller = null;
+        if (!stopped) setContextRefreshing(false);
+      }
+    };
+    const onReturn = () => { if (document.visibilityState === "visible") void refresh(); };
+    const interval = window.setInterval(() => { void refresh(); }, 30_000);
+    window.addEventListener("focus", onReturn);
+    document.addEventListener("visibilitychange", onReturn);
+    return () => {
+      stopped = true;
+      controller?.abort();
+      window.clearInterval(interval);
+      window.removeEventListener("focus", onReturn);
+      document.removeEventListener("visibilitychange", onReturn);
+    };
+  }, [cinematic, selected]);
 
   const visible = businesses?.slice(page * 6, page * 6 + 6) ?? [];
   const positions = visible.map((_, index) => {
@@ -109,6 +154,7 @@ export function BusinessSystem({ cinematic = false }: { cinematic?: boolean }) {
       {selected && <section id="business-context" ref={panel} tabIndex={-1} className="business-context" aria-label={`${selected.name} business context`}>
         <div className="business-context-heading"><div><span className="business-eyebrow">BUSINESS CONTEXT</span><h2>{selected.name}</h2></div>
           <button aria-label="Close business context" onClick={() => { setSelected(null); setContext(null); selectedButton.current?.focus(); }}>Close</button></div>
+        {cinematic && <div className="de-context-sync" role="status"><span>{contextStale ? "Connection interrupted · showing last confirmed records" : contextRefreshing ? "Checking for updates…" : contextUpdatedAt ? `Last synchronized ${new Date(contextUpdatedAt).toLocaleTimeString()}` : "Waiting for authoritative records"}</span><button type="button" onClick={() => setContextRetry(value => value + 1)}>Refresh records</button></div>}
         <nav aria-label="Business information" className="business-sections">{businessSections.map(item => <button key={item} aria-pressed={section === item} onClick={() => setSection(item)}>{item === "outcomes" ? "Recent outcomes" : item[0].toUpperCase() + item.slice(1)}</button>)}</nav>
         {contextError ? <div role="alert"><p>{contextError}</p><button onClick={() => setContextRetry(contextRetry + 1)}>Retry business context</button></div> : !current ? <p role="status">Loading business context…</p> : <div aria-live="polite">
           <h3>{section === "outcomes" ? "Recent outcomes" : section[0].toUpperCase() + section.slice(1)}</h3>
