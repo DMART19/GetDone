@@ -21,7 +21,7 @@ function isCompletedToday(objective: ObjectiveView) {
     && completed.getDate() === now.getDate();
 }
 
-export function HomeDashboard({ objectives }: { objectives: ObjectiveView[] }) {
+export function HomeDashboard({ objectives, portfolioId }: { objectives: ObjectiveView[]; portfolioId?: string }) {
   const router = useRouter();
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -124,7 +124,7 @@ export function HomeDashboard({ objectives }: { objectives: ObjectiveView[] }) {
       </div>
 
       <div className="ufo-command-card" aria-label="Conversation with GetDone">
-        <ChatComposer />
+        <ChatComposer portfolioId={portfolioId} />
       </div>
 
       <div className="ufo-objective-section-heading"><span>OR ADD A STRUCTURED OBJECTIVE</span></div>
