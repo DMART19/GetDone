@@ -31,9 +31,15 @@ export function resolveConversationContinuity(message: string, previous: Continu
   }
   const topic = /^what about\s+(.+?)[.!?]?$/i.exec(message.trim())?.[1]?.trim()
     ?? previous.topic;
+  // A topic switch retains the trusted portfolio header, not an unrelated
+  // integration/objective reference from the prior topic.
+  const changesTopic = /^what about\s+/i.test(message.trim());
+  const inherited = changesTopic
+    ? previous.references.filter(reference => reference.kind === "company")
+    : previous.references;
   const merged: ConversationSemantics = {
     ...semantics,
-    references: semantics.references.length ? semantics.references : previous.references
+    references: semantics.references.length ? semantics.references : inherited
   };
   return { semantics: merged, continuesIntentId: previous.intentId, activeTopic: topic, unresolved: false };
 }
