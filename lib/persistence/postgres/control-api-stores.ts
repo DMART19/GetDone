@@ -127,8 +127,9 @@ export class PostgresOwnerIntentStore implements OwnerIntentStore {
       intentId: prior.id,
       topic: prior.activeTopic,
       references: prior.conversation?.references ?? [],
-      actionable: prior.status === "accepted"
-        && ["action_request", "objective_request", "investigate_request"].includes(prior.conversation?.intent ?? "")
+      // An earlier owner request is not a verified executable proposal.
+      // Action continuation must fail closed until a trusted proposal ID exists.
+      actionable: false
     } : null);
     let acceptedRecord: OwnerIntentRecord = Object.freeze({
       ...record,
