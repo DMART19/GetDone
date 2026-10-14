@@ -22,3 +22,14 @@ test("decision mutation cannot be performed without an owner session", async ({ 
   });
   expect([401, 403]).toContain(response.status());
 });
+
+test("unauthenticated owner conversation history is never disclosed across portfolios", async ({ request }) => {
+  for (const portfolioId of ["00000000-0000-0000-0000-000000000000", "00000000-0000-0000-0000-000000000001"]) {
+    const response = await request.get("/api/control/chat", {
+      headers: { "x-getdone-portfolio-id": portfolioId },
+      failOnStatusCode: false
+    });
+    expect([401, 403]).toContain(response.status());
+    expect(response.headers()["cache-control"]).toContain("no-store");
+  }
+});
