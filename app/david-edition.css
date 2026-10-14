@@ -81,3 +81,10 @@
 .de-owner-radar li a{font-size:13px;text-align:right;overflow-wrap:anywhere}
 .de-owner-radar>small{color:#9fb8d3}
 @media(max-width:600px){.de-owner-radar{padding:16px}.de-owner-radar-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.de-owner-radar li{flex-direction:column}.de-owner-radar li a{text-align:left}}
+
+.de-app .de-chat-history{max-height:440px;overflow:auto;display:flex;flex-direction:column;gap:12px;padding:14px 16px;border-bottom:1px solid rgba(134,190,243,.19)}
+.de-app .de-chat-turn{padding:12px 14px;border-radius:13px;border:1px solid rgba(138,186,228,.19);background:rgba(16,35,60,.68);max-width:88%;color:#edf5ff}
+.de-app .de-chat-user{align-self:flex-end;background:rgba(46,73,109,.64)}
+.de-app .de-chat-assistant{align-self:flex-start}
+.de-app .de-chat-turn strong{display:block;font-size:11px;color:#e2c28c}
+.de-app .de-chat-turn p{font-size:13px;white-space:pre-wrap;overflow-wrap:anywhere;margin:5px 0 0}
