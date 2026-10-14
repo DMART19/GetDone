@@ -23,6 +23,8 @@ export function ChatComposer({ portfolioId, businesses = [] }: { portfolioId?: s
     pollAbort.current?.abort();
     setTurns([]);
     setPreview(null);
+    setHistoryLoading(false);
+    setHistoryError(null);
     if (!authoritativeRuntime() || !scopedPortfolio) return;
     const controller = new AbortController();
     setHistoryLoading(true);
