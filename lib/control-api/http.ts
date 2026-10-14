@@ -267,14 +267,29 @@ export function handleOwnerIntentHistory(request: Request) {
     const records = await adapter.listOwnerIntents(principal);
     // Return only an owner-facing transcript allowlist, never internal
     // orchestration metadata, scope identifiers or persisted execution detail.
-    return records.map(record => ({
-      threadId: record.threadId ?? null,
-      id: record.id,
-      message: record.message,
-      status: record.status,
-      receivedAt: record.receivedAt,
-      ...(record.answer?.text ? { answer: { text: record.answer.text } } : {})
-    }));
+    const recent = new Set(records.slice(-12).map(record => record.id));
+    return Promise.all(records.map(async record => {
+      // Recover the persisted orchestration's latest state for recent turns.
+      // This is a read-only snapshot, not a fabricated progress event log.
+      let lifecycle: { state: string; label: string; terminal: boolean; verified: boolean } | undefined;
+      if (record.status === "accepted" && recent.has(record.id) && adapter.getOwnerIntentStatus) {
+        try {
+          const status = await adapter.getOwnerIntentStatus(principal, record.id);
+          lifecycle = status.lifecycle;
+        } catch {
+          // Preserve the saved turn when worker state is temporarily unavailable.
+        }
+      }
+      return {
+        id: record.id,
+        threadId: record.threadId ?? null,
+        message: record.message,
+        status: record.status,
+        receivedAt: record.receivedAt,
+        ...(record.answer?.text ? { answer: { text: record.answer.text } } : {}),
+        ...(lifecycle ? { lifecycle } : {})
+      };
+    }));;
   });
 }
 
