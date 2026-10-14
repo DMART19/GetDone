@@ -23,6 +23,7 @@ describe("Postgres persisted owner history read boundary", () => {
     const result = await new PostgresOwnerIntentStore(db).listByOwner("portfolio-a", "company-a", "owner");
     expect(args).toEqual(["portfolio-a", "company-a", "owner"]);
     expect(sql).toContain("portfolio_id=$1 AND company_id=$2 AND user_id=$3");
+    expect(sql).toContain("payload->>\'channel\'=\'chat\'");
     expect(sql).toContain("LIMIT 100");
     expect(result.map(item => item.id)).toEqual(["older", "newer"]);
   });
