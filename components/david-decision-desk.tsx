@@ -1,7 +1,7 @@
 "use client";
 import {useMemo,useState} from "react";
 import Link from "next/link";
-import {ArrowRight, CheckCircle2, ChevronRight, CircleAlert, Filter, LockKeyhole, Orbit, Search, ShieldCheck, Sparkles, X, ChevronDown} from "lucide-react";
+import {CheckCircle2, ChevronRight, CircleAlert, Filter, LockKeyhole, Orbit, Search, ShieldCheck, Sparkles, X, ChevronDown} from "lucide-react";
 import type {Decision} from "@/lib/types";
 import {DecisionActions} from "@/components/decision-actions";
 
