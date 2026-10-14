@@ -37,6 +37,8 @@ export interface ControlApiPrincipal {
 export interface OwnerIntentInput {
   message: string;
   channel?: "chat" | "api";
+  /** Owner-chosen conversation identity, UUID; never determines tenant scope. */
+  threadId?: string;
 }
 
 export interface OwnerIntentRecord {
@@ -53,6 +55,7 @@ export interface OwnerIntentRecord {
   conversation?: ConversationSemantics;
   /** Previous trusted owner intent used only for conversational reference continuation. */
   continuesIntentId?: string;
+  threadId?: string;
   /** Advisory topic from tenant-scoped conversation history. */
   activeTopic?: string;
   answer?: Readonly<{ text: string; evidenceRefs: readonly string[]; observedAt: string; knownUnknowns: readonly string[] }>;
