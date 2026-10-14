@@ -300,6 +300,34 @@ describe("Scoped owner conversation history", () => {
     expect(JSON.stringify(view)).not.toContain("company-a");
     expect(JSON.stringify(view)).not.toContain("user-a");
   });
+
+  it("returns latest scoped lifecycle snapshot without exposing execution internals", async () => {
+    installControlApiAdapter({
+      ...fakeAdapter(),
+      listOwnerIntents: async () => [{
+        id: "turn-staging",
+        threadId: "11111111-1111-4111-8111-111111111111",
+        portfolioId: "portfolio-a", companyId: "company-a", userId: "user-a",
+        environment: "development" as const, message: "Check status",
+        channel: "chat" as const, status: "accepted" as const,
+        receivedAt: "2026-09-21T04:00:00Z"
+      }],
+      getOwnerIntentStatus: async () => ({
+        intentId: "turn-staging",
+        conversation: { intent: "status_query", references: [], continuation: "none", requiresExecutionAuthority: false },
+        lifecycle: { state: "answering" as const, label: "Worker progress stored", terminal: false, verified: false },
+        orchestrationId: "hidden-internal-run"
+      })
+    });
+    const response = await handleOwnerIntentHistory(new Request("http://localhost/api/control/chat"));
+    expect(response.status).toBe(200);
+    const body = await json(response);
+    expect(body).toMatchObject({ ok: true, data: [{
+      threadId: "11111111-1111-4111-8111-111111111111",
+      lifecycle: { label: "Worker progress stored", verified: false }
+    }] });
+    expect(JSON.stringify(body)).not.toContain("hidden-internal-run");
+  });
 });
 
 describe("Control API HTTP surface", () => {
