@@ -100,3 +100,5 @@
 .de-capability-map article span{font-size:10px;color:#e7c795;letter-spacing:.08em}
 .de-capability-map article small{font-size:11px;color:#b2c9df;line-height:1.5}
 .de-capability-map article button{margin-top:auto;padding:9px 0;background:transparent;border:0;color:#b1d9fd;text-align:left;text-decoration:underline;cursor:pointer;font-size:12px}
+
+.de-decision-sync{margin:4px 0 14px;padding:10px 14px;border-left:2px solid rgba(140,198,246,.38);color:#a9c7df;background:rgba(13,31,54,.4);font-size:11px;letter-spacing:.03em}
