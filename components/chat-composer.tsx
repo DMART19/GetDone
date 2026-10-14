@@ -5,7 +5,7 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 import type { Business } from "@/lib/businesses/contracts";
 import { mentionedAuthorizedBusinesses } from "@/lib/conversation/business-routing";
 
-type SavedTurn = { threadId?: string | null; message: string; answer?: { text: string } };
+type SavedTurn = { threadId?: string | null; message: string; answer?: { text: string }; lifecycle?: { label: string; state: string; terminal: boolean; verified: boolean } };
 function authoritativeRuntime() {
   return process.env.NEXT_PUBLIC_APP_ENV !== "development";
 }
@@ -47,7 +47,7 @@ export function ChatComposer({ portfolioId, businesses = [] }: { portfolioId?: s
         setActiveThread(recentThread);
         setTurns(body.data.filter(item => (item.threadId ?? "legacy") === recentThread).flatMap(item => [
         { role: "user" as const, text: item.message },
-        ...(item.answer?.text ? [{ role: "assistant" as const, text: item.answer.text }] : [])
+        ...(item.answer?.text ? [{ role: "assistant" as const, text: item.answer.text }] : item.lifecycle ? [{ role: "assistant" as const, text: `${item.lifecycle.label}${item.lifecycle.verified ? " · independently verified" : ""}` }] : [])
       ]));
       }
     }).catch(error => { if (!controller.signal.aborted) setHistoryError(error instanceof Error ? error.message : "Conversation history unavailable"); })
