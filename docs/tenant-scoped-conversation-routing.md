@@ -13,8 +13,8 @@
 
 ## Intentional constraints
 
-- This release provides **one latest-context thread per owner and portfolio**, not multiple named conversation threads.
-- The history endpoint restores user messages and assistant answers already persisted on intent records. Asynchronous worker narratives still need a fully durable assistant-turn transcript; no claim that every live progress message persists.
+- This release now supports multiple UUID-addressed conversation threads per owner and portfolio, with titles inferred from first questions. Older intents without a thread ID appear under **Original conversation**. It does not yet support editable thread titles or unlimited history pagination.
+- The history endpoint restores user messages, stored answers and the **latest persisted orchestration lifecycle snapshot for up to 12 recent accepted turns**. Intermediate worker events are not yet captured as a fully durable timeline; never infer verified completion from an unverified snapshot.
 - Continuation is deterministic and conservative, not yet a full semantic model + ambiguity-resolution engine. A user referring to another business must explicitly select that authorized portfolio. Cross-portfolio context transfer is disabled.
 - The global read-only owner radar and worker execution logic are unchanged. No new execution authority is introduced.
 - Existing selected-portfolio views, approvals and passkey step-up remain guarded by their existing APIs.
