@@ -33,3 +33,21 @@ jobs:
       - run: npm run build
       - run: npm run verify:architecture
       - run: npm run verify:secrets
+
+  browser-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      GETDONE_RUNTIME_ENV: development
+      GETDONE_DATA_MODE: development-seed
+      GETDONE_DAVID_EDITION: "true"
+      NEXT_PUBLIC_APP_ENV: development
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npx playwright install --with-deps chromium
+      - run: npx playwright test e2e/david-edition-v37.spec.ts --project=desktop-chromium
