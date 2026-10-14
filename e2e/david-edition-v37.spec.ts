@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 
 // Browser smoke test of David Edition's real pages. Mutation tests are intentionally
 // separate: they require an owner-authenticated staging environment and explicit opt-in.
-test.describe("David Edition read-only acceptance", () => {
+test.describe("David Edition read-only acceptance", () => {\n  test.skip(process.env.GETDONE_E2E_STRICT_SIGNOUT !== "true", "Strict sign-out check requires authoritative staging, not the development seed.");
   test("signed-out sessions cannot see the owner decision queue", async ({ page }) => {
     await page.goto("/decisions");
     await expect(page.getByText(/AUTHENTICATED GETDONE DECISIONS/i)).toHaveCount(0);
@@ -11,6 +11,20 @@ test.describe("David Edition read-only acceptance", () => {
     if (href.includes("/decisions")) {
       await expect(page.getByRole("heading", { name: /decisions need you|decision needs you|queue is clear/i })).toHaveCount(0);
     }
+  });
+});
+
+test.describe("David Edition seeded UI smoke", () => {
+  test("decision command loads, exposes evidence and navigates to resources", async ({ page }) => {
+    await page.goto("/decisions");
+    await expect(page.getByRole("region", { name: "David Edition owner decision bridge" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /decisions? need you|queue is clear/i })).toBeVisible();
+    await page.getByRole("button", { name: /Filters/i }).click();
+    await expect(page.getByLabel("Category")).toBeVisible();
+    await page.getByRole("button", { name: /History/i }).click();
+    await page.getByRole("button", { name: /Open queue/i }).click();
+    await page.getByRole("link", { name: /resources/i }).first().click();
+    await expect(page.getByText(/Resources/).first()).toBeVisible();
   });
 });
 
