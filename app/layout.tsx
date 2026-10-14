@@ -7,6 +7,7 @@ import "./ufo-states.css";
 import "./ufo-screenshot.css";
 import "./business-system.css";
 import "./david-edition.css";
+import "./david-edition-decisions.css";
 
 export const metadata: Metadata = {
   title: "GetDone UFO v2",

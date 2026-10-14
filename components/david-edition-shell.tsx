@@ -2,7 +2,7 @@
 import type {ReactNode} from "react";
 import Link from "next/link";
 import {usePathname} from "next/navigation";
-import {Orbit, ShieldCheck, Network, MessageCircle, Crown} from "lucide-react";
+import {Orbit, ShieldCheck, Network, Crown} from "lucide-react";
 import {OfflineNotice} from "@/components/offline-notice";
 const routes=[{href:"/",label:"Command",Icon:Orbit},{href:"/decisions",label:"Decisions",Icon:ShieldCheck},{href:"/resources",label:"Resources",Icon:Network}];
 export function DavidEditionShell({children,className=""}:{children:ReactNode;className?:string}){
