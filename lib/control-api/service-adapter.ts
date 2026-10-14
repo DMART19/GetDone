@@ -81,6 +81,7 @@ export interface OwnerIntentStore {
    */
   create(record: OwnerIntentRecord, idempotencyKey: string): Promise<OwnerIntentRecord>;
   get?(id: string): Promise<OwnerIntentRecord | null>;
+  listByOwner?(portfolioId: string, companyId: string, userId: string): Promise<readonly OwnerIntentRecord[]>;
 }
 
 export interface ServiceBackedControlApiDependencies {
@@ -247,6 +248,14 @@ export class ServiceBackedControlApiAdapter implements ControlApiApplicationAdap
     return Object.freeze({
       sessionId: session.sessionId,
       revokedOtherSessions
+    });
+  }
+
+  async listOwnerIntents(principal: ControlApiPrincipal) {
+    return this.scoped(principal, async () => {
+      requireRole(principal, ["owner"], "Conversation history");
+      if (!this.deps.intents.listByOwner) throw new ControlPlaneError("UNAVAILABLE", "Durable conversation history is not connected");
+      return this.deps.intents.listByOwner(principal.scope.portfolioId, principal.scope.companyId, principal.scope.userId);
     });
   }
 
