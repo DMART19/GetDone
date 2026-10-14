@@ -19,7 +19,7 @@ export function DavidUniverseScene({
   const canvas = useRef<HTMLCanvasElement>(null);
   const [motion, setMotion] = useState(true);
   const [focus, setFocus] = useState(false);
-  const [pointer, setPointer] = useState({ x: 0, y: 0 });
+  const pointer = useRef({ x: 0, y: 0 });
 
   useEffect(() => {
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -80,8 +80,8 @@ export function DavidUniverseScene({
         ctx.fillRect(0,0,width,height);
       }
       for (const star of stars) {
-        const x = (star.x * width + pointer.x * star.depth * 12 + width) % width;
-        const y = (star.y * height + pointer.y * star.depth * 9 + height) % height;
+        const x = (star.x * width + pointer.current.x * star.depth * 12 + width) % width;
+        const y = (star.y * height + pointer.current.y * star.depth * 9 + height) % height;
         const alpha = star.alpha * (motion ? .81 + .19 * Math.sin(clock * star.depth + star.phase) : 1);
         ctx.fillStyle = `rgba(214,234,255,${alpha})`;
         ctx.beginPath(); ctx.arc(x,y,star.radius,0,Math.PI*2); ctx.fill();
@@ -103,7 +103,7 @@ export function DavidUniverseScene({
     };
     draw();
     return () => { cancelAnimationFrame(frame); observer.disconnect(); };
-  }, [motion, pointer.x, pointer.y]);
+  }, [motion]);
 
   const visible = businesses.slice(0, 6);
   return <div className="de-cosmos" data-focused={focus} onPointerMove={event => {
@@ -112,7 +112,7 @@ export function DavidUniverseScene({
     const x = (event.clientX-r.left)/r.width*2-1;
     const y = (event.clientY-r.top)/r.height*2-1;
     // Avoid a state update per pointer pixel.
-    setPointer(old => Math.abs(x-old.x)>.16 || Math.abs(y-old.y)>.16 ? { x, y } : old);
+    pointer.current = { x, y };
   }}>
     <canvas className="de-cosmos-canvas" ref={canvas} aria-hidden="true"/>
     <div className="de-cosmos-vignette" aria-hidden="true"/>
