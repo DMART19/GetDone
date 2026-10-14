@@ -259,6 +259,14 @@ export function handleRevokeOtherSessions(request: Request) {
   return execute((adapter) => adapter.revokeOtherSessions(request));
 }
 
+export function handleOwnerIntentHistory(request: Request) {
+  return execute(async adapter => {
+    const principal = await adapter.authenticate(request);
+    if (!adapter.listOwnerIntents) throw new ControlPlaneError("UNAVAILABLE", "Conversation history is not connected");
+    return adapter.listOwnerIntents(principal);
+  });
+}
+
 export function handleOwnerIntent(request: Request) {
   return execute(async (adapter, correlationId) => {
     const actor = await adapter.authenticate(request);
