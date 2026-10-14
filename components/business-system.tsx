@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import Link from "next/link";
+import { DavidUniverseScene } from "@/components/david-universe-scene";
 import { businessSections, type Business, type BusinessContext, type BusinessSection } from "@/lib/businesses/contracts";
 
 async function read<T>(url: string, signal: AbortSignal): Promise<T> {
@@ -20,7 +21,7 @@ async function read<T>(url: string, signal: AbortSignal): Promise<T> {
   }
 }
 
-export function BusinessSystem() {
+export function BusinessSystem({ cinematic = false }: { cinematic?: boolean }) {
   const [businesses, setBusinesses] = useState<Business[] | null>(null);
   const [error, setError] = useState("");
   const [retry, setRetry] = useState(0);
@@ -69,7 +70,7 @@ export function BusinessSystem() {
         <h1 id="business-system-title">One intelligence. Your businesses.</h1>
         <p>Information flows in. GetDone reasons across your businesses and coordinates authorized work.</p>
       </header>
-      <div className="business-universe" data-count={visible.length} data-empty={businesses?.length === 0 || !!error} aria-label="GetDone and your businesses" aria-busy={!businesses && !error}>
+      {cinematic && businesses?.length ? <DavidUniverseScene businesses={visible} selectedId={selected?.portfolioId ?? null} onSelect={(business, button) => { selectedButton.current = button; setSelected(business); setSection("objectives"); }} /> : <div className="business-universe" data-count={visible.length} data-empty={businesses?.length === 0 || !!error} aria-label="GetDone and your businesses" aria-busy={!businesses && !error}>
         <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true" className="business-orbits">
           <ellipse cx="50" cy="50" rx="35" ry="38" />
           <ellipse cx="50" cy="50" rx="23" ry="25" />
