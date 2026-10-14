@@ -1,4 +1,4 @@
-import type { BusinessContext, BusinessRecord, BusinessSection } from "./contracts";
+import type { BusinessContext, BusinessSection } from "./contracts";
 
 export type AttentionKind = "approval" | "owner_input" | "blocked" | "review";
 export type AttentionItem = {
