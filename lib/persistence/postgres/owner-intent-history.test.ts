@@ -7,6 +7,22 @@ const turn = (id: string): OwnerIntentRecord => ({
   id, userId: "owner", portfolioId: "portfolio-a", companyId: "company-a",
   environment: "staging", message: id, channel: "chat",
   status: "accepted", receivedAt: "2026-10-14T00:00:00Z"
+  it("limits continuation to the same explicit thread", async () => {
+    const calls: Array<{ statement: string; args: readonly unknown[] }> = [];
+    const db = {
+      query: async (statement: string, args: readonly unknown[]) => {
+        calls.push({ statement, args });
+        if (statement.includes("SELECT payload FROM owner_intents")) return { rows: [] };
+        return { rows: [] };
+      },
+      transaction: async () => { throw new Error("stop after scoped continuation query"); }
+    } as unknown as PostgresTransactionalDatabase;
+    const store = new PostgresOwnerIntentStore(db);
+    await expect(store.create({ ...turn("new"), threadId: "11111111-1111-4111-8111-111111111111" }, "unique-idem")).rejects.toThrow("stop after");
+    expect(calls[0].statement).toContain("COALESCE(payload->>'threadId','')=$5");
+    expect(calls[0].args).toEqual(["portfolio-a", "company-a", "owner", "chat", "11111111-1111-4111-8111-111111111111"]);
+  });
+
 });
 
 describe("Postgres persisted owner history read boundary", () => {
