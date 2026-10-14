@@ -1,0 +1,38 @@
+name: Staging David Edition integration
+on:
+  pull_request:
+    branches: ["codex/frontend-backend-integration-pass"]
+    paths:
+      - "components/**"
+      - "app/**"
+      - "lib/businesses/**"
+      - "scripts/issue-staging-owner-invitation.*"
+      - "e2e/david-edition-*.spec.ts"
+      - ".github/workflows/staging-david-integration.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  integration-gates:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm ci
+      - run: node --check scripts/issue-staging-owner-invitation.mjs
+      - run: npx vitest run lib/businesses/capability-summary.test.ts lib/businesses/attention-summary.test.ts lib/conversation/acceptance.test.ts
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run build
+      - run: npm run verify:architecture
+      - run: npm run verify:secrets
+      - run: npx playwright install --with-deps chromium
+      - run: npx playwright test e2e/david-edition-cosmos.spec.ts e2e/david-edition-contract.spec.ts --project=desktop-chromium --project=mobile-chromium
+        env:
+          GETDONE_DAVID_EDITION: "true"
