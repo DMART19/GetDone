@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   getPasskeyAssertion,
   type BrowserPasskeyChallenge
@@ -67,6 +67,12 @@ export function DecisionActions({
   const [note, setNote] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  // Reconcile with the authoritative server snapshot after router.refresh().
+  useEffect(() => {
+    setStatus(initialStatus);
+    setNote(null);
+  }, [decisionId, initialStatus]);
+
   async function mutate(action: DecisionAction) {
     const next: DecisionStatus = action === "approve"
       ? "approved"
@@ -80,7 +86,7 @@ export function DecisionActions({
       return;
     }
 
-    if (submitting) return;
+    if (submitting || status !== "pending") return;
     setSubmitting(true);
     setNote("Saving authoritative decision...");
     const idempotencyKey = crypto.randomUUID();
@@ -137,7 +143,7 @@ export function DecisionActions({
         )}
       </div>
       <div className="action-grid">
-        <button type="button" className="secondary-action" disabled={submitting} onClick={() => mutate("reject")}>Reject</button>
+        <button type="button" className="secondary-action" disabled={submitting || status !== "pending"} onClick={() => mutate("reject")}>Reject</button>
         <button type="button" className="secondary-action" disabled={submitting} onClick={() => mutate("modify")}>Modify</button>
         <button type="button" className="primary-action" disabled={submitting} onClick={() => mutate("approve")}>{approveLabel}</button>
       </div>
