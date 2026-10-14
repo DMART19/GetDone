@@ -245,6 +245,16 @@ export class PostgresOwnerIntentStore implements OwnerIntentStore {
     });
   }
 
+  async listByOwner(portfolioId: string, companyId: string, userId: string): Promise<readonly OwnerIntentRecord[]> {
+    const result = await this.db.query<{ payload: OwnerIntentRecord }>(
+      `SELECT payload FROM owner_intents
+       WHERE portfolio_id=$1 AND company_id=$2 AND user_id=$3
+       ORDER BY received_at DESC, id DESC LIMIT 100`,
+      [portfolioId, companyId, userId]
+    );
+    return result.rows.map(row => row.payload).reverse();
+  }
+
   async get(id: string): Promise<OwnerIntentRecord | null> {
     const result = await this.db.query<{ payload: OwnerIntentRecord }>(
       "SELECT payload FROM owner_intents WHERE id=$1",
