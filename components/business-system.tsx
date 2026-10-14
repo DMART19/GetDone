@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import Link from "next/link";
 import { DavidUniverseScene } from "@/components/david-universe-scene";
+import { summarizeBusinessCapabilities } from "@/lib/businesses/capability-summary";
 import { businessSections, type Business, type BusinessContext, type BusinessSection } from "@/lib/businesses/contracts";
 
 async function read<T>(url: string, signal: AbortSignal): Promise<T> {
@@ -155,6 +156,7 @@ export function BusinessSystem({ cinematic = false }: { cinematic?: boolean }) {
         <div className="business-context-heading"><div><span className="business-eyebrow">BUSINESS CONTEXT</span><h2>{selected.name}</h2></div>
           <button aria-label="Close business context" onClick={() => { setSelected(null); setContext(null); selectedButton.current?.focus(); }}>Close</button></div>
         {cinematic && <div className="de-context-sync" role="status"><span>{contextStale ? "Connection interrupted · showing last confirmed records" : contextRefreshing ? "Checking for updates…" : contextUpdatedAt ? `Last synchronized ${new Date(contextUpdatedAt).toLocaleTimeString()}` : "Waiting for authoritative records"}</span><button type="button" onClick={() => setContextRetry(value => value + 1)}>Refresh records</button></div>}
+        {cinematic && current ? <section className="de-capability-map" aria-label="Business capability map"><h3>Capability &amp; connection map</h3><p>Derived from this business&apos;s authorized records. Record presence does not prove a live connection.</p><div>{summarizeBusinessCapabilities(current).map(capability => <article key={capability.section} data-state={capability.state}><strong>{capability.title}</strong><span>{capability.state.toUpperCase()} · {capability.recordCount} records</span><small>{capability.reason}</small><button type="button" onClick={() => setSection(capability.section)}>Inspect records</button></article>)}</div></section> : null}
         <nav aria-label="Business information" className="business-sections">{businessSections.map(item => <button key={item} aria-pressed={section === item} onClick={() => setSection(item)}>{item === "outcomes" ? "Recent outcomes" : item[0].toUpperCase() + item.slice(1)}</button>)}</nav>
         {contextError ? <div role="alert"><p>{contextError}</p><button onClick={() => setContextRetry(contextRetry + 1)}>Retry business context</button></div> : !current ? <p role="status">Loading business context…</p> : <div aria-live="polite">
           <h3>{section === "outcomes" ? "Recent outcomes" : section[0].toUpperCase() + section.slice(1)}</h3>
