@@ -4,8 +4,6 @@
  * No credentials, no cookies, no mutations, no production URL.
  * Run: node scripts/verify-david-v37-staging.mjs https://getdone-web-staging.onrender.com
  */
-import { setTimeout as sleep } from "node:timers/promises";
-
 const input = process.argv[2] || process.env.GETDONE_STAGING_URL;
 if (!input) {
   console.error("Provide the explicit staging URL as the first argument or GETDONE_STAGING_URL.");
