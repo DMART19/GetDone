@@ -31,7 +31,7 @@ jobs:
           node-version: "24"
           cache: npm
       - run: npm ci
-      - run: npx vitest run lib/businesses/capability-summary.test.ts lib/businesses/attention-summary.test.ts lib/conversation/continuity.test.ts lib/control-api/http.test.ts lib/control-api/postgres-auth.test.ts
+      - run: npx vitest run lib/businesses/capability-summary.test.ts lib/businesses/attention-summary.test.ts lib/conversation/continuity.test.ts lib/control-api/http.test.ts lib/control-api/postgres-auth.test.ts lib/persistence/postgres/owner-intent-history.test.ts lib/conversation/contracts.test.ts
       - run: npm run typecheck
       - run: npm run lint
       - run: npm run build
