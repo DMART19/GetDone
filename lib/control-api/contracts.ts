@@ -176,6 +176,8 @@ export interface ControlApiApplicationAdapter {
   logout(request: Request): Promise<SessionRevocationView>;
   revokeOtherSessions(request: Request): Promise<OtherSessionRevocationView>;
 
+  listOwnerIntents?(principal: ControlApiPrincipal): Promise<readonly OwnerIntentRecord[]>;
+
   submitOwnerIntent(
     principal: ControlApiPrincipal,
     input: OwnerIntentInput,
