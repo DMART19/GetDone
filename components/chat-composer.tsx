@@ -3,6 +3,7 @@
 import { ArrowUp, Paperclip } from "lucide-react";
 import { FormEvent, useEffect, useRef, useState } from "react";
 import type { Business } from "@/lib/businesses/contracts";
+import { mentionedAuthorizedBusinesses } from "@/lib/conversation/business-routing";
 
 function authoritativeRuntime() {
   return process.env.NEXT_PUBLIC_APP_ENV !== "development";
@@ -67,6 +68,18 @@ export function ChatComposer({ portfolioId, businesses = [] }: { portfolioId?: s
     event.preventDefault();
     const clean = message.trim();
     if (!clean || submitting || historyLoading || (businesses.length > 0 && !scopedPortfolio)) return;
+    if (businesses.length > 0) {
+      const named = mentionedAuthorizedBusinesses(clean, businesses);
+      if (named.length > 1) {
+        setHistoryError("This request mentions multiple businesses. Choose one business and submit a scoped request; cross-business comparisons require a separately authorized workflow.");
+        return;
+      }
+      if (named.length === 1 && named[0].portfolioId !== scopedPortfolio) {
+        setHistoryError(`This request mentions ${named[0].name}, but a different business is selected. Select ${named[0].name} before sending.`);
+        return;
+      }
+      setHistoryError(null);
+    }
 
     if (!authoritativeRuntime()) {
       setPreview(`Queued locally for preview: “${clean}”`);
