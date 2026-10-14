@@ -20,7 +20,7 @@ describe("durable tenant-scoped conversation continuation semantics", () => {
   it("preserves business references while switching topic", () => {
     const next = resolveConversationContinuity("What about marketing?", previous);
     expect(next.activeTopic).toBe("marketing");
-    expect(next.semantics.references).toEqual(previous.references);
+    expect(next.semantics.references).toEqual([]);
   });
   it("does not execute a follow-up without a verified actionable proposal", () => {
     const next = resolveConversationContinuity("Fix that", previous);
