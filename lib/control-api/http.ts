@@ -289,7 +289,7 @@ export function handleOwnerIntentHistory(request: Request) {
         ...(record.answer?.text ? { answer: { text: record.answer.text } } : {}),
         ...(lifecycle ? { lifecycle } : {})
       };
-    }));;
+    }));
   });
 }
 
