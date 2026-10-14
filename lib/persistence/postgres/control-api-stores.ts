@@ -84,12 +84,12 @@ export class PostgresOwnerIntentStore implements OwnerIntentStore {
       [record.portfolioId, record.companyId, ["integration", "objective", "decision", "job", "outcome", "resource", "verification"]]
     );
     const names = record.conversation?.references.map((item) => item.name.toLowerCase()) ?? [];
-    const relevant = names.length === 0
-      ? result.rows
-      : result.rows.filter((row) => {
-          const haystack = JSON.stringify(row.payload).toLowerCase();
-          return names.some((name) => haystack.includes(name));
-        });
+    const topic = /^what about\s+/i.test(record.message) ? record.activeTopic?.toLowerCase() : undefined;
+    const relevant = result.rows.filter(row => {
+      const haystack = JSON.stringify(row.payload).toLowerCase();
+      if (topic && !haystack.includes(topic)) return false;
+      return names.length === 0 || names.some(name => haystack.includes(name));
+    });
     const evidence = relevant.slice(0, 6);
     const summaries = evidence.map((row) => {
       const state = row.payload.state ?? row.payload.status ?? row.payload.health ?? "recorded";
