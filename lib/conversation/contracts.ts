@@ -32,6 +32,7 @@ export function classifyConversationIntent(message: string): ConversationIntent 
   const value = message.trim();
   if (!value) return "ambiguous";
   if (/^(fix it|fix that|do it|do that|go ahead|proceed)[.!]?$/i.test(value)) return "action_request";
+  if (/^what about\s+.+[?!.]?$/i.test(value)) return "status_query";
   if (INVESTIGATE.test(value)) return "investigate_request";
   if (RECOMMEND.test(value)) return "recommend_request";
   if (ACTION.test(value)) return "action_request";
