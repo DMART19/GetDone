@@ -39,7 +39,7 @@ export default async function HomePage() {
       {process.env.GETDONE_DAVID_EDITION === "true" ? <div className="de-caption">✦ DAVID EDITION / OWNER 01 / UNIVERSE COMMAND</div> : null}
       <BusinessSystem cinematic={process.env.GETDONE_DAVID_EDITION === "true"} />
       {objectives && decisions ? <OwnerAttentionRadar objectives={objectives} decisions={decisions} /> : null}
-      {objectives ? <HomeDashboard objectives={[...objectives]} portfolioId={authorizedBusinesses[0]?.portfolioId} /> : businessCount > 1 ? (
+      {objectives ? <HomeDashboard objectives={[...objectives]} portfolioId={authorizedBusinesses[0]?.portfolioId} canChat={isBusinessPreview() || ownerBusinesses.length > 0} /> : businessCount > 1 ? (
         <section className="ufo-command-card" aria-label="Multi-business conversation"><h2>Ask GetDone about a business</h2><p>Select an authorized planet. Each conversation is securely scoped to that business.</p>{ownerBusinesses.length ? <ChatComposer businesses={ownerBusinesses} /> : <p>No owner-authorized portfolio is available for conversation. Contact your administrator to confirm your role.</p>}</section>
       ) : null}
     </AppShell>
