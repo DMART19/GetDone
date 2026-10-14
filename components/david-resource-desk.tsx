@@ -1,5 +1,4 @@
-import Link from "next/link";
-import {Orbit, ArrowRight, Network, ShieldCheck} from "lucide-react";
+import {Orbit, Network} from "lucide-react";
 import {ResourceOverview} from "@/components/resource-overview";
 import type {OwnerResourceSummary} from "@/lib/data/repository";
 import type {Resource} from "@/lib/types";
