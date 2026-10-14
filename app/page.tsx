@@ -26,7 +26,7 @@ export default async function HomePage() {
 
   return (
     <AppShell className="business-home">
-      <div className="de-caption">✦ DAVID EDITION / OWNER 01 / UNIVERSE COMMAND</div>
+      {process.env.GETDONE_DAVID_EDITION === "true" ? <div className="de-caption">✦ DAVID EDITION / OWNER 01 / UNIVERSE COMMAND</div> : null}
       <BusinessSystem />
       {objectives ? <HomeDashboard objectives={[...objectives]} /> : businessCount > 1 ? (
         <p className="business-scope-note">Select a business to inspect its work. Objective submission and chat currently require an account with one active business.</p>
