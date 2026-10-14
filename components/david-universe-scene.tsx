@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type CSSProperties } from "react";
-import type { Business } from "@/lib/businesses/contracts";
+import type { Business, BusinessRecord } from "@/lib/businesses/contracts";
 
 /**
  * David Edition's cinematic, data-driven space viewport.
@@ -9,10 +9,11 @@ import type { Business } from "@/lib/businesses/contracts";
  * are accessible DOM controls backed by the authorized business catalog.
  */
 export function DavidUniverseScene({
-  businesses, selectedId, onSelect
+  businesses, selectedId, satellites, onSelect
 }: {
   businesses: readonly Business[];
   selectedId: string | null;
+  satellites?: readonly BusinessRecord[];
   onSelect: (business: Business, button: HTMLButtonElement) => void;
 }) {
   const canvas = useRef<HTMLCanvasElement>(null);
@@ -137,6 +138,7 @@ export function DavidUniverseScene({
         <small>{business.lastActivityAt ? "ACTIVITY RECORDED" : "NO ACTIVITY RECORDED"}</small>
       </button>;
     })}
+    {selectedId && satellites && satellites.length > 0 ? <aside className="de-cosmos-satellites" aria-label="Selected business integrations"><span className="de-cosmos-satellites-label">CONNECTED RECORDS · {satellites.length} INTEGRATIONS</span>{satellites.slice(0, 4).map(item => <div key={item.id} className="de-cosmos-satellite"><span className="de-cosmos-satellite-dot" aria-hidden="true"/><span><strong>{item.title}</strong><small>{item.status.replaceAll("_", " ")}</small></span></div>)}</aside> : null}
     <div className="de-cosmos-bottomline"><span>SELECT A PLANET TO INSPECT ITS VERIFIED RECORDS</span><button type="button" aria-label={motion?"Pause space animation":"Resume space animation"} onClick={()=>setMotion(v=>!v)}>{motion?"PAUSE MOTION":"RESUME MOTION"}</button></div>
   </div>;
 }
