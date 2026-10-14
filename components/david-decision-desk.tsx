@@ -1,0 +1,29 @@
+"use client";
+import {useMemo,useState} from "react";
+import Link from "next/link";
+import {CheckCircle2, ChevronRight, CircleAlert, Filter, LockKeyhole, Orbit, Search, ShieldCheck, Sparkles, X, ChevronDown} from "lucide-react";
+import type {Decision} from "@/lib/types";
+import {DecisionActions} from "@/components/decision-actions";
+
+export function DavidDecisionDesk({decisions}:{decisions:Decision[]}){
+ const [query,setQuery]=useState("");
+ const [history,setHistory]=useState(false);
+ const [filters,setFilters]=useState(false);
+ const [category,setCategory]=useState("All");
+ const [selected,setSelected]=useState<string|null>(null);
+ const [evidenceOpen,setEvidenceOpen]=useState(false);
+ const pending=decisions.filter(d=>d.status==="pending"&&d.priority!=="fyi");
+ const approved=decisions.filter(d=>d.status!=="pending");
+ const list=useMemo(()=>decisions.filter(d=>(history?true:d.status==="pending"&&d.priority!=="fyi")&&(category==="All"||d.category===category)&&[d.title,d.subtitle,d.rationale,d.id].join(" ").toLowerCase().includes(query.toLowerCase())).sort((a,b)=>(a.priority==="high"?0:a.priority==="normal"?1:2)-(b.priority==="high"?0:b.priority==="normal"?1:2)),[decisions,history,category,query]);
+ const current=list.find(d=>d.id===selected)??list[0];
+ const remaining=list.filter(d=>d.id!==current?.id);
+ return <section className="de-desk" aria-label="David Edition decision command">
+  <div className="de-caption"><Orbit size={15}/> DAVID EDITION / OWNER 01 / RESOLVE FIRST</div>
+  <div className="de-brief"><div><span className="de-eyebrow">● OWNER ATTENTION RADAR · AUTHENTICATED DATA</span><h1>{pending.length?pending.length+" decision"+(pending.length===1?"":"s")+" to resolve.":"Your queue is clear."}</h1><p>{pending.filter(d=>d.priority==="high").length} high priority · {pending.length} awaiting owner · {approved.length} processed</p></div><div className="de-chips"><span className="de-chip urgent"><CircleAlert size={14}/>{pending.length} awaiting owner</span><span className="de-chip"><ShieldCheck size={14}/>{pending.filter(d=>d.priority==="high").length} high priority</span><span className="de-chip success"><CheckCircle2 size={14}/>{approved.length} processed</span></div></div>
+  <div className="de-toolbar"><label className="de-search"><Search size={18}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Find a decision, objective or issue…" aria-label="Search decisions"/>{query&&<button type="button" onClick={()=>setQuery("")} aria-label="Clear search"><X size={15}/></button>}</label><button onClick={()=>setFilters(v=>!v)} aria-expanded={filters}><Filter size={16}/> Filters <ChevronDown size={14}/></button><button onClick={()=>{setHistory(v=>!v);setSelected(null)}}>{history?"Open queue":"History"}</button></div>
+  {filters&&<div className="de-filterrow"><label>Category <select value={category} onChange={e=>{setCategory(e.target.value);setSelected(null)}}>{["All","resource","growth","incident","budget","outreach"].map(v=><option key={v} value={v}>{v}</option>)}</select></label></div>}
+  {current?<div className="de-workspace"><div className="de-left"><article className="de-priority"><div className="de-priority-top"><span><ShieldCheck size={17}/> NEXT OWNER ACTION</span><span className="de-status">{current.status}</span></div><p className="de-kicker">{current.category.toUpperCase()} · {current.age}</p><h2>{current.title}</h2><p className="de-description">{current.subtitle}</p><div className="de-resolve"><div className="de-resolve-head"><strong><Orbit size={16}/> RESOLVE HERE</strong><span>GOVERNED AUTHORIZATION</span></div><div className="de-contextgrid"><div><small>WHY IT MATTERS</small><p>{current.rationale}</p></div><div><small>WHAT YOU CAN DO</small><p>{current.actionLabel??"Review, approve, modify or reject this request"}</p></div></div>{current.status==="pending"?<DecisionActions key={current.id} decisionId={current.id} initialStatus={current.status} approveLabel={current.actionLabel??"Approve"}/>:<div className="de-resolved"><CheckCircle2 size={18}/> Status: {current.status}</div>}</div><div className="de-priority-foot"><button onClick={()=>setEvidenceOpen(v=>!v)} aria-expanded={evidenceOpen}><ShieldCheck size={16}/>{evidenceOpen?"Hide evidence":"Evidence & related systems"} <ChevronRight size={16}/></button><Link href="/"><Sparkles size={16}/> Open GetDone chat</Link></div></article>
+  <div className="de-queueheading"><h3>Remaining queue <span>{remaining.length} other item{remaining.length===1?"":"s"}</span></h3><small>PRIORITIZED FOR OWNER 01</small></div><div className="de-queue">{remaining.map(d=><button key={d.id} onClick={()=>{setSelected(d.id);setEvidenceOpen(false)}}><span className="de-smallorb"><ShieldCheck size={19}/></span><span className="de-queuecopy"><small>{d.category.toUpperCase()} · {d.age}</small><strong>{d.title}</strong><span>{d.subtitle}</span></span><span className="de-status">{d.status}</span><ChevronRight size={17}/></button>)}</div></div>
+  {evidenceOpen&&<aside className="de-inspector"><div className="de-inspector-label"><Orbit size={15}/> MISSION INSPECTOR</div><h3>{current.title}</h3><section><small>EVIDENCE</small>{current.evidence?.length?<ul>{current.evidence.map((v,i)=><li key={i}>{v}</li>)}</ul>:<p>No verified evidence attached to this decision.</p>}</section><section><small>CONSEQUENCES / IMPACT</small><ul>{current.impact.map((v,i)=><li key={i}>{v}</li>)}</ul></section><section><small>BLAST RADIUS</small><p>{current.blastRadius??"Not specified"}</p></section>{current.objectiveId&&<section><small>OBJECTIVE ID</small><p>{current.objectiveId}</p></section>}<div className="de-guard"><LockKeyhole size={17}/> Authorization, step-up and audit policy are enforced by the existing GetDone backend.</div></aside>}</div>:<div className="de-empty"><CheckCircle2 size={27}/><h2>No decisions in this view.</h2><p>Try History or clear your filters.</p></div>}
+ </section>;
+}

@@ -3,7 +3,6 @@ import { redirect } from "next/navigation";
 import { BusinessSystem } from "@/components/business-system";
 import { getBusinessCatalog, isBusinessPreview } from "@/lib/businesses/runtime.server";
 import { ControlPlaneError } from "@/lib/control-plane/errors";
-import { AppHeader } from "@/components/app-header";
 import { AppShell } from "@/components/app-shell";
 import { HomeDashboard } from "@/components/home-dashboard";
 import { getOwnerReadRepository } from "@/lib/data/runtime-repository.server";
@@ -27,7 +26,7 @@ export default async function HomePage() {
 
   return (
     <AppShell className="business-home">
-      <AppHeader />
+      <div className="de-caption">✦ DAVID EDITION / OWNER 01 / UNIVERSE COMMAND</div>
       <BusinessSystem />
       {objectives ? <HomeDashboard objectives={[...objectives]} /> : businessCount > 1 ? (
         <p className="business-scope-note">Select a business to inspect its work. Objective submission and chat currently require an account with one active business.</p>
