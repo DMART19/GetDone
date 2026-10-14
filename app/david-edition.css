@@ -52,3 +52,11 @@
 .de-app .business-system-feedback,.de-app .business-context{border-color:rgba(134,178,233,.17)}
 @media(max-width:760px){.de-cosmos{height:590px;min-height:590px;border-radius:16px}.de-cosmos-topline,.de-cosmos-bottomline{font-size:8px;letter-spacing:.09em;left:13px;right:13px}.de-cosmos-topline{top:17px}.de-cosmos-bottomline{bottom:16px}.de-cosmos-core{width:125px;height:125px}.de-cosmos-planet{width:100px}.de-cosmos-planet strong{font-size:11px}.de-cosmos-planet small{font-size:7px}.de-cosmos-sphere{width:58px;height:58px}}
 @media(prefers-reduced-motion:reduce){.de-cosmos-sphere,.de-cosmos-planet:nth-of-type(n) .de-cosmos-sphere{animation:none!important;transition:none!important}.de-topnav a{transition:none}}
+
+.de-cosmos-satellites{position:absolute;z-index:4;right:clamp(14px,2vw,30px);bottom:75px;max-width:245px;width:27%;min-width:180px;padding:14px;border:1px solid rgba(138,197,245,.19);background:linear-gradient(140deg,rgba(8,21,43,.79),rgba(5,12,28,.82));backdrop-filter:blur(16px);border-radius:14px;box-shadow:0 15px 45px rgba(0,0,0,.24)}
+.de-cosmos-satellites-label{display:block;color:#b5d4ee;font-size:9px;line-height:1.4;letter-spacing:.12em;margin-bottom:11px}
+.de-cosmos-satellite{display:flex;align-items:center;gap:9px;padding:8px 0;border-top:1px solid rgba(153,201,241,.09)}
+.de-cosmos-satellite-dot{width:9px;height:9px;flex:0 0 9px;border-radius:50%;background:radial-gradient(circle at 25% 20%,#e1edfa,#6387b8 42%,#152a4e 95%);box-shadow:0 0 11px rgba(110,170,228,.28)}
+.de-cosmos-satellite strong{display:block;color:#f0f6fd;font-size:11px;overflow-wrap:anywhere}
+.de-cosmos-satellite small{display:block;color:#9fb6cc;font-size:9px;margin-top:2px;overflow-wrap:anywhere}
+@media(max-width:760px){.de-cosmos-satellites{bottom:63px;right:9px;min-width:130px;width:38%;padding:9px}.de-cosmos-satellites-label{font-size:8px}.de-cosmos-satellite strong{font-size:9px}}
