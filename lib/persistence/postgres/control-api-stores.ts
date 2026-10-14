@@ -3,6 +3,7 @@ import { ControlPlaneError } from "@/lib/control-plane/errors";
 import { createAuditEvent } from "@/lib/domain/audit";
 import { claimIdempotency } from "@/lib/domain/idempotency";
 import type { OwnerIntentRecord } from "@/lib/control-api/contracts";
+import { resolveConversationContinuity } from "@/lib/conversation/continuity";
 import type { ObjectiveIntakeStore, ObjectiveRecord } from "@/lib/domain/objective-inbox";
 import {
   createOwnerIntentOrchestrationRun,
@@ -113,38 +114,39 @@ export class PostgresOwnerIntentStore implements OwnerIntentStore {
   }
 
   async create(record: OwnerIntentRecord, idempotencyKey: string) {
-    let acceptedRecord = record;
-    if (record.conversation?.continuation !== "none" && record.conversation?.continuation && record.conversation.references.length === 0) {
-      const previous = await this.db.query<{ payload: OwnerIntentRecord }>(
-        `SELECT payload FROM owner_intents
-          WHERE portfolio_id=$1 AND company_id=$2 AND user_id=$3
-            AND payload->>'status'='accepted'
-            AND payload->'conversation'->>'intent' IN ('action_request','objective_request','investigate_request')
-          ORDER BY received_at DESC,id DESC LIMIT 1`,
-        [record.portfolioId, record.companyId, record.userId]
-      );
-      const prior = previous.rows[0]?.payload;
-      if (prior) {
-        acceptedRecord = Object.freeze({
-          ...record,
-          continuesIntentId: prior.id,
-          conversation: Object.freeze({
-            ...record.conversation,
-            references: Object.freeze([...(prior.conversation?.references ?? [])])
-          })
-        });
-      } else {
-        acceptedRecord = Object.freeze({
-          ...record,
-          status: "answered" as const,
-          answer: Object.freeze({
-            text: "I need a specific proposed action before I can continue. Tell me what you want fixed or changed.",
-            evidenceRefs: Object.freeze([]),
-            observedAt: record.receivedAt,
-            knownUnknowns: Object.freeze(["No prior actionable proposal exists in this conversation scope"])
-          })
-        });
-      }
+    // Resolve only from authenticated, same-company, same-portfolio, same-user
+    // persisted history. Conversation memory is never an authorization proof.
+    const previous = await this.db.query<{ payload: OwnerIntentRecord }>(
+      `SELECT payload FROM owner_intents
+       WHERE portfolio_id=$1 AND company_id=$2 AND user_id=$3
+       ORDER BY received_at DESC, id DESC LIMIT 1`,
+      [record.portfolioId, record.companyId, record.userId]
+    );
+    const prior = previous.rows[0]?.payload;
+    const continuity = resolveConversationContinuity(record.message, prior ? {
+      intentId: prior.id,
+      topic: prior.activeTopic,
+      references: prior.conversation?.references ?? [],
+      actionable: prior.status === "accepted"
+        && ["action_request", "objective_request", "investigate_request"].includes(prior.conversation?.intent ?? "")
+    } : null);
+    let acceptedRecord: OwnerIntentRecord = Object.freeze({
+      ...record,
+      conversation: continuity.semantics,
+      activeTopic: continuity.activeTopic,
+      continuesIntentId: continuity.continuesIntentId
+    });
+    if (continuity.unresolved) {
+      acceptedRecord = Object.freeze({
+        ...acceptedRecord,
+        status: "answered" as const,
+        answer: Object.freeze({
+          text: "I need a specific prior topic or proposed action before continuing. Which business task do you mean?",
+          evidenceRefs: Object.freeze([]),
+          observedAt: record.receivedAt,
+          knownUnknowns: Object.freeze(["No safely resolvable conversational reference within this business scope"])
+        })
+      });
     }
     acceptedRecord = acceptedRecord.status === "answered"
       ? acceptedRecord
