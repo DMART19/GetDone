@@ -125,7 +125,7 @@ export class PostgresOwnerIntentStore implements OwnerIntentStore {
     const prior = previous.rows[0]?.payload;
     const continuity = resolveConversationContinuity(record.message, prior ? {
       intentId: prior.id,
-      topic: prior.activeTopic,
+      topic: prior.activeTopic ?? prior.message.slice(0, 240),
       references: prior.conversation?.references ?? [],
       // An earlier owner request is not a verified executable proposal.
       // Action continuation must fail closed until a trusted proposal ID exists.
