@@ -88,3 +88,15 @@
 .de-app .de-chat-assistant{align-self:flex-start}
 .de-app .de-chat-turn strong{display:block;font-size:11px;color:#e2c28c}
 .de-app .de-chat-turn p{font-size:13px;white-space:pre-wrap;overflow-wrap:anywhere;margin:5px 0 0}
+
+.de-capability-map{margin:17px 0 23px;padding:17px;border:1px solid rgba(149,194,236,.19);border-radius:15px;background:rgba(7,22,44,.62);color:#edf5ff}
+.de-capability-map h3{margin:0 0 5px;font-size:20px}
+.de-capability-map>p{margin:0 0 16px;font-size:12px;color:#a9c5df}
+.de-capability-map>div{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px}
+.de-capability-map article{border:1px solid rgba(128,172,213,.2);border-radius:11px;padding:13px;background:rgba(16,37,65,.65);display:flex;flex-direction:column;gap:6px}
+.de-capability-map article[data-state=blocked]{border-color:rgba(245,114,129,.5)}
+.de-capability-map article[data-state=degraded]{border-color:rgba(242,195,109,.4)}
+.de-capability-map article strong{font-size:13px}
+.de-capability-map article span{font-size:10px;color:#e7c795;letter-spacing:.08em}
+.de-capability-map article small{font-size:11px;color:#b2c9df;line-height:1.5}
+.de-capability-map article button{margin-top:auto;padding:9px 0;background:transparent;border:0;color:#b1d9fd;text-align:left;text-decoration:underline;cursor:pointer;font-size:12px}
