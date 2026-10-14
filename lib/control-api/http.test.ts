@@ -294,7 +294,11 @@ describe("Scoped owner conversation history", () => {
     const history = await handleOwnerIntentHistory(new Request("http://localhost/api/control/chat"));
     expect(history.status).toBe(200);
     expect(history.headers.get("cache-control")).toBe("no-store");
-    expect(await json(history)).toMatchObject({ ok: true, data: [{ id: "turn-1", message: "Why?" }] });
+    const view = await json(history);
+    expect(view).toMatchObject({ ok: true, data: [{ id: "turn-1", message: "Why?" }] });
+    expect(JSON.stringify(view)).not.toContain("portfolio-a");
+    expect(JSON.stringify(view)).not.toContain("company-a");
+    expect(JSON.stringify(view)).not.toContain("user-a");
   });
 });
 
