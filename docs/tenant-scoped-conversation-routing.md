@@ -6,6 +6,7 @@
 - GET `/api/control/chat` now returns up to 100 persisted owner intent records for the **authenticated user + portfolio + company** in chronological order. It uses `owner_intents` (no new vendor or schema migration) and `cache-control: no-store`.
 - The frontend loads saved turns when the owner selects an authorized business. Switching clears prior UI context, cancels pending polls and loads that business's history.
 - The catalog now includes the membership role for presentation. Only portfolios whose active role is **owner** are offered for mutating chat. The server still independently verifies membership/role via `PostgresControlApiScopeResolver` and the service adapter.
+- A client-side advisory guard checks explicit mentions of owner-authorized business names. If the message names a different business or multiple authorized businesses, submission is blocked until the user explicitly selects an appropriate scope. The server remains the authority.
 - Owner requests and status polls carry `X-GetDone-Portfolio-Id` only after explicit selection. The header is a **requested scope**, not proof of authority.
 - The persisted preceding intent, topic and entity references are used for simple follow-ups *inside the same user, portfolio and company*. A topic switch does not carry unrelated integration/objective references.
 - “Fix that” and other action continuations **do not inherit approval or execution rights** from chat history; without an authoritative proposal they request clarification.
