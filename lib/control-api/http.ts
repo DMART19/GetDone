@@ -34,7 +34,8 @@ const stepUpVerifySchema = z.object({
 
 const ownerIntentSchema = z.object({
   message: z.string().trim().min(1).max(20_000),
-  channel: z.enum(["chat", "api"]).optional()
+  channel: z.enum(["chat", "api"]).optional(),
+  threadId: z.string().uuid().optional()
 });
 
 const objectiveIntakeSchema = z.object({
@@ -267,6 +268,7 @@ export function handleOwnerIntentHistory(request: Request) {
     // Return only an owner-facing transcript allowlist, never internal
     // orchestration metadata, scope identifiers or persisted execution detail.
     return records.map(record => ({
+      threadId: record.threadId ?? null,
       id: record.id,
       message: record.message,
       status: record.status,
