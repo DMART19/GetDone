@@ -6,6 +6,8 @@ import { ControlPlaneError } from "@/lib/control-plane/errors";
 import { AppHeader } from "@/components/app-header";
 import { AppShell } from "@/components/app-shell";
 import { HomeDashboard } from "@/components/home-dashboard";
+import { ChatComposer } from "@/components/chat-composer";
+import { OwnerAttentionRadar } from "@/components/owner-attention-radar";
 import { getOwnerReadRepository } from "@/lib/data/runtime-repository.server";
 
 export const dynamic = "force-dynamic";
@@ -24,13 +26,15 @@ export default async function HomePage() {
   }
   const repository = await getOwnerReadRepository();
   const objectives = singleBusiness && !catalogUnavailable ? await repository.listObjectives() : null;
+  const decisions = process.env.GETDONE_DAVID_EDITION === "true" && objectives ? await repository.listDecisions() : null;
 
   return (
     <AppShell className="business-home">
       <AppHeader />
-      <BusinessSystem />
+      <BusinessSystem cinematic={process.env.GETDONE_DAVID_EDITION === "true"} />
+      {objectives && decisions ? <OwnerAttentionRadar objectives={objectives} decisions={decisions} /> : null}
       {objectives ? <HomeDashboard objectives={[...objectives]} /> : businessCount > 1 ? (
-        <p className="business-scope-note">Select a business to inspect its work. Objective submission and chat currently require an account with one active business.</p>
+        <section className="ufo-command-card" aria-label="Business conversation"><h2>Ask GetDone about your businesses</h2><ChatComposer /></section>
       ) : null}
     </AppShell>
   );
