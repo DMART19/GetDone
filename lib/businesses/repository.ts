@@ -5,8 +5,8 @@ import type { Business, BusinessContext, BusinessSection } from "./contracts";
 
 /** Catalog access mirrors the Control API's three active membership checks. */
 export async function listBusinesses(db: SqlQueryable, userId: string): Promise<Business[]> {
-  const result = await db.query<{ id: string; portfolio_id: string; name: string }>(`
-    SELECT c.id, p.id AS portfolio_id, c.name
+  const result = await db.query<{ id: string; portfolio_id: string; name: string; role: string }>(`
+    SELECT c.id, p.id AS portfolio_id, c.name, pm.role
     FROM portfolio_memberships pm
     JOIN portfolios p ON p.id=pm.portfolio_id AND p.company_id=pm.company_id
     JOIN companies c ON c.id=pm.company_id AND c.organization_id=p.organization_id
@@ -14,7 +14,7 @@ export async function listBusinesses(db: SqlQueryable, userId: string): Promise<
     JOIN company_memberships cm ON cm.company_id=c.id AND cm.user_id=pm.user_id
     WHERE pm.user_id=$1 AND pm.status='active' AND om.status='active' AND cm.status='active'
     ORDER BY c.name, c.id`, [userId]);
-  return result.rows.map(row => ({ id: row.id, portfolioId: row.portfolio_id, name: row.name }));
+  return result.rows.map(row => ({ id: row.id, portfolioId: row.portfolio_id, name: row.name, role: row.role }));
 }
 
 export async function readBusinessContext(db: SqlQueryable, userId: string, portfolioId: string, environment: string): Promise<BusinessContext> {
