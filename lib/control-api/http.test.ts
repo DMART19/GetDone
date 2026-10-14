@@ -16,6 +16,7 @@ import {
   handleListVerifications,
   handleMutateDecision,
   handleOwnerIntent,
+  handleOwnerIntentHistory,
   handleSubmitObjectives,
   handleListObjectives,
   handleGetObjective,
@@ -265,6 +266,36 @@ beforeEach(() => {
 
 afterEach(() => {
   resetControlApiAdapter();
+});
+
+describe("Scoped owner conversation history", () => {
+  it("requires an installed history provider and returns no-store results", async () => {
+    const missing = await handleOwnerIntentHistory(new Request("http://localhost/api/control/chat"));
+    expect(missing.status).toBe(503);
+    installControlApiAdapter({
+      ...fakeAdapter(),
+      listOwnerIntents: async scoped => {
+        expect(scoped.scope.portfolioId).toBe("portfolio-a");
+        expect(scoped.scope.companyId).toBe("company-a");
+        expect(scoped.scope.userId).toBe("user-a");
+        return [{
+          id: "turn-1",
+          portfolioId: "portfolio-a",
+          companyId: "company-a",
+          userId: "user-a",
+          environment: "development" as const,
+          message: "Why?",
+          channel: "chat" as const,
+          status: "answered" as const,
+          receivedAt: "2026-09-21T04:00:00Z"
+        }];
+      }
+    });
+    const history = await handleOwnerIntentHistory(new Request("http://localhost/api/control/chat"));
+    expect(history.status).toBe(200);
+    expect(history.headers.get("cache-control")).toBe("no-store");
+    expect(await json(history)).toMatchObject({ ok: true, data: [{ id: "turn-1", message: "Why?" }] });
+  });
 });
 
 describe("Control API HTTP surface", () => {
