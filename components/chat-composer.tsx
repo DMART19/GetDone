@@ -5,6 +5,7 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 import type { Business } from "@/lib/businesses/contracts";
 import { mentionedAuthorizedBusinesses } from "@/lib/conversation/business-routing";
 
+type SavedTurn = { threadId?: string | null; message: string; answer?: { text: string } };
 function authoritativeRuntime() {
   return process.env.NEXT_PUBLIC_APP_ENV !== "development";
 }
@@ -14,6 +15,8 @@ export function ChatComposer({ portfolioId, businesses = [] }: { portfolioId?: s
   const scopedPortfolio = businesses.length ? selectedPortfolio : portfolioId;
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [activeThread, setActiveThread] = useState("legacy");
+  const [saved, setSaved] = useState<SavedTurn[]>([]);
   const [message, setMessage] = useState("");
   const [preview, setPreview] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -23,6 +26,8 @@ export function ChatComposer({ portfolioId, businesses = [] }: { portfolioId?: s
   useEffect(() => {
     pollAbort.current?.abort();
     setTurns([]);
+    setSaved([]);
+    setActiveThread("legacy");
     setPreview(null);
     setHistoryLoading(false);
     setHistoryError(null);
@@ -34,12 +39,17 @@ export function ChatComposer({ portfolioId, businesses = [] }: { portfolioId?: s
       cache: "no-store", signal: controller.signal,
       headers: { "x-getdone-portfolio-id": scopedPortfolio }
     }).then(async response => {
-      const body = await response.json().catch(() => null) as { ok?: boolean; data?: Array<{ message: string; answer?: { text: string } }>; error?: { message?: string } } | null;
+      const body = await response.json().catch(() => null) as { ok?: boolean; data?: SavedTurn[]; error?: { message?: string } } | null;
       if (!response.ok || !body?.ok || !body.data) throw new Error(body?.error?.message ?? "Conversation history unavailable");
-      if (!controller.signal.aborted) setTurns(body.data.flatMap(item => [
+      if (!controller.signal.aborted) {
+        setSaved(body.data);
+        const recentThread = body.data.at(-1)?.threadId ?? "legacy";
+        setActiveThread(recentThread);
+        setTurns(body.data.filter(item => (item.threadId ?? "legacy") === recentThread).flatMap(item => [
         { role: "user" as const, text: item.message },
         ...(item.answer?.text ? [{ role: "assistant" as const, text: item.answer.text }] : [])
       ]));
+      }
     }).catch(error => { if (!controller.signal.aborted) setHistoryError(error instanceof Error ? error.message : "Conversation history unavailable"); })
       .finally(() => { if (!controller.signal.aborted) setHistoryLoading(false); });
     return () => controller.abort();
@@ -99,7 +109,7 @@ export function ChatComposer({ portfolioId, businesses = [] }: { portfolioId?: s
           "idempotency-key": crypto.randomUUID(),
           ...(scopedPortfolio ? { "x-getdone-portfolio-id": scopedPortfolio } : {})
         },
-        body: JSON.stringify({ message: clean, channel: "chat" })
+        body: JSON.stringify({ message: clean, channel: "chat", ...(activeThread !== "legacy" ? { threadId: activeThread } : {}) })
       });
       const value = await response.json().catch(() => null) as {
         ok?: boolean;
@@ -110,6 +120,7 @@ export function ChatComposer({ portfolioId, businesses = [] }: { portfolioId?: s
         throw new Error(value?.error?.message || "GetDone could not accept the message");
       }
       setMessage("");
+      setSaved(previous => [...previous, { threadId: activeThread === "legacy" ? null : activeThread, message: clean }]);
       setTurns(previous => [...previous, { role: "user", text: clean }]);
       const intent = value.data?.conversation?.intent;
       setPreview(
@@ -141,6 +152,25 @@ export function ChatComposer({ portfolioId, businesses = [] }: { portfolioId?: s
         <option value="">Choose a business…</option>
         {businesses.map(business => <option key={business.portfolioId} value={business.portfolioId}>{business.name}</option>)}
       </select></label> : null}
+      {scopedPortfolio ? <div className="de-chat-threads"><label>Conversation <select aria-label="Conversation thread" value={activeThread} disabled={submitting || historyLoading} onChange={event => {
+        pollAbort.current?.abort();
+        const next = event.target.value;
+        setActiveThread(next);
+        setPreview(null);
+        setTurns(saved.filter(item => (item.threadId ?? "legacy") === next).flatMap(item => [
+          { role: "user" as const, text: item.message },
+          ...(item.answer?.text ? [{ role: "assistant" as const, text: item.answer.text }] : [])
+        ]));
+      }}><option value="legacy">Original conversation</option>{Array.from(new Set(saved.map(item => item.threadId).filter((id): id is string => Boolean(id)))).map(id => {
+        const first = saved.find(item => item.threadId === id);
+        return <option key={id} value={id}>{first?.message.slice(0, 46) || "Conversation"}</option>;
+      })}{activeThread !== "legacy" && !saved.some(item => item.threadId === activeThread) ? <option value={activeThread}>New conversation</option> : null}</select></label><button type="button" disabled={submitting || historyLoading} onClick={() => {
+        pollAbort.current?.abort();
+        setActiveThread(crypto.randomUUID());
+        setTurns([]);
+        setPreview(null);
+        setMessage("");
+      }}>New conversation</button></div> : null}
       {historyLoading ? <p role="status">Loading saved conversation…</p> : null}
       {historyError ? <p role="alert">{historyError}</p> : null}
       {turns.length ? <div className="de-chat-history" aria-label="Current conversation turns">{turns.map((turn, index) => <div key={index} className={`de-chat-turn de-chat-${turn.role}`}><strong>{turn.role === "user" ? "You" : "GetDone"}</strong><p>{turn.text}</p></div>)}</div> : null}
