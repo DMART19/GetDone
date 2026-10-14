@@ -29,10 +29,10 @@ const client = await pool.connect();
 try {
   await client.query("BEGIN ISOLATION LEVEL SERIALIZABLE");
   const owners = await client.query(
-    \`SELECT DISTINCT u.id FROM auth_users u
+    `SELECT u.id FROM auth_users u
       JOIN organization_memberships om ON om.user_id=u.id
       WHERE u.status='active' AND om.status='active' AND om.role='owner'
-      ORDER BY u.id FOR UPDATE OF u\`
+      ORDER BY u.id FOR UPDATE OF u`
   );
   if (owners.rows.length !== 1) throw new Error("Expected exactly one active staging owner; no invitation issued");
   const userId = owners.rows[0].id;
@@ -45,7 +45,7 @@ try {
   const userHandle = crypto.createHash("sha256").update(userId).digest("base64url");
   const expiresAt = new Date(Date.now() + 30 * 60_000).toISOString();
   await client.query(
-    \`INSERT INTO auth_owner_enrollments
+    `INSERT INTO auth_owner_enrollments
       (user_id,token_hash,environment,rp_id,allowed_origins,user_handle,expires_at)
       VALUES($1,$2,'staging',$3,$4::jsonb,$5,$6)
       ON CONFLICT(user_id) DO UPDATE SET
@@ -53,7 +53,7 @@ try {
        rp_id=EXCLUDED.rp_id,allowed_origins=EXCLUDED.allowed_origins,
        user_handle=EXCLUDED.user_handle,expires_at=EXCLUDED.expires_at,
        challenge_hash=NULL,challenge_expires_at=NULL
-      WHERE auth_owner_enrollments.consumed_at IS NULL\`,
+      WHERE auth_owner_enrollments.consumed_at IS NULL`,
     [userId,hash,rpId,JSON.stringify(origins),userHandle,expiresAt]
   );
   fs.writeFileSync(file, JSON.stringify({
