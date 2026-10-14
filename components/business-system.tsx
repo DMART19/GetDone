@@ -85,7 +85,7 @@ export function BusinessSystem({ cinematic = false }: { cinematic?: boolean }) {
             <strong>{business.name}</strong><small>{business.lastActivityAt ? `Updated ${new Date(business.lastActivityAt).toLocaleDateString()}` : "No activity recorded"}</small>
           </button>
         ))}
-      </div>
+      </div>}
       <div className="business-system-feedback">
         {!businesses && !error && <p role="status">Loading your businesses…</p>}
         {error && <div role="alert"><p>{error}</p><button onClick={() => setRetry(retry + 1)}>Retry businesses</button> <Link href="/sign-in">Sign in</Link></div>}
