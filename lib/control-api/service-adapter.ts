@@ -276,6 +276,7 @@ export class ServiceBackedControlApiAdapter implements ControlApiApplicationAdap
         userId: principal.scope.userId,
         message: input.message,
         channel: input.channel ?? "chat",
+        threadId: input.threadId,
         status: "accepted",
         conversation: analyzeConversationMessage(input.message),
         receivedAt: this.now().toISOString()
