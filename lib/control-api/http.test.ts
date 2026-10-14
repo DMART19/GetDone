@@ -16,6 +16,7 @@ import {
   handleListVerifications,
   handleMutateDecision,
   handleOwnerIntent,
+  handleOwnerIntentHistory,
   handleSubmitObjectives,
   handleListObjectives,
   handleGetObjective,
@@ -265,6 +266,68 @@ beforeEach(() => {
 
 afterEach(() => {
   resetControlApiAdapter();
+});
+
+describe("Scoped owner conversation history", () => {
+  it("requires an installed history provider and returns no-store results", async () => {
+    const missing = await handleOwnerIntentHistory(new Request("http://localhost/api/control/chat"));
+    expect(missing.status).toBe(503);
+    installControlApiAdapter({
+      ...fakeAdapter(),
+      listOwnerIntents: async scoped => {
+        expect(scoped.scope.portfolioId).toBe("portfolio-a");
+        expect(scoped.scope.companyId).toBe("company-a");
+        expect(scoped.scope.userId).toBe("user-a");
+        return [{
+          id: "turn-1",
+          portfolioId: "portfolio-a",
+          companyId: "company-a",
+          userId: "user-a",
+          environment: "development" as const,
+          message: "Why?",
+          channel: "chat" as const,
+          status: "answered" as const,
+          receivedAt: "2026-09-21T04:00:00Z"
+        }];
+      }
+    });
+    const history = await handleOwnerIntentHistory(new Request("http://localhost/api/control/chat"));
+    expect(history.status).toBe(200);
+    expect(history.headers.get("cache-control")).toBe("no-store");
+    const view = await json(history);
+    expect(view).toMatchObject({ ok: true, data: [{ id: "turn-1", message: "Why?" }] });
+    expect(JSON.stringify(view)).not.toContain("portfolio-a");
+    expect(JSON.stringify(view)).not.toContain("company-a");
+    expect(JSON.stringify(view)).not.toContain("user-a");
+  });
+
+  it("returns latest scoped lifecycle snapshot without exposing execution internals", async () => {
+    installControlApiAdapter({
+      ...fakeAdapter(),
+      listOwnerIntents: async () => [{
+        id: "turn-staging",
+        threadId: "11111111-1111-4111-8111-111111111111",
+        portfolioId: "portfolio-a", companyId: "company-a", userId: "user-a",
+        environment: "development" as const, message: "Check status",
+        channel: "chat" as const, status: "accepted" as const,
+        receivedAt: "2026-09-21T04:00:00Z"
+      }],
+      getOwnerIntentStatus: async () => ({
+        intentId: "turn-staging",
+        conversation: { intent: "status_query", references: [], continuation: "none", requiresExecutionAuthority: false },
+        lifecycle: { state: "answering" as const, label: "Worker progress stored", terminal: false, verified: false },
+        orchestrationId: "hidden-internal-run"
+      })
+    });
+    const response = await handleOwnerIntentHistory(new Request("http://localhost/api/control/chat"));
+    expect(response.status).toBe(200);
+    const body = await json(response);
+    expect(body).toMatchObject({ ok: true, data: [{
+      threadId: "11111111-1111-4111-8111-111111111111",
+      lifecycle: { label: "Worker progress stored", verified: false }
+    }] });
+    expect(JSON.stringify(body)).not.toContain("hidden-internal-run");
+  });
 });
 
 describe("Control API HTTP surface", () => {

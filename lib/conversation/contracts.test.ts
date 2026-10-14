@@ -11,6 +11,7 @@ describe("conversation boundary", () => {
     ["What should we do about revenue?", "recommend_request"],
     ["Fix the webhook", "action_request"],
     ["Grow revenue to $10k MRR", "objective_request"],
+    ["What about marketing?", "status_query"],
     ["hello", "ambiguous"],
     ["", "ambiguous"]
   ] as const)("%s -> %s", (message, expected) => expect(classifyConversationIntent(message)).toBe(expected));

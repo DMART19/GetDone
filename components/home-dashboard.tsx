@@ -21,7 +21,7 @@ function isCompletedToday(objective: ObjectiveView) {
     && completed.getDate() === now.getDate();
 }
 
-export function HomeDashboard({ objectives }: { objectives: ObjectiveView[] }) {
+export function HomeDashboard({ objectives, portfolioId, canChat = true }: { objectives: ObjectiveView[]; portfolioId?: string; canChat?: boolean }) {
   const router = useRouter();
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -124,7 +124,7 @@ export function HomeDashboard({ objectives }: { objectives: ObjectiveView[] }) {
       </div>
 
       <div className="ufo-command-card" aria-label="Conversation with GetDone">
-        <ChatComposer />
+        {canChat ? <ChatComposer portfolioId={portfolioId} /> : <p>You can view this portfolio but cannot submit owner chat requests with your current membership role.</p>}
       </div>
 
       <div className="ufo-objective-section-heading"><span>OR ADD A STRUCTURED OBJECTIVE</span></div>

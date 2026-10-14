@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   getPasskeyAssertion,
   type BrowserPasskeyChallenge
@@ -66,6 +66,13 @@ export function DecisionActions({
   const [status, setStatus] = useState<DecisionStatus>(initialStatus);
   const [note, setNote] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const inFlight = useRef(false);
+
+  // Reconcile with the authoritative server snapshot after router.refresh().
+  useEffect(() => {
+    setStatus(initialStatus);
+    setNote(null);
+  }, [decisionId, initialStatus]);
 
   async function mutate(action: DecisionAction) {
     const next: DecisionStatus = action === "approve"
@@ -74,13 +81,15 @@ export function DecisionActions({
         ? "modified"
         : "rejected";
 
+    if (inFlight.current || submitting || status !== "pending") return;
+
     if (!authoritativeRuntime()) {
       setStatus(next);
       setNote(`Development preview status: ${next}. No server-side approval or side effect occurs.`);
       return;
     }
 
-    if (submitting) return;
+    inFlight.current = true;
     setSubmitting(true);
     setNote("Saving authoritative decision...");
     const idempotencyKey = crypto.randomUUID();
@@ -123,6 +132,7 @@ export function DecisionActions({
     } catch (error) {
       setNote(error instanceof Error ? error.message : "Decision mutation failed");
     } finally {
+      inFlight.current = false;
       setSubmitting(false);
     }
   }
@@ -137,9 +147,9 @@ export function DecisionActions({
         )}
       </div>
       <div className="action-grid">
-        <button type="button" className="secondary-action" disabled={submitting} onClick={() => mutate("reject")}>Reject</button>
-        <button type="button" className="secondary-action" disabled={submitting} onClick={() => mutate("modify")}>Modify</button>
-        <button type="button" className="primary-action" disabled={submitting} onClick={() => mutate("approve")}>{approveLabel}</button>
+        <button type="button" className="secondary-action" disabled={submitting || status !== "pending"} onClick={() => mutate("reject")}>Reject</button>
+        <button type="button" className="secondary-action" disabled={submitting || status !== "pending"} onClick={() => mutate("modify")}>Modify</button>
+        <button type="button" className="primary-action" disabled={submitting || status !== "pending"} onClick={() => mutate("approve")}>{approveLabel}</button>
       </div>
     </div>
   );

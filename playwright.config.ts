@@ -32,7 +32,8 @@ export default defineConfig({
     env: {
       NEXT_PUBLIC_APP_ENV: "development",
       GETDONE_RUNTIME_ENV: "development",
-      GETDONE_DATA_MODE: "development-seed"
+      GETDONE_DATA_MODE: "development-seed",
+      GETDONE_DAVID_EDITION: process.env.GETDONE_DAVID_EDITION ?? "false"
     }
   },
   projects: [

@@ -3,6 +3,7 @@ import { ControlPlaneError } from "@/lib/control-plane/errors";
 import { createAuditEvent } from "@/lib/domain/audit";
 import { claimIdempotency } from "@/lib/domain/idempotency";
 import type { OwnerIntentRecord } from "@/lib/control-api/contracts";
+import { resolveConversationContinuity } from "@/lib/conversation/continuity";
 import type { ObjectiveIntakeStore, ObjectiveRecord } from "@/lib/domain/objective-inbox";
 import {
   createOwnerIntentOrchestrationRun,
@@ -48,7 +49,8 @@ export class PostgresOwnerIntentStore implements OwnerIntentStore {
       companyId: record.companyId,
       userId: record.userId,
       message: record.message,
-      channel: record.channel
+      channel: record.channel,
+      threadId: record.threadId ?? null
     }));
   }
 
@@ -83,12 +85,12 @@ export class PostgresOwnerIntentStore implements OwnerIntentStore {
       [record.portfolioId, record.companyId, ["integration", "objective", "decision", "job", "outcome", "resource", "verification"]]
     );
     const names = record.conversation?.references.map((item) => item.name.toLowerCase()) ?? [];
-    const relevant = names.length === 0
-      ? result.rows
-      : result.rows.filter((row) => {
-          const haystack = JSON.stringify(row.payload).toLowerCase();
-          return names.some((name) => haystack.includes(name));
-        });
+    const topic = /^what about\s+/i.test(record.message) ? record.activeTopic?.toLowerCase() : undefined;
+    const relevant = result.rows.filter(row => {
+      const haystack = JSON.stringify(row.payload).toLowerCase();
+      if (topic && !haystack.includes(topic)) return false;
+      return names.length === 0 || names.some(name => haystack.includes(name));
+    });
     const evidence = relevant.slice(0, 6);
     const summaries = evidence.map((row) => {
       const state = row.payload.state ?? row.payload.status ?? row.payload.health ?? "recorded";
@@ -113,38 +115,42 @@ export class PostgresOwnerIntentStore implements OwnerIntentStore {
   }
 
   async create(record: OwnerIntentRecord, idempotencyKey: string) {
-    let acceptedRecord = record;
-    if (record.conversation?.continuation !== "none" && record.conversation?.continuation && record.conversation.references.length === 0) {
-      const previous = await this.db.query<{ payload: OwnerIntentRecord }>(
-        `SELECT payload FROM owner_intents
-          WHERE portfolio_id=$1 AND company_id=$2 AND user_id=$3
-            AND payload->>'status'='accepted'
-            AND payload->'conversation'->>'intent' IN ('action_request','objective_request','investigate_request')
-          ORDER BY received_at DESC,id DESC LIMIT 1`,
-        [record.portfolioId, record.companyId, record.userId]
-      );
-      const prior = previous.rows[0]?.payload;
-      if (prior) {
-        acceptedRecord = Object.freeze({
-          ...record,
-          continuesIntentId: prior.id,
-          conversation: Object.freeze({
-            ...record.conversation,
-            references: Object.freeze([...(prior.conversation?.references ?? [])])
-          })
-        });
-      } else {
-        acceptedRecord = Object.freeze({
-          ...record,
-          status: "answered" as const,
-          answer: Object.freeze({
-            text: "I need a specific proposed action before I can continue. Tell me what you want fixed or changed.",
-            evidenceRefs: Object.freeze([]),
-            observedAt: record.receivedAt,
-            knownUnknowns: Object.freeze(["No prior actionable proposal exists in this conversation scope"])
-          })
-        });
-      }
+    // Resolve only from authenticated, same-company, same-portfolio, same-user
+    // persisted history. Conversation memory is never an authorization proof.
+    const previous = await this.db.query<{ payload: OwnerIntentRecord }>(
+      `SELECT payload FROM owner_intents
+       WHERE portfolio_id=$1 AND company_id=$2 AND user_id=$3
+         AND payload->>'channel'=$4
+         AND COALESCE(payload->>'threadId','')=$5
+       ORDER BY received_at DESC, id DESC LIMIT 1`,
+      [record.portfolioId, record.companyId, record.userId, record.channel, record.threadId ?? ""]
+    );
+    const prior = previous.rows[0]?.payload;
+    const continuity = resolveConversationContinuity(record.message, prior ? {
+      intentId: prior.id,
+      topic: prior.activeTopic ?? prior.message.slice(0, 240),
+      references: prior.conversation?.references ?? [],
+      // An earlier owner request is not a verified executable proposal.
+      // Action continuation must fail closed until a trusted proposal ID exists.
+      actionable: false
+    } : null);
+    let acceptedRecord: OwnerIntentRecord = Object.freeze({
+      ...record,
+      conversation: continuity.semantics,
+      activeTopic: continuity.activeTopic,
+      continuesIntentId: continuity.continuesIntentId
+    });
+    if (continuity.unresolved) {
+      acceptedRecord = Object.freeze({
+        ...acceptedRecord,
+        status: "answered" as const,
+        answer: Object.freeze({
+          text: "I need a specific prior topic or proposed action before continuing. Which business task do you mean?",
+          evidenceRefs: Object.freeze([]),
+          observedAt: record.receivedAt,
+          knownUnknowns: Object.freeze(["No safely resolvable conversational reference within this business scope"])
+        })
+      });
     }
     acceptedRecord = acceptedRecord.status === "answered"
       ? acceptedRecord
@@ -203,6 +209,7 @@ export class PostgresOwnerIntentStore implements OwnerIntentStore {
           || prior.userId !== acceptedRecord.userId
           || prior.message !== acceptedRecord.message
           || prior.channel !== acceptedRecord.channel
+          || (prior.threadId ?? null) !== (acceptedRecord.threadId ?? null)
         ) {
           throw new ControlPlaneError(
             "IDEMPOTENCY_CONFLICT",
@@ -243,6 +250,17 @@ export class PostgresOwnerIntentStore implements OwnerIntentStore {
 
       return persisted;
     });
+  }
+
+  async listByOwner(portfolioId: string, companyId: string, userId: string): Promise<readonly OwnerIntentRecord[]> {
+    const result = await this.db.query<{ payload: OwnerIntentRecord }>(
+      `SELECT payload FROM owner_intents
+       WHERE portfolio_id=$1 AND company_id=$2 AND user_id=$3
+         AND payload->>'channel'='chat'
+       ORDER BY received_at DESC, id DESC LIMIT 100`,
+      [portfolioId, companyId, userId]
+    );
+    return result.rows.map(row => row.payload).reverse();
   }
 
   async get(id: string): Promise<OwnerIntentRecord | null> {
