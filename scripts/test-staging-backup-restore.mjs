@@ -6,6 +6,13 @@ import pg from "pg";
 import { postgresTlsConnection } from "../lib/persistence/postgres/tls.ts";
 import { sha256Hex } from "./postgres-backup-integrity.mjs";
 
+// This harness creates and forcibly removes a fresh source database. It must only
+// run against an explicitly authorized, disposable PostgreSQL test cluster.
+if (process.env.GETDONE_RUNTIME_ENV !== "staging"
+  || process.env.GETDONE_ALLOW_ISOLATED_RESTORE_TEST !== "true") {
+  throw new Error("Isolated restore test requires GETDONE_RUNTIME_ENV=staging and GETDONE_ALLOW_ISOLATED_RESTORE_TEST=true on a disposable PostgreSQL test cluster");
+}
+
 const baseConnectionString = process.env.DATABASE_URL?.trim();
 if (!baseConnectionString) throw new Error("DATABASE_URL is required");
 
