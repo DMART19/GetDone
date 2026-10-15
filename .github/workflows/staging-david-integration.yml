@@ -1,9 +1,13 @@
 name: Staging David Edition integration
 on:
+  push:
+    branches: ["staging/getdone-unified-acceptance-20261014"]
   pull_request:
-    branches: ["codex/frontend-backend-integration-pass"]
+    branches: ["codex/frontend-backend-integration-pass", "staging/david-edition-conversation-integration"]
     paths:
       - "components/**"
+      - "scripts/create-staging-backup.mjs"
+      - "lib/persistence/postgres/tls.ts"
       - "app/**"
       - "lib/businesses/**"
       - "scripts/issue-staging-owner-invitation.*"
@@ -27,6 +31,9 @@ jobs:
       - run: npm ci
       - run: node --check scripts/issue-staging-owner-invitation.mjs
       - run: npx vitest run lib/businesses/capability-summary.test.ts lib/businesses/attention-summary.test.ts lib/conversation/acceptance.test.ts
+      - run: npm run test -- --maxWorkers=2
+      - run: npm run build:worker
+      - run: npm run build:orchestration-worker
       - run: npm run typecheck
       - run: npm run lint
       - run: npm run build
