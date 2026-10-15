@@ -3,13 +3,11 @@ import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import pg from "pg";
+import { postgresTlsConnection } from "../lib/persistence/postgres/tls.ts";
 import { sha256Hex } from "./postgres-backup-integrity.mjs";
 
 const baseConnectionString = process.env.DATABASE_URL?.trim();
 if (!baseConnectionString) throw new Error("DATABASE_URL is required");
-const ssl = process.env.GETDONE_DB_SSL === "false"
-  ? false
-  : { rejectUnauthorized: true };
 
 function quoteIdentifier(value) {
   return '"' + value.replaceAll('"', '""') + '"';
@@ -43,10 +41,9 @@ const backupFile = path.join(os.tmpdir(), `getdone-backup-${suffix}.dump`);
 const manifestFile = `${backupFile}.manifest.json`;
 
 const admin = new pg.Pool({
-  connectionString: baseConnectionString,
+  ...postgresTlsConnection(baseConnectionString, process.env),
   max: 2,
-  application_name: "getdone-backup-restore-test-admin",
-  ssl
+  application_name: "getdone-backup-restore-test-admin"
 });
 
 try {
@@ -61,10 +58,9 @@ try {
   });
 
   const source = new pg.Pool({
-    connectionString: sourceUrl,
+    ...postgresTlsConnection(sourceUrl, process.env),
     max: 4,
-    application_name: "getdone-backup-restore-source",
-    ssl
+    application_name: "getdone-backup-restore-source"
   });
   try {
     const at = "2026-09-25T05:00:00.000Z";
