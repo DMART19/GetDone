@@ -228,7 +228,7 @@ try {
       env: {
         ...process.env,
         DATABASE_URL: targetConnectionString,
-        GETDONE_DB_SSL: process.env.GETDONE_DB_SSL ?? "false"
+        GETDONE_DB_SSL: process.env.GETDONE_DB_SSL ?? "true"
       },
       encoding: "utf8"
     }
@@ -275,7 +275,7 @@ try {
       env: {
         ...process.env,
         DATABASE_URL: targetConnectionString,
-        GETDONE_DB_SSL: process.env.GETDONE_DB_SSL ?? "false",
+        GETDONE_DB_SSL: process.env.GETDONE_DB_SSL ?? "true",
         GETDONE_DB_RUNTIME_ROLE: "getdone_tenant_runtime",
         GETDONE_BACKUP_MAX_AGE_HOURS: "24"
       },
@@ -302,7 +302,7 @@ try {
     GETDONE_PROCESS_ROLE: "web",
     DATABASE_URL: targetConnectionString,
     GETDONE_DB_RUNTIME_ROLE: "getdone_tenant_runtime",
-    GETDONE_DB_SSL: process.env.GETDONE_DB_SSL ?? "false",
+    GETDONE_DB_SSL: process.env.GETDONE_DB_SSL ?? "true",
     GETDONE_BACKUP_MAX_AGE_HOURS: "24",
     GETDONE_WEBAUTHN_RP_ID: "localhost",
     GETDONE_WEBAUTHN_ORIGINS: `http://localhost:${port}`,
