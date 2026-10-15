@@ -47,8 +47,7 @@ const admin = new pg.Pool({
 });
 
 try {
-  await admin.query(`DROP DATABASE IF EXISTS ${quoteIdentifier(sourceDatabase)} WITH (FORCE)`);
-  await admin.query(`DROP DATABASE IF EXISTS ${quoteIdentifier(restoreDatabase)} WITH (FORCE)`);
+  // A test must never destroy an existing database before proving ownership.
   await admin.query(`CREATE DATABASE ${quoteIdentifier(sourceDatabase)}`);
 
   const sourceUrl = databaseUrl(sourceDatabase);
