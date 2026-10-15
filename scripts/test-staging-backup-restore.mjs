@@ -3,13 +3,18 @@ import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import pg from "pg";
+import { postgresTlsConnection } from "../lib/persistence/postgres/tls.ts";
 import { sha256Hex } from "./postgres-backup-integrity.mjs";
+
+// This harness creates and forcibly removes a fresh source database. It must only
+// run against an explicitly authorized, disposable PostgreSQL test cluster.
+if (process.env.GETDONE_RUNTIME_ENV !== "staging"
+  || process.env.GETDONE_ALLOW_ISOLATED_RESTORE_TEST !== "true") {
+  throw new Error("Isolated restore test requires GETDONE_RUNTIME_ENV=staging and GETDONE_ALLOW_ISOLATED_RESTORE_TEST=true on a disposable PostgreSQL test cluster");
+}
 
 const baseConnectionString = process.env.DATABASE_URL?.trim();
 if (!baseConnectionString) throw new Error("DATABASE_URL is required");
-const ssl = process.env.GETDONE_DB_SSL === "false"
-  ? false
-  : { rejectUnauthorized: true };
 
 function quoteIdentifier(value) {
   return '"' + value.replaceAll('"', '""') + '"';
@@ -42,29 +47,28 @@ const restoreDatabase = `getdone_restore_verify_${suffix}`;
 const backupFile = path.join(os.tmpdir(), `getdone-backup-${suffix}.dump`);
 const manifestFile = `${backupFile}.manifest.json`;
 
+let sourceCreated = false;
 const admin = new pg.Pool({
-  connectionString: baseConnectionString,
+  ...postgresTlsConnection(baseConnectionString, process.env),
   max: 2,
-  application_name: "getdone-backup-restore-test-admin",
-  ssl
+  application_name: "getdone-backup-restore-test-admin"
 });
 
 try {
-  await admin.query(`DROP DATABASE IF EXISTS ${quoteIdentifier(sourceDatabase)} WITH (FORCE)`);
-  await admin.query(`DROP DATABASE IF EXISTS ${quoteIdentifier(restoreDatabase)} WITH (FORCE)`);
+  // A test must never destroy an existing database before proving ownership.
   await admin.query(`CREATE DATABASE ${quoteIdentifier(sourceDatabase)}`);
+  sourceCreated = true;
 
   const sourceUrl = databaseUrl(sourceDatabase);
   run("scripts/migrate-postgres.mjs", {
     DATABASE_URL: sourceUrl,
-    GETDONE_DB_SSL: process.env.GETDONE_DB_SSL ?? "false"
+    GETDONE_DB_SSL: process.env.GETDONE_DB_SSL ?? "true"
   });
 
   const source = new pg.Pool({
-    connectionString: sourceUrl,
+    ...postgresTlsConnection(sourceUrl, process.env),
     max: 4,
-    application_name: "getdone-backup-restore-source",
-    ssl
+    application_name: "getdone-backup-restore-source"
   });
   try {
     const at = "2026-09-25T05:00:00.000Z";
@@ -281,7 +285,7 @@ try {
   const backupOutput = run("scripts/create-staging-backup.mjs", {
     GETDONE_RUNTIME_ENV: "staging",
     DATABASE_URL: sourceUrl,
-    GETDONE_DB_SSL: process.env.GETDONE_DB_SSL ?? "false",
+    GETDONE_DB_SSL: process.env.GETDONE_DB_SSL ?? "true",
     GETDONE_BACKUP_FILE: backupFile,
     GETDONE_BACKUP_MANIFEST: manifestFile,
     GETDONE_BACKUP_OVERWRITE: "true",
@@ -294,7 +298,7 @@ try {
 
   const restoreOutput = run("scripts/restore-staging-backup.mjs", {
     GETDONE_RUNTIME_ENV: "staging",
-    GETDONE_DB_SSL: process.env.GETDONE_DB_SSL ?? "false",
+    GETDONE_DB_SSL: process.env.GETDONE_DB_SSL ?? "true",
     GETDONE_BACKUP_FILE: backupFile,
     GETDONE_BACKUP_MANIFEST: manifestFile,
     GETDONE_RESTORE_ADMIN_DATABASE_URL: baseConnectionString,
@@ -322,7 +326,9 @@ try {
     applicationBootability: restored.applicationBootability
   }, null, 2));
 } finally {
-  for (const databaseName of [restoreDatabase, sourceDatabase]) {
+  // The restore verifier owns its own target cleanup. Never drop a target
+  // database here unless this harness can independently prove ownership.
+  for (const databaseName of sourceCreated ? [sourceDatabase] : []) {
     try {
       await admin.query(`DROP DATABASE IF EXISTS ${quoteIdentifier(databaseName)} WITH (FORCE)`);
     } catch {}

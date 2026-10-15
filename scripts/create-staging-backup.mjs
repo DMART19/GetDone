@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import pg from "pg";
+import { postgresTlsConnection } from "../lib/persistence/postgres/tls.ts";
 import {
   fileSha256,
   readSnapshotComponents,
@@ -60,12 +61,9 @@ const expectedMigration = registry.database?.migrationVersion;
 if (!expectedMigration) throw new Error("Release registry database migration is missing");
 
 const pool = new pg.Pool({
-  connectionString,
+  ...postgresTlsConnection(connectionString, process.env),
   max: 2,
-  application_name: "getdone-staging-backup",
-  ssl: process.env.GETDONE_DB_SSL === "false"
-    ? false
-    : { rejectUnauthorized: true }
+  application_name: "getdone-staging-backup"
 });
 const client = await pool.connect();
 
@@ -140,6 +138,8 @@ try {
 
   await client.query("COMMIT");
 
+  // Evidence is written only after the dump and manifest have been generated and hashed.
+  // This record does not independently prove that a restore has succeeded.
   const backupRef = process.env.GETDONE_BACKUP_REF?.trim() || path.basename(backupFile);
   const backupRefHash = crypto.createHash("sha256").update(backupRef).digest("hex");
   const evidenceId = crypto.randomUUID();

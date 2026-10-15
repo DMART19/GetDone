@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { spawn, spawnSync } from "node:child_process";
 import pg from "pg";
+import { postgresTlsConnection } from "../lib/persistence/postgres/tls.ts";
 import {
   fileSha256,
   readSnapshotComponents,
@@ -159,12 +160,9 @@ if (!/^getdone_restore_verify_[A-Za-z0-9_]+$/.test(targetDatabase)) {
 }
 
 const adminPool = new pg.Pool({
-  connectionString: adminConnectionString,
+  ...postgresTlsConnection(adminConnectionString, process.env),
   max: 2,
-  application_name: "getdone-staging-restore-admin",
-  ssl: process.env.GETDONE_DB_SSL === "false"
-    ? false
-    : { rejectUnauthorized: true }
+  application_name: "getdone-staging-restore-admin"
 });
 const targetConnectionString = databaseUrl(adminConnectionString, targetDatabase);
 let targetPool;
@@ -173,7 +171,8 @@ let created = false;
 let keepDatabase = process.env.GETDONE_RESTORE_KEEP_DATABASE === "true";
 
 try {
-  await adminPool.query(`DROP DATABASE IF EXISTS ${quoteIdentifier(targetDatabase)} WITH (FORCE)`);
+  // Never destroy a pre-existing database, even if its name matches the restore-test prefix.
+  // CREATE DATABASE fails closed when the target already exists.
   await adminPool.query(`CREATE DATABASE ${quoteIdentifier(targetDatabase)}`);
   created = true;
 
@@ -198,12 +197,9 @@ try {
   }
 
   targetPool = new pg.Pool({
-    connectionString: targetConnectionString,
+    ...postgresTlsConnection(targetConnectionString, process.env),
     max: 4,
-    application_name: "getdone-staging-restore-verifier",
-    ssl: process.env.GETDONE_DB_SSL === "false"
-      ? false
-      : { rejectUnauthorized: true }
+    application_name: "getdone-staging-restore-verifier"
   });
 
   const migration = await targetPool.query(
@@ -232,7 +228,7 @@ try {
       env: {
         ...process.env,
         DATABASE_URL: targetConnectionString,
-        GETDONE_DB_SSL: process.env.GETDONE_DB_SSL ?? "false"
+        GETDONE_DB_SSL: process.env.GETDONE_DB_SSL ?? "true"
       },
       encoding: "utf8"
     }
@@ -279,7 +275,7 @@ try {
       env: {
         ...process.env,
         DATABASE_URL: targetConnectionString,
-        GETDONE_DB_SSL: process.env.GETDONE_DB_SSL ?? "false",
+        GETDONE_DB_SSL: process.env.GETDONE_DB_SSL ?? "true",
         GETDONE_DB_RUNTIME_ROLE: "getdone_tenant_runtime",
         GETDONE_BACKUP_MAX_AGE_HOURS: "24"
       },
@@ -306,7 +302,7 @@ try {
     GETDONE_PROCESS_ROLE: "web",
     DATABASE_URL: targetConnectionString,
     GETDONE_DB_RUNTIME_ROLE: "getdone_tenant_runtime",
-    GETDONE_DB_SSL: process.env.GETDONE_DB_SSL ?? "false",
+    GETDONE_DB_SSL: process.env.GETDONE_DB_SSL ?? "true",
     GETDONE_BACKUP_MAX_AGE_HOURS: "24",
     GETDONE_WEBAUTHN_RP_ID: "localhost",
     GETDONE_WEBAUTHN_ORIGINS: `http://localhost:${port}`,
