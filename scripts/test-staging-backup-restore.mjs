@@ -49,6 +49,7 @@ const admin = new pg.Pool({
 try {
   // A test must never destroy an existing database before proving ownership.
   await admin.query(`CREATE DATABASE ${quoteIdentifier(sourceDatabase)}`);
+  sourceCreated = true;
 
   const sourceUrl = databaseUrl(sourceDatabase);
   run("scripts/migrate-postgres.mjs", {
@@ -317,7 +318,7 @@ try {
     applicationBootability: restored.applicationBootability
   }, null, 2));
 } finally {
-  for (const databaseName of [restoreDatabase, sourceDatabase]) {
+  for (const databaseName of sourceCreated ? [restoreDatabase, sourceDatabase] : []) {
     try {
       await admin.query(`DROP DATABASE IF EXISTS ${quoteIdentifier(databaseName)} WITH (FORCE)`);
     } catch {}
