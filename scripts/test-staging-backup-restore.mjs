@@ -55,7 +55,7 @@ try {
   const sourceUrl = databaseUrl(sourceDatabase);
   run("scripts/migrate-postgres.mjs", {
     DATABASE_URL: sourceUrl,
-    GETDONE_DB_SSL: process.env.GETDONE_DB_SSL ?? "false"
+    GETDONE_DB_SSL: process.env.GETDONE_DB_SSL ?? "true"
   });
 
   const source = new pg.Pool({
@@ -278,7 +278,7 @@ try {
   const backupOutput = run("scripts/create-staging-backup.mjs", {
     GETDONE_RUNTIME_ENV: "staging",
     DATABASE_URL: sourceUrl,
-    GETDONE_DB_SSL: process.env.GETDONE_DB_SSL ?? "false",
+    GETDONE_DB_SSL: process.env.GETDONE_DB_SSL ?? "true",
     GETDONE_BACKUP_FILE: backupFile,
     GETDONE_BACKUP_MANIFEST: manifestFile,
     GETDONE_BACKUP_OVERWRITE: "true",
@@ -291,7 +291,7 @@ try {
 
   const restoreOutput = run("scripts/restore-staging-backup.mjs", {
     GETDONE_RUNTIME_ENV: "staging",
-    GETDONE_DB_SSL: process.env.GETDONE_DB_SSL ?? "false",
+    GETDONE_DB_SSL: process.env.GETDONE_DB_SSL ?? "true",
     GETDONE_BACKUP_FILE: backupFile,
     GETDONE_BACKUP_MANIFEST: manifestFile,
     GETDONE_RESTORE_ADMIN_DATABASE_URL: baseConnectionString,
