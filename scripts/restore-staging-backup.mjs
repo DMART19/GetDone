@@ -171,7 +171,8 @@ let created = false;
 let keepDatabase = process.env.GETDONE_RESTORE_KEEP_DATABASE === "true";
 
 try {
-  await adminPool.query(`DROP DATABASE IF EXISTS ${quoteIdentifier(targetDatabase)} WITH (FORCE)`);
+  // Never destroy a pre-existing database, even if its name matches the restore-test prefix.
+  // CREATE DATABASE fails closed when the target already exists.
   await adminPool.query(`CREATE DATABASE ${quoteIdentifier(targetDatabase)}`);
   created = true;
 
