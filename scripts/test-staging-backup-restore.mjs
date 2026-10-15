@@ -40,6 +40,7 @@ const restoreDatabase = `getdone_restore_verify_${suffix}`;
 const backupFile = path.join(os.tmpdir(), `getdone-backup-${suffix}.dump`);
 const manifestFile = `${backupFile}.manifest.json`;
 
+let sourceCreated = false;
 const admin = new pg.Pool({
   ...postgresTlsConnection(baseConnectionString, process.env),
   max: 2,
@@ -318,7 +319,9 @@ try {
     applicationBootability: restored.applicationBootability
   }, null, 2));
 } finally {
-  for (const databaseName of sourceCreated ? [restoreDatabase, sourceDatabase] : []) {
+  // The restore verifier owns its own target cleanup. Never drop a target
+  // database here unless this harness can independently prove ownership.
+  for (const databaseName of sourceCreated ? [sourceDatabase] : []) {
     try {
       await admin.query(`DROP DATABASE IF EXISTS ${quoteIdentifier(databaseName)} WITH (FORCE)`);
     } catch {}
