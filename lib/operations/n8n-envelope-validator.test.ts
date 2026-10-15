@@ -49,6 +49,15 @@ describe("n8n external envelope validator", () => {
     expect(validateN8nEnvelope(value, sign(value), baseEnv).envelope.requestId).toBe("request");
   });
 
+  it("rejects missing signatures, expired messages, and unregistered capabilities", () => {
+    const value = envelope();
+    expect(() => validateN8nEnvelope(value, null, baseEnv)).toThrow(/signature/i);
+    const stale = { ...value, sentAt: new Date(Date.now() - 120_000).toISOString() };
+    expect(() => validateN8nEnvelope(stale, sign(stale), baseEnv)).toThrow(/expired/i);
+    const unsupported = { ...value, capability: "email.send" };
+    expect(() => validateN8nEnvelope(unsupported, sign(unsupported), baseEnv)).toThrow(/narrow n8n release/i);
+  });
+
   it("rejects tampering and cross-tenant scope", () => {
     const value = envelope();
     expect(() => validateN8nEnvelope({ ...value, capability: "email.send" }, sign(value), baseEnv)).toThrow(/signature/i);
