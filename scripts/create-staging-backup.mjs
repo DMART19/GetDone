@@ -138,6 +138,8 @@ try {
 
   await client.query("COMMIT");
 
+  // Evidence is written only after the dump and manifest have been generated and hashed.
+  // This record does not independently prove that a restore has succeeded.
   const backupRef = process.env.GETDONE_BACKUP_REF?.trim() || path.basename(backupFile);
   const backupRefHash = crypto.createHash("sha256").update(backupRef).digest("hex");
   const evidenceId = crypto.randomUUID();
