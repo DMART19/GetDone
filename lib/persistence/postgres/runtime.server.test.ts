@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
 import type { QueryResult, QueryResultRow } from "pg";
 import type { PostgresDatabase } from "@/lib/persistence/postgres/client";
 import {
@@ -88,6 +89,17 @@ function runtime(fake: FakeReadinessDatabase, backupMaxAgeHours = 24) {
 }
 
 describe("PostgreSQL startup readiness gate", () => {
+  it("requires the same migration as the authoritative release and generated environment manifests", () => {
+    const registry = JSON.parse(readFileSync("release/version-registry.json","utf8"));
+    const env = JSON.parse(readFileSync("release/environment-manifest.json","utf8"));
+    const template = JSON.parse(readFileSync("release/environment-manifest.template.json","utf8"));
+    expect(REQUIRED_POSTGRES_MIGRATION).toBe(registry.database.migrationVersion);
+    for (const name of ["development","staging","production"]) {
+      expect(env.environments[name].database.migrationVersion).toBe(REQUIRED_POSTGRES_MIGRATION);
+      expect(template.environments[name].database.migrationVersion).toBe(REQUIRED_POSTGRES_MIGRATION);
+    }
+  });
+
   it("reports ready only when the complete production persistence contract is healthy", async () => {
     const fake = new FakeReadinessDatabase();
     const health = await runtime(fake).assertReady();
