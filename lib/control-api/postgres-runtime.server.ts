@@ -44,6 +44,7 @@ import { PostgresOrchestrationRunStore } from "@/lib/persistence/postgres/orches
 import { DecisionResumeDispatcher } from "@/lib/orchestration/authorization-flow";
 import { PostgresControlPlaneTransactionManager } from "@/lib/persistence/postgres/transaction-manager";
 import { getPostgresRuntimeFromEnv } from "@/lib/persistence/postgres/runtime.server";
+import { getAuthPostgresDatabaseFromEnv } from "@/lib/persistence/postgres/auth-runtime.server";
 import { runWithPostgresTenantScope } from "@/lib/persistence/postgres/tenant-context.server";
 
 export function createPostgresControlApiAdapter(
@@ -56,6 +57,7 @@ export function createPostgresControlApiAdapter(
 
   const runtime = getPostgresRuntimeFromEnv(env);
   const db = runtime.database;
+  const authDb = getAuthPostgresDatabaseFromEnv(env);
   const webAuthn = readWebAuthnServerConfig(env);
 
   const objectives = new PostgresEntityStore<ObjectiveRecord>(db, "objective");
@@ -126,13 +128,13 @@ export function createPostgresControlApiAdapter(
   });
 
   return new ServiceBackedControlApiAdapter({
-    auth: new PostgresAuthAdapter(db, {
+    auth: new PostgresAuthAdapter(authDb, {
       cookieName: webAuthn.cookieName,
       stepUpTtlSeconds: webAuthn.stepUpTtlSeconds,
       rpId: webAuthn.rpId,
       allowedOrigins: webAuthn.allowedOrigins
     }),
-    scopes: new PostgresControlApiScopeResolver(db, environment),
+    scopes: new PostgresControlApiScopeResolver(authDb, environment),
     authorizationEvidence: new SessionStepUpEvidenceResolver(),
     intents: new PostgresOwnerIntentStore(db),
     conversationPlans: new PostgresOrchestrationPlanProposalStore(db),
