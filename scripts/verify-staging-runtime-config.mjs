@@ -23,7 +23,8 @@ function requireValue(name) {
 
 async function main() {
   const flags = process.argv.slice(2);
-  if (flags.some(flag => flag !== "--connect")) fail("Only --connect is supported");
+  if (flags.some(flag => !["--connect", "--workers"].includes(flag))) fail("Only --connect and --workers are supported");
+  if (flags.includes("--workers") && !flags.includes("--connect")) fail("--workers requires --connect");
   if (requireValue("GETDONE_RUNTIME_ENV") !== "staging") fail("GETDONE_RUNTIME_ENV must be staging");
   if (requireValue("GETDONE_DATA_MODE") !== "authoritative") fail("GETDONE_DATA_MODE must be authoritative");
   if (requireValue("GETDONE_DB_SSL") !== "true") fail("GETDONE_DB_SSL must be true");
@@ -102,11 +103,57 @@ async function main() {
         fail("TENANT_AUTH_ISOLATION_BROKEN");
       }
       console.log("PASS: business tenant role cannot read unscoped authentication data");
+
+      if (flags.includes("--workers")) {
+        const workerTables = [
+          "job_worker_instances", "orchestration_worker_instances",
+          "job_runtime_state", "job_leases", "job_retry_schedule",
+          "job_execution_specs"
+        ];
+        // Only inspect catalog metadata. A zero-policy RLS table cannot be
+        // made usable by adding table grants or enabling worker services.
+        const policies = await client.query(
+          `SELECT c.relname AS table_name, c.relrowsecurity AS rls_enabled,
+             has_table_privilege(current_user,c.oid,'SELECT') AS can_select,
+             has_table_privilege(current_user,c.oid,'INSERT') AS can_insert,
+             has_table_privilege(current_user,c.oid,'UPDATE') AS can_update,
+             (SELECT COUNT(*) FROM pg_policy p WHERE p.polrelid=c.oid
+                AND ('0'::oid = ANY(p.polroles) OR
+                  (SELECT oid FROM pg_roles WHERE rolname='getdone_tenant_runtime') = ANY(p.polroles))
+                AND p.polcmd IN ('*','r')) AS read_policies,
+             (SELECT COUNT(*) FROM pg_policy p WHERE p.polrelid=c.oid
+                AND ('0'::oid = ANY(p.polroles) OR
+                  (SELECT oid FROM pg_roles WHERE rolname='getdone_tenant_runtime') = ANY(p.polroles))
+                AND p.polcmd IN ('*','a')) AS insert_policies,
+             (SELECT COUNT(*) FROM pg_policy p WHERE p.polrelid=c.oid
+                AND ('0'::oid = ANY(p.polroles) OR
+                  (SELECT oid FROM pg_roles WHERE rolname='getdone_tenant_runtime') = ANY(p.polroles))
+                AND p.polcmd IN ('*','w')) AS update_policies
+           FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+           WHERE n.nspname='public' AND c.relname = ANY($1::text[])`,
+          [workerTables]
+        );
+        const map = new Map(policies.rows.map(row => [row.table_name, row]));
+        const blocked = workerTables.filter(name => {
+          const item = map.get(name);
+          return !item || !item.can_select || !item.can_insert || !item.can_update ||
+            (item.rls_enabled && (
+              Number(item.read_policies) < 1 ||
+              Number(item.insert_policies) < 1 ||
+              Number(item.update_policies) < 1
+            ));
+        });
+        if (blocked.length) fail("WORKER_RLS_BLOCKED: " + blocked.join(", "));
+        console.log("PASS: worker tables have basic role grants and applicable RLS policies");
+        console.log("NOT TESTED: actual worker DML, leases, retries or cross-tenant isolation");
+      }
+
     } finally {
       await client.query("ROLLBACK").catch(() => {});
       client.release();
     }
   } catch (error) {
+    if (error instanceof Error && error.message.startsWith("WORKER_RLS_BLOCKED:")) fail(error.message);
     if (transportReady) {
       fail("staging auth runtime cannot resolve authorized identity or isolation; review dedicated role migration and RLS");
     }
