@@ -105,46 +105,72 @@ async function main() {
       console.log("PASS: business tenant role cannot read unscoped authentication data");
 
       if (flags.includes("--workers")) {
-        const workerTables = [
-          "job_worker_instances", "orchestration_worker_instances",
-          "job_runtime_state", "job_leases", "job_retry_schedule",
-          "job_execution_specs"
-        ];
-        // Only inspect catalog metadata. A zero-policy RLS table cannot be
-        // made usable by adding table grants or enabling worker services.
-        const policies = await client.query(
-          `SELECT c.relname AS table_name, c.relrowsecurity AS rls_enabled,
-             has_table_privilege(current_user,c.oid,'SELECT') AS can_select,
-             has_table_privilege(current_user,c.oid,'INSERT') AS can_insert,
-             has_table_privilege(current_user,c.oid,'UPDATE') AS can_update,
-             (SELECT COUNT(*) FROM pg_policy p WHERE p.polrelid=c.oid
-                AND ('0'::oid = ANY(p.polroles) OR
-                  (SELECT oid FROM pg_roles WHERE rolname='getdone_tenant_runtime') = ANY(p.polroles))
-                AND p.polcmd IN ('*','r')) AS read_policies,
-             (SELECT COUNT(*) FROM pg_policy p WHERE p.polrelid=c.oid
-                AND ('0'::oid = ANY(p.polroles) OR
-                  (SELECT oid FROM pg_roles WHERE rolname='getdone_tenant_runtime') = ANY(p.polroles))
-                AND p.polcmd IN ('*','a')) AS insert_policies,
-             (SELECT COUNT(*) FROM pg_policy p WHERE p.polrelid=c.oid
-                AND ('0'::oid = ANY(p.polroles) OR
-                  (SELECT oid FROM pg_roles WHERE rolname='getdone_tenant_runtime') = ANY(p.polroles))
-                AND p.polcmd IN ('*','w')) AS update_policies
-           FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
-           WHERE n.nspname='public' AND c.relname = ANY($1::text[])`,
-          [workerTables]
+        const requirements = {
+          getdone_tenant_runtime: {
+            readWrite: ["job_runtime_state","job_leases","job_retry_schedule","idempotency_records"],
+            appendOnly: [
+              "job_runtime_transactions","job_runtime_events","job_execution_outcomes",
+              "job_recovery_records","job_dead_letters","job_execution_specs"
+            ]
+          },
+          getdone_worker_registry: {
+            readWrite: ["job_worker_instances","orchestration_worker_instances"],
+            appendOnly: []
+          }
+        };
+        const blocked = [];
+        for (const [role, contract] of Object.entries(requirements)) {
+          // Role names here are hard-coded constants, not operator-supplied SQL.
+          await client.query('SET LOCAL ROLE "' + role + '"');
+          for (const [tableName, needsUpdate] of [
+            ...contract.readWrite.map(name => [name,true]),
+            ...contract.appendOnly.map(name => [name,false])
+          ]) {
+            const checks = await client.query(
+              `SELECT c.relrowsecurity AS rls, c.relforcerowsecurity AS forced,
+                 has_table_privilege(current_user,c.oid,'SELECT') AS can_read,
+                 has_table_privilege(current_user,c.oid,'INSERT') AS can_insert,
+                 has_table_privilege(current_user,c.oid,'UPDATE') AS can_update,
+                 has_table_privilege(current_user,c.oid,'DELETE') AS can_delete,
+                 (SELECT COUNT(*) FROM pg_policy p WHERE p.polrelid=c.oid
+                   AND (0::oid=ANY(p.polroles)
+                     OR (SELECT oid FROM pg_roles WHERE rolname=$2)=ANY(p.polroles))
+                   AND p.polcmd IN ('*','r')) AS read_policies,
+                 (SELECT COUNT(*) FROM pg_policy p WHERE p.polrelid=c.oid
+                   AND (0::oid=ANY(p.polroles)
+                     OR (SELECT oid FROM pg_roles WHERE rolname=$2)=ANY(p.polroles))
+                   AND p.polcmd IN ('*','a')) AS insert_policies,
+                 (SELECT COUNT(*) FROM pg_policy p WHERE p.polrelid=c.oid
+                   AND (0::oid=ANY(p.polroles)
+                     OR (SELECT oid FROM pg_roles WHERE rolname=$2)=ANY(p.polroles))
+                   AND p.polcmd IN ('*','w')) AS update_policies
+               FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+               WHERE n.nspname='public' AND c.relname=$1`,
+              [tableName,role]
+            );
+            const row = checks.rows[0];
+            if (!row || !row.rls || !row.forced ||
+              !row.can_read || !row.can_insert || row.can_delete ||
+              (needsUpdate && !row.can_update) ||
+              (!needsUpdate && row.can_update) ||
+              Number(row.read_policies)<1 || Number(row.insert_policies)<1 ||
+              (needsUpdate && Number(row.update_policies)<1)) {
+              blocked.push(role + ":" + tableName);
+            }
+          }
+        }
+        await client.query('SET LOCAL ROLE "getdone_job_dispatch"');
+        const dispatchStatus = await client.query(
+          `SELECT has_function_privilege(current_user,
+             'public.getdone_discover_ready_jobs(timestamptz,integer)','EXECUTE') AS ready,
+             has_function_privilege(current_user,
+             'public.getdone_discover_expired_jobs(timestamptz,integer)','EXECUTE') AS recovery,
+             has_table_privilege(current_user,'public.job_runtime_state','SELECT') AS raw_job_access`
         );
-        const map = new Map(policies.rows.map(row => [row.table_name, row]));
-        const blocked = workerTables.filter(name => {
-          const item = map.get(name);
-          return !item || !item.can_select || !item.can_insert || !item.can_update ||
-            (item.rls_enabled && (
-              Number(item.read_policies) < 1 ||
-              Number(item.insert_policies) < 1 ||
-              Number(item.update_policies) < 1
-            ));
-        });
+        if (!dispatchStatus.rows[0]?.ready || !dispatchStatus.rows[0]?.recovery ||
+          dispatchStatus.rows[0]?.raw_job_access) blocked.push("getdone_job_dispatch:read-only-function-access");
         if (blocked.length) fail("WORKER_RLS_BLOCKED: " + blocked.join(", "));
-        console.log("PASS: worker tables have basic role grants and applicable RLS policies");
+        console.log("PASS: role-scoped job state, append-only lineage, registry and bounded discovery grants");
         console.log("NOT TESTED: actual worker DML, leases, retries or cross-tenant isolation");
       }
 
