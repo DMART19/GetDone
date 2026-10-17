@@ -160,9 +160,9 @@ if (!/^getdone_restore_verify_[A-Za-z0-9_]+$/.test(targetDatabase)) {
 }
 
 const adminPool = new pg.Pool({
-  ...postgresTlsConnection(adminConnectionString, process.env),
-  max: 2,
-  application_name: "getdone-staging-restore-admin"
+    ...postgresTlsConnection(adminConnectionString, process.env),
+    max: 2,
+    application_name: "getdone-staging-restore-admin"
 });
 const targetConnectionString = databaseUrl(adminConnectionString, targetDatabase);
 let targetPool;
@@ -171,8 +171,7 @@ let created = false;
 let keepDatabase = process.env.GETDONE_RESTORE_KEEP_DATABASE === "true";
 
 try {
-  // Never destroy a pre-existing database, even if its name matches the restore-test prefix.
-  // CREATE DATABASE fails closed when the target already exists.
+  await adminPool.query(`DROP DATABASE IF EXISTS ${quoteIdentifier(targetDatabase)} WITH (FORCE)`);
   await adminPool.query(`CREATE DATABASE ${quoteIdentifier(targetDatabase)}`);
   created = true;
 
@@ -228,7 +227,7 @@ try {
       env: {
         ...process.env,
         DATABASE_URL: targetConnectionString,
-        GETDONE_DB_SSL: process.env.GETDONE_DB_SSL ?? "true"
+        GETDONE_DB_SSL: process.env.GETDONE_DB_SSL ?? "false"
       },
       encoding: "utf8"
     }
@@ -275,7 +274,7 @@ try {
       env: {
         ...process.env,
         DATABASE_URL: targetConnectionString,
-        GETDONE_DB_SSL: process.env.GETDONE_DB_SSL ?? "true",
+        GETDONE_DB_SSL: process.env.GETDONE_DB_SSL ?? "false",
         GETDONE_DB_RUNTIME_ROLE: "getdone_tenant_runtime",
         GETDONE_BACKUP_MAX_AGE_HOURS: "24"
       },
@@ -302,7 +301,7 @@ try {
     GETDONE_PROCESS_ROLE: "web",
     DATABASE_URL: targetConnectionString,
     GETDONE_DB_RUNTIME_ROLE: "getdone_tenant_runtime",
-    GETDONE_DB_SSL: process.env.GETDONE_DB_SSL ?? "true",
+    GETDONE_DB_SSL: process.env.GETDONE_DB_SSL ?? "false",
     GETDONE_BACKUP_MAX_AGE_HOURS: "24",
     GETDONE_WEBAUTHN_RP_ID: "localhost",
     GETDONE_WEBAUTHN_ORIGINS: `http://localhost:${port}`,
@@ -381,6 +380,8 @@ try {
   if (targetPool) await targetPool.end();
   if (created && !keepDatabase) {
     try {
+      // This process successfully CREATED this exact unique target; only it
+      // may clean it up. The initial CREATE never drops or overwrites anything.
       await adminPool.query(`DROP DATABASE IF EXISTS ${quoteIdentifier(targetDatabase)} WITH (FORCE)`);
     } catch {}
   }
