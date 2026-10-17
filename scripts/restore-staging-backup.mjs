@@ -122,7 +122,7 @@ const backupFile = path.resolve(required("GETDONE_BACKUP_FILE"));
 const manifestFile = path.resolve(required("GETDONE_BACKUP_MANIFEST"));
 const adminConnectionString = required("GETDONE_RESTORE_ADMIN_DATABASE_URL");
 // Prevent independent restore from targeting production or staging servers.
-assertIsolatedRestoreAdmin(adminConnectionString, process.env.DATABASE_URL);
+assertIsolatedRestoreAdmin(adminConnectionString, process.env.GETDONE_BACKUP_SOURCE_DATABASE_URL);
 if (!fs.existsSync(backupFile)) throw new Error("GETDONE_BACKUP_FILE does not exist");
 if (!fs.existsSync(manifestFile)) throw new Error("GETDONE_BACKUP_MANIFEST does not exist");
 
