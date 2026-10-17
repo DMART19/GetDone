@@ -12,7 +12,10 @@ const fixture = vi.hoisted(() => {
   };
 });
 
-// Vitest does not bundle Next.js server-only marker; mock the marker, not the boundary.\nvi.mock("server-only", () => ({}));\n\nvi.mock("@/lib/persistence/postgres/auth-runtime.server", () => ({
+// Vitest does not bundle Next.js server-only marker; mock the marker, not the boundary.
+vi.mock("server-only", () => ({}));
+
+vi.mock("@/lib/persistence/postgres/auth-runtime.server", () => ({
   getAuthPostgresDatabaseFromEnv: () => fixture.authDb
 }));
 vi.mock("@/lib/persistence/postgres/runtime.server", () => ({
