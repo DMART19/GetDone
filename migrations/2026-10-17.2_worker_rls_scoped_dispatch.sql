@@ -98,6 +98,20 @@ CREATE POLICY getdone_job_tenant_only ON job_execution_specs
         AND getdone_tenant_scope_matches(job.portfolio_id,job.company_id))
   );
 
+-- Legacy idempotency keys are not a reliable tenant authority. Add explicit
+-- scope columns; pre-existing unscoped rows remain inaccessible until an
+-- independently reviewed, ownership-proven reconciliation has run.
+ALTER TABLE idempotency_records
+  ADD COLUMN IF NOT EXISTS portfolio_id text,
+  ADD COLUMN IF NOT EXISTS company_id text;
+ALTER TABLE idempotency_records ENABLE ROW LEVEL SECURITY;
+ALTER TABLE idempotency_records FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS getdone_idempotency_tenant_only ON idempotency_records;
+CREATE POLICY getdone_idempotency_tenant_only ON idempotency_records
+  FOR ALL TO getdone_tenant_runtime
+  USING (getdone_tenant_scope_matches(portfolio_id,company_id))
+  WITH CHECK (getdone_tenant_scope_matches(portfolio_id,company_id));
+
 -- Reconciliation decisions have their own explicit scope.
 ALTER TABLE job_disaster_recovery_decisions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE job_disaster_recovery_decisions FORCE ROW LEVEL SECURITY;
