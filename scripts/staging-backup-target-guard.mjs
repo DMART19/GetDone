@@ -34,8 +34,13 @@ export function assertStagingBackupSource(value, env = process.env) {
       || !env.PGSSLROOTCERT?.trim())) {
     throw new Error("Staging backup requires CA-verified PostgreSQL TLS");
   }
-  if (url.searchParams.get("sslmode") === "disable"
-      || url.searchParams.get("sslmode") === "no-verify") {
+  const urlSslMode = url.searchParams.get("sslmode");
+  if (!fixture && urlSslMode !== null && urlSslMode !== "verify-full") {
+    // In contrast to node-postgres, libpq command line tools can honor the
+    // URI's sslmode over PGSSLMODE. Reject ALL hostname-verification downgrades.
+    throw new Error("Staging backup URL must not override verify-full TLS");
+  }
+  if (urlSslMode === "disable" || urlSslMode === "no-verify") {
     throw new Error("Staging backup cannot disable TLS verification");
   }
   return Object.freeze({ fixture });
@@ -54,4 +59,36 @@ export function assertIsolatedRestoreAdmin(value, sourceValue) {
     }
   }
   return Object.freeze({ isolated: true });
+}
+
+/**
+ * Build pg_dump/pg_restore/libpq process environment safely.
+ * The caller must first validate the approved source or isolated destination.
+ * Connection-string sslmode NEVER takes precedence over verify-full on real
+ * staging credentials, even if the URL contains sslmode=require/verify-ca.
+ */
+export function createPostgresCliEnvironment(value, env = process.env, databaseName) {
+  const url = parseUrl(value,"PostgreSQL CLI connection");
+  const verified = env.GETDONE_DB_SSL !== "false";
+  const requestedMode = url.searchParams.get("sslmode");
+  if (verified && requestedMode !== null && requestedMode !== "verify-full") {
+    throw new Error("PostgreSQL CLI cannot downgrade certificate and hostname verification");
+  }
+  const mode = verified ? "verify-full" : "disable";
+  // Always derive host and authentication from the URL. Never pass the URL to
+  // libpq via command args (which could leak credentials in process listings).
+  const { PGHOSTADDR: _ignoredHostAddress, PGSERVICE: _ignoredService, ...safeEnv } = env;
+  void _ignoredHostAddress;
+  void _ignoredService;
+  return {
+    ...safeEnv,
+    PGHOST: url.hostname,
+    PGPORT: url.port || "5432",
+    PGDATABASE: databaseName ?? decodeURIComponent(url.pathname.slice(1)),
+    PGUSER: decodeURIComponent(url.username),
+    PGPASSWORD: decodeURIComponent(url.password),
+    PGSSLMODE: mode,
+    // The CA comes only from an operator-controlled file, never the URL.
+    PGSSLROOTCERT: verified ? env.PGSSLROOTCERT : undefined
+  };
 }
