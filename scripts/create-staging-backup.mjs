@@ -39,6 +39,9 @@ if (runtime !== "staging") {
   throw new Error("db:create-staging-backup requires GETDONE_RUNTIME_ENV=staging");
 }
 
+// Prevent the dump and all newly created directories from becoming
+// group/world-readable even briefly while pg_dump is writing.
+process.umask(0o077);
 const connectionString = required("DATABASE_URL");
 const backupFile = path.resolve(required("GETDONE_BACKUP_FILE"));
 const manifestFile = path.resolve(
