@@ -7,6 +7,7 @@ import { PostgresAuthAdapter } from "@/lib/auth/postgres-adapter";
 import { sha256Hex } from "@/lib/control-plane/canonical-hash";
 import type { AuthSession } from "@/lib/auth/contracts";
 import { PostgresRateLimiter } from "@/lib/security/rate-limit.server";
+import { listBusinesses } from "@/lib/businesses/repository";
 
 // Never create, migrate, or mutate the real staging or production database.
 // Run this only against a locally provisioned, already-migrated disposable DB.
@@ -69,6 +70,15 @@ try {
       const who = await client.query("SELECT current_user AS role");
       expect(who.rows[0].role).toBe("getdone_auth_runtime");
       expect(Number((await client.query("SELECT count(*) AS count FROM auth_users WHERE id=$1", [userA])).rows[0].count)).toBe(1);
+      // HTTP business discovery must use THIS restricted role; the ordinary
+      // tenant role intentionally sees no unscoped membership or business list.
+      expect(await listBusinesses(client, userA)).toEqual([
+        { id: companyA, portfolioId: portfolioA, name: "A" }
+      ]);
+      expect(await listBusinesses(client, userB)).toEqual([
+        { id: companyB, portfolioId: portfolioB, name: "B" }
+      ]);
+
 
       const session: AuthSession = {
         userId: userA, sessionId: "test-session", issuedAt: new Date().toISOString(),
@@ -116,6 +126,8 @@ try {
       await client.query("SET LOCAL ROLE getdone_tenant_runtime");
       const hidden = await client.query("SELECT count(*) AS count FROM auth_users WHERE id IN ($1,$2)", [userA, userB]);
       expect(Number(hidden.rows[0].count)).toBe(0);
+      expect(await listBusinesses(client, userA)).toEqual([]);
+      expect(await listBusinesses(client, userB)).toEqual([]);
     } finally {
       await client.query("ROLLBACK").catch(() => {});
       client.release();

@@ -11,6 +11,34 @@ describe("business read boundaries", () => {
     expect(values).toEqual(["owner-a"]);
     for (const condition of ["pm.status='active'", "om.status='active'", "cm.status='active'", "c.organization_id=p.organization_id"]) expect(sql).toContain(condition);
   });
+  it("uses only the explicitly supplied pre-tenant membership pool before scoped entity reads", async () => {
+    const membership = { query: vi.fn().mockResolvedValue({ rows: [
+      { id: "company-a", portfolio_id: "portfolio-a", name: "A" }
+    ] }) };
+    const tenant = { query: vi.fn().mockImplementation(async (sql: string) => {
+      expect(sql).not.toContain("portfolio_memberships");
+      expect(getPostgresTenantScope()).toEqual({ portfolioId: "portfolio-a", companyId: "company-a" });
+      return { rows: [] };
+    }) };
+    const result = await readBusinessContext(
+      tenant as SqlQueryable, "owner-a", "portfolio-a", "staging", membership as SqlQueryable
+    );
+    expect(result.business.id).toBe("company-a");
+    expect(membership.query).toHaveBeenCalledTimes(1);
+    expect(tenant.query).toHaveBeenCalledTimes(5);
+    expect(getPostgresTenantScope()).toBeNull();
+  });
+
+  it("does not read sensitive business entities when pre-tenant membership check denies the portfolio", async () => {
+    const membership = { query: vi.fn().mockResolvedValue({ rows: [] }) };
+    const tenant = { query: vi.fn() };
+    await expect(readBusinessContext(
+      tenant as SqlQueryable, "owner-a", "p-foreign", "staging", membership as SqlQueryable
+    )).rejects.toMatchObject({ code: "FORBIDDEN" });
+    expect(membership.query).toHaveBeenCalledTimes(1);
+    expect(tenant.query).not.toHaveBeenCalled();
+  });
+
   it("rejects a foreign portfolio before reading tenant records", async () => {
     const query = vi.fn().mockResolvedValue({ rows: [] });
     await expect(readBusinessContext({ query } as SqlQueryable, "owner-a", "foreign", "staging")).rejects.toMatchObject({ code: "FORBIDDEN" });

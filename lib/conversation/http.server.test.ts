@@ -4,12 +4,22 @@ import { emptyState } from "./understanding";
 import { getPostgresTenantScope } from "@/lib/persistence/postgres/tenant-context.server";
 const fixture = vi.hoisted(() => ({
   records: [] as OwnerIntentRecord[], owner: true, locked: true,
-  authenticate: vi.fn(), submit: vi.fn(), semantic: vi.fn(), query: vi.fn()
+  authenticate: vi.fn(), submit: vi.fn(), semantic: vi.fn(), query: vi.fn(),
+  authDb: { query: vi.fn() }, catalogConnection: vi.fn()
 }));
 vi.mock("@/lib/businesses/runtime.server", () => ({ businessSession: async () => ({
   session: { userId: "owner" }, db: { query: fixture.query, transaction: async (operation: (client: unknown) => unknown) => operation({ query: async () => ({ rows: [{ locked: fixture.locked }] }) }) }
 }) }));
-vi.mock("@/lib/businesses/repository", () => ({ listBusinesses: async () => [{ id: "c", portfolioId: "p", name: "Acme" }] }));
+vi.mock("@/lib/businesses/repository", () => ({
+  listBusinesses: async (db: unknown) => {
+    fixture.catalogConnection(db);
+    if (db !== fixture.authDb) throw new Error("Catalog must use restricted pre-tenant auth role");
+    return [{ id: "c", portfolioId: "p", name: "Acme" }];
+  }
+}));
+vi.mock("@/lib/persistence/postgres/auth-runtime.server", () => ({
+  getAuthPostgresDatabaseFromEnv: () => fixture.authDb
+}));
 vi.mock("@/lib/control-api/runtime.server", () => ({ getControlApiAdapter: () => ({
   authenticate: fixture.authenticate, submitOwnerIntent: fixture.submit,
   getOwnerIntentStatus: async (_principal: unknown, id: string) => { const r = fixture.records.find(r => r.id === id)!; return { intentId: id, conversation: r.conversation,
@@ -47,6 +57,10 @@ describe("authenticated durable conversation HTTP boundary", () => {
     expect(value.data.turns[0].record.message).toBe("How's Acme?");
     expect(value.data.state.activeBusiness.name).toBe("Acme");
     expect(fixture.query.mock.calls[0][0]).toContain("sensitivity");
+    expect(fixture.catalogConnection).toHaveBeenCalledWith(fixture.authDb);
+    expect(fixture.catalogConnection).not.toHaveBeenCalledWith(
+      expect.objectContaining({ transaction: expect.any(Function) })
+    );
   });
   it("does not expose another user, environment or company's turns", async () => {
     const base = { id: "foreign", threadId, portfolioId: "p", companyId: "c", userId: "foreign", environment: "staging", receivedAt: "2026-10-11T20:00:00Z", conversationState: emptyState() };
