@@ -73,6 +73,37 @@ try {
       environment: "staging"
     };
 
+    // From 2026-10-17.1 onward health checks must prove that the dedicated
+    // pre-authentication role can actually resolve an ACTIVE owner and
+    // membership. A schema-only restore without these rows is not ready.
+    await source.query(
+      "INSERT INTO auth_users(id,status) VALUES($1,'active')", [scope.userId]
+    );
+    await source.query(
+      "INSERT INTO organizations(id,name) VALUES($1,'Restore fixture organization')",
+      ["org-restore"]
+    );
+    await source.query(
+      "INSERT INTO companies(id,organization_id,name) VALUES($1,$2,'Restore fixture company')",
+      [scope.companyId,"org-restore"]
+    );
+    await source.query(
+      "INSERT INTO portfolios(id,organization_id,company_id,name) VALUES($1,$2,$3,'Restore fixture portfolio')",
+      [scope.portfolioId,"org-restore",scope.companyId]
+    );
+    await source.query(
+      "INSERT INTO organization_memberships(user_id,organization_id,role,status) VALUES($1,$2,'owner','active')",
+      [scope.userId,"org-restore"]
+    );
+    await source.query(
+      "INSERT INTO company_memberships(user_id,company_id,role,status) VALUES($1,$2,'owner','active')",
+      [scope.userId,scope.companyId]
+    );
+    await source.query(
+      "INSERT INTO portfolio_memberships(user_id,portfolio_id,company_id,role,status) VALUES($1,$2,$3,'owner','active')",
+      [scope.userId,scope.portfolioId,scope.companyId]
+    );
+
     const grantBase = {
       id: "grant-restore",
       status: "active",
