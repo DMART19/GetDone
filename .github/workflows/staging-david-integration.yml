@@ -25,6 +25,8 @@ on:
       - "lib/businesses/**"
       - "scripts/issue-staging-owner-invitation.*"
       - "scripts/export-staging-n8n.mjs"
+      - "scripts/verify-staging-runtime-config.mjs"
+      - "docs/staging-runtime-preflight.md"
       - "docs/staging-n8n-import.md"
       - "e2e/david-edition-*.spec.ts"
       - ".github/workflows/staging-david-integration.yml"
@@ -50,8 +52,9 @@ jobs:
           node --check scripts/restore-staging-backup.mjs
           node --check scripts/test-staging-backup-restore.mjs
           node --check scripts/export-staging-n8n.mjs
+          node --check scripts/verify-staging-runtime-config.mjs
       - run: npx vitest run lib/businesses/capability-summary.test.ts lib/businesses/attention-summary.test.ts lib/conversation/acceptance.test.ts
-      - run: npx vitest run lib/operations/staging-n8n-export.test.ts
+      - run: npx vitest run lib/operations/staging-n8n-export.test.ts lib/persistence/postgres/staging-config-preflight.test.ts
       - run: npm run test -- --maxWorkers=2
       - run: npm run build:worker
       - run: npm run build:orchestration-worker
