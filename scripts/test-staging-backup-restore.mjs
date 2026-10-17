@@ -6,13 +6,6 @@ import pg from "pg";
 import { postgresTlsConnection } from "../lib/persistence/postgres/tls.ts";
 import { sha256Hex } from "./postgres-backup-integrity.mjs";
 
-// This harness creates and forcibly removes a fresh source database. It must only
-// run against an explicitly authorized, disposable PostgreSQL test cluster.
-if (process.env.GETDONE_RUNTIME_ENV !== "staging"
-  || process.env.GETDONE_ALLOW_ISOLATED_RESTORE_TEST !== "true") {
-  throw new Error("Isolated restore test requires GETDONE_RUNTIME_ENV=staging and GETDONE_ALLOW_ISOLATED_RESTORE_TEST=true on a disposable PostgreSQL test cluster");
-}
-
 const baseConnectionString = process.env.DATABASE_URL?.trim();
 if (!baseConnectionString) throw new Error("DATABASE_URL is required");
 
@@ -26,8 +19,8 @@ function databaseUrl(name) {
   return url.toString();
 }
 
-function run(script, env) {
-  const result = spawnSync(process.execPath, [script], {
+function run(script, env, args = []) {
+  const result = spawnSync(process.execPath, [script, ...args], {
     cwd: process.cwd(),
     env: { ...process.env, ...env },
     encoding: "utf8",
@@ -49,24 +42,24 @@ const manifestFile = `${backupFile}.manifest.json`;
 
 let sourceCreated = false;
 const admin = new pg.Pool({
-  ...postgresTlsConnection(baseConnectionString, process.env),
+  ...postgresTlsConnection(baseConnectionString,process.env),
   max: 2,
   application_name: "getdone-backup-restore-test-admin"
 });
 
 try {
-  // A test must never destroy an existing database before proving ownership.
+  // Never delete pre-existing databases, even those with a test prefix.
   await admin.query(`CREATE DATABASE ${quoteIdentifier(sourceDatabase)}`);
   sourceCreated = true;
 
   const sourceUrl = databaseUrl(sourceDatabase);
   run("scripts/migrate-postgres.mjs", {
     DATABASE_URL: sourceUrl,
-    GETDONE_DB_SSL: process.env.GETDONE_DB_SSL ?? "true"
+    GETDONE_DB_SSL: process.env.GETDONE_DB_SSL ?? "false"
   });
 
   const source = new pg.Pool({
-    ...postgresTlsConnection(sourceUrl, process.env),
+    ...postgresTlsConnection(sourceUrl,process.env),
     max: 4,
     application_name: "getdone-backup-restore-source"
   });
@@ -79,6 +72,37 @@ try {
       companyId: "company-restore",
       environment: "staging"
     };
+
+    // From 2026-10-17.1 onward health checks must prove that the dedicated
+    // pre-authentication role can actually resolve an ACTIVE owner and
+    // membership. A schema-only restore without these rows is not ready.
+    await source.query(
+      "INSERT INTO auth_users(id,status) VALUES($1,'active')", [scope.userId]
+    );
+    await source.query(
+      "INSERT INTO organizations(id,name) VALUES($1,'Restore fixture organization')",
+      ["org-restore"]
+    );
+    await source.query(
+      "INSERT INTO companies(id,organization_id,name) VALUES($1,$2,'Restore fixture company')",
+      [scope.companyId,"org-restore"]
+    );
+    await source.query(
+      "INSERT INTO portfolios(id,organization_id,company_id,name) VALUES($1,$2,$3,'Restore fixture portfolio')",
+      [scope.portfolioId,"org-restore",scope.companyId]
+    );
+    await source.query(
+      "INSERT INTO organization_memberships(user_id,organization_id,role,status) VALUES($1,$2,'owner','active')",
+      [scope.userId,"org-restore"]
+    );
+    await source.query(
+      "INSERT INTO company_memberships(user_id,company_id,role,status) VALUES($1,$2,'owner','active')",
+      [scope.userId,scope.companyId]
+    );
+    await source.query(
+      "INSERT INTO portfolio_memberships(user_id,portfolio_id,company_id,role,status) VALUES($1,$2,$3,'owner','active')",
+      [scope.userId,scope.portfolioId,scope.companyId]
+    );
 
     const grantBase = {
       id: "grant-restore",
@@ -285,7 +309,7 @@ try {
   const backupOutput = run("scripts/create-staging-backup.mjs", {
     GETDONE_RUNTIME_ENV: "staging",
     DATABASE_URL: sourceUrl,
-    GETDONE_DB_SSL: process.env.GETDONE_DB_SSL ?? "true",
+    GETDONE_DB_SSL: process.env.GETDONE_DB_SSL ?? "false",
     GETDONE_BACKUP_FILE: backupFile,
     GETDONE_BACKUP_MANIFEST: manifestFile,
     GETDONE_BACKUP_OVERWRITE: "true",
@@ -296,9 +320,26 @@ try {
     throw new Error("Staging backup command did not produce verified evidence");
   }
 
+  // A dump on its own cannot make staging production-ready. Verification
+  // evidence must appear only after an independent restore and retained copy.
+  const preRestoreSource = new pg.Pool({
+    ...postgresTlsConnection(sourceUrl, process.env),
+    max: 1, application_name: "getdone-backup-pre-restore-assertion"
+  });
+  try {
+    const rows = await preRestoreSource.query(
+      "SELECT COUNT(*)::int AS count FROM database_backup_evidence WHERE status='verified'"
+    );
+    if (Number(rows.rows[0]?.count) !== 0) {
+      throw new Error("Backup creation incorrectly marked recovery as verified");
+    }
+  } finally {
+    await preRestoreSource.end();
+  }
+
   const restoreOutput = run("scripts/restore-staging-backup.mjs", {
     GETDONE_RUNTIME_ENV: "staging",
-    GETDONE_DB_SSL: process.env.GETDONE_DB_SSL ?? "true",
+    GETDONE_DB_SSL: process.env.GETDONE_DB_SSL ?? "false",
     GETDONE_BACKUP_FILE: backupFile,
     GETDONE_BACKUP_MANIFEST: manifestFile,
     GETDONE_RESTORE_ADMIN_DATABASE_URL: baseConnectionString,
@@ -316,6 +357,48 @@ try {
     throw new Error(`Restore verification did not prove all invariants: ${restoreOutput}`);
   }
 
+  // Exercise the exact two-phase private evidence gate against a disposable
+  // fixture. The external-copy flag is simulated in CI; it is NOT proof of
+  // durable retention of any real Supabase staging backup.
+  const ceremonyResult = JSON.parse(run("scripts/backup-and-verify-staging.mjs", {
+    GETDONE_RUNTIME_ENV: "staging",
+    GETDONE_ALLOW_ISOLATED_RESTORE_TEST: "true",
+    GETDONE_DB_SSL: process.env.GETDONE_DB_SSL || "true",
+    DATABASE_URL: sourceUrl,
+    GETDONE_RESTORE_ADMIN_DATABASE_URL: baseConnectionString,
+    GETDONE_BACKUP_FILE: backupFile,
+    GETDONE_BACKUP_MANIFEST: manifestFile,
+    GETDONE_BACKUP_DURABLE_COPY_CONFIRMED: "true",
+    GETDONE_BACKUP_EXTERNAL_SHA256: backup.backupSha256,
+    GETDONE_BACKUP_REF: "disposable-test-restore:" + suffix,
+    GETDONE_RESTORE_BOOT_PORT: String(34_000 + (process.pid % 1_000))
+  }, ["--verify-existing"]));
+  if (
+    ceremonyResult.ok !== true
+    || ceremonyResult.restoreVerified !== true
+    || ceremonyResult.stagingEvidenceRecorded !== true
+    || ceremonyResult.backupSha256 !== backup.backupSha256
+  ) {
+    throw new Error("Two-phase staging recovery evidence gate did not pass");
+  }
+  const evidenceSource = new pg.Pool({
+    ...postgresTlsConnection(sourceUrl,process.env),
+    max: 1,application_name: "getdone-backup-post-restore-evidence-test"
+  });
+  try {
+    const recorded = await evidenceSource.query(
+      "SELECT payload FROM database_backup_evidence WHERE status='verified'"
+    );
+    if (recorded.rows.length !== 1
+      || recorded.rows[0].payload?.source !== "independent-isolated-restore"
+      || recorded.rows[0].payload?.verificationHash !== backup.backupSha256
+    ) {
+      throw new Error("Source-side recovery evidence was missing or unverified");
+    }
+  } finally {
+    await evidenceSource.end();
+  }
+
   console.log(JSON.stringify({
     ok: true,
     backupSha256: backup.backupSha256,
@@ -326,11 +409,11 @@ try {
     applicationBootability: restored.applicationBootability
   }, null, 2));
 } finally {
-  // The restore verifier owns its own target cleanup. Never drop a target
-  // database here unless this harness can independently prove ownership.
-  for (const databaseName of sourceCreated ? [sourceDatabase] : []) {
+  // Restore script owns its unique target cleanup. Drop only our own
+  // successfully created source fixture; never a pre-existing database.
+  if (sourceCreated) {
     try {
-      await admin.query(`DROP DATABASE IF EXISTS ${quoteIdentifier(databaseName)} WITH (FORCE)`);
+      await admin.query(`DROP DATABASE IF EXISTS ${quoteIdentifier(sourceDatabase)} WITH (FORCE)`);
     } catch {}
   }
   await admin.end();

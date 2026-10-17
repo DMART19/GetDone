@@ -23,14 +23,15 @@ export class OwnerEnrollmentService {
 
   private async lockedInvitation(client: SqlQueryable, token: string) {
     if (!/^[A-Za-z0-9_-]{43}$/.test(token) || !["staging", "production"].includes(this.environment)) throw unavailable();
-    // Owner row first: same lock order as bootstrap invitation issuance.
-    const user = await client.query<{ id: string }>(
-      `SELECT u.id FROM auth_users u JOIN auth_owner_enrollments e ON e.user_id=u.id
-       WHERE e.token_hash=$1 AND u.status='active' FOR UPDATE OF u`, [digest(token)]
-    );
-    if (!user.rows[0]) throw unavailable();
+    // Lock only the invitation, not the auth_users row. A pre-authentication
+    // role must never need UPDATE privileges on identity status or metadata.
+    // Bootstrap reissuance takes the same invitation-row lock before changing
+    // its token. Every invitation field is rechecked after the lock is held.
     const result = await client.query<Enrollment>(
-      "SELECT * FROM auth_owner_enrollments WHERE user_id=$1 AND token_hash=$2 FOR UPDATE", [user.rows[0].id, digest(token)]
+      `SELECT e.* FROM auth_owner_enrollments e
+       JOIN auth_users u ON u.id=e.user_id
+       WHERE e.token_hash=$1 AND u.status='active' FOR UPDATE OF e`,
+      [digest(token)]
     );
     const row = result.rows[0];
     if (!row || row.consumed_at || row.expires_at.getTime() <= Date.now()

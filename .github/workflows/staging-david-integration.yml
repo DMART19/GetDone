@@ -3,10 +3,30 @@ on:
   push:
     branches: ["staging/getdone-unified-acceptance-20261014"]
   pull_request:
-    branches: ["codex/frontend-backend-integration-pass", "staging/david-edition-conversation-integration"]
+    branches: ["codex/frontend-backend-integration-pass", "staging/david-edition-conversation-integration", "staging/getdone-unified-acceptance-20261014"]
     paths:
+      - "lib/execution/**"
+      - "lib/orchestration/**"
+      - "lib/authorization/**"
+      - "lib/operations/**"
+      - "lib/persistence/**"
+      - "lib/auth/**"
+      - "lib/control-api/**"
+      - "lib/security/**"
+      - "lib/release/**"
+      - "migrations/**"
+      - "config/zero-downtime-migration-policy.json"
+      - "release/version-registry.json"
+      - "lib/control-plane/**"
+      - "n8n/**"
+      - "package*.json"
+      - "tsconfig*.json"
       - "components/**"
       - "scripts/*staging-backup*.mjs"
+      - "scripts/staging-backup-target-guard.*"
+      - "scripts/backup-and-verify-staging.mjs"
+      - "config/staging-pilot-topology.json"
+      - "lib/release/staging-*.test.ts"
       - "scripts/test-staging-backup-restore.mjs"
       - "scripts/postgres-backup-integrity.mjs"
       - "docs/staging-engineering-acceptance-report-20261014.md"
@@ -15,6 +35,10 @@ on:
       - "app/**"
       - "lib/businesses/**"
       - "scripts/issue-staging-owner-invitation.*"
+      - "scripts/export-staging-n8n.mjs"
+      - "scripts/verify-staging-runtime-config.mjs"
+      - "docs/staging-runtime-preflight.md"
+      - "docs/staging-n8n-import.md"
       - "e2e/david-edition-*.spec.ts"
       - ".github/workflows/staging-david-integration.yml"
   workflow_dispatch:
@@ -23,6 +47,41 @@ permissions:
   contents: read
 
 jobs:
+
+  auth-database-boundary:
+    name: isolated-auth-rls
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: test-only-local-pg
+          POSTGRES_DB: getdone_auth_test_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:test-only-local-pg@127.0.0.1:5432/getdone_auth_test_ci
+      GETDONE_RUNTIME_ENV: development
+      GETDONE_DB_SSL: "false"
+      GETDONE_AUTH_BOUNDARY_INTEGRATION: "true"
+      GETDONE_AUTH_BOUNDARY_TEST_DATABASE_URL: postgresql://postgres:test-only-local-pg@127.0.0.1:5432/getdone_auth_test_ci
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm ci
+      - run: npm run db:migrate
+      - run: npx vitest run lib/auth/auth-runtime-boundary.integration.test.ts lib/execution/worker-rls-boundary.integration.test.ts
+
   integration-gates:
     runs-on: ubuntu-latest
     timeout-minutes: 35
@@ -38,13 +97,21 @@ jobs:
           node --check scripts/create-staging-backup.mjs
           node --check scripts/restore-staging-backup.mjs
           node --check scripts/test-staging-backup-restore.mjs
+          node --check scripts/export-staging-n8n.mjs
+          node --check scripts/verify-staging-runtime-config.mjs
+          node --check scripts/backup-and-verify-staging.mjs
+          node --check scripts/staging-backup-target-guard.mjs
       - run: npx vitest run lib/businesses/capability-summary.test.ts lib/businesses/attention-summary.test.ts lib/conversation/acceptance.test.ts
+      - run: npx vitest run lib/operations/staging-n8n-export.test.ts lib/persistence/postgres/staging-config-preflight.test.ts
+      - run: npx vitest run lib/operations/n8n-acceptance.test.ts lib/operations/n8n-envelope-validator.test.ts lib/release/staging-pilot-topology.test.ts lib/release/staging-backup-target-guard.test.ts
       - run: npm run test -- --maxWorkers=2
       - run: npm run build:worker
       - run: npm run build:orchestration-worker
       - run: npm run typecheck
       - run: npm run lint
       - run: npm run build
+      - run: npm run environment:check
+      - run: npm run verify:zero-downtime-migrations
       - run: npm run verify:architecture
       - run: npm run verify:secrets
       - run: npx playwright install --with-deps chromium

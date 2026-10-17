@@ -6,8 +6,8 @@ const serviceMocks = vi.hoisted(() => ({
   verify: vi.fn()
 }));
 
-vi.mock("@/lib/persistence/postgres/runtime.server", () => ({
-  getPostgresRuntimeFromEnv: vi.fn(() => ({ database: {} }))
+vi.mock("@/lib/persistence/postgres/auth-runtime.server", () => ({
+  getAuthPostgresDatabaseFromEnv: vi.fn(() => ({}))
 }));
 
 vi.mock("@/lib/security/rate-limit.server", () => ({

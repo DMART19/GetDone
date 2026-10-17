@@ -44,6 +44,7 @@ import { PostgresOrchestrationRunStore } from "@/lib/persistence/postgres/orches
 import { DecisionResumeDispatcher } from "@/lib/orchestration/authorization-flow";
 import { PostgresControlPlaneTransactionManager } from "@/lib/persistence/postgres/transaction-manager";
 import { getPostgresRuntimeFromEnv } from "@/lib/persistence/postgres/runtime.server";
+import { getAuthPostgresDatabaseFromEnv } from "@/lib/persistence/postgres/auth-runtime.server";
 import { runWithPostgresTenantScope } from "@/lib/persistence/postgres/tenant-context.server";
 
 export function createPostgresControlApiAdapter(
@@ -56,6 +57,7 @@ export function createPostgresControlApiAdapter(
 
   const runtime = getPostgresRuntimeFromEnv(env);
   const db = runtime.database;
+  const authDb = getAuthPostgresDatabaseFromEnv(env);
   const webAuthn = readWebAuthnServerConfig(env);
 
   const objectives = new PostgresEntityStore<ObjectiveRecord>(db, "objective");
@@ -126,13 +128,13 @@ export function createPostgresControlApiAdapter(
   });
 
   return new ServiceBackedControlApiAdapter({
-    auth: new PostgresAuthAdapter(db, {
+    auth: new PostgresAuthAdapter(authDb, {
       cookieName: webAuthn.cookieName,
       stepUpTtlSeconds: webAuthn.stepUpTtlSeconds,
       rpId: webAuthn.rpId,
       allowedOrigins: webAuthn.allowedOrigins
     }),
-    scopes: new PostgresControlApiScopeResolver(db, environment),
+    scopes: new PostgresControlApiScopeResolver(authDb, environment),
     authorizationEvidence: new SessionStepUpEvidenceResolver(),
     intents: new PostgresOwnerIntentStore(db),
     conversationPlans: new PostgresOrchestrationPlanProposalStore(db),
@@ -202,7 +204,20 @@ export function createPostgresControlApiAdapter(
         ]);
 
       const persistenceConnected = schemaReady && coreRelationsReady;
-      const authConnected = persistenceConnected && authRelationsReady;
+      // Schema presence alone does not establish usable authentication.
+      // An RLS-enabled table with no matching auth policy silently returns 0 rows.
+      const authBoundaryReady = authRelationsReady && await authDb.query<{
+        role: string; owner_count: string; membership_count: string
+      }>(
+        `SELECT current_user AS role,
+           (SELECT count(*) FROM auth_users WHERE status='active') AS owner_count,
+           (SELECT count(*) FROM company_memberships WHERE status='active') AS membership_count`
+      ).then((result) =>
+        result.rows[0]?.role === "getdone_auth_runtime"
+        && Number(result.rows[0].owner_count) > 0
+        && Number(result.rows[0].membership_count) > 0
+      ).catch(() => false);
+      const authConnected = persistenceConnected && authRelationsReady && authBoundaryReady;
       const durableJobStoreConnected = persistenceConnected && durableRelationsReady;
 
       return {
@@ -224,6 +239,7 @@ export function createPostgresControlApiAdapter(
           latestVerifiedBackupAt: health.latestVerifiedBackupAt ?? null,
           coreRelationsReady,
           authRelationsReady,
+          authBoundaryReady,
           durableRelationsReady
         }
       };

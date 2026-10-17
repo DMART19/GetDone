@@ -84,8 +84,10 @@ export function validateN8nEnvelope(
   if (!Number.isFinite(sentAt) || Math.abs(Date.now() - sentAt) > 60_000) {
     reject("Expired n8n envelope");
   }
-  const scope = value.scope as Record<string, unknown> | undefined;
-  const parameters = value.parameters as Record<string, unknown> | undefined;
+  const scope = value.scope && typeof value.scope === "object" && !Array.isArray(value.scope)
+    ? value.scope as Record<string, unknown> : undefined;
+  const parameters = value.parameters && typeof value.parameters === "object" && !Array.isArray(value.parameters)
+    ? value.parameters as Record<string, unknown> : undefined;
   if (
     !scope?.userId
     || !scope.portfolioId
@@ -126,7 +128,10 @@ export function validateN8nEnvelope(
     if (
       !registration
       || parameters.operation !== registration.operation
-      || Object.keys((parameters.payload as Record<string, unknown>) ?? {}).length > 0
+      || !parameters.payload
+      || typeof parameters.payload !== "object"
+      || Array.isArray(parameters.payload)
+      || Object.keys(parameters.payload as Record<string, unknown>).length > 0
     ) reject("Deployment health is outside the registered read-only scope");
     return { envelope: value as unknown as N8nEnvelope, deploymentUrl: safeDeploymentUrl(env) };
   }

@@ -1,9 +1,9 @@
-import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import pg from "pg";
 import { postgresTlsConnection } from "../lib/persistence/postgres/tls.ts";
+import { assertStagingBackupSource } from "./staging-backup-target-guard.mjs";
 import {
   fileSha256,
   readSnapshotComponents,
@@ -40,7 +40,11 @@ if (runtime !== "staging") {
   throw new Error("db:create-staging-backup requires GETDONE_RUNTIME_ENV=staging");
 }
 
+// Prevent the dump and all newly created directories from becoming
+// group/world-readable even briefly while pg_dump is writing.
+process.umask(0o077);
 const connectionString = required("DATABASE_URL");
+assertStagingBackupSource(connectionString);
 const backupFile = path.resolve(required("GETDONE_BACKUP_FILE"));
 const manifestFile = path.resolve(
   process.env.GETDONE_BACKUP_MANIFEST?.trim() || `${backupFile}.manifest.json`
@@ -61,9 +65,9 @@ const expectedMigration = registry.database?.migrationVersion;
 if (!expectedMigration) throw new Error("Release registry database migration is missing");
 
 const pool = new pg.Pool({
-  ...postgresTlsConnection(connectionString, process.env),
-  max: 2,
-  application_name: "getdone-staging-backup"
+    ...postgresTlsConnection(connectionString, process.env),
+    max: 2,
+    application_name: "getdone-staging-backup"
 });
 const client = await pool.connect();
 
@@ -138,37 +142,17 @@ try {
 
   await client.query("COMMIT");
 
-  // Evidence is written only after the dump and manifest have been generated and hashed.
-  // This record does not independently prove that a restore has succeeded.
-  const backupRef = process.env.GETDONE_BACKUP_REF?.trim() || path.basename(backupFile);
-  const backupRefHash = crypto.createHash("sha256").update(backupRef).digest("hex");
-  const evidenceId = crypto.randomUUID();
-  await pool.query(
-    `INSERT INTO database_backup_evidence
-      (id,completed_at,status,backup_ref_hash,verification_hash,payload)
-     VALUES($1,$2,'verified',$3,$4,$5::jsonb)`,
-    [
-      evidenceId,
-      manifest.createdAt,
-      backupRefHash,
-      backupSha256,
-      JSON.stringify({
-        id: evidenceId,
-        completedAt: manifest.createdAt,
-        status: "verified",
-        backupRefHash,
-        verificationHash: backupSha256,
-        manifestHash: manifest.manifestSha256,
-        snapshotCompositeHash: snapshot.hashes.composite,
-        migrationVersion: expectedMigration
-      })
-    ]
-  );
+  // A valid dump is only a backup CANDIDATE, not verified recovery evidence.
+  // The authoritative staging readiness gate advances only after independent
+  // restore, domain/hash/audit verification, and application boot succeed.
+  fs.chmodSync(backupFile, 0o600);
+  fs.chmodSync(manifestFile, 0o600);
 
   console.log(JSON.stringify({
     ok: true,
     backupFile,
     manifestFile,
+    restoreVerified: false,
     backupSha256,
     manifestSha256: manifest.manifestSha256,
     snapshot

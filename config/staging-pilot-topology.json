@@ -1,0 +1,117 @@
+{
+  "version": "2026-10-17.1",
+  "status": "NOT_DEPLOYED",
+  "ownerOnly": true,
+  "repository": "DMART19/GetDone",
+  "candidateBranch": "launch/unified-pilot-release-integration-20261017",
+  "requiredMigration": "2026-10-17.2",
+  "region": "oregon",
+  "productionIsolation": {
+    "productionWeb": "getdone-web",
+    "productionWorkers": [
+      "getdone-job-worker",
+      "getdone-orchestration-worker"
+    ],
+    "neverReuseProductionSecrets": true,
+    "doNotApplyRootRenderYaml": true
+  },
+  "approval": {
+    "workerMonthlyMaxUsd": 14,
+    "workerUnitUsd": 7,
+    "createOnlyAfter": [
+      "real_pre_migration_backup_restored",
+      "staging_only_db_and_verified_tls",
+      "auth_and_worker_migrations_reviewed_and_applied",
+      "worker_rls_preflight_passed"
+    ],
+    "autoDeploy": false
+  },
+  "deployment": {
+    "pinExactReviewedSha": true,
+    "web": {
+      "action": "update-existing-after-approval",
+      "name": "getdone-web-staging",
+      "renderServiceId": "srv-db76v2l9fdbs73f8lngg",
+      "serviceType": "web",
+      "plan": "existing",
+      "build": "npm ci --include=dev && npm run build",
+      "start": "npm run start",
+      "role": "web",
+      "healthPath": "/api/control/health"
+    },
+    "job": {
+      "action": "create-after-gates-only",
+      "name": "getdone-job-worker-staging",
+      "serviceType": "background-worker",
+      "plan": "starter",
+      "build": "npm ci --include=dev && npm run build:worker",
+      "start": "npm run start:worker",
+      "role": "job-worker",
+      "workerId": "getdone-job-worker-staging-1",
+      "healthPort": 3001,
+      "healthPath": "/readyz"
+    },
+    "orchestration": {
+      "action": "create-after-gates-only",
+      "name": "getdone-orchestration-worker-staging",
+      "serviceType": "background-worker",
+      "plan": "starter",
+      "build": "npm ci --include=dev && npm run build:orchestration-worker",
+      "start": "npm run start:orchestration-worker",
+      "role": "orchestration-worker",
+      "workerId": "getdone-orchestration-worker-staging-1",
+      "healthPort": 3002,
+      "healthPath": "/readyz"
+    }
+  },
+  "publicOrigin": "https://getdone-web-staging.onrender.com",
+  "stagingSupabaseProject": "ddxjiszbsmmbqxuoecmg",
+  "environment": {
+    "requiredSameForEach": [
+      "DATABASE_URL",
+      "GETDONE_RUNTIME_ENV",
+      "GETDONE_DATA_MODE",
+      "GETDONE_DB_SSL",
+      "GETDONE_DB_RUNTIME_ROLE",
+      "PGSSLROOTCERT",
+      "GETDONE_INTERNAL_WORKER_TOKEN"
+    ],
+    "requiredSecrets": [
+      "DATABASE_URL",
+      "GETDONE_INTERNAL_WORKER_TOKEN"
+    ],
+    "checkedNonsecret": {
+      "GETDONE_RUNTIME_ENV": "staging",
+      "GETDONE_DATA_MODE": "authoritative",
+      "GETDONE_DB_SSL": "true",
+      "GETDONE_DB_RUNTIME_ROLE": "getdone_tenant_runtime",
+      "GETDONE_WEBAUTHN_RP_ID": "getdone-web-staging.onrender.com",
+      "GETDONE_WEBAUTHN_ORIGINS": "https://getdone-web-staging.onrender.com",
+      "GETDONE_N8N_ENABLED": "false"
+    },
+    "futureSecrets": [
+      "OPENROUTER_API_KEY",
+      "GETDONE_N8N_SIGNING_KEY",
+      "GETDONE_GITHUB_APP_PRIVATE_KEY_PEM"
+    ],
+    "optionalAdaptersOff": [
+      "Composio",
+      "Langfuse"
+    ]
+  },
+  "acceptanceEvidenceRequired": [
+    "real_pre_migration_backup",
+    "independent_source_restore",
+    "verified_CA_hostname_TLS",
+    "auth_rls_access",
+    "worker_rls_isolation",
+    "owner_passkey",
+    "tenant_and_business_conversation",
+    "owner_preview_approval",
+    "n8n_signed_dispatch",
+    "real_external_side_effect_independently_verified",
+    "approval_denial_and_replay",
+    "worker_restart_recovery",
+    "fresh_post_migration_backup_restore"
+  ]
+}

@@ -10,6 +10,7 @@ import {
   assertPostgresReadyAtStartup,
   getPostgresRuntimeFromEnv
 } from "@/lib/persistence/postgres/runtime.server";
+import { closeWorkerServiceDatabases } from "@/lib/persistence/postgres/worker-service-runtime.server";
 
 export type DedicatedJobWorkerProcessState =
   | "starting"
@@ -229,11 +230,13 @@ export async function createDedicatedJobWorkerProcessFromEnv(
     );
   }
 
+  // Validate binding before opening a database pool: an invalid health port must not leak resources.
+  const config = readDedicatedJobWorkerProcessConfig(env);
   await assertPostgresReadyAtStartup(env);
   const postgres = getPostgresRuntimeFromEnv(env);
   return new DedicatedJobWorkerProcess(
     installPersistentJobWorkerFromEnv(env),
-    () => postgres.database.close(),
-    readDedicatedJobWorkerProcessConfig(env)
+    async () => { await postgres.database.close(); await closeWorkerServiceDatabases(); },
+    config
   );
 }
