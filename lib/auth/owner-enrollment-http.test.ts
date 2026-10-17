@@ -6,7 +6,7 @@ vi.mock("@/lib/auth/owner-enrollment.server", () => ({ OwnerEnrollmentService: c
   begin = mocks.begin;
   complete = mocks.complete;
 } }));
-vi.mock("@/lib/persistence/postgres/runtime.server", () => ({ getPostgresRuntimeFromEnv: () => ({ database: {} }) }));
+vi.mock("@/lib/persistence/postgres/auth-runtime.server", () => ({ getAuthPostgresDatabaseFromEnv: () => ({}) }));
 vi.mock("@/lib/security/rate-limit.server", () => ({
   RATE_LIMIT_POLICIES: { authBegin: {} }, clientNetworkIdentity: () => "local-test",
   enforceRateLimit: mocks.limit, rateLimitHeaders: () => ({})

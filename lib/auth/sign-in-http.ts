@@ -6,7 +6,7 @@ import { ControlPlaneError, toControlPlaneError } from "@/lib/control-plane/erro
 import { createCorrelationId } from "@/lib/control-plane/request-context";
 import { readServerRuntimeEnvironment } from "@/lib/control-plane/runtime-environment.server";
 import { apiFailure, apiSuccess } from "@/lib/control-plane/schemas";
-import { getPostgresRuntimeFromEnv } from "@/lib/persistence/postgres/runtime.server";
+import { getAuthPostgresDatabaseFromEnv } from "@/lib/persistence/postgres/auth-runtime.server";
 import {
   RATE_LIMIT_POLICIES,
   clientNetworkIdentity,
@@ -51,10 +51,10 @@ async function json<T>(request: Request, schema: z.ZodType<T>, label: string) {
 function service(
   env: Readonly<Record<string, string | undefined>> = process.env
 ) {
-  const runtime = getPostgresRuntimeFromEnv(env);
+  const db = getAuthPostgresDatabaseFromEnv(env);
   const config = readWebAuthnServerConfig(env);
   return {
-    service: new PostgresPasskeySignInService(runtime.database, config),
+    service: new PostgresPasskeySignInService(db, config),
     config
   };
 }
