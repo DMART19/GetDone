@@ -19,8 +19,8 @@ function databaseUrl(name) {
   return url.toString();
 }
 
-function run(script, env) {
-  const result = spawnSync(process.execPath, [script], {
+function run(script, env, args = []) {
+  const result = spawnSync(process.execPath, [script, ...args], {
     cwd: process.cwd(),
     env: { ...process.env, ...env },
     encoding: "utf8",
@@ -324,6 +324,48 @@ try {
     || restored.snapshotHashes?.composite !== backup.snapshot?.hashes?.composite
   ) {
     throw new Error(`Restore verification did not prove all invariants: ${restoreOutput}`);
+  }
+
+  // Exercise the exact two-phase private evidence gate against a disposable
+  // fixture. The external-copy flag is simulated in CI; it is NOT proof of
+  // durable retention of any real Supabase staging backup.
+  const ceremonyResult = JSON.parse(run("scripts/backup-and-verify-staging.mjs", {
+    GETDONE_RUNTIME_ENV: "staging",
+    GETDONE_ALLOW_ISOLATED_RESTORE_TEST: "true",
+    GETDONE_DB_SSL: process.env.GETDONE_DB_SSL || "true",
+    DATABASE_URL: sourceUrl,
+    GETDONE_RESTORE_ADMIN_DATABASE_URL: baseConnectionString,
+    GETDONE_BACKUP_FILE: backupFile,
+    GETDONE_BACKUP_MANIFEST: manifestFile,
+    GETDONE_BACKUP_DURABLE_COPY_CONFIRMED: "true",
+    GETDONE_BACKUP_EXTERNAL_SHA256: backup.backupSha256,
+    GETDONE_BACKUP_REF: "disposable-test-restore:" + suffix,
+    GETDONE_RESTORE_BOOT_PORT: String(34_000 + (process.pid % 1_000))
+  }, ["--verify-existing"]));
+  if (
+    ceremonyResult.ok !== true
+    || ceremonyResult.restoreVerified !== true
+    || ceremonyResult.stagingEvidenceRecorded !== true
+    || ceremonyResult.backupSha256 !== backup.backupSha256
+  ) {
+    throw new Error("Two-phase staging recovery evidence gate did not pass");
+  }
+  const evidenceSource = new pg.Pool({
+    ...postgresTlsConnection(sourceUrl,process.env),
+    max: 1,application_name: "getdone-backup-post-restore-evidence-test"
+  });
+  try {
+    const recorded = await evidenceSource.query(
+      "SELECT payload FROM database_backup_evidence WHERE status='verified'"
+    );
+    if (recorded.rows.length !== 1
+      || recorded.rows[0].payload?.source !== "independent-isolated-restore"
+      || recorded.rows[0].payload?.verificationHash !== backup.backupSha256
+    ) {
+      throw new Error("Source-side recovery evidence was missing or unverified");
+    }
+  } finally {
+    await evidenceSource.end();
   }
 
   console.log(JSON.stringify({
