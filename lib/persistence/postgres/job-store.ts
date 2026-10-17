@@ -374,7 +374,7 @@ export class PostgresDurableJobStore implements DurableJobWorkStore {
           global_depth: string | number;
           company_depth: string | number;
         }>(
-          `SELECT
+          getPostgresTenantScope() ? "SELECT * FROM getdone_job_queue_depth($1::text)" : `SELECT
              COUNT(*) FILTER (
                WHERE runtime_state IN ('queued','retry-wait')
              ) AS global_depth,
