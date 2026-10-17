@@ -1109,7 +1109,7 @@ if (
   releaseRegistry.database?.status !== "implemented-unconnected"
   || releaseRegistry.database?.engine !== "postgresql"
   || releaseRegistry.database?.minimumEngineVersion !== "16"
-  || releaseRegistry.database?.migrationVersion !== "2026-10-17.1"
+  || releaseRegistry.database?.migrationVersion !== "2026-10-17.2"
   || releaseRegistry.database?.schemaVersion !== "2.3.0"
   || releaseRegistry.schemaVersions?.postgresPersistence?.version !== "1.1.0"
   || releaseRegistry.schemaVersions?.disasterRecovery?.version !== "1.0.0"
@@ -1248,7 +1248,7 @@ for (const [name, state] of Object.entries(releaseEnvironment.environments ?? {}
     || state.execution?.liveJobExecutionBridgeStoreStatus !== status("controlApiPersistence")
     || state.database?.engine !== "postgresql"
     || state.database?.adapterStatus !== (state.connections?.database ? "connected" : "implemented-unconnected")
-    || state.database?.migrationVersion !== "2026-10-17.1"
+    || state.database?.migrationVersion !== "2026-10-17.2"
     || state.database?.schemaVersion !== "2.3.0"
     || state.resourceFabric?.storageRuntimeStatus !== status("storageFabricRuntime")
     || state.resourceFabric?.failoverRuntimeStatus !== status("resilienceFailoverRuntime")
