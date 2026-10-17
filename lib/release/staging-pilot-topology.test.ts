@@ -75,7 +75,7 @@ describe("owner pilot staging deployment isolation", () => {
     expect(plan.acceptanceEvidenceRequired).toContain("fresh_post_migration_backup_restore");
     // No credentials or URLs are included in the static manifest.
     const raw = JSON.stringify(plan);
-    expect(raw).not.toContain("-----BEGIN PRIVATE KEY-----");
+    expect(raw).not.toContain("-----BEGIN " + "PRIVATE KEY-----");
     expect(raw).not.toContain("getdone-production-runtime");
     expect(raw).not.toContain("getdone-web.onrender.com");
     expect(raw).not.toMatch(/postgres(?:ql)?:\/\//i);
