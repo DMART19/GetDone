@@ -76,7 +76,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run db:migrate
-      - run: npx vitest run lib/auth/auth-runtime-boundary.integration.test.ts
+      - run: npx vitest run lib/auth/auth-runtime-boundary.integration.test.ts lib/execution/worker-rls-boundary.integration.test.ts
 
   integration-gates:
     runs-on: ubuntu-latest
