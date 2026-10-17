@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { spawn, spawnSync } from "node:child_process";
 import pg from "pg";
+import { postgresTlsConnection } from "../lib/persistence/postgres/tls.ts";
 import {
   fileSha256,
   readSnapshotComponents,
@@ -159,12 +160,9 @@ if (!/^getdone_restore_verify_[A-Za-z0-9_]+$/.test(targetDatabase)) {
 }
 
 const adminPool = new pg.Pool({
-  connectionString: adminConnectionString,
-  max: 2,
-  application_name: "getdone-staging-restore-admin",
-  ssl: process.env.GETDONE_DB_SSL === "false"
-    ? false
-    : { rejectUnauthorized: true }
+    ...postgresTlsConnection(adminConnectionString, process.env),
+    max: 2,
+    application_name: "getdone-staging-restore-admin"
 });
 const targetConnectionString = databaseUrl(adminConnectionString, targetDatabase);
 let targetPool;
@@ -198,12 +196,9 @@ try {
   }
 
   targetPool = new pg.Pool({
-    connectionString: targetConnectionString,
+    ...postgresTlsConnection(targetConnectionString, process.env),
     max: 4,
-    application_name: "getdone-staging-restore-verifier",
-    ssl: process.env.GETDONE_DB_SSL === "false"
-      ? false
-      : { rejectUnauthorized: true }
+    application_name: "getdone-staging-restore-verifier"
   });
 
   const migration = await targetPool.query(
