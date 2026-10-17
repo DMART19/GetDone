@@ -76,14 +76,19 @@ function run(script, env) {
   return output;
 }
 
+const args = process.argv.slice(2);
+if (args.some(arg => arg !== "--verify-existing")) throw new Error("Only --verify-existing is supported");
+const existingMode = args.includes("--verify-existing");
 const source = safeUrl("DATABASE_URL");
 const isolatedAdmin = safeUrl("GETDONE_RESTORE_ADMIN_DATABASE_URL");
 const testMode = assertSourceIdentity(source, isolatedAdmin);
 const backupFile = path.resolve(required("GETDONE_BACKUP_FILE"));
 const manifestFile = path.resolve(process.env.GETDONE_BACKUP_MANIFEST?.trim() || backupFile + ".manifest.json");
 if (backupFile === manifestFile) throw new Error("Backup and manifest cannot be the same file");
-if (existsSync(backupFile) || existsSync(manifestFile)) {
-  throw new Error("Refusing to overwrite an existing private backup or manifest");
+if (existingMode
+  ? (!existsSync(backupFile) || !existsSync(manifestFile))
+  : (existsSync(backupFile) || existsSync(manifestFile))) {
+  throw new Error(existingMode ? "Existing backup and manifest are both required" : "Refusing to overwrite private backup files");
 }
 if (process.env.GETDONE_BACKUP_OVERWRITE === "true") {
   throw new Error("Backup overwrite is forbidden in the recovery ceremony");
@@ -93,19 +98,23 @@ const registry = JSON.parse(readFileSync(new URL("../release/version-registry.js
 const expectedMigration = registry.database?.migrationVersion;
 if (typeof expectedMigration !== "string") throw new Error("Missing source release schema version");
 
-const backup = run("scripts/create-staging-backup.mjs", {
+const backup = existingMode ? null : run("scripts/create-staging-backup.mjs", {
   GETDONE_BACKUP_FILE: backupFile,
   GETDONE_BACKUP_MANIFEST: manifestFile,
   GETDONE_BACKUP_OVERWRITE: "false"
 });
 const manifest = JSON.parse(readFileSync(manifestFile,"utf8"));
-if (backup.restoreVerified !== false
+const backupReceipt = backup ?? {
+  restoreVerified: false,backupSha256: manifest.backupSha256,
+  manifestSha256: manifest.manifestSha256
+};
+if (backupReceipt.restoreVerified !== false
   || manifest.migrationVersion !== expectedMigration
-  || manifest.backupSha256 !== backup.backupSha256
-  || manifest.manifestSha256 !== backup.manifestSha256
+  || manifest.backupSha256 !== backupReceipt.backupSha256
+  || manifest.manifestSha256 !== backupReceipt.manifestSha256
   || sha256Hex(Object.fromEntries(Object.entries(manifest).filter(([key]) => key !== "manifestSha256"))) !== manifest.manifestSha256
-  || fileSha256({ readFileSync }, backupFile) !== backup.backupSha256
-  || statSync(backupFile).mode % 512 & 0o077) {
+  || fileSha256({ readFileSync }, backupFile) !== backupReceipt.backupSha256
+  || (statSync(backupFile).mode & 0o077) !== 0) {
   throw new Error("Dump/manifest integrity, permissions or source schema mismatch");
 }
 
@@ -121,7 +130,7 @@ const restore = run("scripts/restore-staging-backup.mjs", {
   GETDONE_DB_SSL: testMode ? (process.env.GETDONE_DB_SSL || "false") : "true"
 });
 if (restore.migrationVersion !== expectedMigration
-  || restore.backupSha256 !== backup.backupSha256
+  || restore.backupSha256 !== backupReceipt.backupSha256
   || restore.snapshotHashes?.composite !== manifest.snapshot?.hashes?.composite
   || restore.invariants?.ok !== true
   || restore.audit?.ok !== true
@@ -134,7 +143,7 @@ if (restore.migrationVersion !== expectedMigration
 
 const recoveryProof = {
   ok: true, sourceMigration: expectedMigration,
-  backupSha256: backup.backupSha256,
+  backupSha256: backupReceipt.backupSha256,
   manifestSha256: manifest.manifestSha256,
   snapshotCompositeHash: manifest.snapshot.hashes.composite,
   isolatedDatabase: restore.isolatedDatabase,
@@ -149,7 +158,7 @@ const recoveryProof = {
 // GetDone cannot verify durable storage solely from a local filesystem.
 if (process.env.GETDONE_BACKUP_DURABLE_COPY_CONFIRMED !== "true"
   || !process.env.GETDONE_BACKUP_EXTERNAL_SHA256
-  || process.env.GETDONE_BACKUP_EXTERNAL_SHA256 !== backup.backupSha256
+  || process.env.GETDONE_BACKUP_EXTERNAL_SHA256 !== backupReceipt.backupSha256
   || !process.env.GETDONE_BACKUP_REF?.trim()) {
   console.log(JSON.stringify({ ...recoveryProof,
     stagingEvidenceRecorded: false,
@@ -175,11 +184,11 @@ if (process.env.GETDONE_BACKUP_DURABLE_COPY_CONFIRMED !== "true"
       `INSERT INTO database_backup_evidence
        (id,completed_at,status,backup_ref_hash,verification_hash,payload)
        VALUES ($1,$2,'verified',$3,$4,$5::jsonb)`,
-      [evidenceId, completedAt, backupRefHash, backup.backupSha256,
+      [evidenceId, completedAt, backupRefHash, backupReceipt.backupSha256,
         JSON.stringify({
           id: evidenceId,completedAt,status: "verified",
           source: "independent-isolated-restore",
-          backupRefHash,verificationHash: backup.backupSha256,
+          backupRefHash,verificationHash: backupReceipt.backupSha256,
           manifestHash: manifest.manifestSha256,
           snapshotCompositeHash: manifest.snapshot.hashes.composite,
           migrationVersion: expectedMigration,
