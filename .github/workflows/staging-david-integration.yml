@@ -3,8 +3,17 @@ on:
   push:
     branches: ["staging/getdone-unified-acceptance-20261014"]
   pull_request:
-    branches: ["codex/frontend-backend-integration-pass", "staging/david-edition-conversation-integration"]
+    branches: ["codex/frontend-backend-integration-pass", "staging/david-edition-conversation-integration", "staging/getdone-unified-acceptance-20261014"]
     paths:
+      - "lib/execution/**"
+      - "lib/orchestration/**"
+      - "lib/authorization/**"
+      - "lib/operations/**"
+      - "lib/persistence/**"
+      - "lib/control-plane/**"
+      - "n8n/**"
+      - "package*.json"
+      - "tsconfig*.json"
       - "components/**"
       - "scripts/*staging-backup*.mjs"
       - "scripts/test-staging-backup-restore.mjs"
