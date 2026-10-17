@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import pg from "pg";
+import { postgresTlsConnection } from "../lib/persistence/postgres/tls.ts";
 import {
   fileSha256,
   readSnapshotComponents,
@@ -59,12 +60,9 @@ const expectedMigration = registry.database?.migrationVersion;
 if (!expectedMigration) throw new Error("Release registry database migration is missing");
 
 const pool = new pg.Pool({
-  connectionString,
-  max: 2,
-  application_name: "getdone-staging-backup",
-  ssl: process.env.GETDONE_DB_SSL === "false"
-    ? false
-    : { rejectUnauthorized: true }
+    ...postgresTlsConnection(connectionString, process.env),
+    max: 2,
+    application_name: "getdone-staging-backup"
 });
 const client = await pool.connect();
 
