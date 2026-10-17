@@ -23,6 +23,10 @@ on:
       - "tsconfig*.json"
       - "components/**"
       - "scripts/*staging-backup*.mjs"
+      - "scripts/staging-backup-target-guard.*"
+      - "scripts/backup-and-verify-staging.mjs"
+      - "config/staging-pilot-topology.json"
+      - "lib/release/staging-*.test.ts"
       - "scripts/test-staging-backup-restore.mjs"
       - "scripts/postgres-backup-integrity.mjs"
       - "docs/staging-engineering-acceptance-report-20261014.md"
@@ -95,14 +99,19 @@ jobs:
           node --check scripts/test-staging-backup-restore.mjs
           node --check scripts/export-staging-n8n.mjs
           node --check scripts/verify-staging-runtime-config.mjs
+          node --check scripts/backup-and-verify-staging.mjs
+          node --check scripts/staging-backup-target-guard.mjs
       - run: npx vitest run lib/businesses/capability-summary.test.ts lib/businesses/attention-summary.test.ts lib/conversation/acceptance.test.ts
       - run: npx vitest run lib/operations/staging-n8n-export.test.ts lib/persistence/postgres/staging-config-preflight.test.ts
+      - run: npx vitest run lib/operations/n8n-acceptance.test.ts lib/operations/n8n-envelope-validator.test.ts lib/release/staging-pilot-topology.test.ts lib/release/staging-backup-target-guard.test.ts
       - run: npm run test -- --maxWorkers=2
       - run: npm run build:worker
       - run: npm run build:orchestration-worker
       - run: npm run typecheck
       - run: npm run lint
       - run: npm run build
+      - run: npm run environment:check
+      - run: npm run verify:zero-downtime-migrations
       - run: npm run verify:architecture
       - run: npm run verify:secrets
       - run: npx playwright install --with-deps chromium
