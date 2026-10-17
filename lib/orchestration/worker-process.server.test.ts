@@ -71,6 +71,30 @@ describe("DedicatedOrchestrationWorkerProcess", () => {
     expect(closeDatabase).toHaveBeenCalledTimes(1);
   });
 
+  it("fails startup cleanly when the health port is occupied", async () => {
+    const { createServer } = await import("node:http");
+    const occupied = createServer();
+    await new Promise<void>(resolve => occupied.listen(0, "127.0.0.1", resolve));
+    try {
+      const address = occupied.address();
+      if (!address || typeof address === "string") throw new Error("Expected TCP address");
+      const worker = {
+        start: vi.fn(async () => {}), stop: vi.fn(async () => {}), requestStop: vi.fn(),
+        isReady: vi.fn(() => false), snapshot: vi.fn(() => ({ workerId: "startup-test" }))
+      };
+      const closeDatabase = vi.fn(async () => {});
+      const controller = new DedicatedOrchestrationWorkerProcess(worker, closeDatabase,
+        { healthHost: "127.0.0.1", healthPort: address.port });
+      await expect(controller.start()).rejects.toThrow();
+      expect(controller.state()).toBe("failed");
+      expect(worker.requestStop).toHaveBeenCalledTimes(1);
+      expect(worker.stop).toHaveBeenCalledTimes(1);
+      expect(closeDatabase).toHaveBeenCalledTimes(1);
+    } finally {
+      await new Promise<void>((resolve, reject) => occupied.close(error => error ? reject(error) : resolve()));
+    }
+  });
+
   it("parses an isolated health surface from environment", () => {
     expect(readDedicatedOrchestrationWorkerProcessConfig({
       GETDONE_ORCHESTRATION_WORKER_HEALTH_HOST: "127.0.0.1",
