@@ -34,7 +34,7 @@ function authority() {
     level: "approval", previewHash: preview.previewHash, planHash: hash, stepHash: hash, grantedAt: now, expiresAt: "2026-10-12T18:09:00.000Z" });
   return { preview, currentPreview: preview, proof };
 }
-function harness(verifiedSha = sha) {
+function harness(verifiedSha = sha, authorityProvider: () => Promise<ReturnType<typeof authority>> = async () => authority()) {
   const transport = vi.fn().mockImplementation(async (url: URL | string, init: RequestInit) => {
     if (String(url).includes("n8n.test")) {
       const body = String(init.body);
@@ -45,7 +45,7 @@ function harness(verifiedSha = sha) {
     return Response.json({ object: { sha: String(url).includes("fix-health") ? verifiedSha : sha } });
   });
   const adapter = new N8nGithubAdapter([config], [github], key, { fetchImpl: transport as typeof fetch,
-    now: () => new Date(now), authority: async () => authority() });
+    now: () => new Date(now), authority: authorityProvider });
   let saved: BusinessActionExecutionRecord | null = null;
   const orchestrator = new BusinessActionExecutionOrchestrator(new StaticBusinessActionAdapterRegistry([{ capability: "github.branch.create", adapter }]),
     { get: async () => saved, save: async record => { saved = record; } }, { now: () => new Date(now), maxStatusPolls: 1, pollIntervalMs: 0,
@@ -65,6 +65,21 @@ describe("narrow three-workflow acceptance", () => {
     await orchestrator.execute(request());
     expect(transport.mock.calls.filter(([url]) => String(url).includes("n8n.test"))).toHaveLength(1);
   });
+  it("denied or expired approval cannot dispatch a branch creation workflow", async () => {
+    const valid = authority();
+    const expired = createApprovalProof({ id: "expired", decisionId: "decision", approvalId: "approval", actorId: "owner",
+      scope, level: "approval", previewHash: valid.preview.previewHash, planHash: hash, stepHash: hash,
+      grantedAt: "2026-10-12T17:00:00.000Z", expiresAt: "2026-10-12T17:05:00.000Z" });
+    for (const proof of [expired, createApprovalProof({ id: "foreign", decisionId: "decision", approvalId: "approval",
+      actorId: "different-owner", scope, level: "approval", previewHash: valid.preview.previewHash,
+      planHash: hash, stepHash: hash, grantedAt: now, expiresAt: "2026-10-12T18:09:00.000Z" })]) {
+      const { orchestrator, transport } = harness(sha, async () => ({ ...valid, proof }));
+      const result = await orchestrator.execute(request()).catch(error => error);
+      expect(result.record?.state).not.toBe("completed");
+      expect(transport).not.toHaveBeenCalled();
+    }
+  });
+
   it("n8n success is not completion when the independent branch SHA differs", async () => {
     const result = await harness("c".repeat(40)).orchestrator.execute(request());
     expect(result.record.state).toBe("running"); expect(result.verificationEvidence).toBeUndefined();

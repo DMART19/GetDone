@@ -3,8 +3,17 @@ on:
   push:
     branches: ["staging/getdone-unified-acceptance-20261014"]
   pull_request:
-    branches: ["codex/frontend-backend-integration-pass", "staging/david-edition-conversation-integration"]
+    branches: ["codex/frontend-backend-integration-pass", "staging/david-edition-conversation-integration", "staging/getdone-unified-acceptance-20261014"]
     paths:
+      - "lib/execution/**"
+      - "lib/orchestration/**"
+      - "lib/authorization/**"
+      - "lib/operations/**"
+      - "lib/persistence/**"
+      - "lib/control-plane/**"
+      - "n8n/**"
+      - "package*.json"
+      - "tsconfig*.json"
       - "components/**"
       - "scripts/*staging-backup*.mjs"
       - "scripts/test-staging-backup-restore.mjs"
@@ -15,6 +24,10 @@ on:
       - "app/**"
       - "lib/businesses/**"
       - "scripts/issue-staging-owner-invitation.*"
+      - "scripts/export-staging-n8n.mjs"
+      - "scripts/verify-staging-runtime-config.mjs"
+      - "docs/staging-runtime-preflight.md"
+      - "docs/staging-n8n-import.md"
       - "e2e/david-edition-*.spec.ts"
       - ".github/workflows/staging-david-integration.yml"
   workflow_dispatch:
@@ -38,7 +51,10 @@ jobs:
           node --check scripts/create-staging-backup.mjs
           node --check scripts/restore-staging-backup.mjs
           node --check scripts/test-staging-backup-restore.mjs
+          node --check scripts/export-staging-n8n.mjs
+          node --check scripts/verify-staging-runtime-config.mjs
       - run: npx vitest run lib/businesses/capability-summary.test.ts lib/businesses/attention-summary.test.ts lib/conversation/acceptance.test.ts
+      - run: npx vitest run lib/operations/staging-n8n-export.test.ts lib/persistence/postgres/staging-config-preflight.test.ts
       - run: npm run test -- --maxWorkers=2
       - run: npm run build:worker
       - run: npm run build:orchestration-worker

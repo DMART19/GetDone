@@ -229,11 +229,13 @@ export async function createDedicatedJobWorkerProcessFromEnv(
     );
   }
 
+  // Validate binding before opening a database pool: an invalid health port must not leak resources.
+  const config = readDedicatedJobWorkerProcessConfig(env);
   await assertPostgresReadyAtStartup(env);
   const postgres = getPostgresRuntimeFromEnv(env);
   return new DedicatedJobWorkerProcess(
     installPersistentJobWorkerFromEnv(env),
     () => postgres.database.close(),
-    readDedicatedJobWorkerProcessConfig(env)
+    config
   );
 }

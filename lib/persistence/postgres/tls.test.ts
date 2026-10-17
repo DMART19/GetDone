@@ -17,6 +17,14 @@ describe("PostgreSQL TLS", () => {
     expect(config.connectionString).not.toContain("uselibpqcompat");
     expect(config.connectionString).toContain("application_name=test");
   });
+  it("fails closed on staging TLS opt-outs even when NODE_ENV is not production", () => {
+    const staging = { GETDONE_RUNTIME_ENV: "staging", NODE_ENV: "test" } as const;
+    expect(() => postgresTlsConnection("postgres://db.test/db?sslmode=disable", staging)).toThrow(/certificate-verified TLS/);
+    expect(() => postgresTlsConnection("postgres://db.test/db?sslmode=no-verify", staging)).toThrow(/certificate-verified TLS/);
+    expect(() => postgresTlsConnection("postgres://db.test/db", { ...staging, GETDONE_DB_SSL: "false" })).toThrow(/certificate-verified TLS/);
+    expect(() => postgresTlsConnection("", { ...staging, GETDONE_DB_SSL: "false" })).toThrow();
+    expect(new Client(postgresTlsConnection("postgres://db.test/db?sslmode=require", staging)).ssl).toEqual({ rejectUnauthorized: true });
+  });
   it("rejects unverified production transport and permits explicit local test transport", () => {
     expect(() => postgresTlsConnection("postgres://db.test/db?sslmode=disable", { GETDONE_RUNTIME_ENV: "production" })).toThrow(/TLS/);
     expect(() => postgresTlsConnection("postgres://db.test/db", { NODE_ENV: "production", GETDONE_DB_SSL: "false" })).toThrow(/TLS/);

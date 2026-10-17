@@ -149,10 +149,12 @@ export async function createDedicatedOrchestrationWorkerProcessFromEnv(
   handler: OrchestrationStageHandler,
   env: Readonly<Record<string, string | undefined>> = process.env
 ) {
+  // Reject invalid health binding before allocating the persistent PostgreSQL runtime.
+  const config = readDedicatedOrchestrationWorkerProcessConfig(env);
   const runtime = await createPersistentOrchestrationWorkerFromEnv(handler, env);
   return new DedicatedOrchestrationWorkerProcess(
     runtime.service,
     () => runtime.postgres.database.close(),
-    readDedicatedOrchestrationWorkerProcessConfig(env)
+    config
   );
 }
