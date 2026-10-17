@@ -14,6 +14,7 @@ import {
 import { PostgresOrchestrationRunStore } from "@/lib/persistence/postgres/orchestration-store";
 import { PostgresOrchestrationWorkerStore } from "@/lib/persistence/postgres/orchestration-worker-store";
 import { PostgresOrchestrationWorkerRegistry } from "@/lib/persistence/postgres/orchestration-worker-registry";
+import { getWorkerServiceDatabaseFromEnv, closeWorkerServiceDatabases } from "@/lib/persistence/postgres/worker-service-runtime.server";
 import {
   assertPostgresReadyAtStartup,
   getPostgresRuntimeFromEnv
@@ -124,7 +125,7 @@ export async function createPersistentOrchestrationWorkerFromEnv(
   const runtimeConfig = readOrchestrationWorkerRuntimeConfig(env);
   const runStore = new PostgresOrchestrationRunStore(postgres.database);
   const workerStore = new PostgresOrchestrationWorkerStore(postgres.database);
-  const registry = new PostgresOrchestrationWorkerRegistry(postgres.database);
+  const registry = new PostgresOrchestrationWorkerRegistry(getWorkerServiceDatabaseFromEnv("getdone_worker_registry",env));
   const runtime = new DurableOrchestrationWorker(
     runStore,
     workerStore,
@@ -154,7 +155,7 @@ export async function createDedicatedOrchestrationWorkerProcessFromEnv(
   const runtime = await createPersistentOrchestrationWorkerFromEnv(handler, env);
   return new DedicatedOrchestrationWorkerProcess(
     runtime.service,
-    () => runtime.postgres.database.close(),
+    async () => { await runtime.postgres.database.close(); await closeWorkerServiceDatabases(); },
     config
   );
 }
