@@ -4,6 +4,7 @@ import { businessSession } from "@/lib/businesses/runtime.server";
 import { listBusinesses } from "@/lib/businesses/repository";
 import { getControlApiAdapter } from "@/lib/control-api/runtime.server";
 import { PostgresOwnerIntentStore } from "@/lib/persistence/postgres/control-api-stores";
+import { getAuthPostgresDatabaseFromEnv } from "@/lib/persistence/postgres/auth-runtime.server";
 import { runWithPostgresTenantScope } from "@/lib/persistence/postgres/tenant-context.server";
 import { ControlPlaneError, toControlPlaneError } from "@/lib/control-plane/errors";
 import { apiFailure, apiSuccess } from "@/lib/control-plane/schemas";
@@ -23,7 +24,9 @@ export async function handleThread(request: Request) {
     const { db, session } = await businessSession(request);
     const adapter = getControlApiAdapter();
     const store = new PostgresOwnerIntentStore(db);
-    const businesses: RegisteredBusiness[] = await listBusinesses(db, session.userId);
+    // The membership catalog is pre-tenant identity data. Reading it through
+    // the business runtime role would return no rows under correct RLS.
+    const businesses: RegisteredBusiness[] = await listBusinesses(getAuthPostgresDatabaseFromEnv(), session.userId);
     if (!businesses.length) throw new ControlPlaneError("FORBIDDEN", "Register a business before starting a conversation");
     const posted = request.method === "POST" ? postSchema.safeParse(await request.json().catch(() => null)) : undefined;
     if (posted && !posted.success) throw new ControlPlaneError("VALIDATION_FAILED", "Invalid conversation message");
