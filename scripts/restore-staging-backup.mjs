@@ -4,7 +4,7 @@ import path from "node:path";
 import { spawn, spawnSync } from "node:child_process";
 import pg from "pg";
 import { postgresTlsConnection } from "../lib/persistence/postgres/tls.ts";
-import { assertIsolatedRestoreAdmin } from "./staging-backup-target-guard.mjs";
+import { assertIsolatedRestoreAdmin, createPostgresCliEnvironment } from "./staging-backup-target-guard.mjs";
 import {
   fileSha256,
   readSnapshotComponents,
@@ -24,23 +24,8 @@ function quoteIdentifier(value) {
 }
 
 function postgresCliEnv(connectionString, databaseName) {
-  const url = new URL(connectionString);
-  if (!["postgres:", "postgresql:"].includes(url.protocol)) {
-    throw new Error("GETDONE_RESTORE_ADMIN_DATABASE_URL must be PostgreSQL");
-  }
-  return {
-    ...process.env,
-    PGHOST: url.hostname,
-    PGPORT: url.port || "5432",
-    PGDATABASE: databaseName ?? decodeURIComponent(url.pathname.slice(1)),
-    PGUSER: decodeURIComponent(url.username),
-    PGPASSWORD: decodeURIComponent(url.password),
-    PGSSLMODE: process.env.GETDONE_DB_SSL === "false"
-      ? "disable"
-      : (url.searchParams.get("sslmode") || process.env.PGSSLMODE || "verify-full")
-  };
+  return createPostgresCliEnvironment(connectionString, process.env, databaseName);
 }
-
 function databaseUrl(connectionString, databaseName) {
   const url = new URL(connectionString);
   url.pathname = "/" + databaseName;
