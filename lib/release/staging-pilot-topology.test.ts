@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 
 type Worker = {
   name: string; serviceType: string; plan: string; action: string;
-  build: string; start: string; role: string; healthPort: number; workerId: string;
+  build: string; start: string; role: string; healthPort: number; workerId: string; healthPath: string;
 };
 const plan = JSON.parse(readFileSync("config/staging-pilot-topology.json","utf8"));
 const workers: Worker[] = [plan.deployment.job,plan.deployment.orchestration];
