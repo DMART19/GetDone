@@ -4,6 +4,7 @@ import path from "node:path";
 import { spawn, spawnSync } from "node:child_process";
 import pg from "pg";
 import { postgresTlsConnection } from "../lib/persistence/postgres/tls.ts";
+import { assertIsolatedRestoreAdmin } from "./staging-backup-target-guard.mjs";
 import {
   fileSha256,
   readSnapshotComponents,
@@ -120,6 +121,8 @@ if (runtime !== "staging") {
 const backupFile = path.resolve(required("GETDONE_BACKUP_FILE"));
 const manifestFile = path.resolve(required("GETDONE_BACKUP_MANIFEST"));
 const adminConnectionString = required("GETDONE_RESTORE_ADMIN_DATABASE_URL");
+// Prevent independent restore from targeting production or staging servers.
+assertIsolatedRestoreAdmin(adminConnectionString, process.env.DATABASE_URL);
 if (!fs.existsSync(backupFile)) throw new Error("GETDONE_BACKUP_FILE does not exist");
 if (!fs.existsSync(manifestFile)) throw new Error("GETDONE_BACKUP_MANIFEST does not exist");
 
