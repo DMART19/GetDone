@@ -95,6 +95,24 @@ try {
 
     expect((await withScope(scopeA, () => store.getRuntimeSnapshot(jobB)))).toBeNull();
     expect((await withScope(scopeB, () => store.getRuntimeSnapshot(jobA)))).toBeNull();
+    const forbiddenUpdate = await withScope(scopeB, () => tenant.query(
+      "UPDATE job_runtime_state SET updated_at=now() WHERE job_id=$1", [jobA]
+    ));
+    expect(forbiddenUpdate.rowCount).toBe(0);
+    const aggregate = await withScope(scopeA, () => tenant.query<{
+      global_depth: string; company_depth: string
+    }>("SELECT * FROM getdone_job_queue_depth($1)", [scopeA.companyId]));
+    expect(Number(aggregate.rows[0].global_depth)).toBe(2);
+    expect(Number(aggregate.rows[0].company_depth)).toBe(1);
+    await expect(withScope(scopeA, () =>
+      tenant.query("SELECT * FROM getdone_job_queue_depth($1)", [scopeB.companyId])
+    )).rejects.toMatchObject({ code: "42501" });
+    await expect(withScope(scopeA, () => new PostgresDurableJobStore(tenant, {
+      maxQueueDepth: 2, maxCompanyQueueDepth: 1
+    }).enqueue(envelope("job-over-cap-" + seed, scopeA)))).rejects.toMatchObject({
+      code: "UNAVAILABLE",
+      details: { reason: "QUEUE_SATURATED", scope: "global" }
+    });
 
     const pending = await store.listReady({ now: "2026-10-17T04:30:01.000Z", limit: 10 });
     expect(pending.map(job => job.envelope.jobId).sort()).toEqual([jobA, jobB].sort());
