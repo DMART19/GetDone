@@ -1,8 +1,9 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import { describe, expect, it } from "vitest";
 import { PostgresControlApiScopeResolver } from "@/lib/control-api/postgres-auth";
-import type { SqlQueryable } from "@/lib/persistence/postgres/client";
+import type { PostgresTransactionalDatabase, SqlQueryable } from "@/lib/persistence/postgres/client";
+import { PostgresAuthAdapter } from "@/lib/auth/postgres-adapter";
 import type { AuthSession } from "@/lib/auth/contracts";
 import { PostgresRateLimiter } from "@/lib/security/rate-limit.server";
 
@@ -46,6 +47,23 @@ try {
       await client.query("INSERT INTO portfolio_memberships(user_id,portfolio_id,company_id,role,status) VALUES($1,$2,$3,'owner','active'),($4,$5,$6,'owner','active')",
         [userA, portfolioA, companyA, userB, portfolioB, companyB]);
 
+      const tokenA = "owner-auth-token-" + suffix;
+      const tokenB = "foreign-auth-token-" + suffix;
+      const secondaryA = "old-owner-auth-token-" + suffix;
+      const tokenHash = (token: string) => createHash("sha256").update(token).digest("hex");
+      for (const [sessionId, userId, token] of [
+        ["session-a-" + suffix, userA, tokenA],
+        ["session-b-" + suffix, userB, tokenB],
+        ["old-session-a-" + suffix, userA, secondaryA]
+      ]) {
+        await client.query(
+          `INSERT INTO auth_sessions
+           (session_id,user_id,token_hash,issued_at,expires_at,authenticated_at)
+           VALUES ($1,$2,$3,now(),now() + interval '1 hour',now())`,
+          [sessionId,userId,tokenHash(token)]
+        );
+      }
+
       await client.query("SET LOCAL ROLE getdone_auth_runtime");
       const who = await client.query("SELECT current_user AS role");
       expect(who.rows[0].role).toBe("getdone_auth_runtime");
@@ -55,12 +73,28 @@ try {
         userId: userA, sessionId: "test-session", issuedAt: new Date().toISOString(),
         authenticatedAt: new Date().toISOString(), expiresAt: "2099-01-01T00:00:00.000Z"
       };
+      const auth = new PostgresAuthAdapter(client as unknown as PostgresTransactionalDatabase);
+      const bearer = (token: string) => new Request("https://staging.getdone.test/api/control", {
+        headers: { authorization: "Bearer " + token }
+      });
+      const ownerSession = await auth.getSession(bearer(tokenA));
+      expect(ownerSession?.userId).toBe(userA);
+      expect((await auth.getSession(bearer(tokenB)))?.userId).toBe(userB);
+      expect(await auth.getSession(bearer("invalid-token"))).toBeNull();
+      expect(await auth.revokeOtherSessions(userA, "session-a-" + suffix)).toBe(1);
+      expect(await auth.getSession(bearer(secondaryA))).toBeNull();
+      expect((await auth.getSession(bearer(tokenB)))?.userId).toBe(userB);
       const resolver = new PostgresControlApiScopeResolver(client as unknown as SqlQueryable, "staging");
       const request = (portfolioId: string) => new Request("https://staging.getdone.test/api/control", {
         headers: { "x-getdone-portfolio-id": portfolioId }
       });
       expect((await resolver.resolve(session, request(portfolioA))).scope.companyId).toBe(companyA);
       await expect(resolver.resolve(session, request(portfolioB))).rejects.toThrow(/no active membership/);
+      await expect(resolver.resolve({
+        ...session, userId: userB
+      }, request(portfolioA))).rejects.toThrow(/no active membership/);
+      await auth.revokeSession("session-a-" + suffix);
+      expect(await auth.getSession(bearer(tokenA))).toBeNull();
 
       const limiter = new PostgresRateLimiter(client as unknown as SqlQueryable);
       expect((await limiter.consume({ id: "auth.test", limit: 1, windowSeconds: 60 },
