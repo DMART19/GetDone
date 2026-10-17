@@ -73,10 +73,33 @@ async function main() {
     idleTimeoutMillis: 1000,
     application_name: "getdone-staging-readonly-preflight"
   });
+  let transportReady = false;
   try {
-    await pool.query("SELECT 1 AS staging_tls_readiness");
-    console.log("PASS: authenticated, certificate-verified PostgreSQL query succeeded");
-  } catch {
+    const client = await pool.connect();
+    try {
+      await client.query("SELECT 1 AS staging_tls_readiness");
+      transportReady = true;
+      console.log("PASS: authenticated, certificate-verified PostgreSQL query succeeded");
+      // Pre-authentication queries need to resolve the owner without tenant scope.
+      // A granted SELECT privilege is not sufficient if row-level security hides every row.
+      await client.query("BEGIN TRANSACTION READ ONLY");
+      await client.query("SET LOCAL ROLE getdone_tenant_runtime");
+      const result = await client.query(
+        "SELECT (SELECT COUNT(*) FROM auth_users) AS users, " +
+        "(SELECT COUNT(*) FROM company_memberships) AS memberships"
+      );
+      if (Number(result.rows[0]?.users) < 1 || Number(result.rows[0]?.memberships) < 1) {
+        fail("AUTH_VISIBILITY_DENIED");
+      }
+      console.log("PASS: tenant runtime can resolve an owner identity and business membership");
+    } finally {
+      await client.query("ROLLBACK").catch(() => {});
+      client.release();
+    }
+  } catch (error) {
+    if (transportReady) {
+      fail("staging tenant runtime cannot resolve owner authentication or memberships; review RLS boundaries");
+    }
     fail("staging PostgreSQL connection or TLS verification failed; inspect trusted CA and private configuration");
   } finally {
     await pool.end();
