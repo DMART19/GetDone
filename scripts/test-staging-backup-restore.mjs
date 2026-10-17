@@ -3,13 +3,11 @@ import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import pg from "pg";
+import { postgresTlsConnection } from "../lib/persistence/postgres/tls.ts";
 import { sha256Hex } from "./postgres-backup-integrity.mjs";
 
 const baseConnectionString = process.env.DATABASE_URL?.trim();
 if (!baseConnectionString) throw new Error("DATABASE_URL is required");
-const ssl = process.env.GETDONE_DB_SSL === "false"
-  ? false
-  : { rejectUnauthorized: true };
 
 function quoteIdentifier(value) {
   return '"' + value.replaceAll('"', '""') + '"';
@@ -21,8 +19,8 @@ function databaseUrl(name) {
   return url.toString();
 }
 
-function run(script, env) {
-  const result = spawnSync(process.execPath, [script], {
+function run(script, env, args = []) {
+  const result = spawnSync(process.execPath, [script, ...args], {
     cwd: process.cwd(),
     env: { ...process.env, ...env },
     encoding: "utf8",
@@ -42,17 +40,17 @@ const restoreDatabase = `getdone_restore_verify_${suffix}`;
 const backupFile = path.join(os.tmpdir(), `getdone-backup-${suffix}.dump`);
 const manifestFile = `${backupFile}.manifest.json`;
 
+let sourceCreated = false;
 const admin = new pg.Pool({
-  connectionString: baseConnectionString,
+  ...postgresTlsConnection(baseConnectionString,process.env),
   max: 2,
-  application_name: "getdone-backup-restore-test-admin",
-  ssl
+  application_name: "getdone-backup-restore-test-admin"
 });
 
 try {
-  await admin.query(`DROP DATABASE IF EXISTS ${quoteIdentifier(sourceDatabase)} WITH (FORCE)`);
-  await admin.query(`DROP DATABASE IF EXISTS ${quoteIdentifier(restoreDatabase)} WITH (FORCE)`);
+  // Never delete pre-existing databases, even those with a test prefix.
   await admin.query(`CREATE DATABASE ${quoteIdentifier(sourceDatabase)}`);
+  sourceCreated = true;
 
   const sourceUrl = databaseUrl(sourceDatabase);
   run("scripts/migrate-postgres.mjs", {
@@ -61,10 +59,9 @@ try {
   });
 
   const source = new pg.Pool({
-    connectionString: sourceUrl,
+    ...postgresTlsConnection(sourceUrl,process.env),
     max: 4,
-    application_name: "getdone-backup-restore-source",
-    ssl
+    application_name: "getdone-backup-restore-source"
   });
   try {
     const at = "2026-09-25T05:00:00.000Z";
@@ -292,6 +289,23 @@ try {
     throw new Error("Staging backup command did not produce verified evidence");
   }
 
+  // A dump on its own cannot make staging production-ready. Verification
+  // evidence must appear only after an independent restore and retained copy.
+  const preRestoreSource = new pg.Pool({
+    ...postgresTlsConnection(sourceUrl, process.env),
+    max: 1, application_name: "getdone-backup-pre-restore-assertion"
+  });
+  try {
+    const rows = await preRestoreSource.query(
+      "SELECT COUNT(*)::int AS count FROM database_backup_evidence WHERE status='verified'"
+    );
+    if (Number(rows.rows[0]?.count) !== 0) {
+      throw new Error("Backup creation incorrectly marked recovery as verified");
+    }
+  } finally {
+    await preRestoreSource.end();
+  }
+
   const restoreOutput = run("scripts/restore-staging-backup.mjs", {
     GETDONE_RUNTIME_ENV: "staging",
     GETDONE_DB_SSL: process.env.GETDONE_DB_SSL ?? "false",
@@ -312,6 +326,48 @@ try {
     throw new Error(`Restore verification did not prove all invariants: ${restoreOutput}`);
   }
 
+  // Exercise the exact two-phase private evidence gate against a disposable
+  // fixture. The external-copy flag is simulated in CI; it is NOT proof of
+  // durable retention of any real Supabase staging backup.
+  const ceremonyResult = JSON.parse(run("scripts/backup-and-verify-staging.mjs", {
+    GETDONE_RUNTIME_ENV: "staging",
+    GETDONE_ALLOW_ISOLATED_RESTORE_TEST: "true",
+    GETDONE_DB_SSL: process.env.GETDONE_DB_SSL || "true",
+    DATABASE_URL: sourceUrl,
+    GETDONE_RESTORE_ADMIN_DATABASE_URL: baseConnectionString,
+    GETDONE_BACKUP_FILE: backupFile,
+    GETDONE_BACKUP_MANIFEST: manifestFile,
+    GETDONE_BACKUP_DURABLE_COPY_CONFIRMED: "true",
+    GETDONE_BACKUP_EXTERNAL_SHA256: backup.backupSha256,
+    GETDONE_BACKUP_REF: "disposable-test-restore:" + suffix,
+    GETDONE_RESTORE_BOOT_PORT: String(34_000 + (process.pid % 1_000))
+  }, ["--verify-existing"]));
+  if (
+    ceremonyResult.ok !== true
+    || ceremonyResult.restoreVerified !== true
+    || ceremonyResult.stagingEvidenceRecorded !== true
+    || ceremonyResult.backupSha256 !== backup.backupSha256
+  ) {
+    throw new Error("Two-phase staging recovery evidence gate did not pass");
+  }
+  const evidenceSource = new pg.Pool({
+    ...postgresTlsConnection(sourceUrl,process.env),
+    max: 1,application_name: "getdone-backup-post-restore-evidence-test"
+  });
+  try {
+    const recorded = await evidenceSource.query(
+      "SELECT payload FROM database_backup_evidence WHERE status='verified'"
+    );
+    if (recorded.rows.length !== 1
+      || recorded.rows[0].payload?.source !== "independent-isolated-restore"
+      || recorded.rows[0].payload?.verificationHash !== backup.backupSha256
+    ) {
+      throw new Error("Source-side recovery evidence was missing or unverified");
+    }
+  } finally {
+    await evidenceSource.end();
+  }
+
   console.log(JSON.stringify({
     ok: true,
     backupSha256: backup.backupSha256,
@@ -322,9 +378,11 @@ try {
     applicationBootability: restored.applicationBootability
   }, null, 2));
 } finally {
-  for (const databaseName of [restoreDatabase, sourceDatabase]) {
+  // Restore script owns its unique target cleanup. Drop only our own
+  // successfully created source fixture; never a pre-existing database.
+  if (sourceCreated) {
     try {
-      await admin.query(`DROP DATABASE IF EXISTS ${quoteIdentifier(databaseName)} WITH (FORCE)`);
+      await admin.query(`DROP DATABASE IF EXISTS ${quoteIdentifier(sourceDatabase)} WITH (FORCE)`);
     } catch {}
   }
   await admin.end();
