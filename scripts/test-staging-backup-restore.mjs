@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import pg from "pg";
+import { postgresTlsConnection } from "../lib/persistence/postgres/tls.ts";
 import { sha256Hex } from "./postgres-backup-integrity.mjs";
 
 const baseConnectionString = process.env.DATABASE_URL?.trim();
