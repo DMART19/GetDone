@@ -1,0 +1,89 @@
+name: Staging backup & independent restore safety
+on:
+  pull_request:
+    branches: ["staging/getdone-unified-acceptance-20261014", "staging/david-edition-conversation-integration"]
+    paths:
+      - "scripts/create-staging-backup.mjs"
+      - "scripts/restore-staging-backup.mjs"
+      - "scripts/backup-and-verify-staging.mjs"
+      - "scripts/test-staging-backup-restore.mjs"
+      - "scripts/postgres-backup-integrity.mjs"
+      - ".github/workflows/staging-backup-restore-safety.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  isolated-backup-restore:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: disposable-local-test-only
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      GETDONE_RUNTIME_ENV: staging
+      GETDONE_DB_SSL: "true"
+      PGSSLMODE: verify-full
+      GETDONE_ALLOW_ISOLATED_RESTORE_TEST: "true"
+      DATABASE_URL: postgresql://postgres:disposable-local-test-only@127.0.0.1:5432/postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm ci
+      - name: Install PostgreSQL dump and restore binaries
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y postgresql-client
+          pg_dump --version
+          pg_restore --version
+      - name: Enable certificate-verified TLS on disposable Postgres
+        shell: bash
+        run: |
+          set -euo pipefail
+          openssl req -x509 -nodes -newkey rsa:2048 -sha256 -days 1 \
+            -keyout /tmp/getdone-ci-server.key \
+            -out /tmp/getdone-ci-server.crt \
+            -subj "/CN=localhost" \
+            -addext "subjectAltName=DNS:localhost,IP:127.0.0.1"
+          chmod 0600 /tmp/getdone-ci-server.key
+          container_id="$(docker ps -q --filter ancestor=postgres:16 | head -1)"
+          test -n "$container_id"
+          docker cp /tmp/getdone-ci-server.key "$container_id:/var/lib/postgresql/data/server.key"
+          docker cp /tmp/getdone-ci-server.crt "$container_id:/var/lib/postgresql/data/server.crt"
+          docker exec "$container_id" chown postgres:postgres /var/lib/postgresql/data/server.key /var/lib/postgresql/data/server.crt
+          docker exec "$container_id" chmod 0600 /var/lib/postgresql/data/server.key
+          docker exec -u postgres "$container_id" psql -U postgres -d postgres -c "ALTER SYSTEM SET ssl = 'on'"
+          docker exec -u postgres "$container_id" psql -U postgres -d postgres -c "ALTER SYSTEM SET ssl_cert_file = 'server.crt'"
+          docker exec -u postgres "$container_id" psql -U postgres -d postgres -c "ALTER SYSTEM SET ssl_key_file = 'server.key'"
+          docker restart "$container_id"
+          for i in {1..30}; do
+            if pg_isready -h 127.0.0.1 -p 5432 -U postgres; then break; fi
+            sleep 1
+          done
+          echo "PGSSLROOTCERT=/tmp/getdone-ci-server.crt" >> "$GITHUB_ENV"
+          PGPASSWORD=disposable-local-test-only psql \
+            "postgresql://postgres@127.0.0.1:5432/postgres?sslmode=verify-full&sslrootcert=/tmp/getdone-ci-server.crt" \
+            -Atc "SHOW ssl" | grep -qx on
+      - name: Check backup, recovery and orchestrator scripts
+        run: |
+          node --check scripts/create-staging-backup.mjs
+          node --check scripts/restore-staging-backup.mjs
+          node --check scripts/backup-and-verify-staging.mjs
+          node --check scripts/test-staging-backup-restore.mjs
+      - name: Restore disposable local database and check audit, hashes and app boot
+        run: node scripts/test-staging-backup-restore.mjs
