@@ -23,22 +23,26 @@ END $$;
 GRANT getdone_auth_runtime TO CURRENT_USER;
 GRANT USAGE ON SCHEMA public TO getdone_auth_runtime;
 
--- The auth connection can ONLY inspect identities, active memberships,
--- challenges and sessions, not business data, jobs or execution authority.
+-- The auth/security connection can inspect identities, memberships,
+-- challenges, sessions and hashed rate-limit buckets. It cannot access
+-- business data, jobs or execution authority.
 GRANT SELECT ON
   auth_users, auth_sessions, auth_webauthn_credentials,
   auth_owner_enrollments, auth_sign_in_challenges, auth_step_up_challenges,
   organizations, companies, portfolios,
-  organization_memberships, company_memberships, portfolio_memberships
+  organization_memberships, company_memberships, portfolio_memberships,
+  rate_limit_buckets
 TO getdone_auth_runtime;
 
 -- Only the insert/update operations that passkey sign-in, sign-out,
 -- step-up and invitation consumption actually need.
 GRANT INSERT ON
   auth_sessions, auth_sign_in_challenges, auth_step_up_challenges,
-  auth_webauthn_credentials
+  auth_webauthn_credentials, rate_limit_buckets
 TO getdone_auth_runtime;
 
+GRANT UPDATE (request_count, window_started_at, window_expires_at, updated_at)
+  ON rate_limit_buckets TO getdone_auth_runtime;
 GRANT UPDATE (revoked_at, token_hash, step_up_authenticated_at)
   ON auth_sessions TO getdone_auth_runtime;
 GRANT UPDATE (sign_count, last_used_at)
@@ -63,7 +67,7 @@ DECLARE
     'auth_owner_enrollments', 'auth_sign_in_challenges',
     'auth_step_up_challenges', 'organizations', 'companies', 'portfolios',
     'organization_memberships', 'company_memberships',
-    'portfolio_memberships'
+    'portfolio_memberships', 'rate_limit_buckets'
   ];
 BEGIN
   FOREACH table_name IN ARRAY auth_tables LOOP
@@ -94,7 +98,7 @@ BEGIN
         'auth_owner_enrollments','auth_sign_in_challenges',
         'auth_step_up_challenges','organizations','companies','portfolios',
         'organization_memberships','company_memberships',
-        'portfolio_memberships'
+        'portfolio_memberships','rate_limit_buckets'
       )
   ) THEN
     RAISE EXCEPTION 'getdone_auth_runtime has unexpected business table grants';
