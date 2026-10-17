@@ -133,6 +133,34 @@ REVOKE UPDATE,DELETE ON job_runtime_transactions,job_runtime_events,
 REVOKE DELETE ON job_runtime_state,job_leases,job_retry_schedule
   FROM getdone_tenant_runtime;
 
+-- Admission still needs a true global queue cap across all tenants, while
+-- tenant-scoped SQL must not read any foreign queue payload. Return ONLY
+-- aggregate counts; deny calls without the matching transaction-local scope.
+CREATE OR REPLACE FUNCTION public.getdone_job_queue_depth(
+  requested_company_id text
+)
+RETURNS TABLE(global_depth bigint, company_depth bigint)
+LANGUAGE plpgsql STABLE SECURITY DEFINER
+SET search_path=pg_catalog,public
+AS $
+BEGIN
+  IF NULLIF(current_setting('getdone.portfolio_id',true),'') IS NULL
+    OR NULLIF(current_setting('getdone.company_id',true),'') IS NULL
+    OR requested_company_id IS DISTINCT FROM current_setting('getdone.company_id',true)
+  THEN RAISE EXCEPTION 'Tenant scope required for Job queue admission'
+    USING ERRCODE='42501';
+  END IF;
+  RETURN QUERY
+    SELECT COUNT(*) FILTER (WHERE s.runtime_state IN ('queued','retry-wait')),
+      COUNT(*) FILTER (
+        WHERE s.runtime_state IN ('queued','retry-wait')
+          AND s.envelope #>> '{scope,companyId}'=requested_company_id
+      )
+    FROM public.job_runtime_state s;
+END $;
+REVOKE ALL ON FUNCTION public.getdone_job_queue_depth(text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.getdone_job_queue_depth(text) TO getdone_tenant_runtime;
+
 -- Only server-side dedicated job workers may enumerate dispatch candidates.
 -- These audited SECURITY DEFINER functions reveal bounded routing metadata,
 -- NEVER a complete envelope, token, authorization grant or provider payload.
