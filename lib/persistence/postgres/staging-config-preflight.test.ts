@@ -44,7 +44,7 @@ describe("private staging runtime preflight", () => {
     if (directory) rmSync(directory, { recursive: true, force: true });
   });
 
-  function run(patch: NodeJS.ProcessEnv = {}) {
+  function run(patch: Partial<NodeJS.ProcessEnv> = {}) {
     return spawnSync(process.execPath, [script], { env: { ...env, ...patch }, encoding: "utf8" });
   }
 
