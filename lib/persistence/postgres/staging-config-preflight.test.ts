@@ -44,8 +44,8 @@ describe("private staging runtime preflight", () => {
     if (directory) rmSync(directory, { recursive: true, force: true });
   });
 
-  function run(patch: Partial<NodeJS.ProcessEnv> = {}) {
-    return spawnSync(process.execPath, [script], { env: { ...env, ...patch }, encoding: "utf8" });
+  function run(patch: Partial<NodeJS.ProcessEnv> = {}, args: string[] = []) {
+    return spawnSync(process.execPath, [script, ...args], { env: { ...env, ...patch }, encoding: "utf8" });
   }
 
   it("accepts the exact staging pooler target without revealing secrets or claiming a network check", () => {
@@ -55,6 +55,13 @@ describe("private staging runtime preflight", () => {
     expect(result.stdout).toContain("NOT TESTED: actual PostgreSQL TLS");
     expect(result.stdout + result.stderr).not.toContain(secret);
     expect(result.stdout + result.stderr).not.toContain("test-only-token-of-at-least-thirty-two-characters");
+  });
+
+  it("requires a live read-only database connection before worker policy inspection", () => {
+    const result = run({}, ["--workers"]);
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain("--workers requires --connect");
+    expect(result.stderr).not.toContain(secret);
   });
 
   it.each([
