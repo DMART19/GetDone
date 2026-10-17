@@ -16,7 +16,8 @@ import {
   type JobRetryScheduleRecord,
   type JobStoreTransactionReceipt
 } from "@/lib/execution/job-runtime-contracts";
-import type { PostgresTransactionalDatabase } from "@/lib/persistence/postgres/client";
+import type { PostgresTransactionalDatabase, SqlQueryable } from "@/lib/persistence/postgres/client";
+import { getPostgresTenantScope, runWithPostgresTenantScope } from "@/lib/persistence/postgres/tenant-context.server";
 import {
   createDurableJobExecutionOutcome,
   createDurableJobRuntimeEvent,
@@ -233,7 +234,8 @@ export class PostgresDurableJobStore implements DurableJobWorkStore {
       recoveryDelayMs?: number;
       maxQueueDepth?: number;
       maxCompanyQueueDepth?: number;
-    } = {}
+    } = {},
+    private readonly dispatch?: SqlQueryable
   ) {
     for (const [label, value] of [
       ["maxQueueDepth", options.maxQueueDepth],
@@ -260,6 +262,36 @@ export class PostgresDurableJobStore implements DurableJobWorkStore {
 
   async listReady(input: { now: string; limit: number }) {
     const limit = Math.max(1, Math.min(100, Math.trunc(input.limit)));
+    if (this.dispatch) {
+      // The dispatch role sees only job IDs and bounded scope, never envelopes,
+      // receipts, credentials, tenant tables or claim/write privileges.
+      const discovered = await this.dispatch.query<{
+        job_id: string; portfolio_id: string; company_id: string
+      }>(
+        "SELECT * FROM getdone_discover_ready_jobs($1::timestamptz,$2::integer)",
+        [input.now, limit]
+      );
+      const candidates: DurableJobCandidate[] = [];
+      for (const selected of discovered.rows) {
+        const scoped = await runWithPostgresTenantScope({
+          portfolioId: selected.portfolio_id, companyId: selected.company_id
+        }, () => this.database.query<RuntimeRow>(
+          `SELECT * FROM job_runtime_state
+           WHERE job_id=$1 AND runtime_state IN ('queued','retry-wait')
+             AND scheduled_at <= $2::timestamptz`,
+          [selected.job_id, input.now]
+        ));
+        const row = scoped.rows[0];
+        if (!row) continue;
+        if (
+          row.envelope.jobId !== selected.job_id ||
+          row.envelope.scope.portfolioId !== selected.portfolio_id ||
+          row.envelope.scope.companyId !== selected.company_id
+        ) throw new ControlPlaneError("FORBIDDEN", "Discovered Job does not match the tenant-scoped envelope");
+        candidates.push(candidate(row));
+      }
+      return candidates;
+    }
     const result = await this.database.query<RuntimeRow>(
       `WITH ready AS (
          SELECT *,
@@ -859,6 +891,29 @@ export class PostgresDurableJobStore implements DurableJobWorkStore {
   }
 
   async recoverExpired(input: { now: string; limit: number }): Promise<readonly JobRecoveryRecord[]> {
+    if (this.dispatch && !getPostgresTenantScope()) {
+      const discovered = await this.dispatch.query<{
+        job_id: string; portfolio_id: string; company_id: string
+      }>(
+        "SELECT * FROM getdone_discover_expired_jobs($1::timestamptz,$2::integer)",
+        [input.now, Math.max(1, Math.min(100, Math.trunc(input.limit)))]
+      );
+      const recovered: JobRecoveryRecord[] = [];
+      for (const selected of discovered.rows) {
+        const rows = await runWithPostgresTenantScope({
+          portfolioId: selected.portfolio_id, companyId: selected.company_id
+        }, () => this.recoverExpiredScoped(input, selected.job_id));
+        recovered.push(...rows);
+      }
+      return recovered;
+    }
+    return this.recoverExpiredScoped(input);
+  }
+
+  private async recoverExpiredScoped(
+    input: { now: string; limit: number },
+    jobId?: string
+  ): Promise<readonly JobRecoveryRecord[]> {
     return this.database.transaction(async (db) => {
       const maxAttempts = this.options.maxAttempts ?? 5;
       const recoveryDelayMs = this.options.recoveryDelayMs ?? 5_000;
@@ -868,6 +923,7 @@ export class PostgresDurableJobStore implements DurableJobWorkStore {
          FROM job_runtime_state r
          JOIN job_leases l ON l.job_id=r.job_id
          WHERE l.state='active' AND l.expires_at <= $1
+           AND ($3::text IS NULL OR r.job_id=$3)
            AND NOT EXISTS (
              SELECT 1
              FROM job_disaster_recovery_decisions dr
@@ -878,7 +934,7 @@ export class PostgresDurableJobStore implements DurableJobWorkStore {
          ORDER BY l.expires_at
          FOR UPDATE OF r,l SKIP LOCKED
          LIMIT $2`,
-        [input.now, limit]
+        [input.now, jobId ? 1 : limit, jobId ?? null]
       );
       const recovered: JobRecoveryRecord[] = [];
 
