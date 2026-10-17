@@ -74,6 +74,19 @@ describe("n8n external envelope validator", () => {
     expect(validateN8nEnvelope(testBranch, sign(testBranch), baseEnv).envelope.previewHash).toBe(hash);
   });
 
+  it("rejects malformed signed scope, parameters and non-object deployment payloads", () => {
+    const invalidScope = { ...envelope(), scope: "company" };
+    expect(() => validateN8nEnvelope(invalidScope, sign(invalidScope), baseEnv)).toThrow(/Incomplete n8n envelope/);
+    const invalidParameters = { ...envelope(), parameters: ["company"] };
+    expect(() => validateN8nEnvelope(invalidParameters, sign(invalidParameters), baseEnv)).toThrow(/Incomplete n8n envelope/);
+    for (const payload of [null, "", [], 42]) {
+      const invalid = { ...envelope(), capability: "http.request", parameters: {
+        companyId: "company", connectionId: "deployment-production", operation: "deployment_health", payload
+      } };
+      expect(() => validateN8nEnvelope(invalid, sign(invalid), baseEnv)).toThrow(/read-only/i);
+    }
+  });
+
   it("returns only the configured deployment health target for a read-only request", () => {
     const value = { ...envelope(), capability: "http.request", parameters: { companyId: "company",
       connectionId: "deployment-production", operation: "deployment_health", payload: {} } };
