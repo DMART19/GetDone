@@ -8,9 +8,6 @@ import { sha256Hex } from "./postgres-backup-integrity.mjs";
 
 const baseConnectionString = process.env.DATABASE_URL?.trim();
 if (!baseConnectionString) throw new Error("DATABASE_URL is required");
-const ssl = process.env.GETDONE_DB_SSL === "false"
-  ? false
-  : { rejectUnauthorized: true };
 
 function quoteIdentifier(value) {
   return '"' + value.replaceAll('"', '""') + '"';
@@ -43,17 +40,17 @@ const restoreDatabase = `getdone_restore_verify_${suffix}`;
 const backupFile = path.join(os.tmpdir(), `getdone-backup-${suffix}.dump`);
 const manifestFile = `${backupFile}.manifest.json`;
 
+let sourceCreated = false;
 const admin = new pg.Pool({
-  connectionString: baseConnectionString,
+  ...postgresTlsConnection(baseConnectionString,process.env),
   max: 2,
-  application_name: "getdone-backup-restore-test-admin",
-  ssl
+  application_name: "getdone-backup-restore-test-admin"
 });
 
 try {
-  await admin.query(`DROP DATABASE IF EXISTS ${quoteIdentifier(sourceDatabase)} WITH (FORCE)`);
-  await admin.query(`DROP DATABASE IF EXISTS ${quoteIdentifier(restoreDatabase)} WITH (FORCE)`);
+  // Never delete pre-existing databases, even those with a test prefix.
   await admin.query(`CREATE DATABASE ${quoteIdentifier(sourceDatabase)}`);
+  sourceCreated = true;
 
   const sourceUrl = databaseUrl(sourceDatabase);
   run("scripts/migrate-postgres.mjs", {
@@ -62,10 +59,9 @@ try {
   });
 
   const source = new pg.Pool({
-    connectionString: sourceUrl,
+    ...postgresTlsConnection(sourceUrl,process.env),
     max: 4,
-    application_name: "getdone-backup-restore-source",
-    ssl
+    application_name: "getdone-backup-restore-source"
   });
   try {
     const at = "2026-09-25T05:00:00.000Z";
@@ -340,9 +336,11 @@ try {
     applicationBootability: restored.applicationBootability
   }, null, 2));
 } finally {
-  for (const databaseName of [restoreDatabase, sourceDatabase]) {
+  // Restore script owns its unique target cleanup. Drop only our own
+  // successfully created source fixture; never a pre-existing database.
+  if (sourceCreated) {
     try {
-      await admin.query(`DROP DATABASE IF EXISTS ${quoteIdentifier(databaseName)} WITH (FORCE)`);
+      await admin.query(`DROP DATABASE IF EXISTS ${quoteIdentifier(sourceDatabase)} WITH (FORCE)`);
     } catch {}
   }
   await admin.end();
