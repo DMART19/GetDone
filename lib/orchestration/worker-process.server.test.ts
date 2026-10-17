@@ -80,7 +80,7 @@ describe("DedicatedOrchestrationWorkerProcess", () => {
       if (!address || typeof address === "string") throw new Error("Expected TCP address");
       const worker = {
         start: vi.fn(async () => {}), stop: vi.fn(async () => {}), requestStop: vi.fn(),
-        isReady: vi.fn(() => false), snapshot: vi.fn(() => ({ workerId: "startup-test" }))
+        isReady: vi.fn(() => false), snapshot: vi.fn(() => ({ workerId: "startup-test", status: "starting" as const, cycles: 0, draining: false, stopped: false }))
       };
       const closeDatabase = vi.fn(async () => {});
       const controller = new DedicatedOrchestrationWorkerProcess(worker, closeDatabase,
