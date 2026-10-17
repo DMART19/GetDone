@@ -124,6 +124,7 @@ const restore = run("scripts/restore-staging-backup.mjs", {
   GETDONE_BACKUP_FILE: backupFile,
   GETDONE_BACKUP_MANIFEST: manifestFile,
   GETDONE_RESTORE_ADMIN_DATABASE_URL: isolatedAdmin.toString(),
+  GETDONE_BACKUP_SOURCE_DATABASE_URL: source.toString(),
   GETDONE_RESTORE_DATABASE_NAME: "getdone_restore_verify_" + randomUUID().replaceAll("-",""),
   GETDONE_RESTORE_KEEP_DATABASE: "false",
   PGSSLROOTCERT: process.env.GETDONE_RESTORE_PGSSLROOTCERT || process.env.PGSSLROOTCERT,
