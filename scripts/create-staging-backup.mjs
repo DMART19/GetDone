@@ -3,7 +3,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import pg from "pg";
 import { postgresTlsConnection } from "../lib/persistence/postgres/tls.ts";
-import { assertStagingBackupSource } from "./staging-backup-target-guard.mjs";
+import { assertStagingBackupSource, createPostgresCliEnvironment } from "./staging-backup-target-guard.mjs";
 import {
   fileSha256,
   readSnapshotComponents,
@@ -18,23 +18,8 @@ function required(name) {
 }
 
 function postgresCliEnv(connectionString) {
-  const url = new URL(connectionString);
-  if (!["postgres:", "postgresql:"].includes(url.protocol)) {
-    throw new Error("DATABASE_URL must be PostgreSQL");
-  }
-  return {
-    ...process.env,
-    PGHOST: url.hostname,
-    PGPORT: url.port || "5432",
-    PGDATABASE: decodeURIComponent(url.pathname.slice(1)),
-    PGUSER: decodeURIComponent(url.username),
-    PGPASSWORD: decodeURIComponent(url.password),
-    PGSSLMODE: process.env.GETDONE_DB_SSL === "false"
-      ? "disable"
-      : (url.searchParams.get("sslmode") || process.env.PGSSLMODE || "verify-full")
-  };
+  return createPostgresCliEnvironment(connectionString, process.env);
 }
-
 const runtime = required("GETDONE_RUNTIME_ENV");
 if (runtime !== "staging") {
   throw new Error("db:create-staging-backup requires GETDONE_RUNTIME_ENV=staging");
