@@ -385,7 +385,7 @@ try {
   if (targetPool) await targetPool.end();
   if (created && !keepDatabase) {
     try {
-      await adminPool.query(`DROP DATABASE IF EXISTS ${quoteIdentifier(targetDatabase)} WITH (FORCE)`);
+      // Never drop a pre-existing database. An existing verification target is a hard failure.
     } catch {}
   }
   await adminPool.end();
