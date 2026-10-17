@@ -13,7 +13,7 @@ Run from the checked-out GetDone project root in the staging shell:
 
 ```sh
 node scripts/verify-staging-runtime-config.mjs
-node scripts/verify-staging-runtime-config.mjs --connect
+node scripts/verify-staging-runtime-config.mjs --connect --workers
 ```
 
 The first command checks only the intended staging target and local settings; it is **not** proof that the service can connect. The second performs a **read-only** `SELECT 1` over PostgreSQL TLS with certificate verification enforced, then checks that the dedicated `getdone_auth_runtime` role can see a real owner and membership, while `getdone_tenant_runtime` still sees no unscoped auth data. Only a successful TLS connection and **both role-isolation checks** permit proceeding to owner enrollment. A passing TLS check alone does not prove authentication readiness.
