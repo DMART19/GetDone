@@ -83,22 +83,32 @@ async function main() {
       // Pre-authentication queries need to resolve the owner without tenant scope.
       // A granted SELECT privilege is not sufficient if row-level security hides every row.
       await client.query("BEGIN TRANSACTION READ ONLY");
-      await client.query("SET LOCAL ROLE getdone_tenant_runtime");
+      await client.query("SET LOCAL ROLE getdone_auth_runtime");
       const result = await client.query(
+        "SELECT current_user AS role, (SELECT COUNT(*) FROM auth_users) AS users, " +
+        "(SELECT COUNT(*) FROM company_memberships) AS memberships"
+      );
+      if (result.rows[0]?.role !== "getdone_auth_runtime"
+        || Number(result.rows[0]?.users) < 1 || Number(result.rows[0]?.memberships) < 1) {
+        fail("AUTH_VISIBILITY_DENIED");
+      }
+      console.log("PASS: restricted auth role can resolve an owner and business membership");
+      await client.query("SET LOCAL ROLE getdone_tenant_runtime");
+      const tenant = await client.query(
         "SELECT (SELECT COUNT(*) FROM auth_users) AS users, " +
         "(SELECT COUNT(*) FROM company_memberships) AS memberships"
       );
-      if (Number(result.rows[0]?.users) < 1 || Number(result.rows[0]?.memberships) < 1) {
-        fail("AUTH_VISIBILITY_DENIED");
+      if (Number(tenant.rows[0]?.users) !== 0 || Number(tenant.rows[0]?.memberships) !== 0) {
+        fail("TENANT_AUTH_ISOLATION_BROKEN");
       }
-      console.log("PASS: tenant runtime can resolve an owner identity and business membership");
+      console.log("PASS: business tenant role cannot read unscoped authentication data");
     } finally {
       await client.query("ROLLBACK").catch(() => {});
       client.release();
     }
   } catch (error) {
     if (transportReady) {
-      fail("staging tenant runtime cannot resolve owner authentication or memberships; review RLS boundaries");
+      fail("staging auth runtime cannot resolve authorized identity or isolation; review dedicated role migration and RLS");
     }
     fail("staging PostgreSQL connection or TLS verification failed; inspect trusted CA and private configuration");
   } finally {
