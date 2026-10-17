@@ -16,7 +16,7 @@ node scripts/verify-staging-runtime-config.mjs
 node scripts/verify-staging-runtime-config.mjs --connect
 ```
 
-The first command checks only the intended staging target and local settings; it is **not** proof that the service can connect. The second performs a **read-only** `SELECT 1` over PostgreSQL TLS with certificate verification enforced, then switches to `getdone_tenant_runtime` within a read-only transaction to check owner/auth and membership visibility. Only successful results for **both** checks permit proceeding to owner enrollment. A passing TLS check alone does not prove authentication readiness.
+The first command checks only the intended staging target and local settings; it is **not** proof that the service can connect. The second performs a **read-only** `SELECT 1` over PostgreSQL TLS with certificate verification enforced, then checks that the dedicated `getdone_auth_runtime` role can see a real owner and membership, while `getdone_tenant_runtime` still sees no unscoped auth data. Only a successful TLS connection and **both role-isolation checks** permit proceeding to owner enrollment. A passing TLS check alone does not prove authentication readiness.
 
 **Known staging blocker (2026-10-17):** the owner and membership records exist, but the effective `getdone_tenant_runtime` role cannot see them under current RLS. Tracked as [GitHub issue #133](https://github.com/DMART19/GetDone/issues/133). Do not fix this by widening tenant runtime access to all auth records or disabling RLS; a reviewed, narrowly privileged pre-authentication persistence boundary is required.
 
