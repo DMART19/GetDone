@@ -3,6 +3,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import pg from "pg";
 import { postgresTlsConnection } from "../lib/persistence/postgres/tls.ts";
+import { assertStagingBackupSource } from "./staging-backup-target-guard.mjs";
 import {
   fileSha256,
   readSnapshotComponents,
@@ -43,6 +44,7 @@ if (runtime !== "staging") {
 // group/world-readable even briefly while pg_dump is writing.
 process.umask(0o077);
 const connectionString = required("DATABASE_URL");
+assertStagingBackupSource(connectionString);
 const backupFile = path.resolve(required("GETDONE_BACKUP_FILE"));
 const manifestFile = path.resolve(
   process.env.GETDONE_BACKUP_MANIFEST?.trim() || `${backupFile}.manifest.json`
