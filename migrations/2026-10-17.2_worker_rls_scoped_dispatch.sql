@@ -142,7 +142,7 @@ CREATE OR REPLACE FUNCTION public.getdone_job_queue_depth(
 RETURNS TABLE(global_depth bigint, company_depth bigint)
 LANGUAGE plpgsql STABLE SECURITY DEFINER
 SET search_path=pg_catalog,public
-AS $
+AS $$
 BEGIN
   IF NULLIF(current_setting('getdone.portfolio_id',true),'') IS NULL
     OR NULLIF(current_setting('getdone.company_id',true),'') IS NULL
@@ -157,7 +157,7 @@ BEGIN
           AND s.envelope #>> '{scope,companyId}'=requested_company_id
       )
     FROM public.job_runtime_state s;
-END $;
+END $$;
 REVOKE ALL ON FUNCTION public.getdone_job_queue_depth(text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.getdone_job_queue_depth(text) TO getdone_tenant_runtime;
 
