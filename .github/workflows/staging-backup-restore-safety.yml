@@ -1,0 +1,60 @@
+name: Staging backup & independent restore safety
+on:
+  pull_request:
+    branches: ["staging/david-edition-conversation-integration"]
+    paths:
+      - "scripts/create-staging-backup.mjs"
+      - "scripts/restore-staging-backup.mjs"
+      - "scripts/backup-and-verify-staging.mjs"
+      - "scripts/test-staging-backup-restore.mjs"
+      - "scripts/postgres-backup-integrity.mjs"
+      - ".github/workflows/staging-backup-restore-safety.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  isolated-backup-restore:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: disposable-local-test-only
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      GETDONE_RUNTIME_ENV: staging
+      GETDONE_DB_SSL: "false"
+      GETDONE_ALLOW_ISOLATED_RESTORE_TEST: "true"
+      DATABASE_URL: postgresql://postgres:disposable-local-test-only@127.0.0.1:5432/postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm ci
+      - name: Install PostgreSQL dump and restore binaries
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y postgresql-client
+          pg_dump --version
+          pg_restore --version
+      - name: Check backup, recovery and orchestrator scripts
+        run: |
+          node --check scripts/create-staging-backup.mjs
+          node --check scripts/restore-staging-backup.mjs
+          node --check scripts/backup-and-verify-staging.mjs
+          node --check scripts/test-staging-backup-restore.mjs
+      - name: Restore disposable local database and check audit, hashes and app boot
+        run: node scripts/test-staging-backup-restore.mjs
