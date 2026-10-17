@@ -1,9 +1,10 @@
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import { describe, expect, it } from "vitest";
 import { PostgresControlApiScopeResolver } from "@/lib/control-api/postgres-auth";
 import type { PostgresTransactionalDatabase, SqlQueryable } from "@/lib/persistence/postgres/client";
 import { PostgresAuthAdapter } from "@/lib/auth/postgres-adapter";
+import { sha256Hex } from "@/lib/control-plane/canonical-hash";
 import type { AuthSession } from "@/lib/auth/contracts";
 import { PostgresRateLimiter } from "@/lib/security/rate-limit.server";
 
@@ -50,7 +51,7 @@ try {
       const tokenA = "owner-auth-token-" + suffix;
       const tokenB = "foreign-auth-token-" + suffix;
       const secondaryA = "old-owner-auth-token-" + suffix;
-      const tokenHash = (token: string) => createHash("sha256").update(token).digest("hex");
+      const tokenHash = (token: string) => sha256Hex(token);
       for (const [sessionId, userId, token] of [
         ["session-a-" + suffix, userA, tokenA],
         ["session-b-" + suffix, userB, tokenB],
