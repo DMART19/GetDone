@@ -292,6 +292,23 @@ try {
     throw new Error("Staging backup command did not produce verified evidence");
   }
 
+  // A dump on its own cannot make staging production-ready. Verification
+  // evidence must appear only after an independent restore and retained copy.
+  const preRestoreSource = new pg.Pool({
+    ...postgresTlsConnection(sourceUrl, process.env),
+    max: 1, application_name: "getdone-backup-pre-restore-assertion"
+  });
+  try {
+    const rows = await preRestoreSource.query(
+      "SELECT COUNT(*)::int AS count FROM database_backup_evidence WHERE status='verified'"
+    );
+    if (Number(rows.rows[0]?.count) !== 0) {
+      throw new Error("Backup creation incorrectly marked recovery as verified");
+    }
+  } finally {
+    await preRestoreSource.end();
+  }
+
   const restoreOutput = run("scripts/restore-staging-backup.mjs", {
     GETDONE_RUNTIME_ENV: "staging",
     GETDONE_DB_SSL: process.env.GETDONE_DB_SSL ?? "false",
