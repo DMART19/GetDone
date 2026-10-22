@@ -150,7 +150,10 @@ export class OperationalStore {
       && c.grantedUserIds.includes(this.scope.userId) && (!c.expiresAt || Date.parse(c.expiresAt) > Date.parse(now)));
     const evidence = authorizedEvidence(await this.evidence(), this.scope, metric.topic, ["public", "internal"], Date.parse(now))
       .filter(e => connections.some(c => c.id === e.authorization.connectionId && c.resources.includes(e.authorization.resourceId)));
-    const result = evaluateObjective(this.scope, objective, metric, evidence, now, previous);
+    const dependencyStatuses = Object.fromEntries((await this.list<ObjectiveRecord>("objective"))
+      .filter(o => o.portfolioId === this.scope.portfolioId && o.companyId === this.scope.companyId && o.environment === this.scope.environment)
+      .map(o => [o.id, o.status]));
+    const result = evaluateObjective(this.scope, objective, metric, evidence, now, previous, dependencyStatuses);
     await this.put("objective-evaluation", result.id, result, now);
     await this.saveInbox(evaluationInbox(this.scope, result));
     const evaluations = await this.list<ObjectiveEvaluation>("objective-evaluation");
