@@ -18,8 +18,9 @@ const started = createOrchestrationRun({
   scope, createdAt:before,updatedAt:before
 });
 const ref = (id:string) => ({id,hash:"b".repeat(64)});
+const { recordHash: _initialHash, ...startedBase } = started;
 const completeBase = {
-  ...started, state:"completed" as const, version:12, updatedAt:after,
+  ...startedBase, state:"completed" as const, version:12, updatedAt:after,
   checkpoints: {
     contextSnapshot:ref("context"),plannerInput:ref("input"),plan:ref("plan"),
     validationReceipt:ref("validation"),policySnapshot:ref("policy"),taskDag:ref("dag"),
