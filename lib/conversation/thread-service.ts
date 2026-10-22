@@ -2,6 +2,7 @@ import { sha256Hex } from "@/lib/control-plane/canonical-hash";
 import type { ControlApiApplicationAdapter, OwnerIntentRecord } from "@/lib/control-api/contracts";
 import { emptyState, interpret, prepareTurn, resolveBusiness, type ConversationState, type RegisteredBusiness } from "./understanding";
 import { ControlPlaneError } from "@/lib/control-plane/errors";
+import { ownerOutcomeMessage } from "./outcome-message";
 export type TurnStatus = NonNullable<Awaited<ReturnType<NonNullable<ControlApiApplicationAdapter["getOwnerIntentStatus"]>>>>;
 export interface ThreadTurn { record: OwnerIntentRecord; status: TurnStatus }
 export function restoreState(turns: readonly ThreadTurn[]): ConversationState {
@@ -17,12 +18,17 @@ export function restoreState(turns: readonly ThreadTurn[]): ConversationState {
   }
   if (last.record.status === "accepted") {
     if (last.status.lifecycle.verified) {
-      state.lastFinding = `${last.status.lifecycle.label}. Verification receipts: ${(last.status.verificationRefs ?? []).join(", ")}`;
+      state.lastFinding = ownerOutcomeMessage({
+        label: last.status.lifecycle.label, verified: true, terminal: last.status.lifecycle.terminal,
+        verificationRefs: last.status.verificationRefs ?? []
+      });
       state.evidenceRefs = last.status.verificationRefs ?? [];
       state.selectedAction = undefined;
       state.proposedActions = [];
     } else if (last.status.lifecycle.terminal) {
-      state.question = last.status.lifecycle.label;
+      state.question = ownerOutcomeMessage({
+        label: last.status.lifecycle.label, verified: false, terminal: true
+      });
       state.selectedAction = undefined;
     }
   }
