@@ -52,6 +52,9 @@ describe("guarded coordinator re-entry",()=>{
     expect(()=>createGuardedContinuation({...input,outcome:{...outcome,verificationReceiptHash:"0".repeat(64)}})).toThrow();
     expect(()=>createGuardedContinuation({...input,objective:{...objective,companyId:"another"}})).toThrow();
     expect(()=>createGuardedContinuation({...input,predecessor:{...predecessor,recordHash:"wrong"}})).toThrow();
+    const mismatched = {...completeBase, checkpoints: {...completeBase.checkpoints,
+      verifiedOutcomes:[{id:"unrelated",verificationReceiptId:"different",verificationReceiptHash:"f".repeat(64)}]}};
+    expect(()=>createGuardedContinuation({...input,predecessor:{...mismatched,recordHash:sha256Hex(mismatched)} as OrchestrationRunRecord})).toThrow();
   });
   it("blocks completed, owner-held, dependent and unmeasurable objectives",()=>{
     for(const status of ["completed","blocked","needs_owner_input"] as const)
