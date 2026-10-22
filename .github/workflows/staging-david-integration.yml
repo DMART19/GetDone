@@ -84,6 +84,8 @@ jobs:
       - run: npx vitest run lib/auth/auth-runtime-boundary.integration.test.ts lib/execution/worker-rls-boundary.integration.test.ts
       - name: Build disposable worker crash-restart child process
         run: npm run build:worker-acceptance
+      - name: Disposable PostgreSQL guarded re-entry concurrency
+        run: npx vitest run lib/orchestration/guarded-continuation.postgres.integration.test.ts
       - name: Disposable PostgreSQL concurrent workers and crash-restart
         run: npx vitest run lib/execution/queue-backpressure-postgres.integration.test.ts lib/execution/worker-crash-restart.integration.test.ts --maxWorkers=2
 
