@@ -2,7 +2,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 
 const fixture = vi.hoisted(() => ({
   proposals: [] as Record<string,unknown>[],
-  persisted: vi.fn(async () => "created" as "created" | "replayed" | "ineligible"),
+  persisted: vi.fn(async (_input: unknown) => "created" as "created" | "replayed" | "ineligible"),
   runStoreCreated: vi.fn()
 }));
 vi.mock("@/lib/operations/store.server", () => ({
