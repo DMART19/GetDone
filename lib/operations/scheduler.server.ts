@@ -24,9 +24,6 @@ export async function runObjectiveEvaluationPass(db: PostgresTransactionalDataba
       const objectives = await store.list<ObjectiveRecord>("objective");
       const metrics = await store.list<unknown>("objective-metric");
       await store.captureVerifiedOutcomes(now);
-      const reentry = await runGuardedObjectiveReentry(db,
-        { userId, portfolioId: business.portfolioId, companyId: business.id, environment }, now, continuationEnabled);
-      reentered += reentry.created;
       await store.refreshInbox(now);
       for (const raw of metrics) {
         const metric = metricSchema.safeParse(raw);
@@ -35,6 +32,10 @@ export async function runObjectiveEvaluationPass(db: PostgresTransactionalDataba
         if (!objective || ["completed", "cancelled"].includes(objective.status)) continue;
         await store.evaluateScheduled(objective, metric.data, now); evaluated++;
       }
+      const reentry = await runGuardedObjectiveReentry(db,
+        { userId, portfolioId: business.portfolioId, companyId: business.id, environment }, now, continuationEnabled);
+      reentered += reentry.created;
+
     });
   }
   return { evaluated, reentered, consequentialActionsExecuted: 0 as const };
