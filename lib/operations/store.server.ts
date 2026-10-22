@@ -13,6 +13,7 @@ import type { BusinessActionExecutionRecord } from "@/lib/execution/business-act
 import type { AuthoritativeDecision } from "@/lib/domain/decision-service";
 import type { JobRecord } from "@/lib/domain/services/job-service";
 import { authorizedEvidence } from "./evidence";
+import { adviseObjectiveContinuation } from "./objective-continuation";
 
 export class OperationalStore {
   constructor(private readonly db: SqlQueryable, readonly scope: OperationScope) {}
@@ -140,7 +141,42 @@ export class OperationalStore {
         // Verification of branch creation alone is not evidence of business improvement.
         objectiveImpact: null, observedAt: receipt.verifiedAt };
       const outcome: VerifiedOutcome = { ...base, outcomeHash: sha256Hex(base) };
-      if (!existing.has(outcome.id)) await this.put("verified-outcome", outcome.id, { ...base, outcomeHash: outcome.outcomeHash }, now);
+      if (!existing.has(outcome.id)) {
+        await this.put("verified-outcome", outcome.id, { ...base, outcomeHash: outcome.outcomeHash }, now);
+        // A verified provider action may justify more work, but never proves
+        // business impact and never creates execution authority by itself.
+        if (outcome.objectiveId) {
+          const objectives = await this.list<ObjectiveRecord>("objective");
+          const objective = objectives.find(item => item.id === outcome.objectiveId
+            && item.createdByUserId === this.scope.userId);
+          if (objective) {
+            const dependencies = Object.fromEntries(objectives.map(item => [item.id, item.status]));
+            const recommendation = adviseObjectiveContinuation(objective, dependencies);
+            const continuationId = `continuation:${sha256Hex({ objectiveId: objective.id, outcomeHash: outcome.outcomeHash })}`;
+            await this.put("objective-continuation-proposal", continuationId, {
+              id: continuationId, portfolioId: this.scope.portfolioId, companyId: this.scope.companyId,
+              environment: this.scope.environment, userId: this.scope.userId,
+              objectiveId: objective.id, outcomeId: outcome.id, verificationReceiptHash: receiptHash,
+              decision: recommendation.decision, reason: recommendation.reason,
+              requiresAdmission: recommendation.requiresAdmission, consequentialExecutionAuthorized: false,
+              observedAt: now
+            }, now);
+            if (recommendation.requiresAdmission) {
+              await this.saveInbox({
+                id: inboxObjectId(this.scope, "objective-continuation", continuationId),
+                portfolioId: this.scope.portfolioId, companyId: this.scope.companyId,
+                environment: this.scope.environment, userId: this.scope.userId,
+                objectType: "objective-continuation", objectId: continuationId,
+                kind: "recommendation", state: "open",
+                summary: "Verified work finished. Review the next governed step: " + recommendation.reason,
+                urgency: 0.5, impact: 0.6, confidence: 0.85,
+                createdAt: now, updatedAt: now, sensitivity: "internal",
+                nextAction: { label: "Review objective", href: `/objectives/${encodeURIComponent(objective.id)}` }
+              });
+            }
+          }
+        }
+      }
     }
   }
   /** No adapter, broker, policy grant or execution dependency is available to this scheduler. */
