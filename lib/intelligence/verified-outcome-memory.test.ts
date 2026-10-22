@@ -4,7 +4,7 @@ import type { VerifiedOutcome } from "@/lib/operations/outcomes";
 import { verifiedOutcomeMemory } from "./verified-outcome-memory";
 
 const time = Date.parse("2026-10-22T12:00:00Z");
-const scope = { userId:"owner", portfolioId:"portfolio", companyId:"company", environment:"staging" };
+const scope = { userId:"owner", portfolioId:"portfolio", companyId:"company", environment:"staging" as const };
 const base = {
   id:"outcome-1",scope,topic:"revenue",findingId:"finding",recommendationId:"recommendation",
   recommendationKind:"github_repository_health",predictedOutcome:"validated",
