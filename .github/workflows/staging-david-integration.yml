@@ -123,22 +123,7 @@ jobs:
       - run: npm run verify:zero-downtime-migrations
       - run: npm run verify:architecture
       - run: npm run verify:secrets
-  browser-acceptance:
-    name: chromium-desktop-mobile
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    container:
-      image: mcr.microsoft.com/playwright:v1.63.0-noble
-    env:
-      GETDONE_DAVID_EDITION: "true"
-      HOME: /root
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "24"
-          cache: npm
-      - run: npm ci
-      - name: Chromium desktop and mobile acceptance
-        timeout-minutes: 10
-        run: npx playwright test e2e/david-edition-cosmos.spec.ts e2e/david-edition-contract.spec.ts --project=desktop-chromium --project=mobile-chromium
+      - run: npx playwright install --with-deps chromium
+      - run: npx playwright test e2e/david-edition-cosmos.spec.ts e2e/david-edition-contract.spec.ts --project=desktop-chromium --project=mobile-chromium
+        env:
+          GETDONE_DAVID_EDITION: "true"
