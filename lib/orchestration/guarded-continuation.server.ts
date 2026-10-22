@@ -1,3 +1,4 @@
+import { ControlPlaneError } from "@/lib/control-plane/errors";
 import type { ObjectiveRecord } from "@/lib/domain/objective-inbox";
 import type { OrchestrationRunRecord } from "@/lib/orchestration/contracts";
 import { PostgresOrchestrationRunStore } from "@/lib/persistence/postgres/orchestration-store";
@@ -6,6 +7,17 @@ import { OperationalStore } from "@/lib/operations/store.server";
 import type { VerifiedOutcome } from "@/lib/operations/outcomes";
 import type { ObjectiveEvaluation } from "@/lib/operations/objective-evaluation";
 import { persistGuardedContinuation } from "./guarded-continuation";
+
+async function retrySerializable<T>(operation: () => Promise<T>): Promise<T> {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try { return await operation(); }
+    catch (error) {
+      if (!(error instanceof ControlPlaneError) || error.code !== "CONFLICT"
+        || error.details?.postgresCode !== "40001" || attempt === 2) throw error;
+    }
+  }
+  throw new ControlPlaneError("CONFLICT", "Serializable transaction retry limit reached");
+}
 
 /**
  * Opt-in execution entry point. The only mutation is creating an accepted,
@@ -32,7 +44,7 @@ export async function runGuardedObjectiveReentry(
       || proposal.userId !== scope.userId || proposal.portfolioId !== scope.portfolioId
       || proposal.companyId !== scope.companyId || proposal.environment !== scope.environment) continue;
     // Serialize competing scheduler instances against the same company+objective.
-    const result = await db.transaction(async client => {
+    const result = await retrySerializable(() => db.transaction(async client => {
       await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", [
         `objective-reentry:${scope.portfolioId}:${scope.companyId}:${proposal.objectiveId}`
       ]);
@@ -90,7 +102,7 @@ export async function runGuardedObjectiveReentry(
           create: (candidate, key) => store.createInTransaction(client, candidate, key)
         }
       });
-    });
+    }));
     if (result === "created") created++;
     if (result === "replayed") replayed++;
   }
