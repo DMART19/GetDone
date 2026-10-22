@@ -36,7 +36,7 @@ const outcomeBase = {
   recommendationKind:"github_repository_health",predictedOutcome:"validated",approvedPreviewHash:"a".repeat(64),
   executionReceiptId:"execution",executionReceiptHash:"b".repeat(64),
   verificationReceiptId:"receipt",verificationReceiptHash:"d".repeat(64),
-  verificationResult:"verified" as const,objectiveImpact:null,observedAt:"2026-10-22T11:00:00Z",objectiveId:objective.id
+  verificationResult:"verified" as const,objectiveImpact:null,jobId:"job",observedAt:"2026-10-22T11:00:00Z",objectiveId:objective.id
 };
 const outcome:VerifiedOutcome = {...outcomeBase,outcomeHash:sha256Hex(outcomeBase)};
 const input = {objective,outcome,predecessor,runCount:1,now:after};
@@ -52,8 +52,7 @@ describe("guarded coordinator re-entry",()=>{
     expect(()=>createGuardedContinuation({...input,outcome:{...outcome,verificationReceiptHash:"0".repeat(64)}})).toThrow();
     expect(()=>createGuardedContinuation({...input,objective:{...objective,companyId:"another"}})).toThrow();
     expect(()=>createGuardedContinuation({...input,predecessor:{...predecessor,recordHash:"wrong"}})).toThrow();
-    const mismatched = {...completeBase, checkpoints: {...completeBase.checkpoints,
-      verifiedOutcomes:[{id:"unrelated",verificationReceiptId:"different",verificationReceiptHash:"f".repeat(64)}]}};
+    const mismatched = {...completeBase, checkpoints: {...completeBase.checkpoints, jobIds:["different-job"]}};
     expect(()=>createGuardedContinuation({...input,predecessor:{...mismatched,recordHash:sha256Hex(mismatched)} as OrchestrationRunRecord})).toThrow();
   });
   it("blocks completed, owner-held, dependent and unmeasurable objectives",()=>{
