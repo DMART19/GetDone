@@ -19,6 +19,7 @@ const started = createOrchestrationRun({
 });
 const ref = (id:string) => ({id,hash:"b".repeat(64)});
 const { recordHash: _initialHash, ...startedBase } = started;
+void _initialHash;
 const completeBase = {
   ...startedBase, state:"completed" as const, version:12, updatedAt:after,
   checkpoints: {
