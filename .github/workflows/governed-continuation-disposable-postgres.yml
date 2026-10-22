@@ -48,6 +48,8 @@ jobs:
         run: npm run db:migrate
       - name: Guarded reentry and related regressions
         run: npx vitest run lib/orchestration/guarded-continuation.test.ts lib/orchestration/guarded-continuation.server.test.ts lib/orchestration/governed-reasoning.test.ts lib/operations/objective-evaluation.continuation.test.ts
+      - name: Build disposable worker crash-restart child process
+        run: npm run build:worker-acceptance
       - name: Concurrency, restart, and tenant RLS against PostgreSQL
         run: npx vitest run lib/execution/queue-backpressure-postgres.integration.test.ts lib/execution/worker-crash-restart.integration.test.ts lib/auth/auth-runtime-boundary.integration.test.ts lib/execution/worker-rls-boundary.integration.test.ts --maxWorkers=2
       - name: Full deterministic regression suite
