@@ -28,7 +28,6 @@ export function createGuardedContinuation(input: VerifiedContinuationInput): Orc
     || outcome.objectiveId !== objective.id
     || predecessor.source.type !== "objective" || predecessor.source.id !== objective.id
     || predecessor.state !== "completed" || predecessor.checkpoints.verifiedOutcomes.length === 0
-    || Date.parse(predecessor.createdAt) >= Date.parse(outcome.observedAt)
     || objective.portfolioId !== predecessor.scope.portfolioId
     || objective.companyId !== predecessor.scope.companyId
     || objective.environment !== predecessor.scope.environment
@@ -39,6 +38,8 @@ export function createGuardedContinuation(input: VerifiedContinuationInput): Orc
     || outcome.scope.environment !== predecessor.scope.environment
   ) throw new ControlPlaneError("FORBIDDEN", "Continuation requires verified, scoped and completed predecessor lineage");
 
+  // A newer completed run must not be restarted using an older outcome.
+  if (Date.parse(predecessor.createdAt) >= Date.parse(outcome.observedAt)) return null;
   const decision = adviseObjectiveContinuation(objective, {});
   // Unknown dependencies must fail closed. No re-entry on ambiguous or blocked status.
   if (decision.decision !== "continue_existing_plan") return null;
