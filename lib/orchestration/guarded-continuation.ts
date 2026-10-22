@@ -27,7 +27,10 @@ export function createGuardedContinuation(input: VerifiedContinuationInput): Orc
     || !Number.isFinite(Date.parse(outcome.observedAt)) || Date.parse(outcome.observedAt) > Date.parse(input.now)
     || outcome.objectiveId !== objective.id
     || predecessor.source.type !== "objective" || predecessor.source.id !== objective.id
-    || predecessor.state !== "completed" || predecessor.checkpoints.verifiedOutcomes.length === 0
+    || predecessor.state !== "completed"
+    || !predecessor.checkpoints.verifiedOutcomes.some(ref =>
+      ref.verificationReceiptId === outcome.verificationReceiptId
+      && ref.verificationReceiptHash === outcome.verificationReceiptHash)
     || objective.portfolioId !== predecessor.scope.portfolioId
     || objective.companyId !== predecessor.scope.companyId
     || objective.environment !== predecessor.scope.environment
