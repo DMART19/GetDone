@@ -28,6 +28,7 @@ export function createGuardedContinuation(input: VerifiedContinuationInput): Orc
     || outcome.objectiveId !== objective.id
     || predecessor.source.type !== "objective" || predecessor.source.id !== objective.id
     || predecessor.state !== "completed" || predecessor.checkpoints.verifiedOutcomes.length === 0
+    || Date.parse(predecessor.createdAt) >= Date.parse(outcome.observedAt)
     || objective.portfolioId !== predecessor.scope.portfolioId
     || objective.companyId !== predecessor.scope.companyId
     || objective.environment !== predecessor.scope.environment
