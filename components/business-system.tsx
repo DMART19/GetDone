@@ -5,6 +5,7 @@ import Link from "next/link";
 import { DavidUniverseScene } from "@/components/david-universe-scene";
 import { summarizeBusinessCapabilities } from "@/lib/businesses/capability-summary";
 import { businessAttention } from "@/lib/businesses/attention-summary";
+import type { PortfolioAttentionOverview } from "@/lib/businesses/portfolio-attention";
 import { businessSections, type Business, type BusinessContext, type BusinessSection } from "@/lib/businesses/contracts";
 
 async function read<T>(url: string, signal: AbortSignal): Promise<T> {
@@ -26,6 +27,8 @@ async function read<T>(url: string, signal: AbortSignal): Promise<T> {
 export function BusinessSystem({ cinematic = false }: { cinematic?: boolean }) {
   const [businesses, setBusinesses] = useState<Business[] | null>(null);
   const [error, setError] = useState("");
+  const [portfolioAttention, setPortfolioAttention] = useState<PortfolioAttentionOverview | null>(null);
+  const [portfolioAttentionError, setPortfolioAttentionError] = useState(false);
   const [retry, setRetry] = useState(0);
   const [page, setPage] = useState(0);
   const [selected, setSelected] = useState<Business | null>(null);
@@ -48,6 +51,16 @@ export function BusinessSystem({ cinematic = false }: { cinematic?: boolean }) {
     });
     return () => controller.abort();
   }, [retry]);
+
+  useEffect(() => {
+    if (!businesses || businesses.length < 2) { setPortfolioAttention(null); return; }
+    const controller = new AbortController();
+    setPortfolioAttentionError(false);
+    void read<PortfolioAttentionOverview>("/api/businesses?view=attention", controller.signal)
+      .then(value => { if (!controller.signal.aborted) setPortfolioAttention(value); })
+      .catch(() => { if (!controller.signal.aborted) setPortfolioAttentionError(true); });
+    return () => controller.abort();
+  }, [businesses]);
 
   useEffect(() => {
     if (!selected) return;
@@ -153,6 +166,20 @@ export function BusinessSystem({ cinematic = false }: { cinematic?: boolean }) {
           <button disabled={(page + 1) * 6 >= businesses.length} onClick={() => setPage(page + 1)}>Next</button>
         </nav>}
       </div>
+      {businesses && businesses.length > 1 && <section className="de-business-attention" aria-label="Portfolio owner attention">
+        <h2>Across your businesses</h2>
+        <p>Owner decisions and recorded operational blockers, ranked across your accessible businesses.</p>
+        {portfolioAttentionError ? <p role="status">Portfolio attention is unavailable. Individual business records remain accessible.</p>
+          : !portfolioAttention ? <p role="status">Checking recorded portfolio attention…</p>
+          : portfolioAttention.items.length ? <ul>{portfolioAttention.items.map(item => <li key={item.id}>
+              <div><strong>{item.businessName}: {item.title}</strong><small>{item.kind.replaceAll("_", " ")} · {item.status.replaceAll("_", " ")}</small></div>
+              <button type="button" onClick={() => {
+                const business = businesses.find(b => b.id === item.businessId && b.portfolioId === item.portfolioId);
+                if (business) { setSelected(business); setSection(item.section); }
+              }}>Review</button>
+            </li>)}</ul> : <p>No actionable items in the available records.</p>}
+        {portfolioAttention && <small>{portfolioAttention.note}{portfolioAttention.incomplete ? " Additional records or businesses may not be included." : ""}</small>}
+      </section>}
       {selected && <section id="business-context" ref={panel} tabIndex={-1} className="business-context" aria-label={`${selected.name} business context`}>
         <div className="business-context-heading"><div><span className="business-eyebrow">BUSINESS CONTEXT</span><h2>{selected.name}</h2></div>
           <button aria-label="Close business context" onClick={() => { setSelected(null); setContext(null); selectedButton.current?.focus(); }}>Close</button></div>
