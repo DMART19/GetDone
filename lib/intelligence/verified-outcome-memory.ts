@@ -11,7 +11,10 @@ export function verifiedOutcomeMemory(
 ): readonly ContextItem[] {
   const cap = Math.max(0, Math.min(12, Math.floor(limit)));
   const selected: ContextItem[] = [];
-  for (const outcome of [...outcomes].sort((a, b) => b.observedAt.localeCompare(a.observedAt))) {
+  for (const outcome of [...outcomes].sort((a, b) =>
+    String(b?.observedAt ?? "").localeCompare(String(a?.observedAt ?? "")))) {
+    if (!outcome || typeof outcome !== "object" || !outcome.scope
+      || typeof outcome.observedAt !== "string") continue;
     const { outcomeHash, ...payload } = outcome;
     const seenAt = Date.parse(outcome.observedAt);
     if (selected.length >= cap) break;
