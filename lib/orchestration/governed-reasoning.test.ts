@@ -22,6 +22,16 @@ describe("bounded AI Gateway handoffs",()=>{
   const h=boundedReasoningHandoffs(stub([item("valid","business"),item("foreign","other"),item("stale","business","2025-01-01T12:00:00Z")]));
   expect(h[0].contextIds).toEqual(["valid"]);
  });
+ it("prioritizes verified outcome memory for strategy but policies for planning",()=>{
+  const facts = item("fact","business");
+  const memory = {...item("memory","business"),kind:"memory"};
+  const outcome = {...item("outcome","business"),kind:"outcome"};
+  const policy = {...item("policy","business"),kind:"policy"};
+  const turns=boundedReasoningHandoffs(stub([facts,policy,memory,outcome]));
+  expect(turns[1].contextIds[0]).toBe("outcome");
+  expect(turns[2].contextIds[0]).toBe("policy");
+  expect(turns.every(turn=>turn.contextIds.length<=8)).toBe(true);
+ });
  it("respects zero-handoff mode",()=>{
   expect(boundedReasoningHandoffs(stub([]),{maxHandoffs:0})).toEqual([]);
  });
