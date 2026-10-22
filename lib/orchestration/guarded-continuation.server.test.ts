@@ -27,11 +27,15 @@ const proposal = {id:"continuation-1",userId:"owner",portfolioId:"portfolio",com
 const objective = {id:"objective-1",createdByUserId:"owner",portfolioId:"portfolio",companyId:"company",environment:"staging"};
 const outcome = {id:"outcome-1",verificationReceiptHash:"a".repeat(64)};
 const predecessor = {state:"completed",id:"run",source:{type:"objective",id:"objective-1"}};
-function database(options:{runs?:object[];receiptHash?:string}={}) {
+const measurement = {objectiveId:"objective-1",portfolioId:"portfolio",companyId:"company",environment:"staging",
+  metricHash:"m",achieved:false,current:2,ownerInputRequired:false,evidenceIds:["evidence"],missingEvidence:[],
+  observedAt:"2026-10-22T11:59:00Z"};
+function database(options:{runs?:object[];receiptHash?:string;measurements?:object[]}={}) {
   const query=vi.fn(async (sql:string) => {
     if(sql.includes("pg_advisory_xact_lock"))return {rows:[],rowCount:1};
     if(sql.includes("entity_type='objective'")) return {rows:[{payload:objective}],rowCount:1};
     if(sql.includes("entity_type='verified-outcome'")) return {rows:[{payload:{...outcome,verificationReceiptHash:options.receiptHash??outcome.verificationReceiptHash}}],rowCount:1};
+    if(sql.includes("entity_type=\'objective-evaluation\'"))return {rows:(options.measurements??[measurement]).map(payload=>({payload})),rowCount:1};
     if(sql.includes("FROM orchestration_runs"))return {rows:(options.runs??[predecessor]).map(payload=>({payload})),rowCount:1};
     return {rows:[],rowCount:0};
   });
@@ -58,6 +62,14 @@ describe("scheduler-to-coordinator guarded integration",()=>{
   it("does not re-enter while an earlier objective run is active",async()=>{
     const {db}=database({runs:[{...predecessor,state:"executing"}]});
     expect(await runGuardedObjectiveReentry(db,scope,now,true)).toEqual({created:0,replayed:0});
+    expect(fixture.persisted).not.toHaveBeenCalled();
+  });
+  it("rejects achieved, missing, stale or pre-outcome measurements",async()=>{
+    const cases = [[], [{...measurement,achieved:true}], [{...measurement,observedAt:"2026-10-21T00:00:00Z"}], [{...measurement,current:null}]];
+    for (const measurements of cases) {
+      const {db}=database({measurements});
+      expect(await runGuardedObjectiveReentry(db,scope,now,true)).toEqual({created:0,replayed:0});
+    }
     expect(fixture.persisted).not.toHaveBeenCalled();
   });
   it("passes a completed predecessor to the guarded admission function",async()=>{
