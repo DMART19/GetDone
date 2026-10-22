@@ -79,12 +79,13 @@ try {
         verificationReceiptHash: outcome.verificationReceiptHash,
         requiresAdmission: true, consequentialExecutionAuthorized: false
       }, now);
-      await store.put("objective-evaluation", "measurement-" + suffix, {
+      const measurement = {
         id: "measurement-" + suffix, portfolioId: scope.portfolioId, companyId: scope.companyId,
         environment: scope.environment, objectiveId: objective.id, observedAt: observed,
         current: 8, achieved: false, metricHash: sha256Hex({ key: "monthlyRevenue" }),
         ownerInputRequired: false, evidenceIds: ["evidence-" + suffix], missingEvidence: []
-      }, now);
+      };
+      await store.put("objective-evaluation", measurement.id, { ...measurement, achieved: true }, now);
       await dbA.query(`INSERT INTO orchestration_runs
         (id,correlation_id,portfolio_id,company_id,user_id,environment,source_type,source_id,source_hash,
           state,authority,version,attempt,start_idempotency_key,record_hash,checkpoints,payload,created_at,updated_at)
@@ -94,6 +95,13 @@ try {
         "test:" + suffix, predecessor.recordHash, JSON.stringify(predecessor.checkpoints),
         JSON.stringify(predecessor), predecessor.createdAt, predecessor.updatedAt
       ]);
+      // A recent achieved measurement must block scheduling even with a valid
+      // completed predecessor and independently verified provider result.
+      expect((await runGuardedObjectiveReentry(dbA, scope, now, true)).created).toBe(0);
+      await store.put("objective-evaluation", measurement.id,
+        { ...measurement, observedAt: "2026-10-20T11:00:00.000Z" }, now);
+      expect((await runGuardedObjectiveReentry(dbA, scope, now, true)).created).toBe(0);
+      await store.put("objective-evaluation", measurement.id, measurement, now);
       const [first, second] = await Promise.all([
         runGuardedObjectiveReentry(dbA, scope, now, true),
         runGuardedObjectiveReentry(dbB, scope, now, true)
