@@ -13,6 +13,7 @@ import type { BusinessActionExecutionRecord } from "@/lib/execution/business-act
 import type { AuthoritativeDecision } from "@/lib/domain/decision-service";
 import type { JobRecord } from "@/lib/domain/services/job-service";
 import { authorizedEvidence } from "./evidence";
+import { adviseObjectiveContinuation } from "./objective-continuation";
 
 export class OperationalStore {
   constructor(private readonly db: SqlQueryable, readonly scope: OperationScope) {}
@@ -107,6 +108,7 @@ export class OperationalStore {
   }
   async captureVerifiedOutcomes(now: string) {
     const existing = new Set((await this.list<VerifiedOutcome>("verified-outcome")).map(o => o.id));
+    const recordedContinuations = new Set((await this.list<{ id: string }>("objective-continuation-proposal")).map(o => o.id));
     const result = await this.db.query<{ job: JobRecord; decision: AuthoritativeDecision; receipt: VerificationReceipt; execution: BusinessActionExecutionRecord }>(
       `SELECT j.payload AS job,d.payload AS decision,v.payload AS receipt,b.payload AS execution
        FROM control_plane_entities j JOIN verification_receipts v ON v.id=j.payload->>'verificationReceiptId'
@@ -134,13 +136,51 @@ export class OperationalStore {
         portfolioId: this.scope.portfolioId, companyId: this.scope.companyId, environment: this.scope.environment,
         topic: "deployment", findingId: step.evidenceIds[0] ?? `plan:${preview.planHash}`, recommendationId: step.id,
         objectiveId: plan.proposal.source.type === "objective" ? plan.proposal.source.objectiveId : undefined,
+        jobId: job.id,
         recommendationKind: preview.workflow, predictedOutcome: step.expectedOutcome, approvedPreviewHash: preview.previewHash,
         executionReceiptId: execution.requestId, executionReceiptHash: recordHash, verificationReceiptId: receipt.id,
         verificationReceiptHash: receiptHash, verificationResult: "verified" as const,
         // Verification of branch creation alone is not evidence of business improvement.
         objectiveImpact: null, observedAt: receipt.verifiedAt };
       const outcome: VerifiedOutcome = { ...base, outcomeHash: sha256Hex(base) };
-      if (!existing.has(outcome.id)) await this.put("verified-outcome", outcome.id, { ...base, outcomeHash: outcome.outcomeHash }, now);
+      const continuationKey = outcome.objectiveId
+        ? `continuation:${sha256Hex({ objectiveId: outcome.objectiveId, outcomeHash: outcome.outcomeHash })}` : undefined;
+      if (!existing.has(outcome.id) || (continuationKey && !recordedContinuations.has(continuationKey))) {
+        if (!existing.has(outcome.id)) await this.put("verified-outcome", outcome.id, { ...base, outcomeHash: outcome.outcomeHash }, now);
+        // A verified provider action may justify more work, but never proves
+        // business impact and never creates execution authority by itself.
+        if (outcome.objectiveId) {
+          const objectives = await this.list<ObjectiveRecord>("objective");
+          const objective = objectives.find(item => item.id === outcome.objectiveId
+            && item.createdByUserId === this.scope.userId);
+          if (objective) {
+            const dependencies = Object.fromEntries(objectives.map(item => [item.id, item.status]));
+            const recommendation = adviseObjectiveContinuation(objective, dependencies);
+            const continuationId = continuationKey!;
+            await this.put("objective-continuation-proposal", continuationId, {
+              id: continuationId, portfolioId: this.scope.portfolioId, companyId: this.scope.companyId,
+              environment: this.scope.environment, userId: this.scope.userId,
+              objectiveId: objective.id, outcomeId: outcome.id, verificationReceiptHash: receiptHash,
+              decision: recommendation.decision, reason: recommendation.reason,
+              requiresAdmission: recommendation.requiresAdmission, consequentialExecutionAuthorized: false,
+              observedAt: now
+            }, now);
+            if (recommendation.requiresAdmission) {
+              await this.saveInbox({
+                id: inboxObjectId(this.scope, "objective-continuation", continuationId),
+                portfolioId: this.scope.portfolioId, companyId: this.scope.companyId,
+                environment: this.scope.environment, userId: this.scope.userId,
+                objectType: "objective-continuation", objectId: continuationId,
+                kind: "recommendation", state: "open",
+                summary: "Verified work finished. Review the next governed step: " + recommendation.reason,
+                urgency: 0.5, impact: 0.6, confidence: 0.85,
+                createdAt: now, updatedAt: now, sensitivity: "internal",
+                nextAction: { label: "Review objective", href: `/objectives/${encodeURIComponent(objective.id)}` }
+              });
+            }
+          }
+        }
+      }
     }
   }
   /** No adapter, broker, policy grant or execution dependency is available to this scheduler. */
@@ -150,7 +190,10 @@ export class OperationalStore {
       && c.grantedUserIds.includes(this.scope.userId) && (!c.expiresAt || Date.parse(c.expiresAt) > Date.parse(now)));
     const evidence = authorizedEvidence(await this.evidence(), this.scope, metric.topic, ["public", "internal"], Date.parse(now))
       .filter(e => connections.some(c => c.id === e.authorization.connectionId && c.resources.includes(e.authorization.resourceId)));
-    const result = evaluateObjective(this.scope, objective, metric, evidence, now, previous);
+    const dependencyStatuses = Object.fromEntries((await this.list<ObjectiveRecord>("objective"))
+      .filter(o => o.portfolioId === this.scope.portfolioId && o.companyId === this.scope.companyId && o.environment === this.scope.environment)
+      .map(o => [o.id, o.status]));
+    const result = evaluateObjective(this.scope, objective, metric, evidence, now, previous, dependencyStatuses);
     await this.put("objective-evaluation", result.id, result, now);
     await this.saveInbox(evaluationInbox(this.scope, result));
     const evaluations = await this.list<ObjectiveEvaluation>("objective-evaluation");

@@ -1,4 +1,5 @@
 import type { AIGateway } from "@/lib/ai-gateway/gateway";
+import { boundedReasoningHandoffs } from "@/lib/orchestration/governed-reasoning";
 import type {
   AIBudgetSnapshot,
   AIRequestEnvelope
@@ -129,8 +130,9 @@ export class AIGatewayDurablePlanner implements DurablePlanner {
         contractVersion: "PlanProposalSchema",
         idempotencyKey: input.idempotencyKey,
         plannerInput: input.plannerInput,
+        reasoningHandoffs: boundedReasoningHandoffs(input.plannerInput),
         instruction:
-          "Return only a PlanProposal matching the provided schema. Treat PlannerInput as the complete business reasoning context. Do not invent or fetch external facts."
+          "Process bounded advisory reasoningHandoffs in their listed order (researcher, strategist, planner) using only the authorized PlannerInput context. Return only a PlanProposal matching the schema. Do not invent or fetch external facts. None of these roles can grant approval, execute actions, or establish verification truth."
       },
       outputSchema: PlanProposalSchema,
       budget,

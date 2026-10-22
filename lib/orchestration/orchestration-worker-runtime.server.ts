@@ -3,6 +3,8 @@ import { OperationalStore } from "@/lib/operations/store.server";
 import { capabilityMap } from "@/lib/operations/capability-map";
 import { createExecutionPreview } from "@/lib/operations/preview";
 import { authorizedEvidence } from "@/lib/operations/evidence";
+import { verifiedOutcomeMemory } from "@/lib/intelligence/verified-outcome-memory";
+import type { VerifiedOutcome } from "@/lib/operations/outcomes";
 import type { AIBudgetSnapshot } from "@/lib/ai-gateway/contracts";
 import { ControlPlaneError } from "@/lib/control-plane/errors";
 import type { ObjectiveRecord } from "@/lib/domain/objective-inbox";
@@ -511,6 +513,7 @@ function authoritativeContextCandidates(db: PostgresTransactionalDatabase) {
     };
     const store = new OperationalStore(db, run.scope);
     const at = Date.now();
+    const memory = verifiedOutcomeMemory(await store.list<VerifiedOutcome>("verified-outcome"), run.scope, at);
     const connections = (await store.connections()).filter(c => c.status === "healthy"
       && c.grantedUserIds.includes(run.scope.userId) && (!c.expiresAt || Date.parse(c.expiresAt) > at));
     const evidence = authorizedEvidence(await store.evidence(), run.scope, undefined, ["public", "internal"], at)
@@ -522,7 +525,7 @@ function authoritativeContextCandidates(db: PostgresTransactionalDatabase) {
       sensitivity: e.sensitivity, content: JSON.stringify({ summary: e.summary, facts: e.facts,
         connectionId: e.authorization.connectionId, resourceId: e.authorization.resourceId })
     }));
-    return Object.freeze([...normalized, ...result.rows.map((row) => Object.freeze({
+    return Object.freeze([...normalized, ...memory, ...result.rows.map((row) => Object.freeze({
       id: `context:${row.entity_type}:${row.id}`,
       kind: kind(row.entity_type),
       portfolioId: run.scope.portfolioId,

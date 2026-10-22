@@ -6,7 +6,7 @@ export interface VerifiedOutcome {
   predictedOutcome: string; approvedPreviewHash: string; executionReceiptId: string; executionReceiptHash: string;
   verificationReceiptId: string; verificationReceiptHash: string; verificationResult: "verified" | "failed" | "uncertain";
   objectiveImpact: number | null; ownerFeedback?: "helpful" | "unhelpful"; observedAt: string; outcomeHash: string;
-  objectiveId?: string; impactEvaluationIds?: readonly string[];
+  objectiveId?: string; jobId?: string; impactEvaluationIds?: readonly string[];
 }
 /** Measured association, not a claim that the action caused the change. No policy output. */
 export function associateMeasuredImpact(outcome: VerifiedOutcome, before: ObjectiveEvaluation,

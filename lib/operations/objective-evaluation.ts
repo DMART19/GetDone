@@ -4,6 +4,7 @@ import type { ObjectiveRecord } from "@/lib/domain/objective-inbox";
 import type { NormalizedEvidence, OperationScope, OwnerInboxItem } from "./contracts";
 import { authorizedEvidence } from "./evidence";
 import { inboxObjectId } from "./inbox";
+import { adviseObjectiveContinuation, type ObjectiveContinuationAdvice } from "./objective-continuation";
 
 export interface ObjectiveMetric { topic: string; key: string; target: number; operator: "gte" | "lte" }
 export interface ObjectiveEvaluation {
@@ -12,9 +13,11 @@ export interface ObjectiveEvaluation {
   evidenceIds: readonly string[]; missingEvidence: readonly string[]; blockers: readonly string[];
   recommendedNextAction: string; ownerInputRequired: boolean; achieved: boolean;
   metricHash: string; consequentialExecutionAuthorized: false;
+  continuation: ObjectiveContinuationAdvice;
 }
 export function evaluateObjective(scope: OperationScope, objective: ObjectiveRecord, metric: ObjectiveMetric,
-  evidence: readonly NormalizedEvidence[], now: string, previous?: ObjectiveEvaluation): ObjectiveEvaluation {
+  evidence: readonly NormalizedEvidence[], now: string, previous?: ObjectiveEvaluation,
+  dependencyStatuses: Readonly<Record<string, ObjectiveRecord["status"]>> = {}): ObjectiveEvaluation {
   if (objective.portfolioId !== scope.portfolioId || objective.companyId !== scope.companyId || objective.environment !== scope.environment
     || !Number.isFinite(metric.target) || !["gte", "lte"].includes(metric.operator)) throw new ControlPlaneError("FORBIDDEN", "Objective evaluation requires a scoped measurable objective");
   const supported = authorizedEvidence(evidence, scope, metric.topic, ["public", "internal"], Date.parse(now))
@@ -23,7 +26,8 @@ export function evaluateObjective(scope: OperationScope, objective: ObjectiveRec
   const metricHash = sha256Hex(metric);
   const achieved = current !== null && (metric.operator === "gte" ? current >= metric.target : current <= metric.target);
   const blocked = ["blocked", "failed", "needs_owner_input"].includes(objective.status);
-  const ownerInputRequired = current === null || blocked;
+  const continuation = adviseObjectiveContinuation(objective, dependencyStatuses);
+  const ownerInputRequired = current === null || blocked || continuation.decision === "wait_for_owner";
   return { id: `objective-evaluation:${sha256Hex({ scope, objectiveId: objective.id, now, metricHash })}`,
     portfolioId: scope.portfolioId, companyId: scope.companyId, environment: scope.environment, objectiveId: objective.id,
     observedAt: now, current, delta: previous?.metricHash === metricHash && previous.current !== null && previous.current !== undefined
@@ -32,9 +36,13 @@ export function evaluateObjective(scope: OperationScope, objective: ObjectiveRec
       && current !== null ? current - previous.current : null,
     evidenceIds: supported.map(e => e.evidenceId), missingEvidence: current === null ? [`Fresh ${metric.topic} evidence containing numeric ${metric.key}`] : [],
     blockers: blocked ? [`Objective is ${objective.status}`] : [],
-    recommendedNextAction: current === null ? "Connect or refresh the required read-only evidence source"
-      : blocked ? "Review the objective blocker" : achieved ? "Review measured progress against the objective's full success criteria" : "Investigate the measured gap using read-only evidence",
-    ownerInputRequired, achieved, metricHash, consequentialExecutionAuthorized: false };
+    recommendedNextAction: continuation.decision === "stop" ? "Objective is already terminal; no further work is authorized"
+      : continuation.decision === "wait_for_owner" ? "Review the objective blocker before proceeding"
+      : continuation.decision === "wait_for_dependencies" ? "Wait for prerequisite objectives to be completed and verified"
+      : current === null ? "Connect or refresh the required read-only evidence source"
+      : continuation.decision === "propose_replan" ? "Review a recovery plan before further execution"
+      : achieved ? "Review measured progress against the objective's full success criteria" : "Investigate the measured gap using read-only evidence",
+    ownerInputRequired, achieved, metricHash, continuation, consequentialExecutionAuthorized: false };
 }
 export function evaluationInbox(scope: OperationScope, result: ObjectiveEvaluation): OwnerInboxItem {
   return { id: inboxObjectId(scope, "objective", result.objectiveId), portfolioId: scope.portfolioId, companyId: scope.companyId,

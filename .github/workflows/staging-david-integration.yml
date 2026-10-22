@@ -71,6 +71,7 @@ jobs:
       GETDONE_RUNTIME_ENV: development
       GETDONE_DB_SSL: "false"
       GETDONE_AUTH_BOUNDARY_INTEGRATION: "true"
+      GETDONE_POSTGRES_INTEGRATION: "true"
       GETDONE_AUTH_BOUNDARY_TEST_DATABASE_URL: postgresql://postgres:test-only-local-pg@127.0.0.1:5432/getdone_auth_test_ci
     steps:
       - uses: actions/checkout@v4
@@ -81,6 +82,12 @@ jobs:
       - run: npm ci
       - run: npm run db:migrate
       - run: npx vitest run lib/auth/auth-runtime-boundary.integration.test.ts lib/execution/worker-rls-boundary.integration.test.ts
+      - name: Build disposable worker crash-restart child process
+        run: npm run build:worker-acceptance
+      - name: Disposable PostgreSQL guarded re-entry concurrency
+        run: npx vitest run lib/orchestration/guarded-continuation.postgres.integration.test.ts
+      - name: Disposable PostgreSQL concurrent workers and crash-restart
+        run: npx vitest run lib/execution/queue-backpressure-postgres.integration.test.ts lib/execution/worker-crash-restart.integration.test.ts --maxWorkers=2
 
   integration-gates:
     runs-on: ubuntu-latest
@@ -104,6 +111,8 @@ jobs:
       - run: npx vitest run lib/businesses/capability-summary.test.ts lib/businesses/attention-summary.test.ts lib/conversation/acceptance.test.ts
       - run: npx vitest run lib/operations/staging-n8n-export.test.ts lib/persistence/postgres/staging-config-preflight.test.ts
       - run: npx vitest run lib/operations/n8n-acceptance.test.ts lib/operations/n8n-envelope-validator.test.ts lib/release/staging-pilot-topology.test.ts lib/release/staging-backup-target-guard.test.ts
+      - name: Guarded continuation regression suite
+        run: npx vitest run lib/orchestration/guarded-continuation.test.ts lib/orchestration/guarded-continuation.server.test.ts lib/orchestration/governed-reasoning.test.ts lib/operations/objective-evaluation.continuation.test.ts
       - run: npm run test -- --maxWorkers=2
       - run: npm run build:worker
       - run: npm run build:orchestration-worker

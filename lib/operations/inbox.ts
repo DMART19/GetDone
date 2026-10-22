@@ -2,6 +2,7 @@ import { sha256Hex } from "@/lib/control-plane/canonical-hash";
 import { redactTelemetryText } from "@/lib/observability/telemetry";
 import { inboxSchema, type OwnerInboxItem, type OperationScope } from "./contracts";
 import { safeOperationalLink } from "./evidence";
+import { attentionPriority } from "./attention-priority";
 
 export function inboxObjectId(scope: OperationScope, objectType: string, objectId: string) {
   return `owner-inbox:${sha256Hex({ ...scope, resourceId: undefined, objectType, objectId })}`;
@@ -22,8 +23,12 @@ export function actionableInbox(items: readonly OwnerInboxItem[], scope: Operati
     if (!previous || item.updatedAt > previous.updatedAt) deduplicated.set(key, { ...item, id: key,
       summary: redactTelemetryText(item.summary), nextAction: { label: redactTelemetryText(item.nextAction.label), href } });
   }
-  const score = (i: OwnerInboxItem) => 4 * i.urgency + 3 * i.impact + i.confidence
-    + Math.min(1, Math.max(0, now - Date.parse(i.createdAt)) / (7 * 86400_000));
+  const score = (i: OwnerInboxItem) => attentionPriority({
+    urgency: i.urgency, impact: i.impact, confidence: i.confidence,
+    waitingForOwner: i.kind === "approval" || i.kind === "owner-input" || i.kind === "ambiguity",
+    blockedByDependency: i.kind === "job" && i.state !== "open",
+    createdAt: i.createdAt
+  }, now);
   return [...deduplicated.values()].sort((a, b) => score(b) - score(a) || a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
 }
 export function isOwnerInputQuestion(message: string) {
