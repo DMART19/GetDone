@@ -54,7 +54,9 @@ try {
     };
     const predecessor = { ...predecessorBase, recordHash: sha256Hex(predecessorBase) };
     const outcomeBase = {
-      id: "verified-outcome-" + suffix, scope, topic: "revenue", findingId: "finding",
+      id: "verified-outcome-" + suffix, scope,
+      portfolioId: scope.portfolioId, companyId: scope.companyId, environment: scope.environment,
+      topic: "revenue", findingId: "finding",
       recommendationId: "recommendation", recommendationKind: "github_repository_health",
       predictedOutcome: "validated", approvedPreviewHash: "a".repeat(64),
       executionReceiptId: "execution", executionReceiptHash: "b".repeat(64),
@@ -106,7 +108,6 @@ try {
       expect(runs.rows[0].checkpoints.authorizationGrants).toEqual([]);
       // A fresh process on the same durable store sees the unfinished successor,
       // and cannot create a third run from the original verified outcome.
-      await dbB.close();
       const restarted = new PostgresDatabase({ connectionString: url, ssl: false });
       try {
         expect((await runGuardedObjectiveReentry(restarted, scope, now, true)).created).toBe(0);
