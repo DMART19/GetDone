@@ -246,6 +246,10 @@ async function main() {
       runtimeRole: "getdone_tenant_runtime",
       ssl: process.env.GETDONE_DB_SSL !== "false"
     });
+    const registryDatabase = new PostgresDatabase({
+      connectionString, maxConnections: 2, runtimeRole: "getdone_worker_registry",
+      ssl: process.env.GETDONE_DB_SSL !== "false"
+    });
     const control = new Pool({
       connectionString,
       max: 2,
@@ -309,7 +313,7 @@ async function main() {
           runOnce: (options?: { shouldStop?: () => boolean }) =>
             worker.runOnce(handler, options)
         },
-        new PostgresJobWorkerInstanceStore(database),
+        new PostgresJobWorkerInstanceStore(registryDatabase),
         {
           workerId,
           pollIntervalMs: 100,
@@ -331,6 +335,7 @@ async function main() {
       }
     } finally {
       await database.close();
+      await registryDatabase.close();
       await control.end();
     }
 }
