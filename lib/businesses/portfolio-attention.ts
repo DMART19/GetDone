@@ -6,7 +6,7 @@ export interface PortfolioAttentionItem {
   businessId: string;
   portfolioId: string;
   businessName: string;
-  section: "decisions" | "objectives" | "jobs" | "integrations";
+  section: BusinessContext["sections"] extends Record<infer K, unknown> ? K : never;
   recordId: string;
   title: string;
   status: string;
