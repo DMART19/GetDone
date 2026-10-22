@@ -31,10 +31,10 @@ export function adviseObjectiveContinuation(
   if (objective.status === "failed" || objective.status === "new_work_required" || objective.status === "partially_completed") {
     return advice("propose_replan", "Existing work needs a reviewed recovery plan", true);
   }
-  if (objective.dependsOnObjectiveIds.some(id => dependencyStatuses[id] !== "completed")) {
+  if ((objective.dependsOnObjectiveIds ?? []).some(id => dependencyStatuses[id] !== "completed")) {
     return advice("wait_for_dependencies", "One or more dependencies lack verified completion");
   }
-  if (!objective.successCriteria.length) {
+  if (!(objective.successCriteria?.length)) {
     return advice("investigate", "Success criteria must be established before autonomous continuation", true);
   }
   return advice("continue_existing_plan", "Eligible for policy-gated evaluation of the existing plan", true);
