@@ -25,7 +25,7 @@ export function boundedReasoningHandoffs(
     .filter(item => item.portfolioId === input.scope.portfolioId
       && (!input.scope.companyId || item.companyId === input.scope.companyId)
       && isContextItemFresh(item, now))
-    .slice(0, 16).map(item => item.id);
+    .slice(0, 12).map(item => item.id);
   const roles: readonly ReasoningRole[] = ["researcher", "strategist", "planner"];
   return Object.freeze(roles.slice(0, maxHandoffs).map(role => {
     const request = reasoningRoleRequest(role, role === "researcher"
