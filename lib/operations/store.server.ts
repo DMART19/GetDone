@@ -136,6 +136,7 @@ export class OperationalStore {
         portfolioId: this.scope.portfolioId, companyId: this.scope.companyId, environment: this.scope.environment,
         topic: "deployment", findingId: step.evidenceIds[0] ?? `plan:${preview.planHash}`, recommendationId: step.id,
         objectiveId: plan.proposal.source.type === "objective" ? plan.proposal.source.objectiveId : undefined,
+        jobId: job.id,
         recommendationKind: preview.workflow, predictedOutcome: step.expectedOutcome, approvedPreviewHash: preview.previewHash,
         executionReceiptId: execution.requestId, executionReceiptHash: recordHash, verificationReceiptId: receipt.id,
         verificationReceiptHash: receiptHash, verificationResult: "verified" as const,
