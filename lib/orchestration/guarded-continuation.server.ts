@@ -1,4 +1,3 @@
-import { ControlPlaneError } from "@/lib/control-plane/errors";
 import type { ObjectiveRecord } from "@/lib/domain/objective-inbox";
 import type { OrchestrationRunRecord } from "@/lib/orchestration/contracts";
 import { PostgresOrchestrationRunStore } from "@/lib/persistence/postgres/orchestration-store";
