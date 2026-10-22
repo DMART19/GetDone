@@ -62,7 +62,7 @@ describe("guarded coordinator re-entry",()=>{
   it("rejects already consumed outcome timestamps",()=>{
     const laterBase={...completeBase,createdAt:after,updatedAt:after};
     const later={...laterBase,recordHash:sha256Hex(laterBase)} as OrchestrationRunRecord;
-    expect(()=>createGuardedContinuation({...input,predecessor:later})).toThrow();
+    expect(createGuardedContinuation({...input,predecessor:later})).toBeNull();
   });
   it("caps reasoning cycles before creating further runs",()=>{
     expect(createGuardedContinuation({...input,runCount:3})).toBeNull();
