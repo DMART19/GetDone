@@ -108,6 +108,7 @@ export class OperationalStore {
   }
   async captureVerifiedOutcomes(now: string) {
     const existing = new Set((await this.list<VerifiedOutcome>("verified-outcome")).map(o => o.id));
+    const recordedContinuations = new Set((await this.list<{ id: string }>("objective-continuation-proposal")).map(o => o.id));
     const result = await this.db.query<{ job: JobRecord; decision: AuthoritativeDecision; receipt: VerificationReceipt; execution: BusinessActionExecutionRecord }>(
       `SELECT j.payload AS job,d.payload AS decision,v.payload AS receipt,b.payload AS execution
        FROM control_plane_entities j JOIN verification_receipts v ON v.id=j.payload->>'verificationReceiptId'
@@ -141,8 +142,10 @@ export class OperationalStore {
         // Verification of branch creation alone is not evidence of business improvement.
         objectiveImpact: null, observedAt: receipt.verifiedAt };
       const outcome: VerifiedOutcome = { ...base, outcomeHash: sha256Hex(base) };
-      if (!existing.has(outcome.id)) {
-        await this.put("verified-outcome", outcome.id, { ...base, outcomeHash: outcome.outcomeHash }, now);
+      const continuationKey = outcome.objectiveId
+        ? `continuation:${sha256Hex({ objectiveId: outcome.objectiveId, outcomeHash: outcome.outcomeHash })}` : undefined;
+      if (!existing.has(outcome.id) || (continuationKey && !recordedContinuations.has(continuationKey))) {
+        if (!existing.has(outcome.id)) await this.put("verified-outcome", outcome.id, { ...base, outcomeHash: outcome.outcomeHash }, now);
         // A verified provider action may justify more work, but never proves
         // business impact and never creates execution authority by itself.
         if (outcome.objectiveId) {
@@ -152,7 +155,7 @@ export class OperationalStore {
           if (objective) {
             const dependencies = Object.fromEntries(objectives.map(item => [item.id, item.status]));
             const recommendation = adviseObjectiveContinuation(objective, dependencies);
-            const continuationId = `continuation:${sha256Hex({ objectiveId: objective.id, outcomeHash: outcome.outcomeHash })}`;
+            const continuationId = continuationKey!;
             await this.put("objective-continuation-proposal", continuationId, {
               id: continuationId, portfolioId: this.scope.portfolioId, companyId: this.scope.companyId,
               environment: this.scope.environment, userId: this.scope.userId,
