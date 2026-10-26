@@ -2,6 +2,16 @@ import { createHmac } from "node:crypto";
 import { z } from "zod";
 import { sha256Hex } from "@/lib/control-plane/canonical-hash";
 import { ControlPlaneError } from "@/lib/control-plane/errors";
+import {
+  guardedProviderFetch,
+  assertSafeConfiguredProviderUrl,
+  systemProviderHostnameResolver,
+  type ProviderHostnameResolver
+} from "@/lib/security/outbound-provider-http";
+import {
+  assertProviderResponseContentType,
+  assertProviderSuccessEnvelope
+} from "@/lib/security/provider-response-boundary";
 import { validateCapabilityInput } from "@/lib/domain/capabilities";
 import {
   createBusinessActionAdapterResult,
@@ -23,7 +33,7 @@ import {
   type BusinessActionAdapterDeclaration
 } from "@/lib/execution/adapters/ordinary-integration-framework";
 
-export const CONFIGURED_WEBHOOK_ACTION_ADAPTER_VERSION = "1.1.0";
+export const CONFIGURED_WEBHOOK_ACTION_ADAPTER_VERSION = "1.2.0";
 
 const inputSchema = z.object({
   companyId: z.string().min(1),
@@ -54,16 +64,14 @@ export interface ConfiguredWebhookOperation {
 export interface ConfiguredWebhookActionAdapterOptions {
   fetchImpl?: typeof fetch;
   now?: () => Date;
+  resolveHostname?: ProviderHostnameResolver;
 }
 
 type ValidatedWebhookOperation = ReturnType<typeof validateOperation>;
 
 function validateHttpsTemplate(value: string, label: string) {
   const probe = value.replace("{providerOperationId}", "provider-operation");
-  const url = new URL(probe);
-  if (url.protocol !== "https:" || url.username || url.password || url.hash) {
-    throw new ControlPlaneError("VALIDATION_FAILED", `${label} must be credential-free HTTPS`);
-  }
+  assertSafeConfiguredProviderUrl(probe, label);
   return value;
 }
 
@@ -185,6 +193,7 @@ export class ConfiguredWebhookActionAdapter implements BusinessActionAdapter {
   private readonly operations: ReadonlyMap<string, ValidatedWebhookOperation>;
   private readonly fetchImpl: typeof fetch;
   private readonly now: () => Date;
+  private readonly resolveHostname?: ProviderHostnameResolver;
 
   constructor(
     operations: readonly ConfiguredWebhookOperation[],
@@ -200,6 +209,8 @@ export class ConfiguredWebhookActionAdapter implements BusinessActionAdapter {
     this.operations = new Map(entries);
     this.fetchImpl = options.fetchImpl ?? fetch;
     this.now = options.now ?? (() => new Date());
+    this.resolveHostname = options.resolveHostname
+      ?? (options.fetchImpl ? undefined : systemProviderHostnameResolver);
   }
 
   credentialRequirement(request: AuthorizedBusinessActionRequest) {
@@ -237,11 +248,17 @@ export class ConfiguredWebhookActionAdapter implements BusinessActionAdapter {
 
     let response: Response;
     try {
-      response = await this.fetchImpl(operation.url, {
-        method: "POST",
-        headers: signedHeaders(operation, request, body, material, timestamp),
-        body,
-        signal: AbortSignal.timeout(request.timeoutMs)
+      response = await guardedProviderFetch({
+        url: operation.url,
+        expectedOrigin: new URL(operation.url).origin,
+        fetchImpl: this.fetchImpl,
+        resolver: this.resolveHostname,
+        init: {
+          method: "POST",
+          headers: signedHeaders(operation, request, body, material, timestamp),
+          body,
+          signal: AbortSignal.timeout(request.timeoutMs)
+        }
       });
     } catch {
       return createBusinessActionAdapterResult({
@@ -272,7 +289,15 @@ export class ConfiguredWebhookActionAdapter implements BusinessActionAdapter {
       });
     }
 
-    const rawOperationId = response.headers.get("x-provider-operation-id")
+    assertProviderResponseContentType(response, [
+      "application/json",
+      "application/*+json",
+      "text/json",
+      "text/plain"
+    ]);
+    const headerOperationId = response.headers.get("x-provider-operation-id");
+    assertProviderSuccessEnvelope(responseBody, headerOperationId);
+    const rawOperationId = headerOperationId
       ?? `webhook:${operation.name}:${request.id}`;
     const externalId = assertProviderOperationId(rawOperationId);
     const providerOperationId = externalId.startsWith(`webhook:${operation.name}:`)
@@ -309,14 +334,21 @@ export class ConfiguredWebhookActionAdapter implements BusinessActionAdapter {
     const material = credential(operation, context);
     let response: Response;
     try {
-      response = await this.fetchImpl(
-        interpolateOperationUrl(operation.verification.url, input.providerOperationId),
-        {
+      const target = interpolateOperationUrl(operation.verification.url, input.providerOperationId);
+      const configuredOrigin = new URL(
+        operation.verification.url.replace("{providerOperationId}", "provider-operation")
+      ).origin;
+      response = await guardedProviderFetch({
+        url: target,
+        expectedOrigin: configuredOrigin,
+        fetchImpl: this.fetchImpl,
+        resolver: this.resolveHostname,
+        init: {
           method: "GET",
           headers: material ? { authorization: `Bearer ${material}` } : undefined,
           signal: AbortSignal.timeout(30_000)
         }
-      );
+      });
     } catch {
       return createBusinessActionStatus({
         source: "business-action-adapter",
@@ -359,9 +391,16 @@ export class ConfiguredWebhookActionAdapter implements BusinessActionAdapter {
     const material = credential(operation, context);
     let response: Response;
     try {
-      response = await this.fetchImpl(
-        interpolateOperationUrl(operation.cancellation.url, input.providerOperationId),
-        {
+      const target = interpolateOperationUrl(operation.cancellation.url, input.providerOperationId);
+      const configuredOrigin = new URL(
+        operation.cancellation.url.replace("{providerOperationId}", "provider-operation")
+      ).origin;
+      response = await guardedProviderFetch({
+        url: target,
+        expectedOrigin: configuredOrigin,
+        fetchImpl: this.fetchImpl,
+        resolver: this.resolveHostname,
+        init: {
           method: "POST",
           headers: {
             ...(material ? { authorization: `Bearer ${material}` } : {}),
@@ -370,7 +409,7 @@ export class ConfiguredWebhookActionAdapter implements BusinessActionAdapter {
           body: JSON.stringify({ reason: input.reason }),
           signal: AbortSignal.timeout(30_000)
         }
-      );
+      });
     } catch {
       return createBusinessActionStatus({
         source: "business-action-adapter",

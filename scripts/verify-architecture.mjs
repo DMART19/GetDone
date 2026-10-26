@@ -180,7 +180,7 @@ for (const required of ["blockingKillSwitches", "profile-not-validated", "struct
 
 const openRouterAdapter = read("lib/ai-gateway/openrouter-adapter.ts");
 for (const required of [
-  'OPENROUTER_ADAPTER_VERSION = "1.2.0"',
+  'OPENROUTER_ADAPTER_VERSION = "1.3.0"',
   'OPENROUTER_DEFAULT_BASE_URL = "https://openrouter.ai/api/v1"',
   "AbortSignal.timeout",
   "retryableStatus",
@@ -1040,12 +1040,12 @@ if (
 }
 if (
   releaseRegistry.aiGateway.status !== "runtime-wired-unconnected"
-  || releaseRegistry.aiGateway.adapterVersion !== "1.2.0"
+  || releaseRegistry.aiGateway.adapterVersion !== "1.3.0"
   || releaseRegistry.aiGateway.contractVersion !== "1.2.0"
   || releaseRegistry.aiGateway.routingPolicyContractVersion !== "1.0.0"
   || releaseRegistry.aiGateway.routingPolicyVersion !== "UNCONFIGURED"
   || releaseRegistry.adapters?.openRouter?.status !== "implemented-unconfigured"
-  || releaseRegistry.adapters?.openRouter?.version !== "1.2.0"
+  || releaseRegistry.adapters?.openRouter?.version !== "1.3.0"
   || releaseRegistry.adapters?.configuredHttpAction?.status !== "implemented-unconfigured"
 ) {
   fail("Phase 13 release state must expose the implemented OpenRouter adapter without claiming live routing/connectivity");
@@ -1140,7 +1140,7 @@ if (
   || releaseRegistry.execution.businessActionOrchestratorStatus !== "implemented"
   || releaseRegistry.execution.businessAdaptersStatus !== "implemented-unconfigured"
   || releaseRegistry.adapters?.businessAction?.version !== "1.6.0"
-  || releaseRegistry.adapters?.configuredHttpAction?.version !== "1.3.0"
+  || releaseRegistry.adapters?.configuredHttpAction?.version !== "1.4.0"
   || releaseRegistry.adapters?.configuredWebhookAction?.status !== "implemented-unconfigured"
   || releaseRegistry.adapters?.gmailBusinessAction?.status !== "implemented-unconfigured"
   || releaseRegistry.adapters?.slackBusinessAction?.status !== "implemented-unconfigured"

@@ -1,4 +1,8 @@
 import { ControlPlaneError } from "@/lib/control-plane/errors";
+import {
+  readBoundedProviderBody,
+  readBoundedProviderJson
+} from "@/lib/security/provider-response-boundary";
 import type { TrustedExecutionScope } from "@/lib/control-plane/trusted-execution-scope";
 import {
   assertAuthorizedBusinessActionRequest,
@@ -137,53 +141,11 @@ export function assertProviderOperationId(value: string) {
 }
 
 export async function readBoundedResponseBody(response: Response, limit: number) {
-  if (!Number.isInteger(limit) || limit < 1 || limit > 5_000_000) {
-    throw new ControlPlaneError("VALIDATION_FAILED", "Response limit must be 1-5000000 bytes");
-  }
-  const contentLength = response.headers.get("content-length");
-  if (contentLength !== null) {
-    const parsed = Number(contentLength);
-    if (Number.isFinite(parsed) && parsed > limit) {
-      await response.body?.cancel();
-      throw new ControlPlaneError("UNAVAILABLE", "Provider response exceeds configured size limit");
-    }
-  }
-  if (!response.body) return "";
-
-  const reader = response.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let total = 0;
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      total += value.byteLength;
-      if (total > limit) {
-        await reader.cancel();
-        throw new ControlPlaneError("UNAVAILABLE", "Provider response exceeds configured size limit");
-      }
-      chunks.push(value);
-    }
-  } finally {
-    reader.releaseLock();
-  }
-
-  const bytes = new Uint8Array(total);
-  let offset = 0;
-  for (const chunk of chunks) {
-    bytes.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  return new TextDecoder().decode(bytes);
+  return readBoundedProviderBody(response, limit);
 }
 
 export async function readBoundedJson(response: Response, limit: number): Promise<unknown> {
-  const text = await readBoundedResponseBody(response, limit);
-  try {
-    return text ? JSON.parse(text) : {};
-  } catch {
-    throw new ControlPlaneError("UNAVAILABLE", "Provider returned malformed JSON");
-  }
+  return readBoundedProviderJson(response, limit);
 }
 
 export function classifyHttpFailure(status: number): {
