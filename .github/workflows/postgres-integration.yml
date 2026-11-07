@@ -195,6 +195,8 @@ jobs:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
           GETDONE_DB_SSL: "true"
           GETDONE_POSTGRES_INTEGRATION: "true"
+          GETDONE_PG_DUMP_BIN: /usr/lib/postgresql/16/bin/pg_dump
+          GETDONE_PG_RESTORE_BIN: /usr/lib/postgresql/16/bin/pg_restore
 
       - name: Run owner-safe AI Gateway health PostgreSQL acceptance
         run: npx vitest run lib/ai-gateway/health-postgres.integration.test.ts
