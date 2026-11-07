@@ -28,7 +28,7 @@ export const CONFIGURED_WEBHOOK_ACTION_ADAPTER_VERSION = "1.1.0";
 const inputSchema = z.object({
   companyId: z.string().min(1),
   operation: z.string().min(1),
-  payload: z.record(z.unknown())
+  payload: z.record(z.string(), z.unknown())
 }).strict();
 
 const environmentSchema = z.enum(["development", "staging", "production"]);

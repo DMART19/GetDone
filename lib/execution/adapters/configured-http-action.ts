@@ -27,7 +27,7 @@ const environmentSchema = z.enum(["development", "staging", "production"]);
 const inputSchema = z.object({
   companyId: z.string().min(1),
   operation: z.string().min(1),
-  payload: z.record(z.unknown())
+  payload: z.record(z.string(), z.unknown())
 }).strict();
 
 interface ConfiguredHttpFollowUp {

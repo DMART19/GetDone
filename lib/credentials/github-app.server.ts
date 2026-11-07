@@ -29,7 +29,7 @@ const installationTokenSchema = z.object({
   token: z.string().min(1).max(4096).regex(/^[A-Za-z0-9_]+$/),
   expires_at: z.string().datetime({ offset: true }),
   repositories: z.array(z.object({ full_name: z.string() })),
-  permissions: z.record(z.enum(["read", "write", "admin"]))
+  permissions: z.record(z.string(), z.enum(["read", "write", "admin"]))
 });
 
 // A reference reserves no authority. Issuance happens only after the worker claim.

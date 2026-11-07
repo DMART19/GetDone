@@ -120,7 +120,7 @@ export const nodeCapabilitySchema = z.object({
   version: z.string().max(160).optional(),
   status: z.enum(["detected", "validated", "disabled", "degraded"]),
   evidenceIds: z.array(safeId),
-  constraints: z.record(z.unknown()),
+  constraints: z.record(z.string(), z.unknown()),
   observedAt: isoDate,
   capabilityHash: hash
 }).strict();

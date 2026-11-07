@@ -54,7 +54,7 @@ export const EmailSendResultSchema = z.object({
 export const WebhookSendInputSchema = z.object({
   companyId,
   operation: id,
-  payload: z.record(z.unknown())
+  payload: z.record(z.string(), z.unknown())
 }).strict();
 
 export const WebhookSendResultSchema = z.object({
@@ -277,7 +277,7 @@ export const AnalyticsEvidenceRecordSchema = z.object({
   fresh: z.boolean(),
   dedupeKey: z.string().regex(/^[a-f0-9]{64}$/),
   payloadHash: z.string().regex(/^[a-f0-9]{64}$/),
-  payload: z.record(z.unknown()),
+  payload: z.record(z.string(), z.unknown()),
   provenance: z.object({
     sourceId: id,
     sourceUrlHash: z.string().regex(/^[a-f0-9]{64}$/),
@@ -424,7 +424,7 @@ export const ResourceHealthSummarySchema = z.object({
 export const HttpRequestInputSchema = z.object({
   companyId,
   operation: id,
-  payload: z.record(z.unknown())
+  payload: z.record(z.string(), z.unknown())
 }).strict();
 
 export const HttpRequestResultSchema = z.object({
@@ -452,7 +452,7 @@ export const CodeExecutionInputSchema = z.object({
   companyId,
   runtime: z.enum(["node", "python", "shell"]),
   entrypoint: z.string().min(1).max(1024),
-  input: z.record(z.unknown()).default({}),
+  input: z.record(z.string(), z.unknown()).default({}),
   timeoutSeconds: z.number().int().positive().max(900)
 }).strict();
 
@@ -468,7 +468,7 @@ export const ScheduledWorkerInputSchema = z.object({
   companyId,
   operation: id,
   scheduledAt: isoDateTime,
-  payload: z.record(z.unknown())
+  payload: z.record(z.string(), z.unknown())
 }).strict();
 
 export const ScheduledWorkerResultSchema = z.object({

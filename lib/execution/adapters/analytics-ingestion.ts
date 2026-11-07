@@ -416,7 +416,7 @@ export function readAnalyticsSourceConfigurationsFromEnv(
     maxResponseBytes:z.number().int().positive().optional(),
     maxFreshnessSeconds:z.number().int().positive().optional(),
     schema:z.object({
-      fields:z.record(fieldTypeSchema),
+      fields:z.record(z.string(), fieldTypeSchema),
       required:z.array(z.string().min(1)).optional()
     }).strict()
   }).strict();
