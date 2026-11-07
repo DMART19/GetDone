@@ -20,7 +20,7 @@ import {
   type BusinessActionAdapterDeclaration
 } from "@/lib/execution/adapters/ordinary-integration-framework";
 
-export const CRM_BUSINESS_ACTION_ADAPTER_VERSION = "1.0.0";
+export const CRM_BUSINESS_ACTION_ADAPTER_VERSION = "1.0.2";
 
 const environmentSchema = z.enum(["development","staging","production"]);
 const objectTypeSchema = z.enum(["contact","company","deal"]);

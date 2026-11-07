@@ -1145,12 +1145,12 @@ if (
   || releaseRegistry.adapters?.gmailBusinessAction?.status !== "implemented-unconfigured"
   || releaseRegistry.adapters?.slackBusinessAction?.status !== "implemented-unconfigured"
   || releaseRegistry.adapters?.crmBusinessAction?.status !== "implemented-unconfigured"
-  || releaseRegistry.adapters?.crmBusinessAction?.version !== "1.0.1"
+  || releaseRegistry.adapters?.crmBusinessAction?.version !== "1.0.2"
   || releaseRegistry.adapters?.githubStandardOperation?.status !== "implemented-unconfigured"
-  || releaseRegistry.adapters?.githubStandardOperation?.version !== "1.0.1"
+  || releaseRegistry.adapters?.githubStandardOperation?.version !== "1.0.2"
   || releaseRegistry.adapters?.analyticsDataIngestion?.status !== "implemented-unconfigured"
-  || releaseRegistry.adapters?.analyticsDataIngestion?.version !== "1.0.1"
-  || releaseRegistry.schemaVersions?.analyticsIngestion?.version !== "1.0.1"
+  || releaseRegistry.adapters?.analyticsDataIngestion?.version !== "1.0.2"
+  || releaseRegistry.schemaVersions?.analyticsIngestion?.version !== "1.0.2"
   || releaseRegistry.schemaVersions?.analyticsIngestion?.contractTracked !== true
   || releaseRegistry.schemaVersions?.environmentEvidence?.version !== "1.0.0"
   || releaseRegistry.schemaVersions?.environmentEvidence?.contractTracked !== true

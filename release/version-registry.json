@@ -276,7 +276,7 @@
       ]
     },
     "analyticsIngestion": {
-      "version": "1.0.1",
+      "version": "1.0.2",
       "sourcePath": "lib/analytics/ingestion.ts",
       "contractTracked": true,
       "contractSourcePaths": [
@@ -505,7 +505,7 @@
     },
     "crmBusinessAction": {
       "status": "implemented-unconfigured",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "sourcePath": "lib/execution/adapters/crm-action.ts",
       "contractTracked": true,
       "contractSourcePaths": [
@@ -515,7 +515,7 @@
     },
     "githubStandardOperation": {
       "status": "implemented-unconfigured",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "sourcePath": "lib/execution/adapters/github-standard-operation.ts",
       "contractTracked": true,
       "contractSourcePaths": [
@@ -525,7 +525,7 @@
     },
     "analyticsDataIngestion": {
       "status": "implemented-unconfigured",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "sourcePath": "lib/execution/adapters/analytics-ingestion.ts",
       "contractTracked": true,
       "contractSourcePaths": [
