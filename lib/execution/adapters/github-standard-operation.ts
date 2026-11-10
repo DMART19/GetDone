@@ -20,7 +20,7 @@ import {
   type BusinessActionAdapterDeclaration
 } from "@/lib/execution/adapters/ordinary-integration-framework";
 
-export const GITHUB_STANDARD_OPERATION_ADAPTER_VERSION="1.0.0";
+export const GITHUB_STANDARD_OPERATION_ADAPTER_VERSION="1.0.2";
 
 const environmentSchema=z.enum(["development","staging","production"]);
 const repositoryPattern=/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;

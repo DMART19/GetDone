@@ -66,25 +66,25 @@
     "production:commission-github": "npm run build:commissioning && GETDONE_WORKER_ALIAS_ROOT=dist-commissioning node --require ./scripts/register-worker-alias.cjs dist-commissioning/lib/commissioning/github-entry.js"
   },
   "dependencies": {
+    "@simplewebauthn/server": "14.0.3",
     "lucide-react": "0.468.0",
-    "next": "15.5.27",
+    "next": "15.5.29",
+    "pg": "8.23.0",
     "react": "19.1.2",
     "react-dom": "19.1.2",
-    "zod": "3.25.76",
-    "pg": "8.23.0",
-    "@simplewebauthn/server": "14.0.3"
+    "zod": "4.6.6"
   },
   "devDependencies": {
     "@playwright/test": "1.63.0",
-    "@vitest/coverage-v8": "4.1.11",
-    "eslint": "8.57.1",
-    "eslint-config-next": "15.5.27",
-    "vitest": "4.1.11",
-    "@types/pg": "8.23.1",
     "@types/node": "24.0.0",
+    "@types/pg": "8.23.1",
     "@types/react": "19.0.3",
     "@types/react-dom": "19.0.2",
-    "typescript": "5.7.2"
+    "@vitest/coverage-v8": "4.1.11",
+    "eslint": "8.57.1",
+    "eslint-config-next": "15.5.29",
+    "typescript": "5.7.2",
+    "vitest": "4.1.11"
   },
   "overrides": {
     "postcss": "8.5.28",

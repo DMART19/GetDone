@@ -405,10 +405,10 @@ if (failures.length === 0) {
     || registry.execution.businessAdaptersStatus !== "implemented-unconfigured"
     || registry.adapters.configuredHttpAction?.status !== "implemented-unconfigured"
     || registry.adapters.githubStandardOperation?.status !== "implemented-unconfigured"
-    || registry.adapters.githubStandardOperation?.version !== "1.0.0"
+    || registry.adapters.githubStandardOperation?.version !== "1.0.2"
     || registry.adapters.analyticsDataIngestion?.status !== "implemented-unconfigured"
-    || registry.adapters.analyticsDataIngestion?.version !== "1.0.0"
-    || registry.schemaVersions.analyticsIngestion?.version !== "1.0.0"
+    || registry.adapters.analyticsDataIngestion?.version !== "1.0.2"
+    || registry.schemaVersions.analyticsIngestion?.version !== "1.0.2"
     || registry.schemaVersions.analyticsIngestion?.contractTracked !== true
     || registry.composition.mvpBusinessWorkflowStatus !== "implemented-unconfigured"
     || registry.execution.softwareWorkerRuntimeStatus !== "implemented"

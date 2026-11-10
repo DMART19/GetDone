@@ -10,6 +10,7 @@ import {
 
 const id = z.string().min(1).max(200).regex(/^[A-Za-z0-9._:-]+$/);
 const attributesSchema = z.record(
+  z.string(),
   z.union([z.string(), z.number().finite(), z.boolean(), z.null()])
 ).refine((value) => Object.keys(value).length <= 100, {
   message: "attributes cannot contain more than 100 keys"
