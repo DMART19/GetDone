@@ -168,7 +168,7 @@
       ]
     },
     "controlApiSurface": {
-      "version": "1.6.0",
+      "version": "1.6.1",
       "sourcePath": "lib/control-api/contracts.ts",
       "contractTracked": true,
       "contractSourcePaths": [
@@ -248,7 +248,7 @@
       ]
     },
     "zeroDowntimeMigrationPolicy": {
-      "version": "1.2.0",
+      "version": "1.2.1",
       "sourcePath": "config/zero-downtime-migration-policy.json",
       "contractTracked": true,
       "contractSourcePaths": [
@@ -276,7 +276,7 @@
       ]
     },
     "analyticsIngestion": {
-      "version": "1.0.0",
+      "version": "1.0.2",
       "sourcePath": "lib/analytics/ingestion.ts",
       "contractTracked": true,
       "contractSourcePaths": [
@@ -294,7 +294,7 @@
       ]
     },
     "orchestrationWorkerContract": {
-      "version": "1.1.0",
+      "version": "1.1.1",
       "sourcePath": "lib/orchestration/worker-contracts.ts",
       "contractTracked": true,
       "contractSourcePaths": [
@@ -505,7 +505,7 @@
     },
     "crmBusinessAction": {
       "status": "implemented-unconfigured",
-      "version": "1.0.0",
+      "version": "1.0.2",
       "sourcePath": "lib/execution/adapters/crm-action.ts",
       "contractTracked": true,
       "contractSourcePaths": [
@@ -515,7 +515,7 @@
     },
     "githubStandardOperation": {
       "status": "implemented-unconfigured",
-      "version": "1.0.0",
+      "version": "1.0.2",
       "sourcePath": "lib/execution/adapters/github-standard-operation.ts",
       "contractTracked": true,
       "contractSourcePaths": [
@@ -525,7 +525,7 @@
     },
     "analyticsDataIngestion": {
       "status": "implemented-unconfigured",
-      "version": "1.0.0",
+      "version": "1.0.2",
       "sourcePath": "lib/execution/adapters/analytics-ingestion.ts",
       "contractTracked": true,
       "contractSourcePaths": [
@@ -857,7 +857,7 @@
     "mvpBusinessWorkflowSourcePath": "lib/composition/mvp-business-workflow.ts"
   },
   "controlApi": {
-    "surfaceVersion": "1.6.0",
+    "surfaceVersion": "1.6.1",
     "status": "implemented-unconnected",
     "applicationAdapterStatus": "not-connected",
     "authStatus": "implemented-unconnected",

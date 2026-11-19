@@ -1,7 +1,7 @@
 name: Staging David Edition integration
 on:
   push:
-    branches: ["staging/getdone-unified-acceptance-20261014"]
+    branches: ["staging/getdone-unified-acceptance-20261014", "release/owner-edition-v1-20261118"]
   pull_request:
     branches: ["codex/frontend-backend-integration-pass", "staging/david-edition-conversation-integration", "staging/getdone-unified-acceptance-20261014"]
     paths:
@@ -124,6 +124,6 @@ jobs:
       - run: npm run verify:architecture
       - run: npm run verify:secrets
       - run: npx playwright install --with-deps chromium
-      - run: npx playwright test e2e/david-edition-cosmos.spec.ts e2e/david-edition-contract.spec.ts --project=desktop-chromium --project=mobile-chromium
+      - run: npx playwright test --config=playwright.owner.config.ts
         env:
           GETDONE_DAVID_EDITION: "true"

@@ -3,7 +3,7 @@
   "status": "NOT_DEPLOYED",
   "ownerOnly": true,
   "repository": "DMART19/GetDone",
-  "candidateBranch": "launch/unified-pilot-release-integration-20261017",
+  "candidateBranch": "release/owner-edition-v1-20261118",
   "requiredMigration": "2026-10-17.2",
   "region": "oregon",
   "productionIsolation": {
@@ -19,6 +19,7 @@
     "workerMonthlyMaxUsd": 14,
     "workerUnitUsd": 7,
     "createOnlyAfter": [
+      "current_owner_billing_and_cost_authorization",
       "real_pre_migration_backup_restored",
       "staging_only_db_and_verified_tls",
       "auth_and_worker_migrations_reviewed_and_applied",
@@ -87,7 +88,10 @@
       "GETDONE_DB_RUNTIME_ROLE": "getdone_tenant_runtime",
       "GETDONE_WEBAUTHN_RP_ID": "getdone-web-staging.onrender.com",
       "GETDONE_WEBAUTHN_ORIGINS": "https://getdone-web-staging.onrender.com",
-      "GETDONE_N8N_ENABLED": "false"
+      "GETDONE_N8N_ENABLED": "false",
+      "GETDONE_DAVID_EDITION": "true",
+      "GETDONE_SESSION_TTL_SECONDS": "604800",
+      "GETDONE_AUTH_COOKIE_SECURE": "true"
     },
     "futureSecrets": [
       "OPENROUTER_API_KEY",

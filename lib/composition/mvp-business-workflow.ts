@@ -17,7 +17,7 @@ const proposalSchema = z.object({
   summary: z.string().min(1).max(500),
   reason: z.string().min(1).max(2_000),
   operation: z.string().min(1).max(160).regex(/^[A-Za-z0-9._:-]+$/),
-  payload: z.record(z.unknown())
+  payload: z.record(z.string(), z.unknown())
 }).strict();
 type ProposalModelOutput = z.infer<typeof proposalSchema>;
 

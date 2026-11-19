@@ -12,7 +12,7 @@ describe("WebAuthn server configuration", () => {
       cookieName: "getdone_session",
       stepUpTtlSeconds: 300,
       signInChallengeTtlSeconds: 300,
-      sessionTtlSeconds: 86_400,
+      sessionTtlSeconds: 7 * 24 * 60 * 60,
       secureCookie: true
     });
   });

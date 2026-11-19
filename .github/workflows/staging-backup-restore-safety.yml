@@ -1,5 +1,7 @@
 name: Staging backup & independent restore safety
 on:
+  push:
+    branches: ["release/owner-edition-v1-20261118"]
   pull_request:
     branches: ["staging/getdone-unified-acceptance-20261014", "staging/david-edition-conversation-integration"]
     paths:

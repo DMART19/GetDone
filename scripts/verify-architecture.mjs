@@ -200,7 +200,7 @@ const controlApiRuntime = read("lib/control-api/runtime.server.ts");
 const controlApiHttp = read("lib/control-api/http.ts");
 const controlApiServices = read("lib/control-api/service-adapter.ts");
 for (const required of [
-  'CONTROL_API_SURFACE_VERSION = "1.6.0"',
+  'CONTROL_API_SURFACE_VERSION = "1.6.1"',
   "submitOwnerIntent",
   "mutateDecision",
   "discoverResource",
@@ -1088,12 +1088,12 @@ if (
   fail("Phase 28.4 release state drifted or overclaims live Node capability/binding connectivity");
 }
 if (
-  releaseRegistry.controlApi?.surfaceVersion !== "1.6.0"
+  releaseRegistry.controlApi?.surfaceVersion !== "1.6.1"
   || releaseRegistry.controlApi?.status !== "implemented-unconnected"
   || releaseRegistry.controlApi?.applicationAdapterStatus !== "not-connected"
   || releaseRegistry.controlApi?.authStatus !== "implemented-unconnected"
   || releaseRegistry.controlApi?.persistenceStatus !== "not-connected"
-  || releaseRegistry.schemaVersions?.controlApiSurface?.version !== "1.6.0"
+  || releaseRegistry.schemaVersions?.controlApiSurface?.version !== "1.6.1"
 ) {
   fail("Control API release state must expose the implemented surface while preserving unconnected authority adapters");
 }
@@ -1114,7 +1114,7 @@ if (
   || releaseRegistry.schemaVersions?.postgresPersistence?.version !== "1.1.0"
   || releaseRegistry.schemaVersions?.disasterRecovery?.version !== "1.0.0"
   || releaseRegistry.schemaVersions?.disasterRecovery?.contractTracked !== true
-  || releaseRegistry.schemaVersions?.zeroDowntimeMigrationPolicy?.version !== "1.2.0"
+  || releaseRegistry.schemaVersions?.zeroDowntimeMigrationPolicy?.version !== "1.2.1"
   || releaseRegistry.schemaVersions?.zeroDowntimeMigrationPolicy?.contractTracked !== true
   || releaseRegistry.schemaVersions?.productionReleaseGate?.version !== "1.1.1"
   || releaseRegistry.schemaVersions?.productionReleaseGate?.contractTracked !== true
@@ -1145,12 +1145,12 @@ if (
   || releaseRegistry.adapters?.gmailBusinessAction?.status !== "implemented-unconfigured"
   || releaseRegistry.adapters?.slackBusinessAction?.status !== "implemented-unconfigured"
   || releaseRegistry.adapters?.crmBusinessAction?.status !== "implemented-unconfigured"
-  || releaseRegistry.adapters?.crmBusinessAction?.version !== "1.0.0"
+  || releaseRegistry.adapters?.crmBusinessAction?.version !== "1.0.2"
   || releaseRegistry.adapters?.githubStandardOperation?.status !== "implemented-unconfigured"
-  || releaseRegistry.adapters?.githubStandardOperation?.version !== "1.0.0"
+  || releaseRegistry.adapters?.githubStandardOperation?.version !== "1.0.2"
   || releaseRegistry.adapters?.analyticsDataIngestion?.status !== "implemented-unconfigured"
-  || releaseRegistry.adapters?.analyticsDataIngestion?.version !== "1.0.0"
-  || releaseRegistry.schemaVersions?.analyticsIngestion?.version !== "1.0.0"
+  || releaseRegistry.adapters?.analyticsDataIngestion?.version !== "1.0.2"
+  || releaseRegistry.schemaVersions?.analyticsIngestion?.version !== "1.0.2"
   || releaseRegistry.schemaVersions?.analyticsIngestion?.contractTracked !== true
   || releaseRegistry.schemaVersions?.environmentEvidence?.version !== "1.0.0"
   || releaseRegistry.schemaVersions?.environmentEvidence?.contractTracked !== true

@@ -22,7 +22,7 @@ import type {
   PreferenceSuggestionResolutionResult
 } from "@/lib/domain/preference-learning";
 
-export const CONTROL_API_SURFACE_VERSION = "1.6.0";
+export const CONTROL_API_SURFACE_VERSION = "1.6.1";
 
 export type ControlApiRole = "owner" | "admin" | "operator" | "viewer";
 

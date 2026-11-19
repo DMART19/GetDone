@@ -54,10 +54,10 @@ export function DavidUniverseScene({
       element.width = Math.round(width * dpr);
       element.height = Math.round(height * dpr);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      // Resizing clears the bitmap, including when reduced motion pauses RAF.
+      cancelAnimationFrame(frame);
+      draw();
     };
-    const observer = new ResizeObserver(resize);
-    observer.observe(element);
-    resize();
     const draw = () => {
       clock += motion ? .016 : 0;
       const background = ctx.createLinearGradient(0, 0, width, height);
@@ -101,7 +101,9 @@ export function DavidUniverseScene({
       ctx.restore();
       if (motion) frame = requestAnimationFrame(draw);
     };
-    draw();
+    const observer = new ResizeObserver(resize);
+    observer.observe(element);
+    resize();
     return () => { cancelAnimationFrame(frame); observer.disconnect(); };
   }, [motion]);
 
@@ -138,7 +140,7 @@ export function DavidUniverseScene({
         <small>{business.lastActivityAt ? "ACTIVITY RECORDED" : "NO ACTIVITY RECORDED"}</small>
       </button>;
     })}
-    {selectedId && satellites && satellites.length > 0 ? <aside className="de-cosmos-satellites" aria-label="Selected business integrations"><span className="de-cosmos-satellites-label">CONNECTED RECORDS · {satellites.length} INTEGRATIONS</span>{satellites.slice(0, 4).map(item => <div key={item.id} className="de-cosmos-satellite"><span className="de-cosmos-satellite-dot" aria-hidden="true"/><span><strong>{item.title}</strong><small>{item.status.replaceAll("_", " ")}</small></span></div>)}</aside> : null}
-    <div className="de-cosmos-bottomline"><span>SELECT A PLANET TO INSPECT ITS VERIFIED RECORDS</span><button type="button" aria-label={motion?"Pause space animation":"Resume space animation"} onClick={()=>setMotion(v=>!v)}>{motion?"PAUSE MOTION":"RESUME MOTION"}</button></div>
+    {selectedId && satellites && satellites.length > 0 ? <aside className="de-cosmos-satellites" aria-label="Selected business integrations"><span className="de-cosmos-satellites-label">REGISTERED RECORDS · {satellites.length} INTEGRATIONS</span>{satellites.slice(0, 4).map(item => <div key={item.id} className="de-cosmos-satellite"><span className="de-cosmos-satellite-dot" aria-hidden="true"/><span><strong>{item.title}</strong><small>{item.status.replaceAll("_", " ")}</small></span></div>)}</aside> : null}
+    <div className="de-cosmos-bottomline"><span>SELECT A PLANET TO INSPECT ITS RECORDED ACTIVITY</span><button type="button" aria-label={motion?"Pause space animation":"Resume space animation"} onClick={()=>setMotion(v=>!v)}>{motion?"PAUSE MOTION":"RESUME MOTION"}</button></div>
   </div>;
 }

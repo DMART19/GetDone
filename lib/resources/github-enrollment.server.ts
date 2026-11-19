@@ -27,7 +27,7 @@ const installationSchema = z.object({
   id: z.number().int().positive().safe(),
   app_id: z.number().int().positive().safe(),
   suspended_at: z.string().datetime({ offset: true }).nullable(),
-  permissions: z.record(z.enum(["read", "write", "admin"]))
+  permissions: z.record(z.string(), z.enum(["read", "write", "admin"]))
 });
 
 const repositoryName = "DMART19/GetDone";

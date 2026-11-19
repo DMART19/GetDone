@@ -1,7 +1,7 @@
 import { sha256Hex } from "@/lib/control-plane/canonical-hash";
 import type { TrustedExecutionScope } from "@/lib/control-plane/trusted-execution-scope";
 
-export const ANALYTICS_INGESTION_CONTRACT_VERSION = "1.0.0";
+export const ANALYTICS_INGESTION_CONTRACT_VERSION = "1.0.2";
 
 export interface AnalyticsProvenance {
   sourceId:string;

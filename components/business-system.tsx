@@ -8,10 +8,16 @@ import { businessAttention } from "@/lib/businesses/attention-summary";
 import type { PortfolioAttentionOverview } from "@/lib/businesses/portfolio-attention";
 import { businessSections, type Business, type BusinessContext, type BusinessSection } from "@/lib/businesses/contracts";
 
+class BusinessReadError extends Error {
+  constructor(message: string, readonly accessDenied = false) { super(message); }
+}
+
 async function read<T>(url: string, signal: AbortSignal): Promise<T> {
   let message = "Business information could not be loaded. Please retry.";
+  let accessDenied = false;
   try {
     const response = await fetch(url, { cache: "no-store", signal });
+    accessDenied = response.status === 401 || response.status === 403;
     if (response.status === 401) message = "Your session has expired. Sign in again.";
     if (response.status === 403) message = "You do not have access to this business information.";
     if (!response.ok) throw new Error();
@@ -20,7 +26,7 @@ async function read<T>(url: string, signal: AbortSignal): Promise<T> {
     return result.data;
   } catch {
     // Proxy HTML, parser details and transport errors are not owner-facing content.
-    throw new Error(message);
+    throw new BusinessReadError(message, accessDenied);
   }
 }
 
@@ -64,46 +70,56 @@ export function BusinessSystem({ cinematic = false }: { cinematic?: boolean }) {
 
   useEffect(() => {
     if (!selected) return;
-    const controller = new AbortController();
+    const portfolioId = selected.portfolioId;
+    let controller: AbortController | null = null;
+    let stopped = false;
+    let loaded = false;
+    let denied = false;
     setContext(null);
     setContextUpdatedAt(null);
     setContextStale(false);
     setContextError("");
-    void read<BusinessContext>(`/api/businesses?portfolioId=${encodeURIComponent(selected.portfolioId)}`, controller.signal)
-      .then(value => { if (!controller.signal.aborted) { setContext(value); setContextUpdatedAt(new Date().toISOString()); } }).catch(error => { if (!controller.signal.aborted) setContextError(error.message); });
+    setContextRefreshing(false);
     panel.current?.focus();
-    return () => controller.abort();
-  }, [selected, contextRetry]);
 
-  // Reconcile the selected business against the server on return to the tab and at
-  // a bounded cadence. Do not erase the last good snapshot on a transient outage.
-  useEffect(() => {
-    if (!cinematic || !selected) return;
-    const portfolioId = selected.portfolioId;
-    let controller: AbortController | null = null;
-    let stopped = false;
+    // Initial reads and background refresh share one request slot. An older
+    // request must never replace newer records or revive access after a denial.
     const refresh = async () => {
-      if (document.visibilityState !== "visible" || controller) return;
+      if (stopped || denied || controller || document.visibilityState !== "visible") return;
       const pending = new AbortController();
       controller = pending;
       setContextRefreshing(true);
       try {
         const value = await read<BusinessContext>(`/api/businesses?portfolioId=${encodeURIComponent(portfolioId)}`, pending.signal);
         if (!stopped && !pending.signal.aborted) {
+          loaded = true;
           setContext(value);
           setContextUpdatedAt(new Date().toISOString());
           setContextStale(false);
           setContextError("");
         }
-      } catch {
-        if (!stopped && !pending.signal.aborted) setContextStale(true);
+      } catch (error) {
+        if (stopped || pending.signal.aborted) return;
+        if (error instanceof BusinessReadError && error.accessDenied) {
+          denied = true;
+          loaded = false;
+          setContext(null);
+          setContextUpdatedAt(null);
+          setContextStale(false);
+          setContextError(error.message);
+        } else if (loaded) {
+          setContextStale(true);
+        } else {
+          setContextError(error instanceof Error ? error.message : "Business information could not be loaded. Please retry.");
+        }
       } finally {
         if (controller === pending) controller = null;
         if (!stopped) setContextRefreshing(false);
       }
     };
-    const onReturn = () => { if (document.visibilityState === "visible") void refresh(); };
-    const interval = window.setInterval(() => { void refresh(); }, 30_000);
+    void refresh();
+    const onReturn = () => { void refresh(); };
+    const interval = cinematic ? window.setInterval(onReturn, 30_000) : undefined;
     window.addEventListener("focus", onReturn);
     document.addEventListener("visibilitychange", onReturn);
     return () => {
@@ -113,7 +129,7 @@ export function BusinessSystem({ cinematic = false }: { cinematic?: boolean }) {
       window.removeEventListener("focus", onReturn);
       document.removeEventListener("visibilitychange", onReturn);
     };
-  }, [cinematic, selected]);
+  }, [cinematic, selected, contextRetry]);
 
   const visible = businesses?.slice(page * 6, page * 6 + 6) ?? [];
   const positions = visible.map((_, index) => {

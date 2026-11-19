@@ -118,3 +118,7 @@
 .de-chat-business select{min-width:175px;max-width:75%;color:#f6f8ff;background:#12253c;border:1px solid rgba(155,195,232,.38);border-radius:9px;padding:9px 12px;font:inherit}
 .de-chat-business select:focus-visible{outline:3px solid #f0c581;outline-offset:2px}
 @media(max-width:560px){.de-chat-business{align-items:flex-start;flex-direction:column}.de-chat-business select{width:100%;max-width:100%}}
+.owner-sign-out{display:flex;justify-content:flex-end;align-items:center;flex-wrap:wrap;gap:10px;padding:8px 20px;font-size:13px}
+.owner-sign-out button{min-height:44px;padding:8px 14px;border:1px solid currentColor;border-radius:10px;background:transparent;color:inherit;cursor:pointer}
+.owner-sign-out button:focus-visible{outline:3px solid #f4cb8f;outline-offset:3px}
+.owner-sign-out [role=alert]{max-width:28ch}

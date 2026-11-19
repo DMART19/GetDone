@@ -32,7 +32,7 @@ const profileSchema = z.object({
 
 const policySchema = z.object({
   version: z.string().min(1),
-  routes: z.record(z.array(z.string().min(1)))
+  routes: z.record(z.string(), z.array(z.string().min(1)))
 }).strict();
 
 function parseJson(value: string | undefined, label: string) {

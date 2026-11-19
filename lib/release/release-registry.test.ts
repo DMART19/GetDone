@@ -458,7 +458,7 @@ describe("Phase 41 release/version registry", () => {
       version: ANALYTICS_DATA_INGESTION_ADAPTER_VERSION
     });
     expect(registry.schemaVersions.analyticsIngestion).toMatchObject({
-      version: "1.0.0",
+      version: "1.0.2",
       sourcePath: "lib/analytics/ingestion.ts",
       contractTracked: true
     });
@@ -555,7 +555,7 @@ describe("Phase 41 release/version registry", () => {
       contractTracked: true
     });
     expect(registry.schemaVersions.zeroDowntimeMigrationPolicy).toMatchObject({
-      version: "1.2.0",
+      version: "1.2.1",
       sourcePath: "config/zero-downtime-migration-policy.json",
       contractTracked: true
     });

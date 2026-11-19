@@ -12,13 +12,13 @@ export const evidenceSchema = z.object({
   environment: operationScopeSchema.shape.environment, topic: z.string().min(1).max(100),
   sourceType: z.string().min(1).max(100), sourceRef: z.string().min(1).max(500),
   observedAt: timestamp, freshUntil: timestamp, sensitivity: sensitivitySchema,
-  summary: z.string().max(4000), facts: z.record(z.union([z.string().max(2000), z.number().finite(), z.boolean(), z.null()])),
+  summary: z.string().max(4000), facts: z.record(z.string(), z.union([z.string().max(2000), z.number().finite(), z.boolean(), z.null()])),
   deepLink: z.string().max(1000).optional(), contentHash: z.string().regex(/^[a-f0-9]{64}$/),
   confidence: z.number().min(0).max(1),
   authorization: z.object({ connectionId: z.string().min(1), resourceId: z.string().min(1),
     grantedUserIds: z.array(z.string().min(1)).min(1), provenanceRef: z.string().min(1),
     authorizedAt: timestamp }).strict(),
-  providerMetadata: z.record(z.union([z.string().max(2000), z.number().finite(), z.boolean(), z.null()])).optional()
+  providerMetadata: z.record(z.string(), z.union([z.string().max(2000), z.number().finite(), z.boolean(), z.null()])).optional()
 }).strict().refine(e => Date.parse(e.freshUntil) > Date.parse(e.observedAt), { message: "Invalid evidence freshness interval" });
 export type NormalizedEvidence = z.infer<typeof evidenceSchema>;
 
