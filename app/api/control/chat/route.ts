@@ -1,4 +1,4 @@
-import { handleOwnerIntent } from "@/lib/control-api/http";
-
+import { handleThread } from "@/lib/conversation/http.server";
 export const dynamic = "force-dynamic";
-export const POST = handleOwnerIntent;
+export const GET = handleThread;
+export const POST = handleThread;

@@ -2,7 +2,7 @@ import { sha256Hex } from "@/lib/control-plane/canonical-hash";
 import { ControlPlaneError } from "@/lib/control-plane/errors";
 import type { OrchestrationRunRecord } from "@/lib/orchestration/contracts";
 
-export const ORCHESTRATION_WORKER_CONTRACT_VERSION = "1.1.0";
+export const ORCHESTRATION_WORKER_CONTRACT_VERSION = "1.1.1";
 
 export interface OrchestrationWorkCandidate {
   run: OrchestrationRunRecord;

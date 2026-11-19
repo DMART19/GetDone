@@ -5,6 +5,7 @@ import { DurableJobWorker } from "@/lib/execution/job-worker-runtime";
 import { assertProductionDurableJobStoreDescriptor } from "@/lib/execution/job-runtime-contracts";
 import { PostgresDurableJobStore } from "@/lib/persistence/postgres/job-store";
 import { getPostgresRuntimeFromEnv } from "@/lib/persistence/postgres/runtime.server";
+import { getWorkerServiceDatabaseFromEnv } from "@/lib/persistence/postgres/worker-service-runtime.server";
 
 let engine: DurableJobEngine | null = null;
 
@@ -47,7 +48,9 @@ export function getDurableJobEngineFromEnv(
       250,
       "GETDONE_JOB_COMPANY_QUEUE_DEPTH_LIMIT"
     )
-  });
+  }, env.GETDONE_PROCESS_ROLE === "job-worker"
+    ? getWorkerServiceDatabaseFromEnv("getdone_job_dispatch", env)
+    : undefined);
   assertProductionDurableJobStoreDescriptor(store.descriptor);
 
   const workerId = env.GETDONE_JOB_WORKER_ID?.trim();

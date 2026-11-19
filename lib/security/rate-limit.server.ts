@@ -2,6 +2,7 @@ import { sha256Hex } from "@/lib/control-plane/canonical-hash";
 import { ControlPlaneError } from "@/lib/control-plane/errors";
 import type { SqlQueryable } from "@/lib/persistence/postgres/client";
 import { getPostgresRuntimeFromEnv } from "@/lib/persistence/postgres/runtime.server";
+import { getAuthPostgresDatabaseFromEnv } from "@/lib/persistence/postgres/auth-runtime.server";
 
 export interface RateLimitPolicy {
   id: string;
@@ -165,7 +166,14 @@ export async function enforceRateLimit(
       retryAfterSeconds: policy.windowSeconds
     });
   }
-  const database = options.database ?? getPostgresRuntimeFromEnv(env).database;
+  // Global hashed request counters must be available before a tenant is
+  // authenticated. Use the restricted security-role pool in staging/production;
+  // never grant unscoped rate-bucket access to the business tenant role.
+  const database = options.database ?? (
+    env.GETDONE_RUNTIME_ENV === "staging" || env.GETDONE_RUNTIME_ENV === "production"
+      ? getAuthPostgresDatabaseFromEnv(env)
+      : getPostgresRuntimeFromEnv(env).database
+  );
   const decision = await new PostgresRateLimiter(database).consume(
     policy,
     keyParts,

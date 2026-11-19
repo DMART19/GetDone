@@ -353,12 +353,14 @@ if (failures.length === 0) {
     registry.database.status !== "implemented-unconnected"
     || registry.database.engine !== "postgresql"
     || registry.database.minimumEngineVersion !== "16"
-    || registry.database.migrationVersion !== "2026-10-10.1"
+    || registry.database.migrationVersion !== extractStringConst(
+      "lib/persistence/postgres/runtime.server.ts", "REQUIRED_POSTGRES_MIGRATION"
+    )
     || registry.database.schemaVersion !== "2.3.0"
     || registry.schemaVersions.postgresPersistence?.version !== "1.1.0"
     || registry.schemaVersions.disasterRecovery?.version !== "1.0.0"
     || registry.schemaVersions.disasterRecovery?.sourcePath !== "lib/execution/disaster-recovery.ts"
-    || registry.schemaVersions.zeroDowntimeMigrationPolicy?.version !== "1.2.0"
+    || registry.schemaVersions.zeroDowntimeMigrationPolicy?.version !== "1.2.1"
     || registry.schemaVersions.zeroDowntimeMigrationPolicy?.contractTracked !== true
     || registry.schemaVersions.productionReleaseGate?.version !== "1.1.1"
     || registry.schemaVersions.productionReleaseGate?.contractTracked !== true
@@ -405,10 +407,10 @@ if (failures.length === 0) {
     || registry.execution.businessAdaptersStatus !== "implemented-unconfigured"
     || registry.adapters.configuredHttpAction?.status !== "implemented-unconfigured"
     || registry.adapters.githubStandardOperation?.status !== "implemented-unconfigured"
-    || registry.adapters.githubStandardOperation?.version !== "1.0.0"
+    || registry.adapters.githubStandardOperation?.version !== "1.0.2"
     || registry.adapters.analyticsDataIngestion?.status !== "implemented-unconfigured"
-    || registry.adapters.analyticsDataIngestion?.version !== "1.0.0"
-    || registry.schemaVersions.analyticsIngestion?.version !== "1.0.0"
+    || registry.adapters.analyticsDataIngestion?.version !== "1.0.2"
+    || registry.schemaVersions.analyticsIngestion?.version !== "1.0.2"
     || registry.schemaVersions.analyticsIngestion?.contractTracked !== true
     || registry.composition.mvpBusinessWorkflowStatus !== "implemented-unconfigured"
     || registry.execution.softwareWorkerRuntimeStatus !== "implemented"

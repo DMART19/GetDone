@@ -2,12 +2,22 @@
 
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import Link from "next/link";
+import { DavidUniverseScene } from "@/components/david-universe-scene";
+import { summarizeBusinessCapabilities } from "@/lib/businesses/capability-summary";
+import { businessAttention } from "@/lib/businesses/attention-summary";
+import type { PortfolioAttentionOverview } from "@/lib/businesses/portfolio-attention";
 import { businessSections, type Business, type BusinessContext, type BusinessSection } from "@/lib/businesses/contracts";
+
+class BusinessReadError extends Error {
+  constructor(message: string, readonly accessDenied = false) { super(message); }
+}
 
 async function read<T>(url: string, signal: AbortSignal): Promise<T> {
   let message = "Business information could not be loaded. Please retry.";
+  let accessDenied = false;
   try {
     const response = await fetch(url, { cache: "no-store", signal });
+    accessDenied = response.status === 401 || response.status === 403;
     if (response.status === 401) message = "Your session has expired. Sign in again.";
     if (response.status === 403) message = "You do not have access to this business information.";
     if (!response.ok) throw new Error();
@@ -16,19 +26,24 @@ async function read<T>(url: string, signal: AbortSignal): Promise<T> {
     return result.data;
   } catch {
     // Proxy HTML, parser details and transport errors are not owner-facing content.
-    throw new Error(message);
+    throw new BusinessReadError(message, accessDenied);
   }
 }
 
-export function BusinessSystem() {
+export function BusinessSystem({ cinematic = false }: { cinematic?: boolean }) {
   const [businesses, setBusinesses] = useState<Business[] | null>(null);
   const [error, setError] = useState("");
+  const [portfolioAttention, setPortfolioAttention] = useState<PortfolioAttentionOverview | null>(null);
+  const [portfolioAttentionError, setPortfolioAttentionError] = useState(false);
   const [retry, setRetry] = useState(0);
   const [page, setPage] = useState(0);
   const [selected, setSelected] = useState<Business | null>(null);
   const [context, setContext] = useState<BusinessContext | null>(null);
   const [contextError, setContextError] = useState("");
   const [contextRetry, setContextRetry] = useState(0);
+  const [contextUpdatedAt, setContextUpdatedAt] = useState<string | null>(null);
+  const [contextRefreshing, setContextRefreshing] = useState(false);
+  const [contextStale, setContextStale] = useState(false);
   const [section, setSection] = useState<BusinessSection>("objectives");
   const panel = useRef<HTMLElement>(null);
   const selectedButton = useRef<HTMLButtonElement>(null);
@@ -44,15 +59,77 @@ export function BusinessSystem() {
   }, [retry]);
 
   useEffect(() => {
-    if (!selected) return;
+    if (!businesses || businesses.length < 2) { setPortfolioAttention(null); return; }
     const controller = new AbortController();
-    setContext(null);
-    setContextError("");
-    void read<BusinessContext>(`/api/businesses?portfolioId=${encodeURIComponent(selected.portfolioId)}`, controller.signal)
-      .then(setContext).catch(error => { if (!controller.signal.aborted) setContextError(error.message); });
-    panel.current?.focus();
+    setPortfolioAttentionError(false);
+    void read<PortfolioAttentionOverview>("/api/businesses?view=attention", controller.signal)
+      .then(value => { if (!controller.signal.aborted) setPortfolioAttention(value); })
+      .catch(() => { if (!controller.signal.aborted) setPortfolioAttentionError(true); });
     return () => controller.abort();
-  }, [selected, contextRetry]);
+  }, [businesses]);
+
+  useEffect(() => {
+    if (!selected) return;
+    const portfolioId = selected.portfolioId;
+    let controller: AbortController | null = null;
+    let stopped = false;
+    let loaded = false;
+    let denied = false;
+    setContext(null);
+    setContextUpdatedAt(null);
+    setContextStale(false);
+    setContextError("");
+    setContextRefreshing(false);
+    panel.current?.focus();
+
+    // Initial reads and background refresh share one request slot. An older
+    // request must never replace newer records or revive access after a denial.
+    const refresh = async () => {
+      if (stopped || denied || controller || document.visibilityState !== "visible") return;
+      const pending = new AbortController();
+      controller = pending;
+      setContextRefreshing(true);
+      try {
+        const value = await read<BusinessContext>(`/api/businesses?portfolioId=${encodeURIComponent(portfolioId)}`, pending.signal);
+        if (!stopped && !pending.signal.aborted) {
+          loaded = true;
+          setContext(value);
+          setContextUpdatedAt(new Date().toISOString());
+          setContextStale(false);
+          setContextError("");
+        }
+      } catch (error) {
+        if (stopped || pending.signal.aborted) return;
+        if (error instanceof BusinessReadError && error.accessDenied) {
+          denied = true;
+          loaded = false;
+          setContext(null);
+          setContextUpdatedAt(null);
+          setContextStale(false);
+          setContextError(error.message);
+        } else if (loaded) {
+          setContextStale(true);
+        } else {
+          setContextError(error instanceof Error ? error.message : "Business information could not be loaded. Please retry.");
+        }
+      } finally {
+        if (controller === pending) controller = null;
+        if (!stopped) setContextRefreshing(false);
+      }
+    };
+    void refresh();
+    const onReturn = () => { void refresh(); };
+    const interval = cinematic ? window.setInterval(onReturn, 30_000) : undefined;
+    window.addEventListener("focus", onReturn);
+    document.addEventListener("visibilitychange", onReturn);
+    return () => {
+      stopped = true;
+      controller?.abort();
+      window.clearInterval(interval);
+      window.removeEventListener("focus", onReturn);
+      document.removeEventListener("visibilitychange", onReturn);
+    };
+  }, [cinematic, selected, contextRetry]);
 
   const visible = businesses?.slice(page * 6, page * 6 + 6) ?? [];
   const positions = visible.map((_, index) => {
@@ -69,7 +146,7 @@ export function BusinessSystem() {
         <h1 id="business-system-title">One intelligence. Your businesses.</h1>
         <p>Information flows in. GetDone reasons across your businesses and coordinates authorized work.</p>
       </header>
-      <div className="business-universe" data-count={visible.length} data-empty={businesses?.length === 0 || !!error} aria-label="GetDone and your businesses" aria-busy={!businesses && !error}>
+      {cinematic && businesses?.length ? <DavidUniverseScene businesses={visible} selectedId={selected?.portfolioId ?? null} satellites={current?.sections.integrations.records} onSelect={(business, button) => { selectedButton.current = button; setSelected(business); setSection("objectives"); }} /> : <div className="business-universe" data-count={visible.length} data-empty={businesses?.length === 0 || !!error} aria-label="GetDone and your businesses" aria-busy={!businesses && !error}>
         <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true" className="business-orbits">
           <ellipse cx="50" cy="50" rx="35" ry="38" />
           <ellipse cx="50" cy="50" rx="23" ry="25" />
@@ -84,7 +161,7 @@ export function BusinessSystem() {
             <strong>{business.name}</strong><small>{business.lastActivityAt ? `Updated ${new Date(business.lastActivityAt).toLocaleDateString()}` : "No activity recorded"}</small>
           </button>
         ))}
-      </div>
+      </div>}
       <div className="business-system-feedback">
         {!businesses && !error && <p role="status">Loading your businesses…</p>}
         {error && <div role="alert"><p>{error}</p><button onClick={() => setRetry(retry + 1)}>Retry businesses</button> <Link href="/sign-in">Sign in</Link></div>}
@@ -105,9 +182,26 @@ export function BusinessSystem() {
           <button disabled={(page + 1) * 6 >= businesses.length} onClick={() => setPage(page + 1)}>Next</button>
         </nav>}
       </div>
+      {businesses && businesses.length > 1 && <section className="de-business-attention" aria-label="Portfolio owner attention">
+        <h2>Across your businesses</h2>
+        <p>Owner decisions and recorded operational blockers, ranked across your accessible businesses.</p>
+        {portfolioAttentionError ? <p role="status">Portfolio attention is unavailable. Individual business records remain accessible.</p>
+          : !portfolioAttention ? <p role="status">Checking recorded portfolio attention…</p>
+          : portfolioAttention.items.length ? <ul>{portfolioAttention.items.map(item => <li key={item.id}>
+              <div><strong>{item.businessName}: {item.title}</strong><small>{item.kind.replaceAll("_", " ")} · {item.status.replaceAll("_", " ")}</small></div>
+              <button type="button" onClick={() => {
+                const business = businesses.find(b => b.id === item.businessId && b.portfolioId === item.portfolioId);
+                if (business) { setSelected(business); setSection(item.section); }
+              }}>Review</button>
+            </li>)}</ul> : <p>No actionable items in the available records.</p>}
+        {portfolioAttention && <small>{portfolioAttention.note}{portfolioAttention.incomplete ? " Additional records or businesses may not be included." : ""}</small>}
+      </section>}
       {selected && <section id="business-context" ref={panel} tabIndex={-1} className="business-context" aria-label={`${selected.name} business context`}>
         <div className="business-context-heading"><div><span className="business-eyebrow">BUSINESS CONTEXT</span><h2>{selected.name}</h2></div>
           <button aria-label="Close business context" onClick={() => { setSelected(null); setContext(null); selectedButton.current?.focus(); }}>Close</button></div>
+        {cinematic && <div className="de-context-sync" role="status"><span>{contextStale ? "Connection interrupted · showing last confirmed records" : contextRefreshing ? "Checking for updates…" : contextUpdatedAt ? `Last synchronized ${new Date(contextUpdatedAt).toLocaleTimeString()}` : "Waiting for authoritative records"}</span><button type="button" onClick={() => setContextRetry(value => value + 1)}>Refresh records</button></div>}
+        {cinematic && current ? <section className="de-business-attention" aria-label="Business attention"><h3>Needs your attention</h3>{businessAttention(current).length ? <ul>{businessAttention(current).slice(0, 8).map(item => <li key={item.id}><div><strong>{item.title}</strong><small>{item.kind.replaceAll("_", " ")} · {item.status.replaceAll("_", " ")}</small></div><button type="button" onClick={() => setSection(item.section)}>Review {item.section}</button></li>)}</ul> : <p>No owner-attention items in the available records.</p>}<small>Shows the most recent records per category, not a complete global inbox.</small></section> : null}
+        {cinematic && current ? <section className="de-capability-map" aria-label="Business capability map"><h3>Capability &amp; connection map</h3><p>Derived from this business&apos;s authorized records. Record presence does not prove a live connection.</p><div>{summarizeBusinessCapabilities(current).map(capability => <article key={capability.section} data-state={capability.state}><strong>{capability.title}</strong><span>{capability.state.toUpperCase()} · {capability.recordCount} records</span><small>{capability.reason}</small><button type="button" onClick={() => setSection(capability.section)}>Inspect records</button></article>)}</div></section> : null}
         <nav aria-label="Business information" className="business-sections">{businessSections.map(item => <button key={item} aria-pressed={section === item} onClick={() => setSection(item)}>{item === "outcomes" ? "Recent outcomes" : item[0].toUpperCase() + item.slice(1)}</button>)}</nav>
         {contextError ? <div role="alert"><p>{contextError}</p><button onClick={() => setContextRetry(contextRetry + 1)}>Retry business context</button></div> : !current ? <p role="status">Loading business context…</p> : <div aria-live="polite">
           <h3>{section === "outcomes" ? "Recent outcomes" : section[0].toUpperCase() + section.slice(1)}</h3>

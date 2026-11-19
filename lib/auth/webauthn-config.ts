@@ -107,7 +107,7 @@ export function readWebAuthnServerConfig(
     ),
     sessionTtlSeconds: positiveInt(
       env.GETDONE_SESSION_TTL_SECONDS,
-      86_400,
+      7 * 24 * 60 * 60,
       "GETDONE_SESSION_TTL_SECONDS"
     ),
     secureCookie: booleanValue(env.GETDONE_AUTH_COOKIE_SECURE, true)

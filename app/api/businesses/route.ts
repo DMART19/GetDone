@@ -1,4 +1,4 @@
-import { getBusinessCatalog, getBusinessContext } from "@/lib/businesses/runtime.server";
+import { getBusinessCatalog, getBusinessContext, getPortfolioAttention } from "@/lib/businesses/runtime.server";
 import { createCorrelationId } from "@/lib/control-plane/request-context";
 import { readServerRuntimeEnvironment } from "@/lib/control-plane/runtime-environment.server";
 import { toControlPlaneError } from "@/lib/control-plane/errors";
@@ -9,8 +9,11 @@ export async function GET(request: Request) {
   const meta = { correlationId: createCorrelationId(), environment: readServerRuntimeEnvironment() };
   const headers = { "cache-control": "no-store", "x-correlation-id": meta.correlationId };
   try {
-    const portfolioId = new URL(request.url).searchParams.get("portfolioId");
-    const data = portfolioId ? await getBusinessContext(request, portfolioId) : await getBusinessCatalog(request, true);
+    const params = new URL(request.url).searchParams;
+    const portfolioId = params.get("portfolioId");
+    const data = portfolioId ? await getBusinessContext(request, portfolioId)
+      : params.get("view") === "attention" ? await getPortfolioAttention(request)
+      : await getBusinessCatalog(request, true);
     return Response.json(apiSuccess(data, meta), { headers });
   } catch (error) {
     const normalized = toControlPlaneError(error);

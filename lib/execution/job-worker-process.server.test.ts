@@ -89,6 +89,26 @@ describe("DedicatedJobWorkerProcess", () => {
     expect(closeDatabase).toHaveBeenCalledTimes(1);
   });
 
+  it("fails closed and releases resources when the health port is already occupied", async () => {
+    const { createServer } = await import("node:http");
+    const occupied = createServer();
+    await new Promise<void>((resolve) => occupied.listen(0, "127.0.0.1", resolve));
+    try {
+      const address = occupied.address();
+      if (!address || typeof address === "string") throw new Error("Expected TCP address");
+      const worker = service();
+      const closeDatabase = vi.fn(async () => {});
+      const controller = new DedicatedJobWorkerProcess(worker, closeDatabase,
+        { healthHost: "127.0.0.1", healthPort: address.port });
+      await expect(controller.start()).rejects.toThrow();
+      expect(controller.state()).toBe("failed");
+      expect(closeDatabase).toHaveBeenCalledTimes(1);
+      expect(worker.snapshot().stopped).toBe(true);
+    } finally {
+      await new Promise<void>((resolve, reject) => occupied.close(error => error ? reject(error) : resolve()));
+    }
+  });
+
   it("closes PostgreSQL and marks failure when startup cannot initialize the worker", async () => {
     const closeDatabase = vi.fn(async () => {});
     const failingWorker = {

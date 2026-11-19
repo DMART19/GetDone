@@ -35,6 +35,7 @@ import {
 } from "@/lib/planning/policy-engine";
 import type { PolicySnapshot } from "@/lib/planning/policy-snapshot";
 import type { PreferenceLearningService } from "@/lib/domain/preference-learning";
+import type { ExecutionPreview } from "@/lib/operations/preview";
 
 export const ORCHESTRATION_AUTHORIZATION_FLOW_VERSION = "1.0.0";
 export const DEFAULT_AUTHORIZATION_GRANT_TTL_MS = 5 * 60_000;
@@ -255,6 +256,7 @@ function createOrchestrationDecision(input: {
   lineage: AuthorizationLineage;
   stepPolicy: DurableStepPolicyRecord;
   requirement: "approval" | "strong-approval";
+  preview?: ExecutionPreview;
 }): AuthoritativeDecision {
   const binding = decisionBinding(input);
   const decision: AuthoritativeDecision = {
@@ -270,7 +272,9 @@ function createOrchestrationDecision(input: {
     version: 1,
     requiresStepUp: input.requirement === "strong-approval",
     updatedAt: input.lineage.policyArtifact.createdAt,
-    approvalBinding: binding
+    executionPreview: input.preview,
+    approvalBinding: input.preview ? { ...binding, previewHash: input.preview.previewHash,
+      proofExpiresAt: minIso([binding.proofExpiresAt, input.preview.expiresAt]) } : binding
   };
   return Object.freeze(decision);
 }
@@ -288,6 +292,13 @@ function assertDecisionMatchesStep(input: {
     input.stepPolicy.stepId
   );
   const binding = input.decision.approvalBinding;
+  if (binding?.previewHash) {
+    const preview = input.decision.executionPreview;
+    if (!preview || preview.previewHash !== binding.previewHash || preview.planHash !== binding.planHash
+      || preview.stepHash !== binding.stepHash || preview.policyHash !== binding.policyEvaluationArtifactHash
+      || (input.decision.status === "approved" && input.decision.approvalProof?.previewHash !== binding.previewHash))
+      throw new ControlPlaneError("FORBIDDEN", "Decision dry-run preview no longer matches approved policy scope");
+  }
   if (
     input.decision.id !== expectedId
     || input.decision.correlationId !== input.run.correlationId
@@ -552,6 +563,7 @@ export async function advancePolicyEvaluatedToAuthority(input: {
   preferenceLearning?: PreferenceLearningService;
   now?: () => Date;
   grantTtlMs?: number;
+  previewResolver?: (run: OrchestrationRunRecord, lineage: AuthorizationLineage, stepPolicy: DurableStepPolicyRecord) => Promise<ExecutionPreview | undefined>;
 }): Promise<OrchestrationStageOutcome> {
   if (input.run.state !== "policy-evaluated") {
     throw new ControlPlaneError(
@@ -593,7 +605,8 @@ export async function advancePolicyEvaluatedToAuthority(input: {
         run: input.run,
         lineage,
         stepPolicy,
-        requirement
+        requirement,
+        preview: await input.previewResolver?.(input.run, lineage, stepPolicy)
       });
       if (Date.parse(decision.approvalBinding!.proofExpiresAt) <= now().getTime()) {
         return {

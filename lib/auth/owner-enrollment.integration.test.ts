@@ -55,14 +55,17 @@ suite("first owner passkey enrollment with PostgreSQL", () => {
     const url = new URL(base); url.pathname = `/${name}`; connection = url.toString();
     const result = spawnSync(process.execPath, ["scripts/migrate-postgres.mjs"], { encoding: "utf8", env: { ...process.env, DATABASE_URL: connection } });
     if (result.status !== 0) throw new Error(result.stderr);
-    db = new PostgresDatabase({ connectionString: connection, ssl: ssl !== false, runtimeRole: "getdone_tenant_runtime" });
+    db = new PostgresDatabase({ connectionString: connection, ssl: ssl !== false, runtimeRole: "getdone_auth_runtime" });
     service = new OwnerEnrollmentService(db, config, "production");
   });
   beforeEach(async () => {
-    await db.query("DELETE FROM auth_webauthn_credentials WHERE user_id=$1", [owner]);
-    // Cleanup through isolated database admin; runtime deliberately has no delete grant.
+    // Bootstrap fixtures are removed by the isolated admin connection;
+    // the auth service role has neither DELETE nor owner-invitation issuance authority.
     const cleanup = new Pool({ connectionString: connection, ssl });
-    try { await cleanup.query("DELETE FROM auth_owner_enrollments WHERE user_id=$1", [owner]); } finally { await cleanup.end(); }
+    try {
+      await cleanup.query("DELETE FROM auth_webauthn_credentials WHERE user_id=$1", [owner]);
+      await cleanup.query("DELETE FROM auth_owner_enrollments WHERE user_id=$1", [owner]);
+    } finally { await cleanup.end(); }
     const { result, file } = bootstrap();
     expect(result.status, result.stderr).toBe(0);
     expect(statSync(file).mode & 0o777).toBe(0o600);

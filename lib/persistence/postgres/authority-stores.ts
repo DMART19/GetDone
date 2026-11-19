@@ -1,5 +1,6 @@
 import type { QueryResultRow } from "pg";
 import { ControlPlaneError } from "@/lib/control-plane/errors";
+import { getPostgresTenantScope } from "@/lib/persistence/postgres/tenant-context.server";
 import { sha256Hex } from "@/lib/control-plane/canonical-hash";
 import type { AuditEvent, AuditLedger } from "@/lib/domain/audit";
 import type { IdempotencyClaim, IdempotencyRecord, IdempotencyStore } from "@/lib/domain/idempotency";
@@ -153,10 +154,12 @@ export class PostgresIdempotencyStore implements IdempotencyStore {
     createdAt: string
   ): Promise<IdempotencyClaim<T>> {
     const inserted = await this.db.query(
-      `INSERT INTO idempotency_records(key,fingerprint,status,created_at)
-       VALUES($1,$2,'IN_PROGRESS',$3)
+      `INSERT INTO idempotency_records(key,fingerprint,status,created_at,portfolio_id,company_id)
+       VALUES($1,$2,'IN_PROGRESS',$3,$4,$5)
        ON CONFLICT (key) DO NOTHING`,
-      [key, fingerprint, createdAt]
+      [key, fingerprint, createdAt,
+       getPostgresTenantScope()?.portfolioId ?? null,
+       getPostgresTenantScope()?.companyId ?? null]
     );
     const result = await this.db.query<IdempotencyRow>(
       `SELECT * FROM idempotency_records WHERE key=$1 FOR UPDATE`,

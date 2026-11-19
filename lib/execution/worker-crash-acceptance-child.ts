@@ -246,6 +246,14 @@ async function main() {
       runtimeRole: "getdone_tenant_runtime",
       ssl: process.env.GETDONE_DB_SSL !== "false"
     });
+    const dispatchDatabase = new PostgresDatabase({
+      connectionString, maxConnections: 2, runtimeRole: "getdone_job_dispatch",
+      ssl: process.env.GETDONE_DB_SSL !== "false"
+    });
+    const registryDatabase = new PostgresDatabase({
+      connectionString, maxConnections: 2, runtimeRole: "getdone_worker_registry",
+      ssl: process.env.GETDONE_DB_SSL !== "false"
+    });
     const control = new Pool({
       connectionString,
       max: 2,
@@ -259,7 +267,7 @@ async function main() {
       const innerStore = new PostgresDurableJobStore(database, {
         maxAttempts: 5,
         recoveryDelayMs: 0
-      });
+      }, dispatchDatabase);
       const store = new CrashBarrierStore(innerStore, control, scenario);
       const worker = new DurableJobWorker(
         store,
@@ -309,7 +317,7 @@ async function main() {
           runOnce: (options?: { shouldStop?: () => boolean }) =>
             worker.runOnce(handler, options)
         },
-        new PostgresJobWorkerInstanceStore(database),
+        new PostgresJobWorkerInstanceStore(registryDatabase),
         {
           workerId,
           pollIntervalMs: 100,
@@ -331,6 +339,8 @@ async function main() {
       }
     } finally {
       await database.close();
+      await registryDatabase.close();
+      await dispatchDatabase.close();
       await control.end();
     }
 }

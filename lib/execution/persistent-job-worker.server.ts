@@ -1,6 +1,6 @@
 import { ControlPlaneError } from "@/lib/control-plane/errors";
 import { getMvpJobRuntimeFromEnv, type MvpJobRuntime } from "@/lib/execution/mvp-job-runtime.server";
-import { getPostgresRuntimeFromEnv } from "@/lib/persistence/postgres/runtime.server";
+import { getWorkerServiceDatabaseFromEnv } from "@/lib/persistence/postgres/worker-service-runtime.server";
 import { getTelemetry, OTEL_SEMANTIC } from "@/lib/observability/telemetry";
 import {
   PostgresJobWorkerInstanceStore,
@@ -255,10 +255,9 @@ export function installPersistentJobWorkerFromEnv(
 ) {
   if (installed) return installed;
   const config = readPersistentJobWorkerConfig(env);
-  const database = getPostgresRuntimeFromEnv(env).database;
   installed = new PersistentJobWorkerService(
     getMvpJobRuntimeFromEnv(env),
-    new PostgresJobWorkerInstanceStore(database),
+    new PostgresJobWorkerInstanceStore(getWorkerServiceDatabaseFromEnv("getdone_worker_registry", env)),
     config
   );
   return installed;

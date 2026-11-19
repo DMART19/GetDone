@@ -1,3 +1,5 @@
+import { createOwnerIntentOrchestrationRun } from "@/lib/orchestration/owner-intent-flow";
+import type { OwnerIntentRecord } from "@/lib/control-api/contracts";
 import { describe, expect, it } from "vitest";
 import type { AuthAdapter, AuthSession } from "@/lib/auth/contracts";
 import { createStepUpProof } from "@/lib/authorization/proofs";
@@ -453,4 +455,31 @@ describe("ServiceBackedControlApiAdapter", () => {
     })).toThrow(/elevated Control API role/i);
   });
 
+});
+
+
+describe("conversation lifecycle authority", () => {
+  const intent: OwnerIntentRecord = { id: "conversation-intent", correlationId: "conversation-correlation", ...scope,
+    message: "Prepare the approved draft", channel: "chat", status: "accepted", receivedAt: "2026-09-21T04:00:00Z" };
+  it("reports verification only from the matching durable execution", async () => {
+    const run = createOwnerIntentOrchestrationRun(intent);
+    const { instance } = adapter({ intents: { create: async r => r, get: async () => intent },
+      orchestrations: { getByCorrelationId: async () => ({ ...run, state: "completed",
+        checkpoints: { ...run.checkpoints, verifiedOutcomes: [{ id: "outcome", verificationReceiptId: "receipt", verificationReceiptHash: "hash" }] } }) } });
+    const principal = await instance.authenticate(new Request("https://test"));
+    expect(await instance.getOwnerIntentStatus(principal, intent.id)).toMatchObject({ lifecycle: { verified: true, terminal: true }, verificationRefs: ["receipt"] });
+  });
+  it("rejects history from another runtime environment", async () => {
+    const { instance } = adapter({ intents: { create: async r => r, get: async () => ({ ...intent, environment: "production" }) },
+      orchestrations: { getByCorrelationId: async () => null } });
+    const principal = await instance.authenticate(new Request("https://test"));
+    await expect(instance.getOwnerIntentStatus(principal, intent.id)).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+  it("rejects a correlation pointing to another owner's execution", async () => {
+    const foreign = createOwnerIntentOrchestrationRun({ ...intent, userId: "other" });
+    const { instance } = adapter({ intents: { create: async r => r, get: async () => intent },
+      orchestrations: { getByCorrelationId: async () => foreign } });
+    const principal = await instance.authenticate(new Request("https://test"));
+    await expect(instance.getOwnerIntentStatus(principal, intent.id)).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
 });
