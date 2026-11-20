@@ -108,7 +108,9 @@ function providerRecord(jobId: string): BusinessActionExecutionRecord {
 
 describeIntegration("disaster recovery from real PostgreSQL backup", () => {
   const suffix = `${process.pid}_${Date.now()}`;
-  const sourceName = `getdone_dr_source_${suffix}`;
+  // The real backup command accepts this prefix only with the explicit
+  // loopback-only isolated-test permit; a live Supabase source cannot use it.
+  const sourceName = `getdone_backup_source_dr_${suffix}`;
   const restoredName = `getdone_restore_verify_dr_${suffix}`;
   const backupFile = path.join(os.tmpdir(), `getdone-dr-${suffix}.dump`);
   const manifestFile = `${backupFile}.manifest.json`;
@@ -192,6 +194,7 @@ describeIntegration("disaster recovery from real PostgreSQL backup", () => {
 
     const backup = JSON.parse(runNode("scripts/create-staging-backup.mjs", {
       GETDONE_RUNTIME_ENV: "staging",
+      GETDONE_ALLOW_ISOLATED_RESTORE_TEST: "true",
       DATABASE_URL: sourceUrl,
       GETDONE_DB_SSL: process.env.GETDONE_DB_SSL ?? "false",
       GETDONE_BACKUP_FILE: backupFile,
@@ -213,6 +216,7 @@ describeIntegration("disaster recovery from real PostgreSQL backup", () => {
       GETDONE_BACKUP_FILE: backupFile,
       GETDONE_BACKUP_MANIFEST: manifestFile,
       GETDONE_RESTORE_ADMIN_DATABASE_URL: baseConnectionString,
+      GETDONE_BACKUP_SOURCE_DATABASE_URL: sourceUrl,
       GETDONE_RESTORE_DATABASE_NAME: restoredName,
       GETDONE_RESTORE_KEEP_DATABASE: "true",
       GETDONE_RESTORE_SKIP_BUILD: fs.existsSync(path.join(process.cwd(), ".next", "BUILD_ID"))
