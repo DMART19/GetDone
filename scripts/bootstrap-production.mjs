@@ -19,10 +19,6 @@ function safeRole(value) {
   return value;
 }
 
-function quoteIdentifier(value) {
-  return '"' + value.replaceAll('"', '""') + '"';
-}
-
 function canonical(value) {
   if (Array.isArray(value)) return value.map(canonical);
   if (value && typeof value === "object") {
@@ -219,7 +215,16 @@ try {
     );
   }
 
-  await client.query(`SET LOCAL ROLE ${quoteIdentifier(runtimeRole)}`);
+  // This is an explicitly invoked, one-time operator-only bootstrap. It
+  // creates an initial user and tenant, which the tenant runtime role must
+  // NOT be able to do. Keep bootstrap under the privileged operator identity;
+  // live web/worker paths must still SET ROLE getdone_tenant_runtime.
+  const operator = await client.query(
+    "SELECT rolsuper,rolbypassrls FROM pg_roles WHERE rolname=current_user"
+  );
+  if (!operator.rows[0]?.rolsuper && !operator.rows[0]?.rolbypassrls) {
+    throw new Error("Owner bootstrap requires a privileged operator database principal");
+  }
   await client.query(
     `SELECT
        set_config('getdone.portfolio_id',$1,true),
@@ -344,9 +349,8 @@ try {
     await client.query("SELECT id FROM auth_users WHERE id=$1 FOR UPDATE", [userId]);
     const existing = await client.query("SELECT 1 FROM auth_webauthn_credentials WHERE user_id=$1", [userId]);
     if (existing.rowCount) throw new Error("Owner already has a passkey; bootstrap enrollment cannot reset it");
-    // Invitation authority requires the operator connection's administration role.
-    // The tenant runtime may only consume an already-issued invitation.
-    await client.query("SET LOCAL ROLE NONE");
+    // Invitation issuance remains within the privileged operator transaction.
+    // The auth runtime may consume an invitation but may not issue one.
     const issued = await client.query(
       `INSERT INTO auth_owner_enrollments
         (user_id,token_hash,environment,rp_id,allowed_origins,user_handle,expires_at)
@@ -358,7 +362,6 @@ try {
        WHERE auth_owner_enrollments.consumed_at IS NULL`,
       [userId,hash(invitation.token),invitation.rpId,JSON.stringify(invitation.origins),invitation.userHandle,invitation.expiresAt]
     );
-    await client.query(`SET LOCAL ROLE ${quoteIdentifier(runtimeRole)}`);
     if (issued.rowCount !== 1) throw new Error("Owner invitation has already been consumed; recovery is required");
     created.passkey = false;
   } else {
