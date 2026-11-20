@@ -15,6 +15,7 @@ class FixtureDb {
   entityRows: unknown[] = [];
   conversationRows: unknown[] = [];
   executionRows: unknown[] = [];
+  planRows: unknown[] = [];
   inserted: Array<{ type: string; payload: unknown }> = [];
   allowWrite = true;
 
@@ -37,7 +38,7 @@ class FixtureDb {
     } else if (text.includes("FROM control_plane_entities j JOIN verification_receipts")) {
       rows = this.executionRows;
     } else if (text.includes("SELECT payload FROM orchestration_plan_proposals")) {
-      rows = [];
+      rows = this.planRows;
     } else if (text.includes("SELECT payload FROM control_plane_entities")) {
       rows = (this.payloads.get(String(values?.[0])) ?? []).map(payload => ({ payload }));
     }
@@ -218,5 +219,69 @@ describe("scoped operational persistence", () => {
     expect(db.inserted.map(x => x.type)).toEqual([
       "objective-evaluation", "owner-inbox-item"
     ]);
+  });
+});
+
+describe("verified operational outcomes", () => {
+  it("links cryptographically verified provider work to an owner-reviewed continuation, never automatic authority", async () => {
+    const db = new FixtureDb();
+    const receiptBase = {
+      id: "receipt-one", verdict: "verified", subject: { id: "job-one" },
+      verifiedAt: now
+    };
+    const receiptHash = sha256Hex(receiptBase);
+    const executionBase = { requestId: "request-one", state: "completed" };
+    const recordHash = sha256Hex(executionBase);
+    const planHash = "p".repeat(64);
+    db.executionRows = [{
+      job: { id: "job-one", verificationReceiptHash: receiptHash },
+      decision: {
+        executionPreview: {
+          scope: { userId: scope.userId }, planHash,
+          workflow: "github_create_branch", previewHash: "v".repeat(64)
+        },
+        approvalBinding: { planArtifactId: "plan-one", stepId: "step-one" }
+      },
+      receipt: { ...receiptBase, receiptHash },
+      execution: { ...executionBase, recordHash }
+    }];
+    db.planRows = [{
+      payload: {
+        planHash,
+        proposal: {
+          source: { type: "objective", objectiveId: "objective-one" },
+          steps: [{ id: "step-one", evidenceIds: ["evidence-one"], expectedOutcome: "branch exists" }]
+        }
+      }
+    }];
+    db.payloads.set("objective", [{
+      id: "objective-one", ...scope, createdByUserId: scope.userId,
+      status: "failed", dependsOnObjectiveIds: [], successCriteria: []
+    }]);
+    const store = new OperationalStore(db, scope);
+    await store.captureVerifiedOutcomes(now);
+    const types = db.inserted.map(x => x.type);
+    expect(types).toEqual([
+      "verified-outcome", "objective-continuation-proposal", "owner-inbox-item"
+    ]);
+    const outcome = db.inserted[0].payload as { outcomeHash: string; objectiveImpact: unknown; jobId: string };
+    expect(outcome.jobId).toBe("job-one");
+    expect(outcome.objectiveImpact).toBeNull();
+    expect(outcome.outcomeHash).toMatch(/^[a-f0-9]{64}$/);
+    const continuation = db.inserted[1].payload as { consequentialExecutionAuthorized: boolean; requiresAdmission: boolean };
+    expect(continuation.requiresAdmission).toBe(true);
+    expect(continuation.consequentialExecutionAuthorized).toBe(false);
+  });
+
+  it("does not convert an invalid receipt or unmatched plan into verified business impact", async () => {
+    const db = new FixtureDb();
+    db.executionRows = [{
+      job: { id: "job-one", verificationReceiptHash: "fake" },
+      decision: { executionPreview: { scope: { userId: scope.userId } } },
+      receipt: { verdict: "verified", subject: { id: "job-one" }, receiptHash: "wrong" },
+      execution: { recordHash: "wrong" }
+    }];
+    await new OperationalStore(db, scope).captureVerifiedOutcomes(now);
+    expect(db.inserted).toHaveLength(0);
   });
 });
