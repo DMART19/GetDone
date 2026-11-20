@@ -26,7 +26,7 @@ class FixtureDb {
     let rowCount = 0;
     if (text.includes("INSERT INTO control_plane_entities")) {
       if (this.allowWrite) {
-        this.inserted.push({ type: String(values?.[0]), payload: JSON.parse(String(values?.[6])) });
+        this.inserted.push({ type: String(values?.[0]), payload: JSON.parse(String(values?.[5])) });
         rowCount = 1;
         rows = [{ id: values?.[1] }];
       }
@@ -180,7 +180,7 @@ describe("scoped operational persistence", () => {
     ];
     await new OperationalStore(db, scope).refreshInbox(now);
     const items = db.inserted.map(({ payload }) => payload as OwnerInboxItem);
-    expect(items).toHaveLength(9);
+    expect(items).toHaveLength(8);
     expect(items.some(x => x.kind === "approval" && x.state === "open" && x.nextAction.href === "/decisions/decision%2F1")).toBe(true);
     expect(items.some(x => x.kind === "job" && x.urgency === 1)).toBe(true);
     expect(items.some(x => x.kind === "owner-input" && x.state === "open")).toBe(true);
