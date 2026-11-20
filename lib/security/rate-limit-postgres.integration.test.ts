@@ -1,3 +1,4 @@
+import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { PostgresDatabase, readPostgresConfigFromEnv } from "@/lib/persistence/postgres/client";
 import { PostgresRateLimiter } from "@/lib/security/rate-limit.server";
@@ -7,6 +8,8 @@ const describeIntegration = enabled ? describe : describe.skip;
 
 describeIntegration("PostgreSQL rate limiting", () => {
   let database: PostgresDatabase | undefined;
+  let fixtureAdmin: Pool | undefined;
+  const fixturePolicies = ["integration.owner-intent", "integration.concurrent"];
 
   function db() {
     if (!database) throw new Error("PostgreSQL rate limit test database is not initialized");
@@ -14,14 +17,33 @@ describeIntegration("PostgreSQL rate limiting", () => {
   }
 
   beforeAll(async () => {
-    database = new PostgresDatabase(readPostgresConfigFromEnv(process.env));
-    await db().query("DELETE FROM rate_limit_buckets");
+    const config = readPostgresConfigFromEnv(process.env);
+    // Runtime rate limiting works before tenant authentication. The production
+    // auth role can SELECT/INSERT/UPDATE counters but deliberately cannot DELETE.
+    // Only the isolated CI fixture admin may remove its own test counters.
+    fixtureAdmin = new Pool({
+      connectionString: config.connectionString,
+      ssl: process.env.GETDONE_DB_SSL === "false" ? false : { rejectUnauthorized: true }
+    });
+    await fixtureAdmin.query(
+      "DELETE FROM rate_limit_buckets WHERE policy_id = ANY($1::text[])",
+      [fixturePolicies]
+    );
+    database = new PostgresDatabase({ ...config, runtimeRole: "getdone_auth_runtime" });
   });
 
   afterAll(async () => {
-    if (!database) return;
-    await database.query("DELETE FROM rate_limit_buckets");
-    await database.close();
+    if (fixtureAdmin) {
+      try {
+        await fixtureAdmin.query(
+          "DELETE FROM rate_limit_buckets WHERE policy_id = ANY($1::text[])",
+          [fixturePolicies]
+        );
+      } finally {
+        await fixtureAdmin.end();
+      }
+    }
+    await database?.close();
   });
 
   it("keeps tenant buckets independent and resets fixed windows deterministically", async () => {
