@@ -144,6 +144,22 @@ describeIntegration("disaster recovery from real PostgreSQL backup", () => {
       GETDONE_DB_SSL: process.env.GETDONE_DB_SSL ?? "false"
     });
 
+    // A genuine restored owner-access health check requires an active
+    // identity and membership in the snapshot. Seed through the isolated
+    // test administrator: ordinary tenant RLS must remain fail-closed.
+    const fixtureAdmin = new Pool({ connectionString: sourceUrl, ssl });
+    try {
+      await fixtureAdmin.query("INSERT INTO auth_users(id,status) VALUES($1,'active')", ["owner-dr"]);
+      await fixtureAdmin.query("INSERT INTO organizations(id,name) VALUES($1,$2)", ["org-dr","Recovery Test Organization"]);
+      await fixtureAdmin.query("INSERT INTO companies(id,organization_id,name) VALUES($1,$2,$3)", ["company-dr","org-dr","Recovery Test Company"]);
+      await fixtureAdmin.query("INSERT INTO portfolios(id,organization_id,company_id,name) VALUES($1,$2,$3,$4)", ["portfolio-dr","org-dr","company-dr","Recovery Test Portfolio"]);
+      await fixtureAdmin.query("INSERT INTO organization_memberships(user_id,organization_id,role,status) VALUES($1,$2,'owner','active')", ["owner-dr","org-dr"]);
+      await fixtureAdmin.query("INSERT INTO company_memberships(user_id,company_id,role,status) VALUES($1,$2,'owner','active')", ["owner-dr","company-dr"]);
+      await fixtureAdmin.query("INSERT INTO portfolio_memberships(user_id,portfolio_id,company_id,role,status) VALUES($1,$2,$3,'owner','active')", ["owner-dr","portfolio-dr","company-dr"]);
+    } finally {
+      await fixtureAdmin.end();
+    }
+
     const sourceDb = new PostgresDatabase({
       connectionString: sourceUrl,
       maxConnections: 4,
