@@ -1,6 +1,11 @@
 import crypto from "node:crypto";
+import fs from "node:fs";
 import { spawnSync } from "node:child_process";
 import pg from "pg";
+
+const versionRegistry = JSON.parse(fs.readFileSync(new URL("../release/version-registry.json", import.meta.url), "utf8"));
+const expectedLatestMigration = versionRegistry.database?.migrationVersion;
+if (!expectedLatestMigration) throw new Error("Release registry is missing database migration truth");
 
 const baseConnectionString = process.env.DATABASE_URL?.trim();
 if (!baseConnectionString) throw new Error("DATABASE_URL is required");
@@ -312,8 +317,13 @@ const allMigrationVersions = [
   "2026-09-28.9",
   "2026-09-28.9z",
   "2026-09-28.9zz",
-  "2026-10-10.1"
+  "2026-10-10.1",
+  "2026-10-17.1",
+  "2026-10-17.2"
 ];
+if (allMigrationVersions.at(-1) !== expectedLatestMigration) {
+  throw new Error(`Integration migration inventory does not match release registry: ${expectedLatestMigration}`);
+}
 
 try {
   const version = await adminPool.query("SHOW server_version_num");
@@ -327,7 +337,7 @@ try {
   const emptyUrl = databaseUrl(databases.empty);
   runMigrations(emptyUrl);
   await withPool(emptyUrl, async (pool) => {
-    await assertMigrationState(pool, "2026-10-10.1", allMigrationVersions);
+    await assertMigrationState(pool, expectedLatestMigration, allMigrationVersions);
     await seedVerifiedBackupFixture(pool);
   });
   const emptyVerification = runProductionVerifier(emptyUrl);
@@ -343,7 +353,7 @@ try {
   });
   runMigrations(upgradeUrl);
   await withPool(upgradeUrl, async (pool) => {
-    await assertMigrationState(pool, "2026-10-10.1", allMigrationVersions);
+    await assertMigrationState(pool, expectedLatestMigration, allMigrationVersions);
     await seedVerifiedBackupFixture(pool);
   });
   const upgradeVerification = runProductionVerifier(upgradeUrl);
@@ -354,7 +364,7 @@ try {
 
   console.log(JSON.stringify({
     postgresMajor: Math.floor(serverVersionNum / 10000),
-    latestMigration: "2026-10-10.1",
+    latestMigration: expectedLatestMigration,
     emptyDatabaseMigration: "verified",
     previousVersionUpgrade: "verified",
     productionVerifierEmptyDatabase: JSON.parse(emptyVerification),
