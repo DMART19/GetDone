@@ -17,9 +17,17 @@ export async function listBusinesses(db: SqlQueryable, userId: string): Promise<
   return result.rows.map(row => ({ id: row.id, portfolioId: row.portfolio_id, name: row.name }));
 }
 
-export async function readBusinessContext(db: SqlQueryable, userId: string, portfolioId: string, environment: string): Promise<BusinessContext> {
-  // Never use a caller-supplied company ID or a client-side selection as authorization.
-  const business = (await listBusinesses(db, userId)).find(item => item.portfolioId === portfolioId);
+export async function readBusinessContext(
+  db: SqlQueryable,
+  userId: string,
+  portfolioId: string,
+  environment: string,
+  membershipDb: SqlQueryable = db
+): Promise<BusinessContext> {
+  // Resolve the authorized catalog through the restricted authentication role
+  // before entering any business data scope. Never use client-provided company
+  // IDs or give the auth role access to tenant-controlled business records.
+  const business = (await listBusinesses(membershipDb, userId)).find(item => item.portfolioId === portfolioId);
   if (!business) throw new ControlPlaneError("FORBIDDEN", "No active membership for this business");
   return runWithPostgresTenantScope({ portfolioId: business.portfolioId, companyId: business.id }, async () => {
     const sections: BusinessContext["sections"] = {

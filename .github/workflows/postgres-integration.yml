@@ -54,10 +54,17 @@ jobs:
       - name: Enable certificate-verified PostgreSQL TLS
         run: bash scripts/configure-ci-postgres-tls.sh "${{ job.services.postgres.id }}"
 
-      - name: Install PostgreSQL client tools
+      - name: Install PostgreSQL 16 client tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y postgresql-client
+          sudo apt-get install -y ca-certificates curl
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl --fail --silent --show-error -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          printf 'Types: deb\nURIs: https://apt.postgresql.org/pub/repos/apt\nSuites: %s-pgdg\nArchitectures: %s\nComponents: main\nSigned-By: /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc\n' "$(lsb_release -cs)" "$(dpkg --print-architecture)" | sudo tee /etc/apt/sources.list.d/pgdg.sources >/dev/null
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-16
+          /usr/lib/postgresql/16/bin/pg_dump --version
+          /usr/lib/postgresql/16/bin/pg_restore --version
 
       - name: Run PostgreSQL 16 migration and concurrency acceptance
         run: npm run db:test-integration
@@ -179,6 +186,8 @@ jobs:
         env:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
           GETDONE_DB_SSL: "true"
+          GETDONE_PG_DUMP_BIN: /usr/lib/postgresql/16/bin/pg_dump
+          GETDONE_PG_RESTORE_BIN: /usr/lib/postgresql/16/bin/pg_restore
 
       - name: Run disaster recovery primary-loss acceptance
         run: npm run dr:test-acceptance
@@ -186,6 +195,8 @@ jobs:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
           GETDONE_DB_SSL: "true"
           GETDONE_POSTGRES_INTEGRATION: "true"
+          GETDONE_PG_DUMP_BIN: /usr/lib/postgresql/16/bin/pg_dump
+          GETDONE_PG_RESTORE_BIN: /usr/lib/postgresql/16/bin/pg_restore
 
       - name: Run owner-safe AI Gateway health PostgreSQL acceptance
         run: npx vitest run lib/ai-gateway/health-postgres.integration.test.ts

@@ -6,7 +6,7 @@ import { ControlPlaneError, toControlPlaneError } from "@/lib/control-plane/erro
 import { createCorrelationId } from "@/lib/control-plane/request-context";
 import { readServerRuntimeEnvironment } from "@/lib/control-plane/runtime-environment.server";
 import { apiFailure, apiSuccess } from "@/lib/control-plane/schemas";
-import { getPostgresRuntimeFromEnv } from "@/lib/persistence/postgres/runtime.server";
+import { getAuthPostgresDatabaseFromEnv } from "@/lib/persistence/postgres/auth-runtime.server";
 import { evaluateBrowserMutationOrigin } from "@/lib/security/browser-mutation-origin";
 import { RATE_LIMIT_POLICIES, clientNetworkIdentity, enforceRateLimit, rateLimitHeaders } from "@/lib/security/rate-limit.server";
 
@@ -43,8 +43,8 @@ export async function handleOwnerEnrollment(request: Request, operation: "begin"
     let body: unknown;
     try { body = JSON.parse(Buffer.concat(chunks).toString("utf8")); }
     catch { throw new ControlPlaneError("VALIDATION_FAILED", "Enrollment body must be JSON"); }
-    const runtime = getPostgresRuntimeFromEnv();
-    const service = new OwnerEnrollmentService(runtime.database, readWebAuthnServerConfig(), environment);
+    const authDb = getAuthPostgresDatabaseFromEnv();
+    const service = new OwnerEnrollmentService(authDb, readWebAuthnServerConfig(), environment);
     let data;
     if (operation === "begin") {
       const parsed = beginSchema.safeParse(body);

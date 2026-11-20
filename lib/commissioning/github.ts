@@ -17,7 +17,7 @@ const installationSchema = z.object({
   id: z.number().int().positive().safe(),
   app_id: z.number().int().positive().safe(),
   suspended_at: z.string().datetime({ offset: true }).nullable(),
-  permissions: z.record(z.enum(["read", "write", "admin"]))
+  permissions: z.record(z.string(), z.enum(["read", "write", "admin"]))
 });
 /** Operator-only configuration, never a business execution or token-issuance path. */
 export async function commissionGithub(db: PostgresTransactionalDatabase, env: Env, apply: boolean, fetcher = fetch) {

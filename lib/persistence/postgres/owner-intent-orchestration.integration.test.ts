@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { Pool } from "pg";
 import type { OwnerIntentRecord } from "@/lib/control-api/contracts";
 import {
   advanceOwnerIntentAcceptedToContextReady,
@@ -61,12 +62,23 @@ integrationDescribe("PostgreSQL OwnerIntent -> orchestration admission", () => {
 
   beforeAll(async () => {
     database = new PostgresDatabase(readPostgresConfigFromEnv(process.env));
-    await db().query(
-      `INSERT INTO auth_users(id,status)
-       VALUES($1,'active')
-       ON CONFLICT (id) DO NOTHING`,
-      [userId]
-    );
+    // Fixture setup is operator-only: the tenant runtime must never gain
+    // unscoped permission to create auth identities. All actual OwnerIntent
+    // behavior below still runs with scoped tenant RLS.
+    const admin = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: process.env.GETDONE_DB_SSL === "false" ? false : { rejectUnauthorized: true }
+    });
+    try {
+      await admin.query(
+        `INSERT INTO auth_users(id,status)
+         VALUES($1,'active')
+         ON CONFLICT (id) DO NOTHING`,
+        [userId]
+      );
+    } finally {
+      await admin.end();
+    }
   });
 
   afterAll(async () => {
@@ -315,4 +327,21 @@ integrationDescribe("PostgreSQL OwnerIntent -> orchestration admission", () => {
     expect(afterRestart.next.checkpoints.contextSnapshot)
       .toEqual(beforeCrash.next.checkpoints.contextSnapshot);
   });
+  it("restores a durable thread and state after constructing a new store, isolated by user and environment", async () => {
+    const record = { ...intent("conversation-reopen"), threadId: crypto.randomUUID(), status: "answered" as const,
+      conversation: { intent: "status_query" as const, references: [], continuation: "none" as const, requiresExecutionAuthority: false },
+      conversationState: { activeBusiness: { id: companyId, portfolioId, name: "Registered test business" },
+        activeTopic: "marketing" as const, currentQuestion: "What about marketing?", lastFinding: "Campaign needs review",
+        proposedActions: [{ id: "draft", description: "Prepare campaign draft", sourceIntentId: "source" }],
+        approvalState: "none" as const, evidenceRefs: ["outcome:campaign"] },
+      answer: { text: "Campaign needs review", evidenceRefs: ["outcome:campaign"], observedAt: "2026-09-28T11:30:00.000Z", knownUnknowns: [] }
+    };
+    await inScope(() => new PostgresOwnerIntentStore(db()).create(record, "conversation-reopen-key"));
+    const reopened = await inScope(() => new PostgresOwnerIntentStore(db()).listConversation(portfolioId, companyId, userId, "staging", record.threadId));
+    expect(reopened).toEqual([record]);
+    expect(await inScope(() => new PostgresOwnerIntentStore(db()).listConversation(portfolioId, companyId, "other-user", "staging", record.threadId))).toEqual([]);
+    expect(await inScope(() => new PostgresOwnerIntentStore(db()).listConversation(portfolioId, companyId, userId, "production", record.threadId))).toEqual([]);
+    expect(await inScope(() => new PostgresOrchestrationRunStore(db()).getByCorrelationId(record.correlationId!))).toBeNull();
+  });
+
 });

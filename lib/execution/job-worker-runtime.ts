@@ -12,6 +12,7 @@ import type {
   DurableJobWorkStore
 } from "@/lib/persistence/postgres/job-store";
 import { getTelemetry, OTEL_SEMANTIC } from "@/lib/observability/telemetry";
+import { runWithPostgresTenantScope } from "@/lib/persistence/postgres/tenant-context.server";
 
 export type JobExecutionOutcome =
   | { kind: "provider-completed" }
@@ -112,7 +113,10 @@ export class DurableJobWorker {
         const index = nextIndex;
         nextIndex += 1;
         if (index >= candidates.length) return;
-        const result = await this.runCandidate(candidates[index], handler);
+        const result = await runWithPostgresTenantScope(
+          candidates[index].envelope.scope,
+          () => this.runCandidate(candidates[index], handler)
+        );
         if (result) results[index] = result;
       }
     };

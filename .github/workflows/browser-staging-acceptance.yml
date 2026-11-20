@@ -85,6 +85,10 @@ jobs:
       - name: Run authoritative staging browser and WebAuthn acceptance
         run: npm run test:e2e:staging
         env:
+          # This reset permit is only for the disposable PostgreSQL CI service below.
+          # Never configure it on the deployed Railway staging or production app.
+          GETDONE_RUNTIME_ENV: staging
+          GETDONE_E2E_DATABASE_RESET_ALLOWED: "true"
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
           GETDONE_DB_SSL: "true"
           GETDONE_SESSION_TTL_SECONDS: "3600"

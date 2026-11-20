@@ -19,6 +19,7 @@ import {
 export type AuthoritativeDecisionStatus = "pending" | "approved" | "modified" | "rejected";
 
 export interface OrchestrationApprovalBinding {
+  previewHash?: string;
   orchestrationRunId: string;
   trustedScope: TrustedExecutionScope;
   policyEvaluationArtifactId: string;
@@ -37,6 +38,7 @@ export interface OrchestrationApprovalBinding {
 }
 
 export interface AuthoritativeDecision {
+  executionPreview?: import("@/lib/operations/preview").ExecutionPreview;
   id: string;
   correlationId?: string;
   portfolioId: string;
@@ -211,6 +213,14 @@ export async function resolveDecision(input: ResolveDecisionInput): Promise<Auth
 
       if (input.action === "approve" && current.approvalBinding) {
         const binding = current.approvalBinding;
+        if (binding.previewHash) {
+          const preview = current.executionPreview;
+          if (!preview) throw new ControlPlaneError("FORBIDDEN", "Decision execution preview is missing");
+          const { previewHash, ...base } = preview;
+          if (previewHash !== binding.previewHash || sha256Hex(base) !== previewHash
+            || Date.parse(preview.expiresAt) <= Date.parse(resolvedAt))
+            throw new ControlPlaneError("FORBIDDEN", "Execution preview changed or expired; request a new preview");
+        }
         const boundStepUp = binding.requirement === "strong-approval"
           ? input.stepUpProof
           : undefined;
@@ -232,6 +242,7 @@ export async function resolveDecision(input: ResolveDecisionInput): Promise<Auth
           level: binding.requirement,
           planHash: binding.planHash,
           stepHash: binding.stepHash,
+          previewHash: binding.previewHash,
           grantedAt: resolvedAt,
           expiresAt,
           stepUpProofId: boundStepUp?.id

@@ -1,3 +1,4 @@
+import type { ConversationState } from "@/lib/conversation/understanding";
 import type { TrustedActor } from "@/lib/control-plane/request-context";
 import type { StepUpProof } from "@/lib/authorization/proofs";
 import type { StepUpChallenge } from "@/lib/auth/contracts";
@@ -21,7 +22,7 @@ import type {
   PreferenceSuggestionResolutionResult
 } from "@/lib/domain/preference-learning";
 
-export const CONTROL_API_SURFACE_VERSION = "1.6.0";
+export const CONTROL_API_SURFACE_VERSION = "1.6.1";
 
 export type ControlApiRole = "owner" | "admin" | "operator" | "viewer";
 
@@ -32,6 +33,14 @@ export interface ControlApiPrincipal {
   role: ControlApiRole;
   /** Server-resolved evidence only. Never accept this proof from request JSON. */
   stepUpProof?: StepUpProof;
+}
+
+export interface PreparedConversationTurn {
+  threadId: string;
+  requestKeyHash?: string;
+  semantics: ConversationSemantics;
+  state: ConversationState;
+  clarification?: string;
 }
 
 export interface OwnerIntentInput {
@@ -53,8 +62,37 @@ export interface OwnerIntentRecord {
   conversation?: ConversationSemantics;
   /** Previous trusted owner intent used only for conversational reference continuation. */
   continuesIntentId?: string;
-  answer?: Readonly<{ text: string; evidenceRefs: readonly string[]; observedAt: string; knownUnknowns: readonly string[] }>;
+  threadId?: string;
+  requestKeyHash?: string;
+  conversationState?: ConversationState;
+  answer?: Readonly<{ text: string; evidenceRefs: readonly string[]; observedAt: string; knownUnknowns: readonly string[];
+    footer?: import("@/lib/operations/footer").OperationalFooter;
+    inboxItems?: readonly import("@/lib/operations/contracts").OwnerInboxItem[] }>;
   receivedAt: string;
+}
+
+export interface OwnerIntentStatusView {
+  intentId: string;
+  conversation: ConversationSemantics;
+  lifecycle: OwnerLifecycleView;
+  answer?: OwnerIntentRecord["answer"];
+  orchestrationId?: string;
+  decisions?: readonly {
+    id: string;
+    status: AuthoritativeDecision["status"];
+    stepId?: string;
+    requiresStepUp: boolean;
+    preview?: import("@/lib/operations/preview").ExecutionPreview;
+    summary?: {
+      title: string;
+      expectedOutcome: string;
+      estimatedCostCents: number;
+      risk: string;
+      verification: string[];
+    };
+  }[];
+  verificationRefs?: readonly string[];
+  results?: readonly JobResultView[];
 }
 
 export interface DecisionMutationInput {
@@ -85,6 +123,13 @@ export interface ResourceEnrollmentStartInput {
   ownerActionDescription?: string;
   challengeToken: string;
   challengeExpiresAt: string;
+  idempotencyKey: string;
+}
+
+export interface GithubResourceEnrollmentInput {
+  repository: string;
+  environment: "production";
+  protectedBranches: readonly string[];
   idempotencyKey: string;
 }
 
@@ -180,9 +225,10 @@ export interface ControlApiApplicationAdapter {
     principal: ControlApiPrincipal,
     input: OwnerIntentInput,
     idempotencyKey: string,
-    correlationId?: string
+    correlationId?: string,
+    prepared?: PreparedConversationTurn
   ): Promise<OwnerIntentRecord>;
-  getOwnerIntentStatus?(principal: ControlApiPrincipal, intentId: string): Promise<{ intentId: string; conversation: ConversationSemantics; lifecycle: OwnerLifecycleView; answer?: OwnerIntentRecord["answer"]; orchestrationId?: string }>;
+  getOwnerIntentStatus?(principal: ControlApiPrincipal, intentId: string): Promise<OwnerIntentStatusView>;
 
   submitObjectives(
     principal: ControlApiPrincipal,
@@ -219,6 +265,10 @@ export interface ControlApiApplicationAdapter {
   discoverResource(
     principal: ControlApiPrincipal,
     input: ResourceDiscoveryInput
+  ): Promise<Resource>;
+  enrollGithubResource?(
+    principal: ControlApiPrincipal,
+    input: GithubResourceEnrollmentInput
   ): Promise<Resource>;
 
   listResourceEnrollments(

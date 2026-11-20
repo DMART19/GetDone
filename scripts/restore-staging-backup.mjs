@@ -3,6 +3,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { spawn, spawnSync } from "node:child_process";
 import pg from "pg";
+import { postgresTlsConnection } from "../lib/persistence/postgres/tls.ts";
+import { assertIsolatedRestoreAdmin } from "./staging-backup-target-guard.mjs";
 import {
   fileSha256,
   readSnapshotComponents,
@@ -119,6 +121,8 @@ if (runtime !== "staging") {
 const backupFile = path.resolve(required("GETDONE_BACKUP_FILE"));
 const manifestFile = path.resolve(required("GETDONE_BACKUP_MANIFEST"));
 const adminConnectionString = required("GETDONE_RESTORE_ADMIN_DATABASE_URL");
+// Prevent independent restore from targeting production or staging servers.
+assertIsolatedRestoreAdmin(adminConnectionString, process.env.GETDONE_BACKUP_SOURCE_DATABASE_URL);
 if (!fs.existsSync(backupFile)) throw new Error("GETDONE_BACKUP_FILE does not exist");
 if (!fs.existsSync(manifestFile)) throw new Error("GETDONE_BACKUP_MANIFEST does not exist");
 
@@ -159,12 +163,9 @@ if (!/^getdone_restore_verify_[A-Za-z0-9_]+$/.test(targetDatabase)) {
 }
 
 const adminPool = new pg.Pool({
-  connectionString: adminConnectionString,
-  max: 2,
-  application_name: "getdone-staging-restore-admin",
-  ssl: process.env.GETDONE_DB_SSL === "false"
-    ? false
-    : { rejectUnauthorized: true }
+    ...postgresTlsConnection(adminConnectionString, process.env),
+    max: 2,
+    application_name: "getdone-staging-restore-admin"
 });
 const targetConnectionString = databaseUrl(adminConnectionString, targetDatabase);
 let targetPool;
@@ -198,12 +199,9 @@ try {
   }
 
   targetPool = new pg.Pool({
-    connectionString: targetConnectionString,
+    ...postgresTlsConnection(targetConnectionString, process.env),
     max: 4,
-    application_name: "getdone-staging-restore-verifier",
-    ssl: process.env.GETDONE_DB_SSL === "false"
-      ? false
-      : { rejectUnauthorized: true }
+    application_name: "getdone-staging-restore-verifier"
   });
 
   const migration = await targetPool.query(
@@ -385,6 +383,8 @@ try {
   if (targetPool) await targetPool.end();
   if (created && !keepDatabase) {
     try {
+      // This process successfully CREATED this exact unique target; only it
+      // may clean it up. The initial CREATE never drops or overwrites anything.
       await adminPool.query(`DROP DATABASE IF EXISTS ${quoteIdentifier(targetDatabase)} WITH (FORCE)`);
     } catch {}
   }

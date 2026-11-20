@@ -29,6 +29,7 @@ import {
   readAnalyticsSourceConfigurationsFromEnv
 } from "@/lib/execution/adapters/analytics-ingestion";
 import type { AnalyticsIngestionEvidenceStore } from "@/lib/analytics/ingestion";
+import { N8nGithubAdapter, N8nDeploymentAdapter, type N8nConfiguration, type N8nAdapterOptions, type N8nDeploymentConfiguration } from "@/lib/operations/n8n-adapter";
 
 export const ORDINARY_INTEGRATION_IMPLEMENTATION_ORDER = Object.freeze([
   "generic-configured-https",
@@ -44,6 +45,9 @@ export const ORDINARY_INTEGRATION_IMPLEMENTATION_ORDER = Object.freeze([
 
 export interface OrdinaryIntegrationRegistryOptions {
   analyticsStore?: AnalyticsIngestionEvidenceStore;
+  n8nAuthority?: N8nAdapterOptions["authority"];
+  n8nEvidence?: N8nAdapterOptions["onEvidence"];
+  n8nDegraded?: N8nAdapterOptions["onDegraded"];
 }
 
 export function createOrdinaryBusinessActionBindingsFromEnv(
@@ -52,7 +56,22 @@ export function createOrdinaryBusinessActionBindingsFromEnv(
 ): readonly BusinessActionAdapterBinding[] {
   const bindings: BusinessActionAdapterBinding[] = [];
 
-  if (env.GETDONE_HTTP_ACTIONS_JSON?.trim()) {
+  if (env.GETDONE_N8N_ENABLED === "true") {
+    if (env.GETDONE_HTTP_ACTIONS_JSON?.trim()) throw new ControlPlaneError("POLICY_BLOCKED", "Narrow n8n mode cannot also bind arbitrary HTTP actions");
+    let configs: N8nDeploymentConfiguration[];
+    try { configs = JSON.parse(env.GETDONE_N8N_DEPLOYMENT_WORKFLOWS_JSON ?? "null"); }
+    catch { throw new ControlPlaneError("VALIDATION_FAILED", "Invalid deployment health workflow registration JSON"); }
+    if (!Array.isArray(configs)) throw new ControlPlaneError("UNAVAILABLE", "Register deployment health before enabling narrow n8n mode");
+    bindings.push({ capability: "http.request", adapter: new N8nDeploymentAdapter(configs, env.GETDONE_N8N_SIGNING_KEY ?? "", { onEvidence: options.n8nEvidence, onDegraded: options.n8nDegraded }) });
+    if (!options.n8nAuthority || !options.n8nEvidence) throw new ControlPlaneError("UNAVAILABLE", "Narrow n8n mode requires durable preview authorization and evidence synchronization");
+    let githubWorkflows: N8nConfiguration[];
+    try { githubWorkflows = JSON.parse(env.GETDONE_N8N_GITHUB_WORKFLOWS_JSON ?? "null"); }
+    catch { throw new ControlPlaneError("VALIDATION_FAILED", "Invalid n8n GitHub workflow registration JSON"); }
+    if (!Array.isArray(githubWorkflows) || !githubWorkflows.length) throw new ControlPlaneError("UNAVAILABLE", "Register both GitHub workflows before enabling narrow n8n mode");
+    const narrow = new N8nGithubAdapter(githubWorkflows, readGithubProviderConfigurationsFromEnv(env), env.GETDONE_N8N_SIGNING_KEY ?? "",
+      { authority: options.n8nAuthority, onEvidence: options.n8nEvidence, onDegraded: options.n8nDegraded });
+    return Object.freeze([...bindings, { capability: "github.repository.read", adapter: narrow }, { capability: "github.branch.create", adapter: narrow }]);
+  } else if (env.GETDONE_HTTP_ACTIONS_JSON?.trim()) {
     bindings.push({
       capability: "http.request",
       adapter: new ConfiguredHttpActionAdapter(

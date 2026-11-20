@@ -24,10 +24,11 @@ async function responseEnvelope<T>(response: Response): Promise<Envelope<T>> {
   return await response.json().catch(() => ({})) as Envelope<T>;
 }
 
-async function performPasskeyStepUp() {
+async function performPasskeyStepUp(portfolioId?: string) {
   const beginResponse = await fetch("/api/control/auth/step-up/begin", {
     method: "POST",
-    cache: "no-store"
+    cache: "no-store",
+    headers: portfolioId ? { "x-getdone-portfolio-id": portfolioId } : {}
   });
   const begin = await responseEnvelope<BrowserPasskeyChallenge & {
     challengeId: string;
@@ -41,7 +42,7 @@ async function performPasskeyStepUp() {
   const verifyResponse = await fetch("/api/control/auth/step-up/verify", {
     method: "POST",
     cache: "no-store",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", ...(portfolioId ? { "x-getdone-portfolio-id": portfolioId } : {}) },
     body: JSON.stringify({
       challengeId: begin.data.challengeId,
       credential
@@ -56,13 +57,20 @@ async function performPasskeyStepUp() {
 export function DecisionActions({
   decisionId,
   initialStatus,
-  approveLabel = "Approve"
+  approveLabel = "Approve",
+  portfolioId,
+  onResolved,
+  authoritative
 }: {
   decisionId: string;
   initialStatus: DecisionStatus;
   approveLabel?: string;
+  portfolioId?: string;
+  onResolved?: () => void;
+  authoritative?: boolean;
 }) {
   const router = useRouter();
+  const isAuthoritative = authoritative ?? authoritativeRuntime();
   const [status, setStatus] = useState<DecisionStatus>(initialStatus);
   const [note, setNote] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -74,7 +82,7 @@ export function DecisionActions({
         ? "modified"
         : "rejected";
 
-    if (!authoritativeRuntime()) {
+    if (!isAuthoritative) {
       setStatus(next);
       setNote(`Development preview status: ${next}. No server-side approval or side effect occurs.`);
       return;
@@ -91,7 +99,8 @@ export function DecisionActions({
         cache: "no-store",
         headers: {
           "content-type": "application/json",
-          "idempotency-key": idempotencyKey
+          "idempotency-key": idempotencyKey,
+          ...(portfolioId ? { "x-getdone-portfolio-id": portfolioId } : {})
         },
         body: JSON.stringify({ action })
       });
@@ -110,7 +119,7 @@ export function DecisionActions({
         && /step-up/i.test(message)
       ) {
         setNote("Passkey approval required...");
-        await performPasskeyStepUp();
+        await performPasskeyStepUp(portfolioId);
         result = await sendMutation();
       }
 
@@ -119,6 +128,7 @@ export function DecisionActions({
       }
       setStatus(result.value.data.status);
       setNote(`Authoritative status: ${result.value.data.status}.`);
+      onResolved?.();
       router.refresh();
     } catch (error) {
       setNote(error instanceof Error ? error.message : "Decision mutation failed");
@@ -131,7 +141,7 @@ export function DecisionActions({
     <div className="decision-actions">
       <div className="inline-note">
         {note ?? (
-          authoritativeRuntime()
+          isAuthoritative
             ? <>Authoritative status: <strong>{status}</strong>.</>
             : <>Development preview status: <strong>{status}</strong>. No server-side approval or side effect occurs.</>
         )}

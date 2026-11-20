@@ -324,7 +324,7 @@ test.describe.serial("real browser WebAuthn ceremony", () => {
           "content-type": "application/json",
           "idempotency-key": "rate-limit-owner-intent"
         },
-        body: JSON.stringify({ message: "rate limit acceptance" })
+        body: JSON.stringify({ message: "rate limit acceptance", threadId: crypto.randomUUID() })
       });
       return {
         status: response.status,

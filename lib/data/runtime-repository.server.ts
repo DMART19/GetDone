@@ -167,6 +167,7 @@ function toResource(value: AuthoritativeResource): Resource {
       { label: "Trust", value: value.trustClass },
       { label: "Version", value: String(value.version) }
     ],
+    capabilityNames: [...value.capabilityNames],
     workloads: { running: 0, queued: 0, utilization: 0 },
     icon: resourceIcon(value.type)
   };

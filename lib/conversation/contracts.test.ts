@@ -16,7 +16,7 @@ describe("conversation boundary", () => {
   ] as const)("%s -> %s", (message, expected) => expect(classifyConversationIntent(message)).toBe(expected));
 
   it("resolves bounded named references without inventing entities", () => {
-    expect(resolveConversationReferences("Is GitHub connected for GetDone and Slack?")).toEqual([
+    expect(resolveConversationReferences("Is GitHub connected for GetDone and Slack?", [{ name: "GetDone" }])).toEqual([
       { kind: "integration", name: "GitHub" },
       { kind: "integration", name: "Slack" },
       { kind: "company", name: "GetDone" }
@@ -35,7 +35,7 @@ describe("conversation boundary", () => {
     expect(classifyConversationIntent("Improve release readiness")).toBe("objective_request");
     expect(classifyConversationIntent("What is revenue?")).toBe("status_query");
 
-    expect(resolveConversationReferences("github GitHub GITHUB for OpsManagerPro opsmanagerpro")).toEqual([
+    expect(resolveConversationReferences("github GitHub GITHUB for OpsManagerPro opsmanagerpro", [{ name: "OpsManagerPro" }])).toEqual([
       { kind: "integration", name: "github" },
       { kind: "company", name: "OpsManagerPro" }
     ]);

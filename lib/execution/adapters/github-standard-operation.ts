@@ -20,7 +20,7 @@ import {
   type BusinessActionAdapterDeclaration
 } from "@/lib/execution/adapters/ordinary-integration-framework";
 
-export const GITHUB_STANDARD_OPERATION_ADAPTER_VERSION="1.0.0";
+export const GITHUB_STANDARD_OPERATION_ADAPTER_VERSION="1.0.2";
 
 const environmentSchema=z.enum(["development","staging","production"]);
 const repositoryPattern=/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
@@ -422,7 +422,7 @@ export class GithubStandardOperationAdapter implements BusinessActionAdapter {
 
     if(request.capability==="github.branch.create"){
       const input=validateCapabilityInput<{
-        companyId:string;connectionId:string;repository:string;branch:string;fromRef:string;
+        companyId:string;connectionId:string;repository:string;branch:string;fromRef:string;expectedSourceSha?:string;
       }>("github.branch.create",request.input);
       if(isProtected(configuration,input.branch)){
         throw new ControlPlaneError("POLICY_BLOCKED","Creating a configured protected branch is blocked from ordinary branch creation");
@@ -444,6 +444,8 @@ export class GithubStandardOperationAdapter implements BusinessActionAdapter {
         ? source.body.object.sha
         : undefined;
       if(!sourceSha) throw new ControlPlaneError("UNAVAILABLE","GitHub source ref response is malformed");
+      if(input.expectedSourceSha && input.expectedSourceSha !== sourceSha)
+        throw new ControlPlaneError("FORBIDDEN","Source ref changed after preview; a new preview and approval are required");
       const created=await requestJson(
         this.fetchImpl,
         apiUrl(configuration,`repos/${repository}/git/refs`),

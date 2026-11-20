@@ -1,0 +1,62 @@
+name: Governed continuation disposable Postgres acceptance
+on:
+  push:
+    branches: ["feature/operational-intelligence-consolidated-20261022"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  isolated-reentry-and-worker-recovery:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: disposable-only-ci
+          POSTGRES_DB: getdone_auth_test_reentry
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:disposable-only-ci@127.0.0.1:5432/getdone_auth_test_reentry
+      GETDONE_RUNTIME_ENV: development
+      GETDONE_DB_SSL: "false"
+      GETDONE_POSTGRES_INTEGRATION: "true"
+      GETDONE_AUTH_BOUNDARY_INTEGRATION: "true"
+      GETDONE_AUTH_BOUNDARY_TEST_DATABASE_URL: postgresql://postgres:disposable-only-ci@127.0.0.1:5432/getdone_auth_test_reentry
+      GETDONE_GOVERNED_REENTRY_ENABLED: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm ci
+      - name: TypeScript and lint
+        run: |
+          npm run typecheck
+          npm run lint
+      - name: Migrate disposable PostgreSQL only
+        run: npm run db:migrate
+      - name: Guarded reentry and related regressions
+        run: npx vitest run lib/orchestration/guarded-continuation.test.ts lib/orchestration/guarded-continuation.server.test.ts lib/orchestration/governed-reasoning.test.ts lib/operations/objective-evaluation.continuation.test.ts
+      - name: Build disposable worker crash-restart child process
+        run: npm run build:worker-acceptance
+      - name: Concurrency, restart, and tenant RLS against PostgreSQL
+        run: npx vitest run lib/execution/queue-backpressure-postgres.integration.test.ts lib/execution/worker-crash-restart.integration.test.ts lib/auth/auth-runtime-boundary.integration.test.ts lib/execution/worker-rls-boundary.integration.test.ts --maxWorkers=2
+      - name: Full deterministic regression suite
+        run: npm test -- --maxWorkers=2
+      - name: Build both workers and verify architecture
+        run: |
+          npm run build:worker
+          npm run build:orchestration-worker
+          npm run verify:architecture
+          npm run verify:secrets

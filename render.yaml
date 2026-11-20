@@ -7,7 +7,7 @@ services:
     region: oregon
     plan: starter
     repo: https://github.com/DMART19/GetDone
-    branch: main
+    branch: codex/narrow-optimization-addendum
     autoDeployTrigger: off
     buildCommand: npm ci --include=dev && npm run build
     startCommand: npm run start
@@ -51,13 +51,23 @@ services:
         sync: false
       - key: GETDONE_GITHUB_INSTALLATION_ID
         sync: false
+      - key: GETDONE_N8N_ENABLED
+        value: 'false'
+      - key: GETDONE_N8N_SIGNING_KEY
+        sync: false
+      - key: GETDONE_N8N_GITHUB_WORKFLOWS_JSON
+        sync: false
+      - key: GETDONE_N8N_DEPLOYMENT_WORKFLOWS_JSON
+        sync: false
+      - key: GETDONE_DEPLOYMENT_HEALTH_TARGET_URL
+        value: https://getdone-web.onrender.com/api/health
   - type: worker
     name: getdone-job-worker
     runtime: node
     region: oregon
     plan: starter
     repo: https://github.com/DMART19/GetDone
-    branch: main
+    branch: codex/narrow-optimization-addendum
     autoDeployTrigger: off
     buildCommand: npm ci --include=dev && npm run build:worker
     startCommand: npm run start:worker
@@ -150,13 +160,38 @@ services:
           name: getdone-web
           type: web
           envVarKey: GETDONE_GITHUB_INSTALLATION_ID
+      - key: GETDONE_N8N_ENABLED
+        fromService:
+          name: getdone-web
+          type: web
+          envVarKey: GETDONE_N8N_ENABLED
+      - key: GETDONE_N8N_SIGNING_KEY
+        fromService:
+          name: getdone-web
+          type: web
+          envVarKey: GETDONE_N8N_SIGNING_KEY
+      - key: GETDONE_N8N_GITHUB_WORKFLOWS_JSON
+        fromService:
+          name: getdone-web
+          type: web
+          envVarKey: GETDONE_N8N_GITHUB_WORKFLOWS_JSON
+      - key: GETDONE_N8N_DEPLOYMENT_WORKFLOWS_JSON
+        fromService:
+          name: getdone-web
+          type: web
+          envVarKey: GETDONE_N8N_DEPLOYMENT_WORKFLOWS_JSON
+      - key: GETDONE_DEPLOYMENT_HEALTH_TARGET_URL
+        fromService:
+          name: getdone-web
+          type: web
+          envVarKey: GETDONE_DEPLOYMENT_HEALTH_TARGET_URL
   - type: worker
     name: getdone-orchestration-worker
     runtime: node
     region: oregon
     plan: starter
     repo: https://github.com/DMART19/GetDone
-    branch: main
+    branch: codex/narrow-optimization-addendum
     autoDeployTrigger: off
     buildCommand: npm ci --include=dev && npm run build:orchestration-worker
     startCommand: npm run start:orchestration-worker
@@ -249,6 +284,31 @@ services:
           name: getdone-web
           type: web
           envVarKey: GETDONE_GITHUB_INSTALLATION_ID
+      - key: GETDONE_N8N_ENABLED
+        fromService:
+          name: getdone-web
+          type: web
+          envVarKey: GETDONE_N8N_ENABLED
+      - key: GETDONE_N8N_SIGNING_KEY
+        fromService:
+          name: getdone-web
+          type: web
+          envVarKey: GETDONE_N8N_SIGNING_KEY
+      - key: GETDONE_N8N_GITHUB_WORKFLOWS_JSON
+        fromService:
+          name: getdone-web
+          type: web
+          envVarKey: GETDONE_N8N_GITHUB_WORKFLOWS_JSON
+      - key: GETDONE_N8N_DEPLOYMENT_WORKFLOWS_JSON
+        fromService:
+          name: getdone-web
+          type: web
+          envVarKey: GETDONE_N8N_DEPLOYMENT_WORKFLOWS_JSON
+      - key: GETDONE_DEPLOYMENT_HEALTH_TARGET_URL
+        fromService:
+          name: getdone-web
+          type: web
+          envVarKey: GETDONE_DEPLOYMENT_HEALTH_TARGET_URL
 envVarGroups:
   - name: getdone-production-runtime
     envVars:

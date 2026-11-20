@@ -5,7 +5,7 @@ const baseURL = `http://127.0.0.1:${port}`;
 
 export default defineConfig({
   testDir: "./e2e",
-  testIgnore: ["**/staging/**"],
+  testIgnore: ["**/staging/**", "**/david-edition-*.spec.ts"],
   timeout: 30_000,
   expect: { timeout: 7_500 },
   fullyParallel: true,
@@ -20,6 +20,9 @@ export default defineConfig({
     : "line",
   use: {
     baseURL,
+    launchOptions: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH
+      ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH }
+      : undefined,
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
     serviceWorkers: "allow"

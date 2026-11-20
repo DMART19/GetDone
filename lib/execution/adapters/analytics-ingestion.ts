@@ -20,7 +20,7 @@ import {
   type BusinessActionAdapterDeclaration
 } from "@/lib/execution/adapters/ordinary-integration-framework";
 
-export const ANALYTICS_DATA_INGESTION_ADAPTER_VERSION="1.0.0";
+export const ANALYTICS_DATA_INGESTION_ADAPTER_VERSION="1.0.2";
 
 const environmentSchema=z.enum(["development","staging","production"]);
 const fieldTypeSchema=z.enum(["string","number","boolean","datetime","object","array"]);
@@ -416,7 +416,7 @@ export function readAnalyticsSourceConfigurationsFromEnv(
     maxResponseBytes:z.number().int().positive().optional(),
     maxFreshnessSeconds:z.number().int().positive().optional(),
     schema:z.object({
-      fields:z.record(fieldTypeSchema),
+      fields:z.record(z.string(), fieldTypeSchema),
       required:z.array(z.string().min(1)).optional()
     }).strict()
   }).strict();

@@ -69,6 +69,20 @@ export function readPostgresConfigFromEnv(
     throw new ControlPlaneError("VALIDATION_FAILED", "DATABASE_URL must use postgres:// or postgresql://");
   }
 
+  // An authoritative web/worker process must never inherit the database
+  // login's broad table privileges merely because GETDONE_DB_RUNTIME_ROLE
+  // was omitted. Supabase's postgres login may BYPASSRLS; fail closed.
+  const configuredRole = runtimeRole(env.GETDONE_DB_RUNTIME_ROLE);
+  if (
+    (env.GETDONE_RUNTIME_ENV === "staging" || env.GETDONE_RUNTIME_ENV === "production")
+    && configuredRole !== "getdone_tenant_runtime"
+  ) {
+    throw new ControlPlaneError(
+      "UNAVAILABLE",
+      "Authoritative PostgreSQL requires GETDONE_DB_RUNTIME_ROLE=getdone_tenant_runtime"
+    );
+  }
+
   return {
     connectionString,
     maxConnections: positiveInteger(env.GETDONE_DB_POOL_MAX, 10, "GETDONE_DB_POOL_MAX"),
@@ -82,7 +96,7 @@ export function readPostgresConfigFromEnv(
       5_000,
       "GETDONE_DB_CONNECTION_TIMEOUT_MS"
     ),
-    runtimeRole: runtimeRole(env.GETDONE_DB_RUNTIME_ROLE),
+    runtimeRole: configuredRole,
     ssl: env.GETDONE_DB_SSL !== "false"
   };
 }

@@ -57,6 +57,7 @@ export type OrchestrationContextSourceInput =
       message: string;
       channel: OwnerIntentRecord["channel"];
       conversation: OwnerIntentRecord["conversation"];
+      conversationState?: OwnerIntentRecord["conversationState"];
     }
   | {
       type: "objective";
@@ -214,7 +215,13 @@ export function createOwnerIntentContextSnapshot(input: {
       type: "owner-intent" as const,
       message: input.intent.message,
       channel: input.intent.channel,
-      conversation: input.intent.conversation
+      conversation: input.intent.conversation,
+      conversationState: input.intent.conversationState ? {
+        ...input.intent.conversationState,
+        // Only the selected proposal is planning input for an action continuation.
+        proposedActions: input.intent.conversationState.selectedAction
+          ? [input.intent.conversationState.selectedAction] : input.intent.conversationState.proposedActions
+      } : undefined
     },
     assembledContext: input.assembledContext,
     createdAt: new Date(input.createdAt).toISOString()
@@ -331,6 +338,7 @@ export async function advanceOwnerIntentAcceptedToContextReady(input: {
     contextPolicy.scope,
     {
       ...contextPolicy.options,
+      question: `${intent.conversation?.topic ?? ""} ${intent.message}`,
       now: contextPolicy.options?.now ?? now().getTime()
     }
   );
