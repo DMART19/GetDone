@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { Pool } from "pg";
 import { createCommandEnvelope } from "@/lib/control-plane/command-envelope";
 import type { OwnerIntentRecord } from "@/lib/control-api/contracts";
 import type { AuthoritativeDecision } from "@/lib/domain/decision-service";
@@ -342,12 +343,21 @@ integrationDescribe("PostgreSQL durable policy-evaluated -> authorized", () => {
 
   beforeAll(async () => {
     database = new PostgresDatabase(readPostgresConfigFromEnv(process.env));
-    await db().query(
-      `INSERT INTO auth_users(id,status)
-       VALUES($1,'active')
-       ON CONFLICT (id) DO NOTHING`,
-      [userId]
-    );
+    // Operator-only CI fixture. The tenant runtime must not create auth users.
+    const admin = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: process.env.GETDONE_DB_SSL === "false" ? false : { rejectUnauthorized: true }
+    });
+    try {
+      await admin.query(
+        `INSERT INTO auth_users(id,status)
+         VALUES($1,'active')
+         ON CONFLICT (id) DO NOTHING`,
+        [userId]
+      );
+    } finally {
+      await admin.end();
+    }
   });
 
   afterAll(async () => {

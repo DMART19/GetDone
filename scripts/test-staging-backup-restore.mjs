@@ -308,6 +308,9 @@ try {
 
   const backupOutput = run("scripts/create-staging-backup.mjs", {
     GETDONE_RUNTIME_ENV: "staging",
+    // Permit only the named disposable local source; production/staging
+    // Supabase endpoints never qualify for this isolated-test override.
+    GETDONE_ALLOW_ISOLATED_RESTORE_TEST: "true",
     DATABASE_URL: sourceUrl,
     GETDONE_DB_SSL: process.env.GETDONE_DB_SSL ?? "false",
     GETDONE_BACKUP_FILE: backupFile,
@@ -339,6 +342,7 @@ try {
 
   const restoreOutput = run("scripts/restore-staging-backup.mjs", {
     GETDONE_RUNTIME_ENV: "staging",
+    GETDONE_BACKUP_SOURCE_DATABASE_URL: sourceUrl,
     GETDONE_DB_SSL: process.env.GETDONE_DB_SSL ?? "false",
     GETDONE_BACKUP_FILE: backupFile,
     GETDONE_BACKUP_MANIFEST: manifestFile,

@@ -44,15 +44,18 @@ async function main() {
     && decodeURIComponent(url.username) === "postgres." + PROJECT_ID
     && (url.port === "5432" || !url.port);
   if (!direct && !pooled) fail("DATABASE_URL is not the approved GetDone staging Supabase target");
-  const root = requireValue("PGSSLROOTCERT");
+  const root = process.env.PGSSLROOTCERT?.trim();
+  const inline = process.env.GETDONE_DB_CA_PEM?.trim();
+  if (!root && !inline) fail("PGSSLROOTCERT or GETDONE_DB_CA_PEM is required");
+  if (root && inline) fail("Only one database CA source may be configured");
   let certificate;
   try {
-    const pem = readFileSync(root, "utf8");
+    const pem = inline || readFileSync(root, "utf8");
     const first = pem.match(/-----BEGIN CERTIFICATE-----[\s\S]+?-----END CERTIFICATE-----/)?.[0];
     if (!first) fail("PGSSLROOTCERT is not a PEM certificate");
     certificate = new X509Certificate(first);
   } catch {
-    fail("PGSSLROOTCERT is not a readable valid X.509 PEM certificate");
+    fail("Database CA is not a readable valid X.509 PEM certificate");
   }
   if (Date.parse(certificate.validTo) <= Date.now() || Date.parse(certificate.validFrom) > Date.now()) {
     fail("PGSSLROOTCERT certificate is not currently valid");

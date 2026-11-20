@@ -108,7 +108,9 @@ function providerRecord(jobId: string): BusinessActionExecutionRecord {
 
 describeIntegration("disaster recovery from real PostgreSQL backup", () => {
   const suffix = `${process.pid}_${Date.now()}`;
-  const sourceName = `getdone_dr_source_${suffix}`;
+  // The real backup command accepts this prefix only with the explicit
+  // loopback-only isolated-test permit; a live Supabase source cannot use it.
+  const sourceName = `getdone_backup_source_dr_${suffix}`;
   const restoredName = `getdone_restore_verify_dr_${suffix}`;
   const backupFile = path.join(os.tmpdir(), `getdone-dr-${suffix}.dump`);
   const manifestFile = `${backupFile}.manifest.json`;
@@ -141,6 +143,22 @@ describeIntegration("disaster recovery from real PostgreSQL backup", () => {
       DATABASE_URL: sourceUrl,
       GETDONE_DB_SSL: process.env.GETDONE_DB_SSL ?? "false"
     });
+
+    // A genuine restored owner-access health check requires an active
+    // identity and membership in the snapshot. Seed through the isolated
+    // test administrator: ordinary tenant RLS must remain fail-closed.
+    const fixtureAdmin = new Pool({ connectionString: sourceUrl, ssl });
+    try {
+      await fixtureAdmin.query("INSERT INTO auth_users(id,status) VALUES($1,'active')", ["owner-dr"]);
+      await fixtureAdmin.query("INSERT INTO organizations(id,name) VALUES($1,$2)", ["org-dr","Recovery Test Organization"]);
+      await fixtureAdmin.query("INSERT INTO companies(id,organization_id,name) VALUES($1,$2,$3)", ["company-dr","org-dr","Recovery Test Company"]);
+      await fixtureAdmin.query("INSERT INTO portfolios(id,organization_id,company_id,name) VALUES($1,$2,$3,$4)", ["portfolio-dr","org-dr","company-dr","Recovery Test Portfolio"]);
+      await fixtureAdmin.query("INSERT INTO organization_memberships(user_id,organization_id,role,status) VALUES($1,$2,'owner','active')", ["owner-dr","org-dr"]);
+      await fixtureAdmin.query("INSERT INTO company_memberships(user_id,company_id,role,status) VALUES($1,$2,'owner','active')", ["owner-dr","company-dr"]);
+      await fixtureAdmin.query("INSERT INTO portfolio_memberships(user_id,portfolio_id,company_id,role,status) VALUES($1,$2,$3,'owner','active')", ["owner-dr","portfolio-dr","company-dr"]);
+    } finally {
+      await fixtureAdmin.end();
+    }
 
     const sourceDb = new PostgresDatabase({
       connectionString: sourceUrl,
@@ -192,6 +210,7 @@ describeIntegration("disaster recovery from real PostgreSQL backup", () => {
 
     const backup = JSON.parse(runNode("scripts/create-staging-backup.mjs", {
       GETDONE_RUNTIME_ENV: "staging",
+      GETDONE_ALLOW_ISOLATED_RESTORE_TEST: "true",
       DATABASE_URL: sourceUrl,
       GETDONE_DB_SSL: process.env.GETDONE_DB_SSL ?? "false",
       GETDONE_BACKUP_FILE: backupFile,
@@ -213,6 +232,7 @@ describeIntegration("disaster recovery from real PostgreSQL backup", () => {
       GETDONE_BACKUP_FILE: backupFile,
       GETDONE_BACKUP_MANIFEST: manifestFile,
       GETDONE_RESTORE_ADMIN_DATABASE_URL: baseConnectionString,
+      GETDONE_BACKUP_SOURCE_DATABASE_URL: sourceUrl,
       GETDONE_RESTORE_DATABASE_NAME: restoredName,
       GETDONE_RESTORE_KEEP_DATABASE: "true",
       GETDONE_RESTORE_SKIP_BUILD: fs.existsSync(path.join(process.cwd(), ".next", "BUILD_ID"))

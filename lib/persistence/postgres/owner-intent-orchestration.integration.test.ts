@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { Pool } from "pg";
 import type { OwnerIntentRecord } from "@/lib/control-api/contracts";
 import {
   advanceOwnerIntentAcceptedToContextReady,
@@ -61,12 +62,23 @@ integrationDescribe("PostgreSQL OwnerIntent -> orchestration admission", () => {
 
   beforeAll(async () => {
     database = new PostgresDatabase(readPostgresConfigFromEnv(process.env));
-    await db().query(
-      `INSERT INTO auth_users(id,status)
-       VALUES($1,'active')
-       ON CONFLICT (id) DO NOTHING`,
-      [userId]
-    );
+    // Fixture setup is operator-only: the tenant runtime must never gain
+    // unscoped permission to create auth identities. All actual OwnerIntent
+    // behavior below still runs with scoped tenant RLS.
+    const admin = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: process.env.GETDONE_DB_SSL === "false" ? false : { rejectUnauthorized: true }
+    });
+    try {
+      await admin.query(
+        `INSERT INTO auth_users(id,status)
+         VALUES($1,'active')
+         ON CONFLICT (id) DO NOTHING`,
+        [userId]
+      );
+    } finally {
+      await admin.end();
+    }
   });
 
   afterAll(async () => {

@@ -13,6 +13,18 @@ const PEM_CERTIFICATE = /-----BEGIN CERTIFICATE-----[\s\S]+?-----END CERTIFICATE
  */
 function readRootCertificate(env: TlsEnvironment): string | undefined {
   const certificatePath = env.PGSSLROOTCERT?.trim();
+  const inlinePem = env.GETDONE_DB_CA_PEM?.trim();
+  if (inlinePem && certificatePath) {
+    throw new Error("Provide only one database CA source: GETDONE_DB_CA_PEM or PGSSLROOTCERT");
+  }
+  // Railway can supply a certificate as a private variable without exposing
+  // a filesystem mount. Node TLS still performs full certificate/hostname validation.
+  if (inlinePem) {
+    if (!PEM_CERTIFICATE.test(inlinePem)) {
+      throw new Error("GETDONE_DB_CA_PEM must contain a PEM-encoded certificate");
+    }
+    return inlinePem;
+  }
   if (!certificatePath) return undefined;
   let pem: string;
   try {

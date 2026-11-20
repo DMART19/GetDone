@@ -51,6 +51,23 @@ describe("PostgreSQL TLS trust anchor (PGSSLROOTCERT)", () => {
   });
   afterAll(() => rmSync(directory, { recursive: true, force: true }));
 
+  it("accepts a private inline CA for Railway with hostname verification still required", () => {
+    const config = postgresTlsConnection(url, {
+      ...production, GETDONE_DB_CA_PEM: pem, PGSSLMODE: "verify-full"
+    });
+    expect(config.ssl).toEqual({ rejectUnauthorized: true, ca: pem.trim() });
+    expect(new Client(config).ssl).toEqual({ rejectUnauthorized: true, ca: pem.trim() });
+  });
+  it("fails closed when inline and file CA sources conflict", () => {
+    expect(() => postgresTlsConnection(url, {
+      ...production, GETDONE_DB_CA_PEM: pem, PGSSLROOTCERT: caFile
+    })).toThrow(/only one database CA source/);
+  });
+  it("rejects a malformed inline CA without including its contents in an error", () => {
+    expect(() => postgresTlsConnection(url, {
+      ...production, GETDONE_DB_CA_PEM: "not-a-certificate"
+    })).toThrow(/GETDONE_DB_CA_PEM/);
+  });
   it("passes the configured CA to the pg client as ssl.ca and keeps verification enabled", () => {
     const config = postgresTlsConnection(url, { ...production, PGSSLROOTCERT: caFile, PGSSLMODE: "verify-full" });
     expect(config.ssl).toEqual({ rejectUnauthorized: true, ca: pem });
