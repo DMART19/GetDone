@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -10,6 +11,9 @@ const ssl = process.env.GETDONE_DB_SSL === "false"
   ? false
   : { rejectUnauthorized: true };
 const root = process.cwd();
+const releaseRegistry = JSON.parse(readFileSync(path.join(root, "release", "version-registry.json"), "utf8"));
+const expectedMigration = releaseRegistry.database?.migrationVersion;
+if (!expectedMigration) throw new Error("Release registry is missing database migration truth");
 
 function quoteIdentifier(value: string) {
   return '"' + value.replaceAll('"', '""') + '"';
@@ -208,7 +212,7 @@ integrationDescribe("production runtime validator PostgreSQL acceptance", () => 
       processRole: "web",
       database: {
         database: "reachable",
-        migration: "2026-10-10.1",
+        migration: expectedMigration,
         tenantRls: "verified",
         tenantRuntimeRole: "verified",
         effectiveRuntimeRole: "verified",
